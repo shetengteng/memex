@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, inject } from 'vue'
+import { ref, watch } from 'vue'
 import { Search, X, Loader2 } from 'lucide-vue-next'
-import type { SearchResult, ViewName } from '@/types'
+import type { SearchResult } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import SearchResultItem from '@/components/SearchResultItem.vue'
 import ViewHeader from '@/components/ViewHeader.vue'
 
-const navigate = inject<(view: ViewName) => void>('navigate')!
 const { searchMemex } = useMemex()
 
 const query = ref('')

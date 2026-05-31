@@ -22,3 +22,4 @@ prompts.txt
 *.db-wal
 target/
 tauri-app/node_modules/
+tauri-app/dist/
