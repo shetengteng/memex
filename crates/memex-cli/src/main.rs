@@ -18,23 +18,34 @@ struct Cli {
 enum Commands {
     /// Ingest sessions from AI tool history
     Ingest {
-        /// Only ingest from a specific adapter
         #[arg(long)]
         adapter: Option<String>,
     },
     /// Search across all sessions
     Search {
-        /// Search query
         query: String,
-        /// Max results
         #[arg(short, long, default_value = "10")]
         limit: usize,
+        #[arg(long, help = "Filter by adapter (claude_code, cursor, codex, opencode)")]
+        adapter: Option<String>,
+        #[arg(long, help = "Filter by project name")]
+        project: Option<String>,
+        #[arg(long, help = "Filter by chunk type")]
+        chunk_type: Option<String>,
+        #[arg(long, help = "Only results after this date (RFC3339)")]
+        after: Option<String>,
+        #[arg(long, help = "Only results before this date (RFC3339)")]
+        before: Option<String>,
     },
     /// List sessions
     Sessions {
-        /// Show N most recent sessions
         #[arg(long, default_value = "20")]
         recent: usize,
+    },
+    /// Show a specific session with its messages
+    Session {
+        /// Session ID (full or prefix)
+        id: String,
     },
     /// Show statistics
     Stats,
@@ -43,12 +54,25 @@ enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// Run system diagnostics
+    Doctor,
+    /// Export data to a tar.gz archive
+    Backup {
+        /// Output file path
+        path: String,
+    },
+    /// Rebuild SQLite index from Markdown session files
+    RebuildIndex,
+    /// Start MCP server (stdio JSON-RPC)
+    Mcp,
 }
 
 #[derive(Subcommand)]
 enum ConfigAction {
     /// Show current configuration
     Show,
+    /// Set a configuration value
+    Set { key: String, value: String },
 }
 
 fn main() -> Result<()> {
@@ -61,11 +85,19 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Ingest { adapter } => commands::ingest::run(adapter.as_deref(), cli.json),
-        Commands::Search { query, limit } => commands::search::run(&query, limit, cli.json),
+        Commands::Search { query, limit, adapter, project, chunk_type, after, before } => {
+            commands::search::run(&query, limit, cli.json, adapter, project, chunk_type, after, before)
+        }
         Commands::Sessions { recent } => commands::sessions::run(recent, cli.json),
+        Commands::Session { id } => commands::session::run(&id, cli.json),
         Commands::Stats => commands::stats::run(cli.json),
         Commands::Config { action } => match action {
             ConfigAction::Show => commands::config::show(cli.json),
+            ConfigAction::Set { key, value } => commands::config::set(&key, &value, cli.json),
         },
+        Commands::Doctor => commands::doctor::run(cli.json),
+        Commands::Backup { path } => commands::backup::run(&path, cli.json),
+        Commands::RebuildIndex => commands::rebuild::run(cli.json),
+        Commands::Mcp => commands::mcp::run(),
     }
 }

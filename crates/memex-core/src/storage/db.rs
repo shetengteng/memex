@@ -10,7 +10,7 @@ use serde::Serialize;
 const SCHEMA_VERSION: u32 = 1;
 
 pub struct Db {
-    conn: Mutex<Connection>,
+    pub(crate) conn: Mutex<Connection>,
 }
 
 impl Db {
@@ -120,7 +120,20 @@ impl Db {
                 VALUES ('delete', old.id, old.content);
                 INSERT INTO chunks_fts(rowid, content)
                 VALUES (new.id, new.content);
-            END;",
+            END;
+
+            CREATE TABLE IF NOT EXISTS access_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query TEXT NOT NULL,
+                result_count INTEGER NOT NULL DEFAULT 0,
+                latency_ms INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS kv (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );",
         )?;
 
         Ok(())
@@ -237,9 +250,14 @@ impl Db {
         let mut stmt = conn.prepare(
             "SELECT c.id, c.session_id, c.message_id, c.chunk_type, c.content,
                     snippet(chunks_fts, 0, '<mark>', '</mark>', '...', 32) as snip,
-                    rank
+                    rank,
+                    s.source,
+                    s.project_path,
+                    m.timestamp
              FROM chunks_fts
              JOIN chunks c ON c.id = chunks_fts.rowid
+             LEFT JOIN sessions s ON c.session_id = s.id
+             LEFT JOIN messages m ON c.message_id = m.id
              WHERE chunks_fts MATCH ?1
              ORDER BY rank
              LIMIT ?2",
@@ -256,6 +274,9 @@ impl Db {
                     snippet: row.get(5)?,
                     rank: row.get(6)?,
                     match_reason: String::new(),
+                    adapter: row.get(7)?,
+                    project: row.get(8)?,
+                    timestamp: row.get(9)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -371,6 +392,7 @@ mod tests {
         let results = db.fts_search("redis", 10).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].snippet.contains("redis"));
+        assert_eq!(results[0].adapter.as_deref(), Some("claude_code"));
     }
 
     #[test]

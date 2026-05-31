@@ -21,3 +21,4 @@ prompts.txt
 *.db-shm
 *.db-wal
 target/
+tauri-app/node_modules/

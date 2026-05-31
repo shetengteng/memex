@@ -1,9 +1,20 @@
+use std::time::Instant;
+
 use anyhow::Result;
-use memex_core::retriever::Retriever;
+use memex_core::retriever::{Retriever, SearchFilter};
 use memex_core::storage::db::Db;
 use memex_core::memex_dir;
 
-pub fn run(query: &str, limit: usize, json: bool) -> Result<()> {
+pub fn run(
+    query: &str,
+    limit: usize,
+    json: bool,
+    adapter: Option<String>,
+    project: Option<String>,
+    chunk_type: Option<String>,
+    after: Option<String>,
+    before: Option<String>,
+) -> Result<()> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
@@ -16,19 +27,34 @@ pub fn run(query: &str, limit: usize, json: bool) -> Result<()> {
 
     let db = Db::open(&db_path)?;
     let retriever = Retriever::new(&db);
-    let results = retriever.search(query, limit)?;
+
+    let filter = SearchFilter {
+        adapter,
+        project,
+        session_id: None,
+        chunk_type,
+        after,
+        before,
+    };
+
+    let start = Instant::now();
+    let results = retriever.search_filtered(query, limit, &filter)?;
+    let latency = start.elapsed().as_millis() as u64;
+
+    let _ = db.write_access_log(query, results.len(), latency);
 
     if json {
         println!("{}", serde_json::to_string_pretty(&results)?);
+    } else if results.is_empty() {
+        println!("No results for \"{}\"", query);
     } else {
-        if results.is_empty() {
-            println!("No results for \"{}\"", query);
-        } else {
-            println!("Found {} result(s) for \"{}\":\n", results.len(), query);
-            for (i, r) in results.iter().enumerate() {
-                println!("{}. [{}] session:{}", i + 1, r.chunk_type, &r.session_id[..8.min(r.session_id.len())]);
-                println!("   {}\n", r.snippet.replace('\n', " "));
-            }
+        println!("Found {} result(s) for \"{}\" ({} ms):\n", results.len(), query, latency);
+        for (i, r) in results.iter().enumerate() {
+            let session_prefix = &r.session_id[..8.min(r.session_id.len())];
+            let src = r.adapter.as_deref().unwrap_or("?");
+            println!("{}. [{}] session:{} ({})", i + 1, r.chunk_type, session_prefix, src);
+            println!("   {}", r.snippet.replace('\n', " "));
+            println!("   reason: {}\n", r.match_reason);
         }
     }
 

@@ -1,5 +1,6 @@
 pub mod collector;
 pub mod config;
+pub mod mcp;
 pub mod processor;
 pub mod retriever;
 pub mod storage;

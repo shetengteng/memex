@@ -1,5 +1,10 @@
+pub mod backup;
 pub mod config;
+pub mod doctor;
 pub mod ingest;
+pub mod mcp;
+pub mod rebuild;
 pub mod search;
+pub mod session;
 pub mod sessions;
 pub mod stats;

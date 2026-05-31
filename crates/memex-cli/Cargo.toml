@@ -19,3 +19,6 @@ tracing-subscriber.workspace = true
 toml.workspace = true
 chrono.workspace = true
 blake3.workspace = true
+walkdir.workspace = true
+flate2 = "1"
+tar = "0.4"
