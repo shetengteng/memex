@@ -22,8 +22,7 @@ struct CustomRule {
     label: String,
 }
 
-static CUSTOM_RULES: LazyLock<Mutex<Vec<RedactionRule>>> =
-    LazyLock::new(|| Mutex::new(Vec::new()));
+static CUSTOM_RULES: LazyLock<Mutex<Vec<RedactionRule>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 pub fn load_custom_rules(path: &Path) {
     if !path.exists() {
@@ -56,7 +55,10 @@ static RULES: LazyLock<Vec<RedactionRule>> = LazyLock::new(|| {
             label: "api_key".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r#"(?i)(api[_\-]?key|token|secret)[:\s=]+['"]?([a-zA-Z0-9_\-/.]{16,})['"]?"#).unwrap(),
+            pattern: Regex::new(
+                r#"(?i)(api[_\-]?key|token|secret)[:\s=]+['"]?([a-zA-Z0-9_\-/.]{16,})['"]?"#,
+            )
+            .unwrap(),
             label: "token".to_string(),
         },
         RedactionRule {

@@ -109,7 +109,17 @@ pub fn ensure_memex_dir(memex_dir: &Path) -> Result<()> {
     if !redactions_path.exists() {
         fs::write(
             &redactions_path,
-            "# Custom redaction rules\n# Format: list of regex patterns\nrules: []\n",
+            concat!(
+                "# Custom redaction rules (regex patterns)\nrules: []\n\n",
+                "# Private session filtering\n",
+                "# Sessions matching these paths will be skipped during ingest\n",
+                "# and excluded from MCP search results\n",
+                "private_paths: []\n",
+                "# Example: private_paths: [\"/secret-project\", \"personal-diary\"]\n\n",
+                "# Sessions containing these keywords will be marked private\n",
+                "private_keywords: []\n",
+                "# Example: private_keywords: [\"confidential\", \"internal-only\"]\n",
+            ),
         )?;
     }
 
@@ -118,10 +128,10 @@ pub fn ensure_memex_dir(memex_dir: &Path) -> Result<()> {
 }
 
 fn shellexpand(s: &str) -> String {
-    if s.starts_with("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return format!("{}{}", home.display(), &s[1..]);
-        }
+    if s.starts_with("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return format!("{}{}", home.display(), &s[1..]);
     }
     s.to_string()
 }

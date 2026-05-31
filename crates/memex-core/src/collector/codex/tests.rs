@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use chrono::DateTime;
 use tempfile::TempDir;
 
-use super::discover::DateAccessors;
 use super::CodexAdapter;
+use super::discover::DateAccessors;
 use crate::collector::Adapter;
 use crate::storage::models::Role;
 
@@ -34,7 +34,10 @@ fn write_session(base: &Path, ts: &str, session_id: &str, body: &str) -> PathBuf
         .join(format!("{:02}", dt.month()))
         .join(format!("{:02}", dt.day()));
     fs::create_dir_all(&dir).unwrap();
-    let file = dir.join(format!("rollout-{}-{}.jsonl", "20260301T000000", session_id));
+    let file = dir.join(format!(
+        "rollout-{}-{}.jsonl",
+        "20260301T000000", session_id
+    ));
     fs::write(&file, body).unwrap();
     file
 }
@@ -42,7 +45,10 @@ fn write_session(base: &Path, ts: &str, session_id: &str, body: &str) -> PathBuf
 #[test]
 fn test_scan_uses_session_index() {
     let tmp = TempDir::new().unwrap();
-    write_index(tmp.path(), &[("sess-1", "2026-03-01T10:00:00Z", "demo thread")]);
+    write_index(
+        tmp.path(),
+        &[("sess-1", "2026-03-01T10:00:00Z", "demo thread")],
+    );
     write_session(tmp.path(), "2026-03-01T10:00:00Z", "sess-1", "");
 
     let adapter = CodexAdapter::with_base_dir(tmp.path().to_path_buf());
@@ -59,7 +65,10 @@ fn test_collect_parses_response_items() {
 {"type":"response_item","timestamp":"2026-03-01T10:00:01Z","payload":{"role":"user","content":[{"type":"input_text","text":"hello codex"}]}}
 {"type":"response_item","timestamp":"2026-03-01T10:00:02Z","payload":{"role":"assistant","content":[{"type":"output_text","text":"hi from assistant"}]}}
 "#;
-    write_index(tmp.path(), &[("sess-collect", "2026-03-01T10:00:00Z", "thread")]);
+    write_index(
+        tmp.path(),
+        &[("sess-collect", "2026-03-01T10:00:00Z", "thread")],
+    );
     write_session(tmp.path(), "2026-03-01T10:00:00Z", "sess-collect", body);
 
     let adapter = CodexAdapter::with_base_dir(tmp.path().to_path_buf());

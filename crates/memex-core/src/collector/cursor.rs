@@ -24,6 +24,12 @@ struct CursorMessage {
     content: Option<serde_json::Value>,
 }
 
+impl Default for CursorAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CursorAdapter {
     pub fn new() -> Self {
         let base_dir = dirs::home_dir()
@@ -61,20 +67,26 @@ impl CursorAdapter {
     fn extract_project_name(&self, file_path: &Path) -> Option<String> {
         let path_str = file_path.to_string_lossy();
         let base_str = self.base_dir.to_string_lossy();
-        let relative = path_str.strip_prefix(base_str.as_ref())?.trim_start_matches('/');
+        let relative = path_str
+            .strip_prefix(base_str.as_ref())?
+            .trim_start_matches('/');
         let workspace_part = relative.split('/').next()?;
         Some(
             workspace_part
                 .replace("Users-TerrellShe-Documents-", "")
                 .replace("Users-TerrellShe-", "")
-                .replace("Library-Application-Support-Cursor-Workspaces-", "ws:")
+                .replace("Library-Application-Support-Cursor-Workspaces-", "ws:"),
         )
     }
 
     fn session_id_from_path(path: &Path) -> String {
         path.file_stem()
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| blake3::hash(path.to_string_lossy().as_bytes()).to_hex().to_string())
+            .unwrap_or_else(|| {
+                blake3::hash(path.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .to_string()
+            })
     }
 }
 
@@ -184,7 +196,13 @@ fn convert_cursor_entry(entry: &CursorEntry, session_id: &str, offset: u64) -> O
     }
 
     let id = blake3::hash(
-        format!("{}{}{}", session_id, offset, super::safe_prefix(&content, 100)).as_bytes(),
+        format!(
+            "{}{}{}",
+            session_id,
+            offset,
+            super::safe_prefix(&content, 100)
+        )
+        .as_bytes(),
     )
     .to_hex()
     .to_string();
@@ -212,7 +230,11 @@ fn extract_content(message: &Option<CursorMessage>) -> Option<String> {
                     parts.push(text.to_string());
                 }
             }
-            if parts.is_empty() { None } else { Some(parts.join("\n")) }
+            if parts.is_empty() {
+                None
+            } else {
+                Some(parts.join("\n"))
+            }
         }
         _ => None,
     }
@@ -258,8 +280,16 @@ mod tests {
         let dir2 = tmp.path().join("proj-b/agent-transcripts/s2");
         fs::create_dir_all(&dir1).unwrap();
         fs::create_dir_all(&dir2).unwrap();
-        fs::write(dir1.join("s1.jsonl"), r#"{"role":"user","message":{"content":"hi"}}"#).unwrap();
-        fs::write(dir2.join("s2.jsonl"), r#"{"role":"user","message":{"content":"hey"}}"#).unwrap();
+        fs::write(
+            dir1.join("s1.jsonl"),
+            r#"{"role":"user","message":{"content":"hi"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            dir2.join("s2.jsonl"),
+            r#"{"role":"user","message":{"content":"hey"}}"#,
+        )
+        .unwrap();
 
         let adapter = CursorAdapter::with_base_dir(tmp.path().to_path_buf());
         let sessions = adapter.scan().unwrap();

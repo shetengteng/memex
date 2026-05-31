@@ -1,11 +1,10 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
 pub fn run(target: &str) -> Result<()> {
-    let memex_bin = std::env::current_exe()
-        .unwrap_or_else(|_| PathBuf::from("memex"));
+    let memex_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("memex"));
 
     match target {
         "cursor" => setup_cursor(&memex_bin),
@@ -17,7 +16,7 @@ pub fn run(target: &str) -> Result<()> {
     }
 }
 
-fn setup_cursor(memex_bin: &PathBuf) -> Result<()> {
+fn setup_cursor(memex_bin: &Path) -> Result<()> {
     let home = dirs::home_dir().expect("cannot determine home directory");
     let config_path = home.join(".cursor").join("mcp.json");
 
@@ -32,8 +31,8 @@ fn setup_cursor(memex_bin: &PathBuf) -> Result<()> {
 
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;
-        let mut config: serde_json::Value = serde_json::from_str(&content)
-            .unwrap_or(serde_json::json!({}));
+        let mut config: serde_json::Value =
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
 
         let servers = config
             .as_object_mut()
@@ -67,14 +66,14 @@ fn setup_cursor(memex_bin: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn setup_claude_code(memex_bin: &PathBuf) -> Result<()> {
+fn setup_claude_code(memex_bin: &Path) -> Result<()> {
     let home = dirs::home_dir().expect("cannot determine home directory");
     let config_path = home.join(".claude").join("claude_desktop_config.json");
 
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;
-        let mut config: serde_json::Value = serde_json::from_str(&content)
-            .unwrap_or(serde_json::json!({}));
+        let mut config: serde_json::Value =
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
 
         let servers = config
             .as_object_mut()

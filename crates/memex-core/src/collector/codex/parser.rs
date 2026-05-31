@@ -89,7 +89,11 @@ fn extract_user_text(content: &[serde_json::Value]) -> String {
         if item.get("type").and_then(|v| v.as_str()) != Some("input_text") {
             continue;
         }
-        let text = item.get("text").and_then(|v| v.as_str()).unwrap_or("").trim();
+        let text = item
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
         if text.is_empty() || text.starts_with("<environment_context>") {
             continue;
         }
@@ -104,7 +108,11 @@ fn extract_assistant_text(content: &[serde_json::Value]) -> String {
         if item.get("type").and_then(|v| v.as_str()) != Some("output_text") {
             continue;
         }
-        let text = item.get("text").and_then(|v| v.as_str()).unwrap_or("").trim();
+        let text = item
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
         if !text.is_empty() {
             parts.push(text.to_string());
         }

@@ -8,7 +8,10 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     let memex = memex_dir();
     if !memex.exists() {
         if json {
-            println!("{}", serde_json::json!({"error": "memex directory not found"}));
+            println!(
+                "{}",
+                serde_json::json!({"error": "memex directory not found"})
+            );
         } else {
             eprintln!("Memex directory not found at {}", memex.display());
         }
@@ -16,11 +19,9 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     }
 
     let output = Path::new(output_path);
-    if let Some(parent) = output.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
+    if let Some(parent) = output.parent().filter(|p| !p.exists()) {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
     }
 
     let tar_gz = fs::File::create(output)

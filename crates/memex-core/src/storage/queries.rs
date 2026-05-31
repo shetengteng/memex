@@ -118,14 +118,18 @@ impl Db {
     pub fn schema_version(&self) -> Result<Option<u32>> {
         let conn = self.conn.lock().unwrap();
         Ok(conn
-            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| row.get(0))
+            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+                row.get(0)
+            })
             .ok())
     }
 
     pub fn fts_health_check(&self) -> bool {
         let conn = self.conn.lock().unwrap();
-        conn.query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| row.get::<_, i64>(0))
-            .is_ok()
+        conn.query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .is_ok()
     }
 
     pub fn adapter_statuses(&self) -> Result<Vec<AdapterStatus>> {
@@ -167,9 +171,11 @@ mod tests {
     #[test]
     fn test_session_detail() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl").unwrap();
+        db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
+            .unwrap();
         let hash = blake3::hash(b"hello").to_hex().to_string();
-        db.insert_message("m1", "s1", "user", "hello", None, 0, &hash).unwrap();
+        db.insert_message("m1", "s1", "user", "hello", None, 0, &hash)
+            .unwrap();
 
         let detail = db.get_session_detail("s1").unwrap().unwrap();
         assert_eq!(detail.id, "s1");
@@ -202,8 +208,12 @@ mod tests {
     #[test]
     fn test_find_session_by_prefix() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl").unwrap();
-        assert_eq!(db.find_session_by_prefix("abc-1").unwrap().unwrap(), "abc-12345");
+        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl")
+            .unwrap();
+        assert_eq!(
+            db.find_session_by_prefix("abc-1").unwrap().unwrap(),
+            "abc-12345"
+        );
         assert!(db.find_session_by_prefix("zzz").unwrap().is_none());
     }
 

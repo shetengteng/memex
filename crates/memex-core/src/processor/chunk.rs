@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::storage::models::{Chunk, ChunkMetadata, ChunkType, RawMessage};
+use anyhow::Result;
 
 const MAX_CHUNK_CHARS: usize = 2000;
 

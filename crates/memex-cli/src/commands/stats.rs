@@ -6,7 +6,10 @@ pub fn run(json: bool) -> Result<()> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!("{}", serde_json::json!({"sessions": 0, "messages": 0, "chunks": 0}));
+            println!(
+                "{}",
+                serde_json::json!({"sessions": 0, "messages": 0, "chunks": 0})
+            );
         } else {
             println!("No data yet. Run `memex ingest` first.");
         }

@@ -2,14 +2,15 @@ use crate::storage::models::ChunkMetadata;
 use regex::Regex;
 use std::sync::LazyLock;
 
-static CODE_LANG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"```(\w+)").unwrap());
+static CODE_LANG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"```(\w+)").unwrap());
 
-static ERROR_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(error|panic|exception|failed|traceback|fatal)\b").unwrap());
+static ERROR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(error|panic|exception|failed|traceback|fatal)\b").unwrap()
+});
 
-static TOOL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(Read|Write|Shell|Grep|Search|Delete|StrReplace|Glob)\b").unwrap());
+static TOOL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(Read|Write|Shell|Grep|Search|Delete|StrReplace|Glob)\b").unwrap()
+});
 
 pub fn extract(content: &str) -> ChunkMetadata {
     ChunkMetadata {
@@ -55,11 +56,37 @@ fn extract_tools(content: &str) -> Vec<String> {
 fn extract_topics(content: &str) -> Vec<String> {
     static TOPIC_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| {
         vec![
-            "redis", "database", "sql", "api", "auth", "docker", "kubernetes",
-            "react", "vue", "rust", "python", "typescript", "javascript",
-            "git", "ci", "cd", "deploy", "test", "debug", "performance",
-            "cache", "queue", "kafka", "grpc", "http", "websocket",
-            "oauth", "jwt", "encryption", "migration", "refactor",
+            "redis",
+            "database",
+            "sql",
+            "api",
+            "auth",
+            "docker",
+            "kubernetes",
+            "react",
+            "vue",
+            "rust",
+            "python",
+            "typescript",
+            "javascript",
+            "git",
+            "ci",
+            "cd",
+            "deploy",
+            "test",
+            "debug",
+            "performance",
+            "cache",
+            "queue",
+            "kafka",
+            "grpc",
+            "http",
+            "websocket",
+            "oauth",
+            "jwt",
+            "encryption",
+            "migration",
+            "refactor",
         ]
     });
 

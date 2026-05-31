@@ -1,7 +1,7 @@
 mod commands;
 mod tray;
 
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tracing_subscriber::EnvFilter;
 
@@ -20,7 +20,8 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state == ShortcutState::Pressed
-                        && shortcut == &Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyM)
+                        && shortcut
+                            == &Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyM)
                     {
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
@@ -36,9 +37,10 @@ pub fn run() {
                 tracing::error!("failed to install tray icon: {e:?}");
             }
 
-            app.global_shortcut().register(
-                Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyM),
-            )?;
+            app.global_shortcut().register(Shortcut::new(
+                Some(Modifiers::SUPER | Modifiers::SHIFT),
+                Code::KeyM,
+            ))?;
 
             Ok(())
         })

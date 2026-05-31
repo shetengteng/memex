@@ -34,10 +34,7 @@ pub fn write_session_markdown(
         if let Some(proj) = project_path {
             content.push_str(&format!("project: {}\n", proj));
         }
-        content.push_str(&format!(
-            "created: {}\n",
-            chrono::Utc::now().to_rfc3339()
-        ));
+        content.push_str(&format!("created: {}\n", chrono::Utc::now().to_rfc3339()));
         content.push_str("---\n\n");
     }
 

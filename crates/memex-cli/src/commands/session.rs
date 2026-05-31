@@ -59,7 +59,10 @@ pub fn run(session_id: &str, json: bool) -> Result<()> {
         }
         None => {
             if json {
-                println!("{}", serde_json::json!({"error": "session not found", "id": session_id}));
+                println!(
+                    "{}",
+                    serde_json::json!({"error": "session not found", "id": session_id})
+                );
             } else {
                 eprintln!("Session \"{}\" not found.", session_id);
             }

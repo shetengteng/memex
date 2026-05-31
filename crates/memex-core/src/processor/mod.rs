@@ -1,9 +1,10 @@
 pub mod chunk;
 pub mod metadata;
+pub mod privacy;
 pub mod redact;
 
-use anyhow::Result;
 use crate::storage::models::{Chunk, RawMessage};
+use anyhow::Result;
 
 pub fn process_messages(messages: &[RawMessage]) -> Result<Vec<Chunk>> {
     let mut all_chunks = Vec::new();

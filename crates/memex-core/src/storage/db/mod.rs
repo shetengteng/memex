@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use super::models::{Chunk, SearchResult, SourceState};
 use serde::Serialize;
@@ -17,14 +17,18 @@ impl Db {
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)
             .with_context(|| format!("failed to open database: {}", path.display()))?;
-        let db = Self { conn: Mutex::new(conn) };
+        let db = Self {
+            conn: Mutex::new(conn),
+        };
         db.init_schema()?;
         Ok(db)
     }
 
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
-        let db = Self { conn: Mutex::new(conn) };
+        let db = Self {
+            conn: Mutex::new(conn),
+        };
         db.init_schema()?;
         Ok(db)
     }
@@ -39,7 +43,9 @@ impl Db {
         )?;
 
         let version: Option<u32> = conn
-            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| row.get(0))
+            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+                row.get(0)
+            })
             .ok();
 
         if version.is_none() {
@@ -62,7 +68,13 @@ impl Db {
                 last_offset = excluded.last_offset,
                 last_mtime = excluded.last_mtime,
                 last_scan = excluded.last_scan",
-            params![state.adapter, state.file_path, state.last_offset, state.last_mtime, state.last_scan.to_rfc3339()],
+            params![
+                state.adapter,
+                state.file_path,
+                state.last_offset,
+                state.last_mtime,
+                state.last_scan.to_rfc3339()
+            ],
         )?;
         Ok(())
     }
@@ -70,12 +82,22 @@ impl Db {
     pub fn get_source_offset(&self, file_path: &str) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
         let offset = conn
-            .query_row("SELECT last_offset FROM sources WHERE file_path = ?1", params![file_path], |row| row.get(0))
+            .query_row(
+                "SELECT last_offset FROM sources WHERE file_path = ?1",
+                params![file_path],
+                |row| row.get(0),
+            )
             .unwrap_or(0u64);
         Ok(offset)
     }
 
-    pub fn insert_session(&self, id: &str, source: &str, project_path: Option<&str>, file_path: &str) -> Result<()> {
+    pub fn insert_session(
+        &self,
+        id: &str,
+        source: &str,
+        project_path: Option<&str>,
+        file_path: &str,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
@@ -86,15 +108,23 @@ impl Db {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn insert_message(
-        &self, id: &str, session_id: &str, role: &str, content: &str,
-        timestamp: Option<&str>, source_offset: u64, content_hash: &str,
+        &self,
+        id: &str,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        timestamp: Option<&str>,
+        source_offset: u64,
+        content_hash: &str,
     ) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         let exists: bool = conn
             .query_row(
                 "SELECT EXISTS(SELECT 1 FROM messages WHERE content_hash = ?1 AND session_id = ?2)",
-                params![content_hash, session_id], |row| row.get(0),
+                params![content_hash, session_id],
+                |row| row.get(0),
             )
             .unwrap_or(false);
         if exists {
@@ -143,11 +173,17 @@ impl Db {
         let results = stmt
             .query_map(params![query, limit as i64], |row| {
                 Ok(SearchResult {
-                    chunk_id: row.get(0)?, session_id: row.get(1)?,
-                    message_id: row.get(2)?, chunk_type: row.get(3)?,
-                    content: row.get(4)?, snippet: row.get(5)?,
-                    rank: row.get(6)?, match_reason: String::new(),
-                    adapter: row.get(7)?, project: row.get(8)?, timestamp: row.get(9)?,
+                    chunk_id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    message_id: row.get(2)?,
+                    chunk_type: row.get(3)?,
+                    content: row.get(4)?,
+                    snippet: row.get(5)?,
+                    rank: row.get(6)?,
+                    match_reason: String::new(),
+                    adapter: row.get(7)?,
+                    project: row.get(8)?,
+                    timestamp: row.get(9)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -216,7 +252,9 @@ impl Db {
     pub fn kv_get(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let val = conn
-            .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| row.get(0))
+            .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
+                row.get(0)
+            })
             .ok();
         Ok(val)
     }
@@ -240,8 +278,10 @@ impl Db {
         let rows = stmt
             .query_map(params![limit as i64], |row| {
                 Ok(SessionRow {
-                    id: row.get(0)?, source: row.get(1)?,
-                    project_path: row.get(2)?, message_count: row.get(3)?,
+                    id: row.get(0)?,
+                    source: row.get(1)?,
+                    project_path: row.get(2)?,
+                    message_count: row.get(3)?,
                     updated_at: row.get(4)?,
                 })
             })?
@@ -282,7 +322,7 @@ pub struct MessageRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::models::{ChunkType, ChunkMetadata, Chunk};
+    use crate::storage::models::{Chunk, ChunkMetadata, ChunkType};
 
     #[test]
     fn test_schema_init() {
@@ -293,23 +333,37 @@ mod tests {
     #[test]
     fn test_insert_and_dedup() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl").unwrap();
+        db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
+            .unwrap();
         let hash = blake3::hash(b"hello").to_hex().to_string();
-        assert!(db.insert_message("m1", "s1", "user", "hello", None, 0, &hash).unwrap());
-        assert!(!db.insert_message("m2", "s1", "user", "hello", None, 0, &hash).unwrap());
+        assert!(
+            db.insert_message("m1", "s1", "user", "hello", None, 0, &hash)
+                .unwrap()
+        );
+        assert!(
+            !db.insert_message("m2", "s1", "user", "hello", None, 0, &hash)
+                .unwrap()
+        );
         assert_eq!(db.message_count().unwrap(), 1);
     }
 
     #[test]
     fn test_fts_search() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+        db.insert_session("s1", "claude_code", None, "/f.jsonl")
+            .unwrap();
         let hash = blake3::hash(b"redis pipeline").to_hex().to_string();
-        db.insert_message("m1", "s1", "assistant", "redis pipeline", None, 0, &hash).unwrap();
+        db.insert_message("m1", "s1", "assistant", "redis pipeline", None, 0, &hash)
+            .unwrap();
         let chunk = Chunk {
-            id: None, message_id: "m1".into(), session_id: "s1".into(),
-            chunk_type: ChunkType::Text, content: "redis pipeline".into(),
-            redacted_content: None, position: 0, token_count: 3,
+            id: None,
+            message_id: "m1".into(),
+            session_id: "s1".into(),
+            chunk_type: ChunkType::Text,
+            content: "redis pipeline".into(),
+            redacted_content: None,
+            position: 0,
+            token_count: 3,
             metadata: ChunkMetadata::default(),
         };
         db.insert_chunk(&chunk).unwrap();
@@ -322,8 +376,11 @@ mod tests {
     fn test_source_offset() {
         let db = Db::open_in_memory().unwrap();
         let state = SourceState {
-            adapter: "test".into(), file_path: "/test.jsonl".into(),
-            last_offset: 1024, last_mtime: 0, last_scan: chrono::Utc::now(),
+            adapter: "test".into(),
+            file_path: "/test.jsonl".into(),
+            last_offset: 1024,
+            last_mtime: 0,
+            last_scan: chrono::Utc::now(),
         };
         db.upsert_source(&state).unwrap();
         assert_eq!(db.get_source_offset("/test.jsonl").unwrap(), 1024);

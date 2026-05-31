@@ -18,10 +18,20 @@ pub struct RebuildStats {
 pub fn rebuild_from_markdown(memex_dir: &Path, db: &Db) -> Result<RebuildStats> {
     let sessions_dir = memex_dir.join("sessions");
     if !sessions_dir.exists() {
-        return Ok(RebuildStats { sessions: 0, messages: 0, chunks: 0, errors: 0 });
+        return Ok(RebuildStats {
+            sessions: 0,
+            messages: 0,
+            chunks: 0,
+            errors: 0,
+        });
     }
 
-    let mut stats = RebuildStats { sessions: 0, messages: 0, chunks: 0, errors: 0 };
+    let mut stats = RebuildStats {
+        sessions: 0,
+        messages: 0,
+        chunks: 0,
+        errors: 0,
+    };
 
     for entry in walkdir::WalkDir::new(&sessions_dir)
         .into_iter()
@@ -45,22 +55,23 @@ pub fn rebuild_from_markdown(memex_dir: &Path, db: &Db) -> Result<RebuildStats> 
         }
     }
 
-    info!("rebuild complete: {} sessions, {} messages, {} chunks, {} errors",
-        stats.sessions, stats.messages, stats.chunks, stats.errors);
+    info!(
+        "rebuild complete: {} sessions, {} messages, {} chunks, {} errors",
+        stats.sessions, stats.messages, stats.chunks, stats.errors
+    );
     Ok(stats)
 }
 
 fn rebuild_session_file(path: &Path, sessions_root: &Path, db: &Db) -> Result<(u64, u64)> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
 
     let (frontmatter, body) = split_frontmatter(&content);
-    let session_id = extract_field(&frontmatter, "session_id")
-        .unwrap_or_else(|| {
-            path.file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default()
-        });
+    let session_id = extract_field(&frontmatter, "session_id").unwrap_or_else(|| {
+        path.file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default()
+    });
     let source = extract_field(&frontmatter, "source").unwrap_or_else(|| {
         path.strip_prefix(sessions_root)
             .ok()
@@ -70,7 +81,12 @@ fn rebuild_session_file(path: &Path, sessions_root: &Path, db: &Db) -> Result<(u
     });
     let project = extract_field(&frontmatter, "project");
 
-    db.insert_session(&session_id, &source, project.as_deref(), &path.to_string_lossy())?;
+    db.insert_session(
+        &session_id,
+        &source,
+        project.as_deref(),
+        &path.to_string_lossy(),
+    )?;
 
     let messages = parse_messages_from_body(&body, &session_id);
     let mut msg_count = 0u64;
@@ -80,8 +96,13 @@ fn rebuild_session_file(path: &Path, sessions_root: &Path, db: &Db) -> Result<(u
         let content_hash = blake3::hash(msg.content.as_bytes()).to_hex().to_string();
         let ts_str = msg.timestamp.map(|t| t.to_rfc3339());
         let inserted = db.insert_message(
-            &msg.id, &session_id, &msg.role.to_string(),
-            &msg.content, ts_str.as_deref(), msg.source_offset, &content_hash,
+            &msg.id,
+            &session_id,
+            &msg.role.to_string(),
+            &msg.content,
+            ts_str.as_deref(),
+            msg.source_offset,
+            &content_hash,
         )?;
         if inserted {
             msg_count += 1;
@@ -115,7 +136,13 @@ fn extract_field(frontmatter: &str, key: &str) -> Option<String> {
     frontmatter
         .lines()
         .find(|line| line.trim_start().starts_with(&prefix))
-        .map(|line| line.trim_start().strip_prefix(&prefix).unwrap_or("").trim().to_string())
+        .map(|line| {
+            line.trim_start()
+                .strip_prefix(&prefix)
+                .unwrap_or("")
+                .trim()
+                .to_string()
+        })
         .filter(|s| !s.is_empty())
 }
 
@@ -131,13 +158,23 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
                 let trimmed = current_content.trim().to_string();
                 if !trimmed.is_empty() {
                     let id = blake3::hash(
-                        format!("rebuild:{}:{}:{}", session_id, msg_index, &trimmed[..trimmed.len().min(100)])
-                            .as_bytes(),
-                    ).to_hex().to_string();
+                        format!(
+                            "rebuild:{}:{}:{}",
+                            session_id,
+                            msg_index,
+                            &trimmed[..trimmed.len().min(100)]
+                        )
+                        .as_bytes(),
+                    )
+                    .to_hex()
+                    .to_string();
                     messages.push(RawMessage {
-                        id, session_id: session_id.to_string(),
-                        role: prev_role, content: trimmed,
-                        timestamp: None, source_offset: msg_index,
+                        id,
+                        session_id: session_id.to_string(),
+                        role: prev_role,
+                        content: trimmed,
+                        timestamp: None,
+                        source_offset: msg_index,
                     });
                     msg_index += 1;
                 }
@@ -156,13 +193,23 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
         let trimmed = current_content.trim().to_string();
         if !trimmed.is_empty() {
             let id = blake3::hash(
-                format!("rebuild:{}:{}:{}", session_id, msg_index, &trimmed[..trimmed.len().min(100)])
-                    .as_bytes(),
-            ).to_hex().to_string();
+                format!(
+                    "rebuild:{}:{}:{}",
+                    session_id,
+                    msg_index,
+                    &trimmed[..trimmed.len().min(100)]
+                )
+                .as_bytes(),
+            )
+            .to_hex()
+            .to_string();
             messages.push(RawMessage {
-                id, session_id: session_id.to_string(),
-                role, content: trimmed,
-                timestamp: None, source_offset: msg_index,
+                id,
+                session_id: session_id.to_string(),
+                role,
+                content: trimmed,
+                timestamp: None,
+                source_offset: msg_index,
             });
         }
     }
@@ -218,7 +265,10 @@ mod tests {
     #[test]
     fn test_detect_header() {
         assert_eq!(detect_message_header("## 👤 User"), Some(Role::User));
-        assert_eq!(detect_message_header("## 🤖 Assistant (ts)"), Some(Role::Assistant));
+        assert_eq!(
+            detect_message_header("## 🤖 Assistant (ts)"),
+            Some(Role::Assistant)
+        );
         assert_eq!(detect_message_header("## System"), Some(Role::System));
         assert!(detect_message_header("normal line").is_none());
     }

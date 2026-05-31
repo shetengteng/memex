@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::storage::db::Db;
 use crate::storage::models::SearchResult;
+use anyhow::Result;
 
 #[derive(Debug, Clone, Default)]
 pub struct SearchFilter {
@@ -39,7 +39,9 @@ impl<'a> Retriever<'a> {
         if let Some(ref project) = filter.project {
             let lower = project.to_lowercase();
             results.retain(|r| {
-                r.project.as_deref().is_some_and(|p| p.to_lowercase().contains(&lower))
+                r.project
+                    .as_deref()
+                    .is_some_and(|p| p.to_lowercase().contains(&lower))
             });
         }
         if let Some(ref sid) = filter.session_id {
@@ -72,7 +74,10 @@ fn build_match_reason(query: &str, result: &SearchResult) -> String {
     let query_lower = query.to_lowercase();
     let keywords: Vec<&str> = query_lower.split_whitespace().collect();
     let content_lower = result.content.to_lowercase();
-    let matched: Vec<&&str> = keywords.iter().filter(|k| content_lower.contains(**k)).collect();
+    let matched: Vec<&&str> = keywords
+        .iter()
+        .filter(|k| content_lower.contains(**k))
+        .collect();
     if !matched.is_empty() {
         let words: Vec<String> = matched.iter().map(|k| format!("\"{}\"", k)).collect();
         reasons.push(format!("keyword match: {}", words.join(", ")));
@@ -108,7 +113,11 @@ fn apply_recency_boost(results: &mut [SearchResult]) {
         };
         r.rank += boost;
     }
-    results.sort_by(|a, b| b.rank.partial_cmp(&a.rank).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.rank
+            .partial_cmp(&a.rank)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 }
 
 fn estimate_age_days(ts: &str, now: &str) -> f64 {
@@ -155,17 +164,29 @@ mod tests {
     fn test_recency_boost_sorting() {
         let mut results = vec![
             SearchResult {
-                chunk_id: 1, session_id: "s1".into(), message_id: "m1".into(),
-                chunk_type: "text".into(), content: "old".into(), snippet: "old".into(),
-                rank: -5.0, match_reason: String::new(),
-                adapter: None, project: None,
+                chunk_id: 1,
+                session_id: "s1".into(),
+                message_id: "m1".into(),
+                chunk_type: "text".into(),
+                content: "old".into(),
+                snippet: "old".into(),
+                rank: -5.0,
+                match_reason: String::new(),
+                adapter: None,
+                project: None,
                 timestamp: Some("2026-01-01T00:00:00+00:00".into()),
             },
             SearchResult {
-                chunk_id: 2, session_id: "s2".into(), message_id: "m2".into(),
-                chunk_type: "text".into(), content: "new".into(), snippet: "new".into(),
-                rank: -5.0, match_reason: String::new(),
-                adapter: None, project: None,
+                chunk_id: 2,
+                session_id: "s2".into(),
+                message_id: "m2".into(),
+                chunk_type: "text".into(),
+                content: "new".into(),
+                snippet: "new".into(),
+                rank: -5.0,
+                match_reason: String::new(),
+                adapter: None,
+                project: None,
                 timestamp: Some(chrono::Utc::now().to_rfc3339()),
             },
         ];

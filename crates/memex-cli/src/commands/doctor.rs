@@ -51,9 +51,13 @@ pub fn run(json: bool) -> Result<()> {
                 let status = if *enabled { "enabled" } else { "disabled" };
                 println!("  adapter.{}: {}", name, status);
             }
-            let llm = if config.llm.ollama_enabled { "ollama" }
-                       else if config.llm.cloud_fallback { "cloud" }
-                       else { "none" };
+            let llm = if config.llm.ollama_enabled {
+                "ollama"
+            } else if config.llm.cloud_fallback {
+                "cloud"
+            } else {
+                "none"
+            };
             println!("  llm: {}", llm);
         } else {
             println!("  config.toml not found (using defaults)");
@@ -84,7 +88,9 @@ fn print_report(report: &DoctorReport, memex: &std::path::Path, json: bool) -> R
 
     println!(
         "Schema:    v{}",
-        report.schema_version.map_or("?".to_string(), |v| v.to_string())
+        report
+            .schema_version
+            .map_or("?".to_string(), |v| v.to_string())
     );
     println!("FTS5:      {}", if report.fts_ok { "OK" } else { "ERROR" });
     println!("\nData:");
@@ -97,7 +103,10 @@ fn print_report(report: &DoctorReport, memex: &std::path::Path, json: bool) -> R
         println!("\nAdapter Sources:");
         for a in &report.adapters {
             let scan = a.last_scan.as_deref().unwrap_or("never");
-            println!("  {}: {} file(s), last scan: {}", a.name, a.file_count, scan);
+            println!(
+                "  {}: {} file(s), last scan: {}",
+                a.name, a.file_count, scan
+            );
         }
     }
 

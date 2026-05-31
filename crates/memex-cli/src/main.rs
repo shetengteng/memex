@@ -5,7 +5,11 @@ use tracing_subscriber::EnvFilter;
 mod commands;
 
 #[derive(Parser)]
-#[command(name = "memex", version, about = "Local-first cross-LLM session memory hub")]
+#[command(
+    name = "memex",
+    version,
+    about = "Local-first cross-LLM session memory hub"
+)]
 struct Cli {
     #[arg(long, global = true, help = "Output in JSON format")]
     json: bool,
@@ -26,7 +30,10 @@ enum Commands {
         query: String,
         #[arg(short, long, default_value = "10")]
         limit: usize,
-        #[arg(long, help = "Filter by adapter (claude_code, cursor, codex, opencode)")]
+        #[arg(
+            long,
+            help = "Filter by adapter (claude_code, cursor, codex, opencode)"
+        )]
         adapter: Option<String>,
         #[arg(long, help = "Filter by project name")]
         project: Option<String>,
@@ -70,6 +77,11 @@ enum Commands {
         /// Target tool (cursor, claude-code)
         target: String,
     },
+    /// Manage the background daemon
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -78,6 +90,16 @@ enum ConfigAction {
     Show,
     /// Set a configuration value
     Set { key: String, value: String },
+}
+
+#[derive(Subcommand)]
+enum DaemonAction {
+    /// Start the daemon in background
+    Start,
+    /// Stop a running daemon
+    Stop,
+    /// Show daemon status
+    Status,
 }
 
 fn main() -> Result<()> {
@@ -90,9 +112,17 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Ingest { adapter } => commands::ingest::run(adapter.as_deref(), cli.json),
-        Commands::Search { query, limit, adapter, project, chunk_type, after, before } => {
-            commands::search::run(&query, limit, cli.json, adapter, project, chunk_type, after, before)
-        }
+        Commands::Search {
+            query,
+            limit,
+            adapter,
+            project,
+            chunk_type,
+            after,
+            before,
+        } => commands::search::run(
+            &query, limit, cli.json, adapter, project, chunk_type, after, before,
+        ),
         Commands::Sessions { recent } => commands::sessions::run(recent, cli.json),
         Commands::Session { id } => commands::session::run(&id, cli.json),
         Commands::Stats => commands::stats::run(cli.json),
@@ -105,5 +135,10 @@ fn main() -> Result<()> {
         Commands::RebuildIndex => commands::rebuild::run(cli.json),
         Commands::Mcp => commands::mcp::run(),
         Commands::Setup { target } => commands::setup::run(&target),
+        Commands::Daemon { action } => match action {
+            DaemonAction::Start => commands::daemon::start(cli.json),
+            DaemonAction::Stop => commands::daemon::stop(cli.json),
+            DaemonAction::Status => commands::daemon::status(cli.json),
+        },
     }
 }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/memex-core", "crates/memex-cli", "tauri-app/src-tauri"]
+members = ["crates/memex-core", "crates/memex-cli", "crates/memex-daemon", "tauri-app/src-tauri"]
 resolver = "2"
 
 [workspace.package]

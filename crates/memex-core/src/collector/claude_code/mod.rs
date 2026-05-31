@@ -9,7 +9,7 @@ use tracing::{debug, warn};
 
 use super::Adapter;
 use crate::storage::models::{RawMessage, SessionMeta};
-use parser::{convert_claude_message, ClaudeMessage};
+use parser::{ClaudeMessage, convert_claude_message};
 
 pub struct ClaudeCodeAdapter {
     base_dir: PathBuf,
@@ -161,9 +161,9 @@ impl Adapter for ClaudeCodeAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::models::Role;
     use std::io::Write;
     use tempfile::TempDir;
-    use crate::storage::models::Role;
 
     fn write_fixture(dir: &Path, filename: &str, content: &str) -> PathBuf {
         let path = dir.join(filename);
@@ -182,10 +182,12 @@ mod tests {
         let file_path = write_fixture(tmp.path(), "project/session1.jsonl", jsonl);
         let adapter = ClaudeCodeAdapter::with_base_dir(tmp.path().to_path_buf());
         let session = SessionMeta {
-            id: "session1".into(), source: "claude_code".into(),
+            id: "session1".into(),
+            source: "claude_code".into(),
             project_path: Some("project".into()),
             file_path: file_path.to_string_lossy().to_string(),
-            last_offset: 0, mtime: 0,
+            last_offset: 0,
+            mtime: 0,
         };
         let messages = adapter.collect(&session).unwrap();
         assert_eq!(messages.len(), 2);
@@ -210,10 +212,12 @@ mod tests {
         let file_path = write_fixture(tmp.path(), "proj/empty.jsonl", "");
         let adapter = ClaudeCodeAdapter::with_base_dir(tmp.path().to_path_buf());
         let session = SessionMeta {
-            id: "empty".into(), source: "claude_code".into(),
+            id: "empty".into(),
+            source: "claude_code".into(),
             project_path: None,
             file_path: file_path.to_string_lossy().to_string(),
-            last_offset: 0, mtime: 0,
+            last_offset: 0,
+            mtime: 0,
         };
         let messages = adapter.collect(&session).unwrap();
         assert!(messages.is_empty());

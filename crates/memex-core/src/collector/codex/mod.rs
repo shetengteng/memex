@@ -26,8 +26,8 @@ use tracing::{debug, warn};
 use super::Adapter;
 use crate::storage::models::{RawMessage, SessionMeta};
 
-use discover::{find_session_file, IndexEntry};
-use parser::{build_message_from_event, build_message_from_response, SessionEntry};
+use discover::{IndexEntry, find_session_file};
+use parser::{SessionEntry, build_message_from_event, build_message_from_response};
 
 pub struct CodexAdapter {
     base_dir: PathBuf,

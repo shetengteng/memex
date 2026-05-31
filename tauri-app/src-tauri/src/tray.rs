@@ -3,9 +3,9 @@ use std::time::Duration;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 use tauri::{
+    AppHandle, Manager, Wry,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
-    AppHandle, Manager, Wry,
 };
 use tracing::{info, warn};
 
@@ -40,9 +40,11 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Memex — Local AI Memory Hub")
-        .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
-            tauri::image::Image::new_owned(vec![0, 0, 0, 0], 1, 1)
-        }))
+        .icon(
+            app.default_window_icon()
+                .cloned()
+                .unwrap_or_else(|| tauri::image::Image::new_owned(vec![0, 0, 0, 0], 1, 1)),
+        )
         .icon_as_template(true)
         .title("Memex")
         .on_tray_icon_event(|tray, event| {

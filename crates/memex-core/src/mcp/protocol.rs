@@ -28,14 +28,23 @@ pub struct JsonRpcError {
 
 impl JsonRpcResponse {
     pub fn success(id: Option<serde_json::Value>, result: serde_json::Value) -> Self {
-        Self { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
+        Self {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(result),
+            error: None,
+        }
     }
 
     pub fn error(id: Option<serde_json::Value>, code: i64, message: &str) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(), id,
+            jsonrpc: "2.0".to_string(),
+            id,
             result: None,
-            error: Some(JsonRpcError { code, message: message.to_string() }),
+            error: Some(JsonRpcError {
+                code,
+                message: message.to_string(),
+            }),
         }
     }
 }

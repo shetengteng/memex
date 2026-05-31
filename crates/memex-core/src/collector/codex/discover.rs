@@ -42,15 +42,15 @@ pub(super) fn find_session_file(
         return None;
     }
 
-    if let Some(ts) = updated_at {
-        if let Ok(dt) = DateTime::parse_from_rfc3339(&ts.replace('Z', "+00:00")) {
-            let date_dir = sessions_root
-                .join(format!("{:04}", dt.year()))
-                .join(format!("{:02}", dt.month()))
-                .join(format!("{:02}", dt.day()));
-            if let Some(p) = scan_dir_for_session(&date_dir, session_id) {
-                return Some(p);
-            }
+    if let Some(dt) =
+        updated_at.and_then(|ts| DateTime::parse_from_rfc3339(&ts.replace('Z', "+00:00")).ok())
+    {
+        let date_dir = sessions_root
+            .join(format!("{:04}", dt.year()))
+            .join(format!("{:02}", dt.month()))
+            .join(format!("{:02}", dt.day()));
+        if let Some(p) = scan_dir_for_session(&date_dir, session_id) {
+            return Some(p);
         }
     }
 

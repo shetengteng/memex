@@ -82,4 +82,12 @@ CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    metric_name TEXT NOT NULL,
+    metric_value INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(date, metric_name)
+);
 ";

@@ -23,6 +23,12 @@ struct OpenCodeMessage {
     content: Option<String>,
 }
 
+impl Default for OpenCodeAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpenCodeAdapter {
     pub fn new() -> Self {
         let base_dir = dirs::home_dir()
@@ -59,7 +65,11 @@ impl OpenCodeAdapter {
     fn session_id_from_path(path: &Path) -> String {
         path.file_stem()
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| blake3::hash(path.to_string_lossy().as_bytes()).to_hex().to_string())
+            .unwrap_or_else(|| {
+                blake3::hash(path.to_string_lossy().as_bytes())
+                    .to_hex()
+                    .to_string()
+            })
     }
 }
 

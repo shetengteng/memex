@@ -31,11 +31,16 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         "llm.ollama_model" => config.llm.ollama_model = value.to_string(),
         "llm.cloud_fallback" => config.llm.cloud_fallback = parse_bool(value)?,
         "privacy.redaction_enabled" => config.privacy.redaction_enabled = parse_bool(value)?,
-        "privacy.skip_private_sessions" => config.privacy.skip_private_sessions = parse_bool(value)?,
+        "privacy.skip_private_sessions" => {
+            config.privacy.skip_private_sessions = parse_bool(value)?
+        }
         "data_dir" => config.data_dir = value.to_string(),
         _ => {
             if json {
-                println!("{}", serde_json::json!({"error": format!("unknown key: {}", key)}));
+                println!(
+                    "{}",
+                    serde_json::json!({"error": format!("unknown key: {}", key)})
+                );
             } else {
                 eprintln!("Unknown config key: {}", key);
             }
@@ -48,7 +53,10 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         .with_context(|| format!("failed to write {}", config_path.display()))?;
 
     if json {
-        println!("{}", serde_json::json!({"key": key, "value": value, "status": "ok"}));
+        println!(
+            "{}",
+            serde_json::json!({"key": key, "value": value, "status": "ok"})
+        );
     } else {
         println!("Set {} = {}", key, value);
     }

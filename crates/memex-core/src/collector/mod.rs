@@ -3,8 +3,8 @@ pub mod codex;
 pub mod cursor;
 pub mod opencode;
 
-use anyhow::Result;
 use crate::storage::models::{RawMessage, SessionMeta};
+use anyhow::Result;
 
 pub trait Adapter {
     fn name(&self) -> &str;

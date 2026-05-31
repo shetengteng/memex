@@ -1,27 +1,25 @@
 [package]
-name = "memex-cli"
+name = "memex-daemon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "memex"
+name = "memex-daemon"
 path = "src/main.rs"
 
 [dependencies]
 memex-core = { path = "../memex-core" }
-clap = { version = "4", features = ["derive"] }
+axum = "0.8"
+tokio.workspace = true
+notify = { version = "7", features = ["macos_kqueue"] }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-toml.workspace = true
 chrono.workspace = true
 blake3.workspace = true
-walkdir.workspace = true
-flate2 = "1"
-tar = "0.4"
 dirs = "6"
+tower-http = { version = "0.6", features = ["cors"] }
 libc = "0.2"
-ureq = "3"
