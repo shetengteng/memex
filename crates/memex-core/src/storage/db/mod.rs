@@ -15,6 +15,7 @@ mod messages;
 mod schema;
 mod sessions;
 mod sources;
+mod summaries;
 #[cfg(test)]
 mod tests;
 
@@ -25,6 +26,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 
 pub use sessions::{MessageRow, SessionDetail, SessionRow};
+pub use summaries::SummaryRow;
 
 pub struct Db {
     pub(crate) conn: Mutex<Connection>,

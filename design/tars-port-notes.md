@@ -1,7 +1,7 @@
 # tars-ai-butler Adapter 移植对照清单
 
 > 日期：2026-05-31
-> 对应执行计划：`20260531-13-Memex-执行计划-Rust-60%.md` Sprint 1 / Sprint 2 任务
+> 对应执行计划：`20260531-13-Memex-执行计划-Rust-70%.md` Sprint 1 / Sprint 2 任务
 > tars 包路径：`/Users/TerrellShe/.tars-ai-butler/tars/adapters/`
 > 用途：把 tars Python 实现里**经验证的**路径、字段、边界条件、清洗规则提炼为 Rust 重写参考。tars 代码不能直接复用，但其踩过的坑要全部复用。
 

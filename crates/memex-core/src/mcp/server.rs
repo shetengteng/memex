@@ -1,4 +1,5 @@
 use std::io::{self, BufRead, Write};
+use std::time::Instant;
 
 use anyhow::Result;
 
@@ -172,6 +173,7 @@ fn tool_search(db: &Db, args: &serde_json::Value) -> std::result::Result<String,
         ..Default::default()
     };
 
+    let started = Instant::now();
     let retriever = Retriever::new(db);
     let mut results = retriever
         .search_filtered(query, limit * 2, &filter)
@@ -180,6 +182,11 @@ fn tool_search(db: &Db, args: &serde_json::Value) -> std::result::Result<String,
         !crate::processor::privacy::is_private_session(&r.session_id, r.project.as_deref())
     });
     results.truncate(limit);
+
+    let latency_ms = started.elapsed().as_millis() as u64;
+    let _ = db.write_access_log(query, results.len(), latency_ms);
+    let _ = db.record_search_latency(latency_ms);
+
     serde_json::to_string_pretty(&results).map_err(|e| e.to_string())
 }
 

@@ -9,6 +9,7 @@ pub const METRIC_INGEST_COUNT: &str = "ingest_count";
 pub const METRIC_INGEST_MESSAGES: &str = "ingest_messages";
 pub const METRIC_MCP_CALLS: &str = "mcp_calls";
 pub const METRIC_SLOW_QUERIES: &str = "slow_queries";
+pub const METRIC_ADAPTER_ERRORS: &str = "adapter_errors";
 
 const SLOW_QUERY_THRESHOLD_MS: u64 = 500;
 

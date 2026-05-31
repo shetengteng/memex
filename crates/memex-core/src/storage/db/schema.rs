@@ -99,4 +99,16 @@ CREATE TABLE IF NOT EXISTS redactions (
     original_length INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES sessions(id),
+    level TEXT NOT NULL,  -- 'L1_chunk' | 'L2_session' | 'L3_project' | 'L4_periodic'
+    title TEXT,
+    summary TEXT NOT NULL,
+    topics_json TEXT NOT NULL DEFAULT '[]',
+    decisions_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    UNIQUE(session_id, level)
+);
 ";

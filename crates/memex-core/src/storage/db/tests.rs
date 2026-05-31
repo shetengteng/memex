@@ -71,3 +71,32 @@ fn test_kv_roundtrip() {
     db.kv_set("k", "v2").unwrap();
     assert_eq!(db.kv_get("k").unwrap().as_deref(), Some("v2"));
 }
+
+#[test]
+fn test_summary_upsert_and_get() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+    db.upsert_summary(
+        "s1", "L2_session", Some("Fix auth bug"),
+        "Fixed JWT parsing issue.", &["auth".into()], &["use RS256".into()],
+    ).unwrap();
+
+    let summary = db.get_summary("s1", "L2_session").unwrap().unwrap();
+    assert_eq!(summary.title.as_deref(), Some("Fix auth bug"));
+    assert_eq!(summary.topics, vec!["auth"]);
+    assert_eq!(summary.decisions, vec!["use RS256"]);
+
+    db.upsert_summary(
+        "s1", "L2_session", Some("Updated title"),
+        "Updated summary.", &["auth".into(), "jwt".into()], &[],
+    ).unwrap();
+    let updated = db.get_summary("s1", "L2_session").unwrap().unwrap();
+    assert_eq!(updated.title.as_deref(), Some("Updated title"));
+    assert_eq!(updated.topics.len(), 2);
+}
+
+#[test]
+fn test_summary_not_found() {
+    let db = Db::open_in_memory().unwrap();
+    assert!(db.get_summary("nonexist", "L2_session").unwrap().is_none());
+}

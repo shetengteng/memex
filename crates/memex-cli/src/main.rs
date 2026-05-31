@@ -48,6 +48,8 @@ enum Commands {
     Sessions {
         #[arg(long, default_value = "20")]
         recent: usize,
+        #[arg(long, help = "Only show sessions updated within N days")]
+        days: Option<u32>,
     },
     /// Show a specific session with its messages
     Session {
@@ -123,7 +125,7 @@ fn main() -> Result<()> {
         } => commands::search::run(
             &query, limit, cli.json, adapter, project, chunk_type, after, before,
         ),
-        Commands::Sessions { recent } => commands::sessions::run(recent, cli.json),
+        Commands::Sessions { recent, days } => commands::sessions::run(recent, days, cli.json),
         Commands::Session { id } => commands::session::run(&id, cli.json),
         Commands::Stats => commands::stats::run(cli.json),
         Commands::Config { action } => match action {

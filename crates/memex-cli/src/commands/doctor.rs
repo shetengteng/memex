@@ -38,6 +38,16 @@ pub fn run(json: bool) -> Result<()> {
     print_report(&report, &memex, json)?;
 
     if !json {
+        let metrics = db.get_today_metrics().unwrap_or_default();
+        let adapter_errors = metrics
+            .iter()
+            .find(|m| m.name == "adapter_errors")
+            .map(|m| m.value)
+            .unwrap_or(0);
+        if adapter_errors > 0 {
+            println!("\n⚠️  Adapter errors today: {}", adapter_errors);
+        }
+
         println!("\nConfig:");
         if config_path.exists() {
             let config = MemexConfig::load(&memex)?;

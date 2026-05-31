@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -47,9 +48,15 @@ pub async fn search(
         after: params.after,
         before: params.before,
     };
+    let started = Instant::now();
     let retriever = Retriever::new(&db);
     match retriever.search_filtered(&params.q, params.limit, &filter) {
-        Ok(results) => Json(serde_json::json!({ "results": results })).into_response(),
+        Ok(results) => {
+            let latency_ms = started.elapsed().as_millis() as u64;
+            let _ = db.write_access_log(&params.q, results.len(), latency_ms);
+            let _ = db.record_search_latency(latency_ms);
+            Json(serde_json::json!({ "results": results })).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
     }
 }

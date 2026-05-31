@@ -102,6 +102,61 @@ async fn test_search_returns_seeded_chunk() {
 }
 
 #[tokio::test]
+async fn test_search_records_access_log_and_metric() {
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
+        .unwrap();
+    let hash = blake3::hash(b"observability tracing").to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "observability tracing", None, 0, &hash)
+        .unwrap();
+    db.insert_chunk(&Chunk {
+        id: None,
+        message_id: "m1".into(),
+        session_id: "s1".into(),
+        chunk_type: ChunkType::Text,
+        content: "observability tracing".into(),
+        redacted_content: None,
+        position: 0,
+        token_count: 3,
+        metadata: ChunkMetadata::default(),
+    })
+    .unwrap();
+
+    let metrics_before = db
+        .get_today_metrics()
+        .unwrap()
+        .iter()
+        .find(|m| m.name == memex_core::storage::metrics::METRIC_SEARCH_COUNT)
+        .map(|m| m.value)
+        .unwrap_or(0);
+
+    let app = crate::build_router(db.clone());
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/search?q=observability&limit=5")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let metrics_after = db
+        .get_today_metrics()
+        .unwrap()
+        .iter()
+        .find(|m| m.name == memex_core::storage::metrics::METRIC_SEARCH_COUNT)
+        .map(|m| m.value)
+        .unwrap_or(0);
+    assert_eq!(
+        metrics_after,
+        metrics_before + 1,
+        "search_count should increment by exactly one per /search request"
+    );
+}
+
+#[tokio::test]
 async fn test_get_unknown_session_returns_404() {
     let response = empty_db_router()
         .oneshot(

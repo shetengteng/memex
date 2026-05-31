@@ -50,6 +50,7 @@ fn split_by_structure(content: &str) -> Vec<String> {
     let mut current = String::new();
     let mut in_code_block = false;
     let mut code_block = String::new();
+    let mut prev_blank = false;
 
     for line in content.lines() {
         if line.starts_with("```") {
@@ -59,6 +60,7 @@ fn split_by_structure(content: &str) -> Vec<String> {
                 segments.push(code_block.clone());
                 code_block.clear();
                 in_code_block = false;
+                prev_blank = false;
             } else {
                 if !current.trim().is_empty() {
                     segments.push(current.clone());
@@ -67,20 +69,37 @@ fn split_by_structure(content: &str) -> Vec<String> {
                 in_code_block = true;
                 code_block.push_str(line);
                 code_block.push('\n');
+                prev_blank = false;
             }
         } else if in_code_block {
             code_block.push_str(line);
             code_block.push('\n');
-        } else if line.starts_with("## ") || line.starts_with("### ") {
+        } else if line.starts_with("## ") || line.starts_with("### ") || line.starts_with("# ") {
             if !current.trim().is_empty() {
                 segments.push(current.clone());
                 current.clear();
             }
             current.push_str(line);
             current.push('\n');
+            prev_blank = false;
+        } else if line.trim().is_empty() {
+            if prev_blank && current.len() > 200 {
+                segments.push(current.clone());
+                current.clear();
+            } else {
+                current.push('\n');
+            }
+            prev_blank = true;
+        } else if is_section_boundary(line) && current.len() > 150 {
+            segments.push(current.clone());
+            current.clear();
+            current.push_str(line);
+            current.push('\n');
+            prev_blank = false;
         } else {
             current.push_str(line);
             current.push('\n');
+            prev_blank = false;
         }
     }
 
@@ -92,6 +111,24 @@ fn split_by_structure(content: &str) -> Vec<String> {
     }
 
     segments
+}
+
+fn is_section_boundary(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
+        return true;
+    }
+    if trimmed.starts_with("- **") || trimmed.starts_with("* **") {
+        return true;
+    }
+    if trimmed.starts_with("1. ") || trimmed.starts_with("Step ") {
+        return true;
+    }
+    let lower = trimmed.to_lowercase();
+    if lower.starts_with("summary") || lower.starts_with("conclusion") || lower.starts_with("solution") {
+        return true;
+    }
+    false
 }
 
 fn detect_chunk_type(content: &str) -> ChunkType {
@@ -185,5 +222,27 @@ mod tests {
         assert!(chunks.len() >= 2);
         assert!(chunks.iter().any(|c| c.chunk_type == ChunkType::CodeBlock));
         assert!(chunks.iter().any(|c| c.chunk_type == ChunkType::Text));
+    }
+
+    #[test]
+    fn test_assistant_structured_split() {
+        let content = "\
+**Analysis**\n\
+The problem is caused by a race condition in the lock acquisition path.\n\
+This happens when two threads try to acquire the same resource simultaneously.\n\
+\n\
+\n\
+**Solution**\n\
+We need to use a compare-and-swap operation instead of a simple mutex.\n\
+Here is the implementation:\n\
+\n\
+```rust\nfn fix() { atomic::compare_exchange(); }\n```\n\
+\n\
+\n\
+**Conclusion**\n\
+This approach eliminates the deadlock while maintaining correctness.\n";
+        let msg = make_msg(content);
+        let chunks = split_into_chunks(&msg).unwrap();
+        assert!(chunks.len() >= 3, "expected >= 3 chunks, got {}", chunks.len());
     }
 }

@@ -1,9 +1,11 @@
 use std::path::Path;
 
 use anyhow::Result;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::collector::{self, Adapter};
+use crate::config::MemexConfig;
+use crate::llm::summarize;
 use crate::processor;
 use crate::storage::db::Db;
 use crate::storage::markdown;
@@ -27,9 +29,16 @@ pub fn run_ingest(db: &Db, memex_dir: &Path, adapter_filter: Option<&str>) -> Re
         if adapter_filter.is_some_and(|f| f != adapter.name()) {
             continue;
         }
-        let (msgs, chunks) = ingest_adapter(adapter.as_ref(), db, memex_dir)?;
-        result.messages_ingested += msgs;
-        result.chunks_created += chunks;
+        match ingest_adapter(adapter.as_ref(), db, memex_dir) {
+            Ok((msgs, chunks)) => {
+                result.messages_ingested += msgs;
+                result.chunks_created += chunks;
+            }
+            Err(e) => {
+                tracing::warn!("{}: adapter error: {}", adapter.name(), e);
+                let _ = db.increment_metric(crate::storage::metrics::METRIC_ADAPTER_ERRORS);
+            }
+        }
     }
 
     let _ = db.increment_metric(crate::storage::metrics::METRIC_INGEST_COUNT);
@@ -40,7 +49,58 @@ pub fn run_ingest(db: &Db, memex_dir: &Path, adapter_filter: Option<&str>) -> Re
         );
     }
 
+    try_summarize_new_sessions(db, memex_dir);
+
     Ok(result)
+}
+
+fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
+    let config = match MemexConfig::load(memex_dir) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let provider = match crate::llm::select_provider(&config.llm, memex_dir) {
+        Some(p) => p,
+        None => return,
+    };
+
+    let sessions = match db.list_sessions(5) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    for session in sessions {
+        if db.get_summary(&session.id, "L2_session").ok().flatten().is_some() {
+            continue;
+        }
+        let detail = match db.get_session_detail(&session.id) {
+            Ok(Some(d)) if d.messages.len() >= 2 => d,
+            _ => continue,
+        };
+
+        let msgs: Vec<(String, String)> = detail
+            .messages
+            .iter()
+            .map(|m| (m.role.clone(), m.content.clone()))
+            .collect();
+
+        match summarize::summarize_session(provider.as_ref(), &msgs) {
+            Ok(summary) => {
+                let _ = db.upsert_summary(
+                    &session.id,
+                    "L2_session",
+                    Some(&summary.title),
+                    &summary.summary,
+                    &summary.topics,
+                    &summary.decisions,
+                );
+            }
+            Err(e) => {
+                warn!("summarize failed for session {}: {}", &session.id[..8.min(session.id.len())], e);
+            }
+        }
+    }
 }
 
 fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, u64)> {

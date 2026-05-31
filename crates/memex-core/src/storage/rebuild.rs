@@ -277,4 +277,21 @@ mod tests {
         assert!(stats.chunks > 0);
         assert_eq!(stats.errors, 0);
     }
+
+    #[test]
+    fn test_rebuild_search_consistency() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let sessions_dir = tmp.path().join("sessions").join("claude_code");
+        fs::create_dir_all(&sessions_dir).unwrap();
+
+        let md = "---\nsession_id: s-redis\nsource: claude_code\nproject: memex\n---\n\n## 👤 User\n\nHow do I use redis pipeline?\n\n---\n\n## 🤖 Assistant\n\nUse MULTI/EXEC for redis pipeline operations.\n";
+        fs::write(sessions_dir.join("s-redis.md"), md).unwrap();
+
+        let db = Db::open_in_memory().unwrap();
+        rebuild_from_markdown(tmp.path(), &db).unwrap();
+
+        let results = db.fts_search("redis", 10).unwrap();
+        assert!(!results.is_empty(), "search after rebuild should find 'redis'");
+        assert!(results.iter().any(|r| r.content.contains("redis")));
+    }
 }

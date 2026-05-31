@@ -30,12 +30,17 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 - [`20260531-12-Memex-技术栈.md`](design/20260531-12-Memex-技术栈.md) — 技术选型 + 代码复用来源（DiskMind / tokenbar / tars-ai-butler）
 
 **开发计划**
-- [`20260531-13-Memex-执行计划-Rust-60%.md`](design/20260531-13-Memex-执行计划-Rust-60%.md) — Sprint 1 ~ 11 详细排期（带 checkbox，文件名含整体完成率）
+- [`20260531-13-Memex-执行计划-Rust-70%.md`](design/20260531-13-Memex-执行计划-Rust-70%.md) — Sprint 1 ~ 11 详细排期（带 checkbox，文件名含整体完成率）
 - [`20260531-01-Memex-v4功能点开发清单.md`](design/20260531-01-Memex-v4功能点开发清单.md) — 功能模块视角的全集 checklist
 
 **测试**
 - [`20260531-14-Memex-单元测试用例设计.md`](design/20260531-14-Memex-单元测试用例设计.md) — 模块级测试用例与 fixture
 - [`20260531-15-Memex-测试TODO.md`](design/20260531-15-Memex-测试TODO.md) — 按 Sprint 拆分的测试 checklist
+
+**MCP 接入（AI 客户端 Skill）**
+- [`SKILL.md`](SKILL.md) — 通用 SKILL（4 个 MCP 工具 + CLI 速查 + 配置键参考）
+- [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) — Cursor 专属（Composer 调用样例 + Cursor 注意事项）
+- [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) — Claude Code 专属（`mcp__memex__*` 命名空间 + 调用样例）
 
 **UI 原型**
 - [`20260531-04-Memex-menubar-ASCII原型与功能设计.md`](design/20260531-04-Memex-menubar-ASCII原型与功能设计.md) — menubar 信息架构与 ASCII 原型

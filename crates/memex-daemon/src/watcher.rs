@@ -22,6 +22,11 @@ pub fn adapter_watch_dirs() -> Vec<PathBuf> {
         dirs.push(claude);
     }
 
+    let cursor = home.join(".cursor/projects");
+    if cursor.exists() {
+        dirs.push(cursor);
+    }
+
     let codex = home.join(".codex");
     if codex.exists() {
         dirs.push(codex);
@@ -30,21 +35,6 @@ pub fn adapter_watch_dirs() -> Vec<PathBuf> {
     let opencode = home.join(".opencode/sessions");
     if opencode.exists() {
         dirs.push(opencode);
-    }
-
-    for entry in std::fs::read_dir(home.join("Library/Application Support"))
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        if name_str.contains("Cursor") {
-            let transcripts = entry.path().join("User/globalStorage/agent-transcripts");
-            if transcripts.exists() {
-                dirs.push(transcripts);
-            }
-        }
     }
 
     dirs
