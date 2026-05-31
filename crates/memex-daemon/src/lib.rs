@@ -3,6 +3,9 @@ pub mod lockfile;
 pub mod routes;
 pub mod watcher;
 
+#[cfg(test)]
+mod tests;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -55,7 +58,7 @@ pub async fn run(port: u16) -> Result<()> {
     Ok(())
 }
 
-fn build_router(db: Arc<Db>) -> Router {
+pub fn build_router(db: Arc<Db>) -> Router {
     Router::new()
         .route("/health", get(routes::health))
         .route("/search", get(routes::search))
