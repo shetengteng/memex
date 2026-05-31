@@ -1,4 +1,7 @@
 pub mod claude_code;
+pub mod codex;
+pub mod cursor;
+pub mod opencode;
 
 use anyhow::Result;
 use crate::storage::models::{RawMessage, SessionMeta};
@@ -7,4 +10,24 @@ pub trait Adapter {
     fn name(&self) -> &str;
     fn scan(&self) -> Result<Vec<SessionMeta>>;
     fn collect(&self, session: &SessionMeta) -> Result<Vec<RawMessage>>;
+}
+
+pub fn safe_prefix(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
+pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
+    vec![
+        Box::new(claude_code::ClaudeCodeAdapter::new()),
+        Box::new(cursor::CursorAdapter::new()),
+        Box::new(codex::CodexAdapter::new()),
+        Box::new(opencode::OpenCodeAdapter::new()),
+    ]
 }

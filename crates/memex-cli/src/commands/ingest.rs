@@ -1,12 +1,11 @@
 use anyhow::Result;
-use memex_core::collector::claude_code::ClaudeCodeAdapter;
-use memex_core::collector::Adapter;
+use memex_core::collector::{self, Adapter};
 use memex_core::config::ensure_memex_dir;
 use memex_core::processor;
 use memex_core::storage::db::Db;
 use memex_core::storage::markdown;
 use memex_core::storage::models::SourceState;
-use memex_core::{memex_dir};
+use memex_core::memex_dir;
 use tracing::info;
 
 pub fn run(adapter_filter: Option<&str>, json: bool) -> Result<()> {
@@ -19,8 +18,12 @@ pub fn run(adapter_filter: Option<&str>, json: bool) -> Result<()> {
     let mut total_messages = 0u64;
     let mut total_chunks = 0u64;
 
-    if adapter_filter.is_none() || adapter_filter == Some("claude_code") {
-        let (msgs, chunks) = ingest_adapter(&ClaudeCodeAdapter::new(), &db, &memex)?;
+    let adapters = collector::all_adapters();
+    for adapter in &adapters {
+        if adapter_filter.is_some_and(|f| f != adapter.name()) {
+            continue;
+        }
+        let (msgs, chunks) = ingest_adapter(adapter.as_ref(), &db, &memex)?;
         total_messages += msgs;
         total_chunks += chunks;
     }

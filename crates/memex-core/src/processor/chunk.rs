@@ -111,10 +111,15 @@ fn detect_chunk_type(content: &str) -> ChunkType {
 fn split_long_segment(content: &str, max_chars: usize) -> Vec<String> {
     let mut pieces = Vec::new();
     let mut start = 0;
-    let bytes = content.as_bytes();
-    while start < bytes.len() {
-        let end = (start + max_chars).min(bytes.len());
-        let boundary = if end < bytes.len() {
+    while start < content.len() {
+        let mut end = (start + max_chars).min(content.len());
+        while end > start && !content.is_char_boundary(end) {
+            end -= 1;
+        }
+        if end == start {
+            end = content.len();
+        }
+        let boundary = if end < content.len() {
             content[start..end]
                 .rfind('\n')
                 .map(|pos| start + pos + 1)

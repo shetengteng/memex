@@ -198,7 +198,7 @@ fn convert_claude_message(
     let id = msg
         .uuid
         .clone()
-        .unwrap_or_else(|| blake3::hash(format!("{}{}{}", session_id, offset, &content[..content.len().min(100)]).as_bytes()).to_hex().to_string());
+        .unwrap_or_else(|| blake3::hash(format!("{}{}{}", session_id, offset, super::safe_prefix(&content, 100)).as_bytes()).to_hex().to_string());
 
     Some(RawMessage {
         id,
