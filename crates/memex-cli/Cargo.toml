@@ -1,0 +1,21 @@
+[package]
+name = "memex-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "memex"
+path = "src/main.rs"
+
+[dependencies]
+memex-core = { path = "../memex-core" }
+clap = { version = "4", features = ["derive"] }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+toml.workspace = true
+chrono.workspace = true
+blake3.workspace = true

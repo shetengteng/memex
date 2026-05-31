@@ -20,3 +20,4 @@ prompts.txt
 *.db
 *.db-shm
 *.db-wal
+target/
