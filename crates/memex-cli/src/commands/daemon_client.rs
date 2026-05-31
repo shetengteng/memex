@@ -23,3 +23,18 @@ pub fn check_health(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
     ureq::get(&url).call().is_ok()
 }
+
+pub fn daemon_port(memex_dir: &Path) -> Option<u16> {
+    let info = read_lock(memex_dir)?;
+    if is_process_alive(info.pid) && check_health(info.port) {
+        Some(info.port)
+    } else {
+        None
+    }
+}
+
+pub fn http_get_json(port: u16, path: &str) -> anyhow::Result<serde_json::Value> {
+    let url = format!("http://127.0.0.1:{}{}", port, path);
+    let body: serde_json::Value = ureq::get(&url).call()?.body_mut().read_json()?;
+    Ok(body)
+}

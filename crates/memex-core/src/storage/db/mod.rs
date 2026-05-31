@@ -269,6 +269,25 @@ impl Db {
         Ok(())
     }
 
+    pub fn insert_redaction(
+        &self,
+        message_id: &str,
+        session_id: &str,
+        redaction_type: &str,
+        original_length: usize,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO redactions (message_id, session_id, redaction_type, original_length, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                message_id, session_id, redaction_type,
+                original_length as i64, chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn list_sessions(&self, limit: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

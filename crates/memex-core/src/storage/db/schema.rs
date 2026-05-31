@@ -90,4 +90,13 @@ CREATE TABLE IF NOT EXISTS metrics (
     metric_value INTEGER NOT NULL DEFAULT 0,
     UNIQUE(date, metric_name)
 );
+
+CREATE TABLE IF NOT EXISTS redactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    redaction_type TEXT NOT NULL,
+    original_length INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 ";

@@ -84,9 +84,27 @@ static RULES: LazyLock<Vec<RedactionRule>> = LazyLock::new(|| {
     ]
 });
 
+#[derive(Debug, Clone)]
+pub struct RedactionHit {
+    pub redaction_type: String,
+    pub original_length: usize,
+}
+
 pub fn redact(content: &str) -> String {
+    redact_with_hits(content).0
+}
+
+pub fn redact_with_hits(content: &str) -> (String, Vec<RedactionHit>) {
     let mut result = content.to_string();
+    let mut hits = Vec::new();
+
     for rule in RULES.iter() {
+        for m in rule.pattern.find_iter(&result.clone()) {
+            hits.push(RedactionHit {
+                redaction_type: rule.label.clone(),
+                original_length: m.len(),
+            });
+        }
         result = rule
             .pattern
             .replace_all(&result, format!("[REDACTED:{}]", rule.label))
@@ -94,13 +112,19 @@ pub fn redact(content: &str) -> String {
     }
     if let Ok(custom) = CUSTOM_RULES.lock() {
         for rule in custom.iter() {
+            for m in rule.pattern.find_iter(&result.clone()) {
+                hits.push(RedactionHit {
+                    redaction_type: rule.label.clone(),
+                    original_length: m.len(),
+                });
+            }
             result = rule
                 .pattern
                 .replace_all(&result, format!("[REDACTED:{}]", rule.label))
                 .to_string();
         }
     }
-    result
+    (result, hits)
 }
 
 #[cfg(test)]

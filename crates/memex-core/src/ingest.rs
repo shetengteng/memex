@@ -105,10 +105,18 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
 
         if !inserted_messages.is_empty() {
             let owned: Vec<_> = inserted_messages.into_iter().cloned().collect();
-            let chunks = processor::process_messages(&owned)?;
-            for chunk in &chunks {
-                db.insert_chunk(chunk)?;
+            let processed = processor::process_messages_with_hits(&owned)?;
+            for pc in &processed {
+                db.insert_chunk(&pc.chunk)?;
                 chunk_count += 1;
+                for hit in &pc.redaction_hits {
+                    let _ = db.insert_redaction(
+                        &pc.chunk.message_id,
+                        &pc.chunk.session_id,
+                        &hit.redaction_type,
+                        hit.original_length,
+                    );
+                }
             }
         }
 

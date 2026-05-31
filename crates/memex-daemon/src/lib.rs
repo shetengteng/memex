@@ -1,5 +1,6 @@
 pub mod launchd;
 pub mod lockfile;
+pub mod logging;
 pub mod routes;
 pub mod watcher;
 
@@ -24,6 +25,9 @@ pub const DEFAULT_PORT: u16 = 9999;
 pub async fn run(port: u16) -> Result<()> {
     let memex_dir = memex_core::memex_dir();
     ensure_memex_dir(&memex_dir)?;
+
+    let _log_guard = logging::setup_file_logging(&memex_dir)?;
+    logging::rotate_old_logs(&memex_dir);
 
     if let Some(existing) = lockfile::is_daemon_running(&memex_dir) {
         anyhow::bail!(
