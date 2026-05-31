@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# Local interaction
+prompts.txt
+
+# Memex runtime data (path TBD)
+.memex/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal

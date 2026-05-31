@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memex Menubar Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: oklch(0.99 0.005 247);
+    --foreground: oklch(0.18 0.02 252);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.18 0.02 252);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.18 0.02 252);
+    --primary: oklch(0.55 0.21 260);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.965 0.008 250);
+    --secondary-foreground: oklch(0.21 0.02 252);
+    --muted: oklch(0.965 0.008 250);
+    --muted-foreground: oklch(0.5 0.018 252);
+    --accent: oklch(0.96 0.01 250);
+    --accent-foreground: oklch(0.21 0.02 252);
+    --destructive: oklch(0.6 0.22 25);
+    --warning: oklch(0.75 0.15 75);
+    --success: oklch(0.65 0.16 145);
+    --border: oklch(0.9 0.008 250);
+    --input: oklch(0.92 0.008 250);
+    --ring: oklch(0.55 0.21 260 / 0.55);
+    --radius: 0.625rem;
+    --desktop: oklch(0.96 0.01 250);
+    --bar: oklch(0.985 0.005 250 / 0.88);
+    --shadow-sm: 0 1px 2px 0 oklch(0.18 0.02 252 / 0.05);
+    --shadow-md: 0 4px 12px -2px oklch(0.18 0.02 252 / 0.08), 0 2px 4px -2px oklch(0.18 0.02 252 / 0.06);
+    --shadow-lg: 0 24px 48px -16px oklch(0.18 0.02 252 / 0.18), 0 8px 16px -8px oklch(0.18 0.02 252 / 0.08);
+  }
+  .dark {
+    --background: oklch(0.16 0.013 252);
+    --foreground: oklch(0.98 0.005 247);
+    --card: oklch(0.21 0.015 252);
+    --card-foreground: oklch(0.98 0.005 247);
+    --popover: oklch(0.21 0.015 252);
+    --popover-foreground: oklch(0.98 0.005 247);
+    --primary: oklch(0.7 0.18 260);
+    --primary-foreground: oklch(0.16 0.013 252);
+    --secondary: oklch(0.27 0.018 252);
+    --secondary-foreground: oklch(0.98 0.005 247);
+    --muted: oklch(0.25 0.016 252);
+    --muted-foreground: oklch(0.72 0.015 252);
+    --accent: oklch(0.27 0.018 252);
+    --accent-foreground: oklch(0.98 0.005 247);
+    --destructive: oklch(0.7 0.2 25);
+    --warning: oklch(0.78 0.16 75);
+    --success: oklch(0.72 0.16 145);
+    --border: oklch(0.32 0.018 252 / 0.6);
+    --input: oklch(0.32 0.018 252 / 0.6);
+    --ring: oklch(0.7 0.18 260 / 0.55);
+    --desktop: oklch(0.2 0.014 252);
+    --bar: oklch(0.21 0.015 252 / 0.88);
+    --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+    --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.5), 0 2px 4px -2px oklch(0 0 0 / 0.4);
+    --shadow-lg: 0 24px 48px -16px oklch(0 0 0 / 0.6), 0 8px 16px -8px oklch(0 0 0 / 0.45);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    color: var(--foreground);
+    background:
+      radial-gradient(1100px 480px at 14% -10%, oklch(0.55 0.21 260 / 0.1), transparent 60%),
+      radial-gradient(900px 420px at 88% -8%, oklch(0.65 0.16 145 / 0.08), transparent 60%),
+      var(--background);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; background: transparent; border: 0; padding: 0; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .stage { width: min(1240px, calc(100vw - 32px)); margin: 0 auto; padding: 28px 0 56px; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+  .top-bar h1 { margin: 0; font-size: clamp(28px, 4vw, 44px); letter-spacing: -0.035em; line-height: 1.05; font-weight: 700; }
+  .top-bar p { margin: 8px 0 0; color: var(--muted-foreground); max-width: 640px; line-height: 1.6; font-size: 14px; }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--secondary); color: var(--secondary-foreground); font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500; }
+  .badge.tone-primary { background: oklch(from var(--primary) l c h / 0.12); color: var(--primary); border-color: oklch(from var(--primary) l c h / 0.3); }
+  .badge.tone-success { background: oklch(from var(--success) l c h / 0.14); color: var(--success); border-color: oklch(from var(--success) l c h / 0.32); }
+  .badge.tone-warning { background: oklch(from var(--warning) l c h / 0.15); color: var(--warning); border-color: oklch(from var(--warning) l c h / 0.32); }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--card); color: var(--foreground); transition: background 160ms ease-out, border-color 160ms ease-out, transform 160ms ease-out; }
+  .icon-btn:hover { background: var(--accent); transform: translateY(-1px); }
+  .icon-btn svg { width: 16px; height: 16px; stroke-width: 2; }
+  .theme-toggle .moon { display: none; }
+  .dark .theme-toggle .sun { display: none; }
+  .dark .theme-toggle .moon { display: inline; }
+  .desktop { position: relative; min-height: 660px; border: 1px solid var(--border); border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, var(--desktop) 0%, color-mix(in oklch, var(--desktop) 88%, var(--background) 12%) 100%); box-shadow: var(--shadow-lg); }
+  .desktop::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, oklch(from var(--foreground) l c h / 0.06) 1px, transparent 0); background-size: 22px 22px; opacity: 0.6; pointer-events: none; }
+  .menubar { position: relative; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: var(--bar); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px) saturate(160%); font-size: 13px; z-index: 1; }
+  .menu-left, .menu-right { display: flex; align-items: center; gap: 16px; }
+  .menu-left .menu-app { font-weight: 600; }
+  .menu-left span { color: var(--foreground); }
+  .menu-left span:not(.menu-app) { color: var(--muted-foreground); }
+  .menu-right { gap: 12px; color: var(--muted-foreground); font-size: 12px; }
+  .menubar-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px 0 8px; border-radius: 999px; border: 1px solid oklch(from var(--primary) l c h / 0.32); background: oklch(from var(--primary) l c h / 0.12); color: var(--primary); font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500; transition: background 160ms ease-out, border-color 160ms ease-out; }
+  .menubar-chip:hover { background: oklch(from var(--primary) l c h / 0.2); }
+  .menubar-chip .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 3px oklch(from var(--success) l c h / 0.18); }
+  .desktop-hint { position: absolute; left: 24px; bottom: 22px; color: oklch(from var(--foreground) l c h / 0.5); font-family: "JetBrains Mono", monospace; font-size: 11px; pointer-events: none; }
+  .popover { position: absolute; top: 44px; right: 24px; width: min(440px, calc(100% - 48px)); max-height: calc(100% - 72px); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 16px; background: var(--popover); color: var(--popover-foreground); box-shadow: var(--shadow-lg); overflow: hidden; z-index: 2; }
+  .desktop.popup-hidden .popover { display: none; }
+  .desktop.popup-hidden .menubar-chip { color: var(--muted-foreground); border-color: var(--border); background: var(--secondary); }
+  .desktop.popup-hidden .menubar-chip .dot { background: var(--muted-foreground); box-shadow: none; }
+  .popover-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+  .popover-head .title { display: grid; gap: 2px; }
+  .popover-head .title strong { font-size: 15px; letter-spacing: -0.01em; font-weight: 600; }
+  .popover-head .title span { color: var(--muted-foreground); font-size: 12px; }
+  .tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 6px; margin: 10px 12px 0; background: var(--muted); border-radius: 10px; }
+  .tab { height: 30px; border-radius: 7px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; transition: background 140ms ease-out, color 140ms ease-out; }
+  .tab:hover { color: var(--foreground); }
+  .tab.active { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-sm); }
+  .panel { display: none; flex: 1 1 auto; min-height: 0; padding: 14px 16px 16px; overflow-y: auto; overscroll-behavior: contain; }
+  .panel.active { display: block; animation: panelIn 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+  .input { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); color: var(--foreground); transition: border-color 160ms ease-out, box-shadow 160ms ease-out; }
+  .input:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px oklch(from var(--primary) l c h / 0.18); }
+  .input svg { width: 14px; height: 14px; color: var(--muted-foreground); stroke-width: 2; flex-shrink: 0; }
+  .input input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 13px; }
+  .input kbd { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--muted-foreground); padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--secondary); }
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .stat { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .stat-num { font-family: "JetBrains Mono", monospace; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat-label { color: var(--muted-foreground); font-size: 11px; margin-top: 2px; }
+  .label { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; color: var(--muted-foreground); font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .list { display: grid; gap: 6px; }
+  .list-item { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--card); color: inherit; text-align: left; transition: border-color 160ms ease-out, background 160ms ease-out, transform 140ms ease-out; }
+  .list-item:hover { border-color: var(--border); background: color-mix(in oklch, var(--card) 88%, var(--accent) 12%); transform: translateY(-1px); }
+  .source { display: inline-grid; place-items: center; width: 32px; height: 28px; border-radius: 7px; background: oklch(from var(--primary) l c h / 0.14); color: var(--primary); font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600; }
+  .source.cu { background: oklch(from var(--success) l c h / 0.14); color: var(--success); }
+  .source.cx { background: oklch(from var(--warning) l c h / 0.16); color: var(--warning); }
+  .source.oc { background: oklch(from var(--destructive) l c h / 0.14); color: var(--destructive); }
+  .list-item-body { display: grid; gap: 3px; min-width: 0; }
+  .list-item-body strong { font-size: 13px; font-weight: 600; }
+  .list-item-body p, .list-item-body small { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
+  .list-item-body small { font-family: "JetBrains Mono", monospace; font-size: 10px; }
+  .time { color: var(--muted-foreground); font-family: "JetBrains Mono", monospace; font-size: 10px; white-space: nowrap; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--foreground); font-size: 12px; font-weight: 500; transition: background 160ms ease-out, border-color 160ms ease-out, transform 140ms ease-out; }
+  .btn:hover { background: var(--accent); transform: translateY(-1px); }
+  .btn svg { width: 13px; height: 13px; stroke-width: 2; }
+  .btn.primary { border-color: transparent; background: var(--primary); color: var(--primary-foreground); }
+  .btn.primary:hover { background: color-mix(in oklch, var(--primary) 88%, black 12%); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--accent); }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .chip { height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); font-size: 11px; font-weight: 500; transition: background 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out; }
+  .chip:hover { color: var(--foreground); }
+  .chip.active { background: oklch(from var(--primary) l c h / 0.12); color: var(--primary); border-color: oklch(from var(--primary) l c h / 0.32); }
+  .detail-card { padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+  .detail-meta { display: grid; gap: 4px; margin-bottom: 10px; color: var(--muted-foreground); font-size: 12px; }
+  .detail-meta strong { color: var(--foreground); font-size: 14px; font-weight: 600; }
+  .summary { margin: 0; line-height: 1.6; font-size: 13px; }
+  .checks { display: grid; gap: 6px; margin-top: 12px; }
+  .check { display: flex; gap: 8px; align-items: center; color: var(--muted-foreground); font-size: 12px; }
+  .check-dot { width: 16px; height: 16px; border-radius: 999px; display: grid; place-items: center; background: oklch(from var(--success) l c h / 0.16); color: var(--success); flex-shrink: 0; }
+  .check-dot svg { width: 10px; height: 10px; stroke-width: 3; }
+  .preview { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--muted); font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--foreground); line-height: 1.65; }
+  .preview .role { color: var(--primary); font-weight: 600; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .row:first-child { border-top: 0; padding-top: 6px; }
+  .row .info strong { display: block; font-size: 13px; font-weight: 500; }
+  .row .info span { color: var(--muted-foreground); font-family: "JetBrains Mono", monospace; font-size: 11px; }
+  .switch { position: relative; width: 36px; height: 20px; border-radius: 999px; background: var(--input); transition: background 160ms ease-out; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow-sm); transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .switch[aria-pressed="true"] { background: var(--primary); }
+  .switch[aria-pressed="true"]::after { transform: translateX(16px); }
+  .alert { padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); display: grid; gap: 10px; }
+  .alert.warning { border-color: oklch(from var(--warning) l c h / 0.4); background: oklch(from var(--warning) l c h / 0.08); }
+  .alert.destructive { border-color: oklch(from var(--destructive) l c h / 0.4); background: oklch(from var(--destructive) l c h / 0.06); }
+  .alert-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .alert-head strong { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .alert-head svg { width: 14px; height: 14px; stroke-width: 2; }
+  .alert.warning .alert-head strong { color: var(--warning); }
+  .alert.destructive .alert-head strong { color: var(--destructive); }
+  .alert p { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.55; }
+  .reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+  .ref-card { padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); display: grid; gap: 10px; }
+  .ref-card h2 { margin: 0; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .ref-card h2 svg { width: 14px; height: 14px; stroke-width: 2; color: var(--muted-foreground); }
+  .ref-card p { margin: 0; color: var(--muted-foreground); font-size: 12px; }
+  .menu-list { display: grid; gap: 1px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .menu-list .menu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; transition: background 140ms ease-out; }
+  .menu-list .menu-item:hover { background: var(--accent); }
+  .menu-list .menu-item kbd { color: var(--muted-foreground); font-family: "JetBrains Mono", monospace; font-size: 10.5px; }
+  .menu-list .menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+  .legend-table { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 12px; }
+  .legend-table dt { font-family: "JetBrains Mono", monospace; font-size: 11px; }
+  .legend-table dd { margin: 0; color: var(--muted-foreground); }
+  .legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; margin-right: 6px; vertical-align: 2px; }
+  .legend-dot.green { background: var(--success); }
+  .legend-dot.muted { background: var(--muted-foreground); }
+  .legend-dot.amber { background: var(--warning); }
+  .legend-dot.indigo { background: var(--primary); }
+  .legend-dot.rose { background: var(--destructive); }
+  .principle { display: grid; gap: 4px; padding: 10px; border-radius: 10px; background: var(--muted); }
+  .principle b { font-size: 12.5px; font-weight: 600; }
+  .principle span { color: var(--muted-foreground); font-size: 11.5px; }
+  .topics { display: grid; gap: 6px; }
+  .topic { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--muted); font-size: 12.5px; }
+  .topic .num { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--muted-foreground); width: 18px; }
+  @media (max-width: 920px) { .reference-grid { grid-template-columns: 1fr; } .top-bar { flex-direction: column; align-items: stretch; } .tabs { grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <header class="top-bar">
+      <div>
+        <span class="badge">UI/UX Pro Max · shadcn · local-first</span>
+        <h1>Memex menubar 原型</h1>
+        <p>面向 macOS menubar 的开发者工具原型。点击 Memex chip 打开/收起 popover，用面板标签切换主面板、搜索、详情、设置、报告与异常态。</p>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn theme-toggle" id="themeToggle" type="button" aria-label="切换主题">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="desktop" aria-label="macOS 桌面上的 Memex menubar 原型" id="desktop">
+      <div class="menubar">
+        <div class="menu-left">
+          <span class="menu-app">Finder</span>
+          <span>File</span>
+          <span>Edit</span>
+          <span>View</span>
+          <span>Window</span>
+        </div>
+        <div class="menu-right">
+          <button class="menubar-chip" id="memexChip" type="button" aria-expanded="true" aria-controls="popover">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="mono">Memex 23</span>
+          </button>
+          <span class="mono">10:31</span>
+        </div>
+      </div>
+
+      <div class="popover" id="popover" role="region" aria-label="Memex menubar popup">
+        <div class="popover-head">
+          <div class="title">
+            <strong>Memex</strong>
+            <span>本地记忆运行中 · 最后采集 2 分钟前</span>
+          </div>
+          <span class="badge tone-success">healthy</span>
+        </div>
+
+        <nav class="tabs" aria-label="Memex 面板">
+          <button class="tab active" type="button" data-panel="home">主面板</button>
+          <button class="tab" type="button" data-panel="search">搜索</button>
+          <button class="tab" type="button" data-panel="detail">详情</button>
+          <button class="tab" type="button" data-panel="settings">设置</button>
+          <button class="tab" type="button" data-panel="report">报告</button>
+          <button class="tab" type="button" data-panel="alerts">异常</button>
+        </nav>
+
+        <section class="panel active" id="home" data-panel-content>
+          <button class="input" type="button" data-jump="search" data-jump-focus="#search-input" aria-label="跳转到搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="home-search" placeholder="搜索 Cursor / Claude / Codex 历史..." aria-label="搜索历史" readonly>
+            <kbd>/</kbd>
+          </button>
+          <div class="stat-row">
+            <div class="stat"><div class="stat-num">12</div><div class="stat-label">MCP 调用</div></div>
+            <div class="stat"><div class="stat-num">8</div><div class="stat-label">CLI 搜索</div></div>
+            <div class="stat"><div class="stat-num">184</div><div class="stat-label">新消息</div></div>
+          </div>
+          <div class="label">最近 sessions<span class="mono" style="text-transform:none;letter-spacing:0">3 项</span></div>
+          <div class="list">
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source">CC</span>
+              <span class="list-item-body"><strong>Rust 主体迁移方案</strong><p>确定 CLI 是稳定契约层，MCP 永远 spawn CLI。</p></span>
+              <span class="time">5m</span>
+            </button>
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source cu">Cu</span>
+              <span class="list-item-body"><strong>SQLite FTS5 chunk 检索</strong><p>从 message 级索引收敛到 chunk 级索引，提升 snippet 命中。</p></span>
+              <span class="time">1h</span>
+            </button>
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source cx">Cx</span>
+              <span class="list-item-body"><strong>Tauri menubar 原型</strong><p>定义主面板、搜索、详情、设置和报告六类视图。</p></span>
+              <span class="time">3h</span>
+            </button>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="button" data-jump="search" data-jump-focus="#search-input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              打开搜索
+            </button>
+            <button class="btn" type="button" data-jump="report">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+              生成周报
+            </button>
+            <button class="btn ghost" type="button" data-jump="settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+              设置
+            </button>
+          </div>
+        </section>
+        <section class="panel" id="search" data-panel-content>
+          <label class="input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="search-input" value="redis pipeline 优化" aria-label="搜索关键词">
+            <kbd>⏎</kbd>
+          </label>
+          <div class="filters" role="group" aria-label="搜索过滤">
+            <button class="chip active" type="button" data-solo="true">全部</button>
+            <button class="chip" type="button">Claude</button>
+            <button class="chip" type="button">Cursor</button>
+            <button class="chip" type="button">Codex</button>
+            <button class="chip active" type="button">当前项目</button>
+            <button class="chip" type="button">30 天</button>
+          </div>
+          <div class="label">3 个匹配<span class="mono" style="text-transform:none;letter-spacing:0">FTS5 + metadata</span></div>
+          <div class="list">
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source cu">Cu</span>
+              <span class="list-item-body"><strong>Redis pipeline 批量写入优化</strong><p>...pipeline 批量执行 SET，吞吐提升，失败后进入 dead letter queue...</p><small>match: title + code block + current dir</small></span>
+              <span class="time">2h</span>
+            </button>
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source">CC</span>
+              <span class="list-item-body"><strong>缓存写入与错误恢复策略</strong><p>...失败时回退单条写入并记录上下文，避免整体阻塞...</p><small>match: summary + recent</small></span>
+              <span class="time">1d</span>
+            </button>
+            <button class="list-item" type="button" data-jump="detail">
+              <span class="source cx">Cx</span>
+              <span class="list-item-body"><strong>benchmark 脚本调试</strong><p>...redis pipeline benchmark 输出不稳定，先固定连接池再压测...</p><small>match: code snippet</small></span>
+              <span class="time">3d</span>
+            </button>
+          </div>
+        </section>
+        <section class="panel" id="detail" data-panel-content>
+          <div class="detail-card">
+            <div class="detail-meta">
+              <strong>Cursor · SQLite FTS5 chunk 检索</strong>
+              <span class="mono">memex · /Users/example/projects/memex</span>
+              <span class="mono">2026-05-31 10:12 · 47 messages · public</span>
+            </div>
+            <p class="summary">讨论将 FTS 索引从 messages 调整到 chunks，以提升 snippet 定位与长消息 ranking 的准确性。</p>
+            <div class="checks">
+              <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>FTS 建在 chunks 表上</div>
+              <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>Markdown 是主存储</div>
+              <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>SQLite 可从 Markdown 重建</div>
+            </div>
+            <div class="preview">
+              <span class="role">User</span> 为啥不要直接对 message 建索引？<br>
+              <span class="role">Assistant</span> 因为检索命中粒度会太粗，snippet 不稳定，长 tool output 会污染 ranking ...
+            </div>
+            <div class="actions">
+              <button class="btn primary" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+                在 IDE 打开
+              </button>
+              <button class="btn" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                复制摘要
+              </button>
+              <button class="btn ghost" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 2l20 20"/><path d="M6.7 6.7A10 10 0 0 0 1 12s4 7 11 7a10 10 0 0 0 5.3-1.7"/><path d="M14.1 9.9a3 3 0 0 0-4.2 4.2"/><path d="M18 6.4A10 10 0 0 1 23 12s-1 1.7-3 3.6"/></svg>
+                标记 private
+              </button>
+            </div>
+          </div>
+        </section>
+        <section class="panel" id="settings" data-panel-content>
+          <div class="label">Adapters</div>
+          <div class="row"><div class="info"><strong>Claude Code</strong><span>~/.claude/projects</span></div><button class="switch" type="button" aria-pressed="true" aria-label="Claude Code 开关"></button></div>
+          <div class="row"><div class="info"><strong>Cursor</strong><span>路径自动检测</span></div><button class="switch" type="button" aria-pressed="true" aria-label="Cursor 开关"></button></div>
+          <div class="row"><div class="info"><strong>Codex</strong><span>~/.codex/sessions</span></div><button class="switch" type="button" aria-pressed="true" aria-label="Codex 开关"></button></div>
+          <div class="row"><div class="info"><strong>OpenCode</strong><span>~/.opencode</span></div><button class="switch" type="button" aria-pressed="false" aria-label="OpenCode 开关"></button></div>
+
+          <div class="label">隐私与 LLM</div>
+          <div class="row"><div class="info"><strong>自动脱敏</strong><span>email · phone · API key · IP</span></div><button class="switch" type="button" aria-pressed="true" aria-label="自动脱敏开关"></button></div>
+          <div class="row"><div class="info"><strong>private session 不进 MCP</strong><span>隐藏敏感会话的搜索入口</span></div><button class="switch" type="button" aria-pressed="true" aria-label="private session 进入 MCP 开关"></button></div>
+          <div class="row"><div class="info"><strong>Private Mode</strong><span>临时暂停公开采集</span></div><button class="switch" type="button" aria-pressed="false" aria-label="Private Mode 开关"></button></div>
+          <div class="row"><div class="info"><strong>Claude 云端兜底</strong><span>需要 ANTHROPIC_API_KEY · 默认关闭</span></div><button class="switch" type="button" aria-pressed="false" aria-label="Claude fallback 开关"></button></div>
+
+          <div class="label">备份</div>
+          <div class="row"><div class="info"><strong>每周本地备份</strong><span>~/.memex/backup</span></div><button class="switch" type="button" aria-pressed="true" aria-label="每周备份开关"></button></div>
+          <div class="row"><div class="info"><strong>Git 自动 commit</strong><span>可选 · 默认关闭</span></div><button class="switch" type="button" aria-pressed="false" aria-label="Git 自动 commit 开关"></button></div>
+
+          <div class="actions">
+            <button class="btn primary" type="button">安装 Cursor MCP</button>
+            <button class="btn" type="button">编辑 redactions.yaml</button>
+            <button class="btn ghost" type="button">运行 doctor</button>
+          </div>
+        </section>
+        <section class="panel" id="report" data-panel-content>
+          <div class="stat-row">
+            <div class="stat"><div class="stat-num">128</div><div class="stat-label">Sessions</div></div>
+            <div class="stat"><div class="stat-num">3.4k</div><div class="stat-label">Messages</div></div>
+            <div class="stat"><div class="stat-num">512</div><div class="stat-label">Tools</div></div>
+          </div>
+          <div class="label">本周主题</div>
+          <div class="topics">
+            <div class="topic"><span class="num">01</span>Memex v4 架构收敛</div>
+            <div class="topic"><span class="num">02</span>MCP 永远 spawn CLI</div>
+            <div class="topic"><span class="num">03</span>chunk 级 FTS 设计</div>
+            <div class="topic"><span class="num">04</span>menubar 原型设计</div>
+          </div>
+          <div class="label">Key decisions</div>
+          <div class="checks">
+            <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>CLI 是稳定契约层</div>
+            <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>Claude fallback 必须 opt-in</div>
+            <div class="check"><span class="check-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 13l4 4L19 7"/></svg></span>Markdown 是主存储 · SQLite 可重建</div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="button">复制 Markdown</button>
+            <button class="btn" type="button">导出报告</button>
+            <button class="btn ghost" type="button">重新生成</button>
+          </div>
+        </section>
+        <section class="panel" id="alerts" data-panel-content>
+          <div class="list" style="gap:10px">
+            <div class="alert warning">
+              <div class="alert-head">
+                <strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.7 3h16.94a2 2 0 0 0 1.7-3L13.7 3.86a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Cursor adapter 读取失败</strong>
+                <span class="time">now</span>
+              </div>
+              <p>路径 <span class="mono">~/.cursor/chats</span> 不存在，请重新检测真实存储位置。</p>
+              <div class="actions">
+                <button class="btn primary" type="button">重新检测</button>
+                <button class="btn" type="button" data-jump="settings">打开设置</button>
+              </div>
+            </div>
+            <div class="alert destructive">
+              <div class="alert-head">
+                <strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>Ollama 不可用</strong>
+                <span class="time">2m</span>
+              </div>
+              <p><span class="mono">http://localhost:11434</span> 无响应。已退化为 FTS5 / metadata / 已有摘要模式。</p>
+              <div class="actions">
+                <button class="btn primary" type="button">重试</button>
+                <button class="btn" type="button" data-jump="settings">配置 Claude Key</button>
+                <button class="btn ghost" type="button">仅使用 FTS5</button>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:4px">
+              <button class="btn" type="button">运行 doctor</button>
+              <button class="btn ghost" type="button">忽略一次</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="desktop-hint">原型提示 · 按 Esc 关闭 popover · 点击 Memex chip 重新打开</div>
+    </section>
+
+    <section class="reference-grid" aria-label="参考资料">
+      <article class="ref-card" id="ref-context-menu">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+          状态栏右键菜单
+        </h2>
+        <p>右键 <span class="mono">Memex 23</span> 直接调起常用命令，避免来回切换 popup。</p>
+        <div class="menu-list">
+          <div class="menu-item"><span>Open Memex</span><kbd>⌘⇧M</kbd></div>
+          <div class="menu-item"><span>Search Memories</span><kbd>/</kbd></div>
+          <div class="menu-item"><span>Pause Collection</span><kbd>toggle</kbd></div>
+          <div class="menu-item"><span>Private Mode</span><kbd>off</kbd></div>
+          <div class="menu-sep"></div>
+          <div class="menu-item"><span>Rebuild Index</span><kbd>CLI</kbd></div>
+          <div class="menu-item"><span>Run Doctor</span><kbd>fix</kbd></div>
+          <div class="menu-sep"></div>
+          <div class="menu-item"><span>Preferences</span><kbd>⌘,</kbd></div>
+          <div class="menu-item"><span>Quit</span><kbd>⌘Q</kbd></div>
+        </div>
+      </article>
+      <article class="ref-card" id="ref-status">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/></svg>
+          状态栏图标枚举
+        </h2>
+        <p>chip 只显示一种状态，复杂细节都进 popup，不与图标抢注意力。</p>
+        <dl class="legend-table">
+          <dt><span class="legend-dot green"></span>Memex 23</dt><dd>daemon、SQLite、adapter 全部正常。</dd>
+          <dt><span class="legend-dot indigo"></span>Memex ...</dt><dd>Collector 正在处理新消息。</dd>
+          <dt><span class="legend-dot amber"></span>Memex !</dt><dd>adapter 失败或 Ollama 需要处理。</dd>
+          <dt><span class="legend-dot muted"></span>Paused</dt><dd>采集暂停，仍可搜索已有数据。</dd>
+          <dt><span class="legend-dot rose"></span>Private</dt><dd>private mode 开启，部分入口隐藏。</dd>
+        </dl>
+      </article>
+      <article class="ref-card" id="ref-shortcuts">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></svg>
+          键盘快捷键
+        </h2>
+        <p>menubar 全键盘可达，44px 触达保证 mouse-and-keyboard 双友好。</p>
+        <dl class="legend-table">
+          <dt><kbd class="mono">⌘⇧M</kbd></dt><dd>打开/收起 Memex popup。</dd>
+          <dt><kbd class="mono">/</kbd></dt><dd>聚焦搜索框，立即输入查询。</dd>
+          <dt><kbd class="mono">⌘1 ~ ⌘6</kbd></dt><dd>快速切换主面板、搜索、详情、设置、报告、异常。</dd>
+          <dt><kbd class="mono">Esc</kbd></dt><dd>关闭 popup，焦点回到 menubar chip。</dd>
+          <dt><kbd class="mono">⌘,</kbd></dt><dd>直接打开偏好设置。</dd>
+        </dl>
+      </article>
+      <article class="ref-card" id="ref-principles">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2 4 6v6c0 5 3.4 9.3 8 10 4.6-.7 8-5 8-10V6l-8-4z"/></svg>
+          设计原则
+        </h2>
+        <p>menubar 不取代后台，只让用户在 IDE 心流中确认状态、回忆上下文。</p>
+        <div class="topics" style="gap:8px">
+          <div class="principle"><b>Compact first</b><span>440px popup，先展示搜索和最近上下文，弱化次要操作。</span></div>
+          <div class="principle"><b>Visible state</b><span>healthy / 警告 / 暂停 / private 在 chip 上一眼可见。</span></div>
+          <div class="principle"><b>Keyboard ready</b><span>所有交互保留可见 focus 与 44px 触达区。</span></div>
+          <div class="principle"><b>Local-first</b><span>Claude 兜底单独 opt-in，不作为默认检索路径。</span></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const desktop = document.getElementById("desktop");
+    const popover = document.getElementById("popover");
+    const memexChip = document.getElementById("memexChip");
+    const tabs = Array.from(document.querySelectorAll(".tab"));
+    const panels = Array.from(document.querySelectorAll(".panel"));
+    const themeToggle = document.getElementById("themeToggle");
+
+    function setPopupOpen(open) {
+      desktop.classList.toggle("popup-hidden", !open);
+      memexChip.setAttribute("aria-expanded", String(open));
+    }
+
+    function showPanel(id, opts) {
+      opts = opts || {};
+      setPopupOpen(true);
+      tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.panel === id));
+      panels.forEach((panel) => panel.classList.toggle("active", panel.id === id));
+      if (opts.focus) {
+        const target = document.querySelector(opts.focus);
+        if (target) requestAnimationFrame(() => target.focus());
+      }
+    }
+
+    tabs.forEach((tab) => tab.addEventListener("click", () => showPanel(tab.dataset.panel)));
+
+    document.addEventListener("click", (event) => {
+      const jumper = event.target.closest("[data-jump]");
+      if (!jumper) return;
+      const focus = jumper.getAttribute("data-jump-focus");
+      showPanel(jumper.dataset.jump, focus ? { focus } : {});
+    });
+
+    document.addEventListener("click", (event) => {
+      const sw = event.target.closest(".switch");
+      if (!sw) return;
+      const next = sw.getAttribute("aria-pressed") !== "true";
+      sw.setAttribute("aria-pressed", String(next));
+    });
+
+    document.addEventListener("click", (event) => {
+      const chip = event.target.closest(".chip");
+      if (!chip || chip.dataset.solo === "true") return;
+      chip.classList.toggle("active");
+    });
+
+    memexChip.addEventListener("click", () => setPopupOpen(desktop.classList.contains("popup-hidden")));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setPopupOpen(false);
+        memexChip.focus();
+      }
+    });
+
+    function applyTheme(mode) {
+      document.documentElement.classList.toggle("dark", mode === "dark");
+      themeToggle.setAttribute("aria-label", mode === "dark" ? "切换为浅色" : "切换为深色");
+    }
+    applyTheme("light");
+    themeToggle.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      applyTheme(isDark ? "light" : "dark");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1788 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memex 数据演变可视化</title>
+<style>
+  :root {
+    --bg-0: #ffffff;
+    --bg-1: #ffffff;
+    --bg-2: #f8fafc;
+    --bg-3: #f1f5f9;
+    --border: rgba(15, 23, 42, 0.08);
+    --border-strong: rgba(15, 23, 42, 0.18);
+    --text-1: #0f172a;
+    --text-2: #334155;
+    --text-3: #64748b;
+    --text-4: #94a3b8;
+    --c-cyan: #0891b2;
+    --c-purple: #7c3aed;
+    --c-amber: #d97706;
+    --c-red: #dc2626;
+    --c-green: #059669;
+    --c-pink: #db2777;
+    --c-blue: #2563eb;
+    --c-orange: #ea580c;
+    --c-indigo: #4f46e5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: radial-gradient(ellipse at top, #eef2ff 0%, #ffffff 60%);
+    color: var(--text-1);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+    min-height: 100vh;
+    line-height: 1.55;
+    font-feature-settings: "tnum";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, pre, .mono {
+    font-family: "SF Mono", "JetBrains Mono", Consolas, ui-monospace, monospace;
+    font-feature-settings: "calt" 1;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ─── Layout ──────────────────────────────────────────────────── */
+
+  .wrap { max-width: 1480px; margin: 0 auto; padding: 32px 28px 80px; }
+
+  header.page {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 28px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.page h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    background: linear-gradient(120deg, #0f172a 0%, #4f46e5 60%, #6366f1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header.page .sub {
+    color: var(--text-3);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+  header.page .meta {
+    font-size: 12px;
+    color: var(--text-4);
+    text-align: right;
+    line-height: 1.7;
+  }
+  header.page .meta .pill {
+    display: inline-block;
+    padding: 3px 9px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #4f46e5;
+    border-radius: 999px;
+    font-size: 11px;
+    margin-left: 6px;
+  }
+
+  /* ─── Tabs ────────────────────────────────────────────────────── */
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 28px;
+    width: fit-content;
+  }
+  nav.tabs button {
+    appearance: none;
+    background: transparent;
+    color: var(--text-2);
+    border: none;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text-1); background: rgba(15, 23, 42, 0.04); }
+  nav.tabs button.active {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    color: #fff;
+    box-shadow: 0 6px 18px -8px rgba(99,102,241,0.7);
+  }
+
+  /* ─── Generic panels ──────────────────────────────────────────── */
+
+  .panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .panel.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    margin-bottom: 14px;
+  }
+
+  /* ─── Pipeline view ───────────────────────────────────────────── */
+
+  .pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 1280px) { .pipeline-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 680px) { .pipeline-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .stage-card {
+    position: relative;
+    padding: 16px 14px 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .stage-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--stage-color, var(--c-indigo)) 0%, transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .stage-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.18);
+  }
+  .stage-card.active {
+    border-color: var(--stage-color, var(--c-indigo));
+    box-shadow: 0 0 0 1px var(--stage-color, var(--c-indigo)), 0 14px 30px -16px rgba(15, 23, 42, 0.2);
+  }
+  .stage-card .num {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--stage-color, var(--c-indigo));
+    opacity: 0.6;
+    font-family: "SF Mono", monospace;
+  }
+  .stage-card .icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--stage-color) 30%, transparent), color-mix(in srgb, var(--stage-color) 10%, transparent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    color: var(--stage-color, var(--c-indigo));
+  }
+  .stage-card .icon svg { width: 18px; height: 18px; stroke-width: 2; }
+  .stage-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .stage-card .stage-name-en {
+    font-size: 10px;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: "SF Mono", monospace;
+    margin-bottom: 10px;
+  }
+  .stage-card .one-liner {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.45;
+    margin-bottom: 10px;
+  }
+  .stage-card .io {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-4);
+    font-family: "SF Mono", monospace;
+    border-top: 1px dashed var(--border);
+    padding-top: 8px;
+  }
+  .stage-card .io .arrow { color: var(--stage-color, var(--c-indigo)); opacity: 0.6; }
+
+  /* ─── Stage detail panel ──────────────────────────────────────── */
+
+  .stage-detail {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    min-height: 380px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.08);
+  }
+  .stage-detail::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--current-color, var(--c-indigo)) 0%, transparent 100%);
+  }
+  .stage-detail .head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .stage-detail .head .badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--current-color) 30%, transparent), color-mix(in srgb, var(--current-color) 10%, transparent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--current-color, var(--c-indigo));
+  }
+  .stage-detail .head .badge svg { width: 22px; height: 22px; }
+  .stage-detail .head h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .stage-detail .head .sub {
+    color: var(--text-3);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .stage-detail .head .stage-tag {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: var(--current-color);
+    border: 1px solid color-mix(in srgb, var(--current-color) 40%, transparent);
+    background: color-mix(in srgb, var(--current-color) 8%, transparent);
+    font-family: "SF Mono", monospace;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 880px) { .detail-grid { grid-template-columns: 1fr; } }
+
+  .detail-block h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-4);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .detail-block p {
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .detail-block ul {
+    list-style: none;
+    padding: 0;
+  }
+  .detail-block ul li {
+    padding: 6px 0 6px 18px;
+    font-size: 13px;
+    color: var(--text-2);
+    position: relative;
+  }
+  .detail-block ul li::before {
+    content: "→";
+    color: var(--current-color, var(--c-indigo));
+    position: absolute;
+    left: 0;
+    top: 6px;
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+  /* code block */
+  .codeblock {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: #334155;
+    font-family: "SF Mono", "JetBrains Mono", Consolas, monospace;
+    white-space: pre;
+  }
+  .codeblock .key { color: #be185d; }
+  .codeblock .str { color: #15803d; }
+  .codeblock .num-tok { color: #c2410c; }
+  .codeblock .kw  { color: #1d4ed8; }
+  .codeblock .cmt { color: #94a3b8; font-style: italic; }
+  .codeblock .punct { color: #64748b; }
+  .codeblock .meta { color: #7c3aed; }
+  .codeblock .add { color: #15803d; background: rgba(34,197,94,0.12); display: inline-block; }
+  .codeblock .del { color: #b91c1c; background: rgba(239,68,68,0.10); display: inline-block; }
+  .codeblock .hl { background: rgba(99,102,241,0.16); border-radius: 3px; padding: 1px 2px; }
+
+  /* ─── Demo view ───────────────────────────────────────────────── */
+
+  .demo-source {
+    background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px -8px rgba(245, 158, 11, 0.15);
+  }
+  .demo-source .lbl {
+    color: var(--text-3);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .demo-source .lbl::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--c-amber);
+    box-shadow: 0 0 6px var(--c-amber);
+  }
+  .demo-source pre {
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    margin: 0;
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", system-ui, sans-serif;
+  }
+  .demo-source pre .user { color: #2563eb; font-weight: 600; }
+  .demo-source pre .assistant { color: #7c3aed; font-weight: 600; }
+  .demo-source pre .code { color: #d97706; }
+  .demo-source pre .sens { color: #dc2626; background: rgba(248,113,113,0.12); padding: 1px 3px; border-radius: 3px; }
+
+  .progress-rail {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.06);
+  }
+  .progress-rail .steps {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+    min-width: 720px;
+  }
+  .progress-step {
+    flex: 1;
+    text-align: center;
+    cursor: pointer;
+    padding: 10px 6px 8px;
+    position: relative;
+    transition: all 0.18s;
+    border-radius: 8px;
+  }
+  .progress-step:hover { background: rgba(15, 23, 42, 0.03); }
+  .progress-step .dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    background: var(--bg-3);
+    border: 2px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-3);
+    transition: all 0.2s ease;
+  }
+  .progress-step .lbl {
+    font-size: 11px;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  .progress-step .lbl-en {
+    font-size: 9px;
+    color: var(--text-4);
+    font-family: "SF Mono", monospace;
+    text-transform: uppercase;
+    margin-top: 2px;
+    letter-spacing: 0.05em;
+  }
+  .progress-step.active .dot {
+    background: linear-gradient(135deg, var(--step-color), color-mix(in srgb, var(--step-color) 70%, transparent));
+    border-color: var(--step-color);
+    color: #fff;
+    transform: scale(1.15);
+    box-shadow: 0 0 18px -2px var(--step-color);
+  }
+  .progress-step.active .lbl { color: var(--text-1); font-weight: 600; }
+  .progress-step.done .dot {
+    background: color-mix(in srgb, var(--step-color) 25%, transparent);
+    border-color: color-mix(in srgb, var(--step-color) 50%, transparent);
+    color: var(--step-color);
+  }
+  .progress-line {
+    position: absolute;
+    top: 13px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    z-index: -1;
+  }
+  .progress-step.done .progress-line { background: var(--step-color); opacity: 0.5; }
+  .progress-step:first-child .progress-line { display: none; }
+
+  .demo-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1100px) { .demo-cols { grid-template-columns: 1fr; } }
+
+  .demo-col {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    min-height: 280px;
+    box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.08);
+  }
+  .demo-col h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .demo-col h4 .pill {
+    font-size: 9px;
+    padding: 2px 8px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    border-radius: 999px;
+    font-weight: 600;
+    margin-left: auto;
+  }
+  .demo-col.in h4 { color: #b45309; }
+  .demo-col.proc h4 { color: var(--c-indigo); }
+  .demo-col.out h4 { color: var(--c-green); }
+  .demo-col .body {
+    color: var(--text-2);
+    font-size: 12.5px;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  .demo-col .body pre, .demo-col .body code, .demo-col pre {
+    font-family: "SF Mono", "JetBrains Mono", monospace;
+    font-size: 11.5px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #334155;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.55;
+  }
+  .demo-col .body ul { padding-left: 18px; }
+  .demo-col .body li { margin-bottom: 4px; }
+  .demo-col .body .note {
+    background: rgba(99,102,241,0.08);
+    border-left: 2px solid var(--c-indigo);
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-2);
+  }
+  .demo-col .empty {
+    color: var(--text-4);
+    font-style: italic;
+    font-size: 12px;
+    text-align: center;
+    padding: 50px 20px;
+  }
+
+  .demo-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .demo-nav button {
+    appearance: none;
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text-1);
+    padding: 9px 18px;
+    font-size: 13px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .demo-nav button:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--c-indigo);
+  }
+  .demo-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .demo-nav .center {
+    color: var(--text-3);
+    font-size: 12px;
+    align-self: center;
+    font-family: "SF Mono", monospace;
+  }
+
+  /* ─── vs tars comparison ──────────────────────────────────────── */
+
+  .compare-table {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.06);
+  }
+  .compare-table .row {
+    display: grid;
+    grid-template-columns: 170px 1fr 1fr 100px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare-table .row:last-child { border-bottom: none; }
+  .compare-table .row.head {
+    background: var(--bg-2);
+    font-size: 11px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .compare-table .cell {
+    padding: 16px 18px;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.55;
+    border-right: 1px solid var(--border);
+  }
+  .compare-table .cell:last-child { border-right: none; }
+  .compare-table .stage-name {
+    font-weight: 600;
+    color: var(--text-1);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .compare-table .stage-name .en {
+    font-size: 10px;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: "SF Mono", monospace;
+    font-weight: 500;
+  }
+  .compare-table .cell.tars { background: rgba(245, 158, 11, 0.04); }
+  .compare-table .cell.memex { background: rgba(99, 102, 241, 0.05); }
+  .compare-table code {
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #be185d;
+  }
+  .compare-table .badge-diff {
+    display: inline-block;
+    padding: 3px 9px;
+    font-size: 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    align-self: center;
+    margin: auto;
+  }
+  .compare-table .badge-same { background: rgba(16, 185, 129, 0.12); color: var(--c-green); border: 1px solid rgba(16,185,129,0.3); }
+  .compare-table .badge-enhance { background: rgba(99, 102, 241, 0.12); color: #4f46e5; border: 1px solid rgba(99,102,241,0.3); }
+  .compare-table .badge-new { background: rgba(236, 72, 153, 0.12); color: #db2777; border: 1px solid rgba(236,72,153,0.3); }
+  @media (max-width: 1024px) {
+    .compare-table .row { grid-template-columns: 1fr; }
+    .compare-table .cell { border-right: none; border-bottom: 1px solid var(--border); }
+    .compare-table .row.head { display: none; }
+    .compare-table .stage-name { font-size: 14px; padding-bottom: 8px; }
+  }
+
+  /* ─── Key decisions ───────────────────────────────────────────── */
+
+  .decisions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 880px) { .decisions { grid-template-columns: 1fr; } }
+
+  .decision-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    position: relative;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.06);
+  }
+  .decision-card:hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.15); }
+  .decision-card .q {
+    font-size: 11px;
+    color: var(--c-indigo);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .decision-card h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    letter-spacing: -0.015em;
+  }
+  .decision-card p {
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.65;
+    margin-bottom: 12px;
+  }
+  .decision-card .why {
+    background: rgba(99,102,241,0.06);
+    border-left: 2px solid var(--c-indigo);
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+  .decision-card .why b { color: var(--c-indigo); font-weight: 600; }
+
+  /* ─── Footer ───────────────────────────────────────────────────── */
+
+  footer.page {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-4);
+    font-size: 11.5px;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ─── Header ────────────────────────────────────────────── -->
+  <header class="page">
+    <div>
+      <h1>Memex 数据演变可视化</h1>
+      <div class="sub">一条本地 AI 会话从「写入文件」到「可被 AI 检索」要经历的全部 8 个 stage，逐步拆解每一步的数据形态变化。</div>
+    </div>
+    <div class="meta">
+      <div>设计文档参考：<code style="color:#4f46e5">20260531-03-Memex-v4最终设计文档.md</code></div>
+      <div>参考项目：<code style="color:#d97706">~/.tars-ai-butler</code></div>
+      <div style="margin-top: 6px">
+        <span class="pill">v4 · 2026-05-31</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Tabs ──────────────────────────────────────────────── -->
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="pipeline">主流水线</button>
+    <button data-tab="demo">端到端 Demo</button>
+    <button data-tab="storage">存储结构</button>
+    <button data-tab="vstars">vs tars 对照</button>
+    <button data-tab="keys">关键设计要点</button>
+  </nav>
+
+  <!-- ─── Panel: pipeline ───────────────────────────────────── -->
+  <section class="panel active" id="panel-pipeline">
+
+    <div class="section-title">8 个 STAGE — 点击查看详情</div>
+
+    <div class="pipeline-grid" id="pipeline-grid">
+      <!-- generated by JS -->
+    </div>
+
+    <div class="stage-detail" id="stage-detail">
+      <!-- generated by JS -->
+    </div>
+
+  </section>
+
+  <!-- ─── Panel: demo ───────────────────────────────────────── -->
+  <section class="panel" id="panel-demo">
+
+    <div class="section-title">使用设计文档 §4.2.5 的 Redis pipeline 用例 — 逐步演示数据演变</div>
+
+    <div class="demo-source">
+      <div class="lbl">原始消息（AI 工具刚写入本地文件时的样子）</div>
+      <pre><span class="user">User:</span>
+Redis 批量写入现在太慢了。我们是不是应该用 pipeline？
+测试脚本里 token 是 <span class="sens">sk-ant-demo-123</span>，不要泄露。
+
+<span class="assistant">Assistant:</span>
+可以。建议用 pipeline 批量执行 SET，并在失败时回退单条写入。
+
+<span class="code">```python
+pipe = redis.pipeline()
+for item in items:
+    pipe.set(item.key, item.value)
+pipe.execute()
+```</span></pre>
+    </div>
+
+    <div class="progress-rail">
+      <div class="steps" id="demo-steps"></div>
+    </div>
+
+    <div class="demo-cols">
+      <div class="demo-col in"><h4>输入 INPUT <span class="pill" id="demo-in-pill">—</span></h4><div class="body" id="demo-in"></div></div>
+      <div class="demo-col proc"><h4>处理 PROCESS <span class="pill" id="demo-proc-pill">—</span></h4><div class="body" id="demo-proc"></div></div>
+      <div class="demo-col out"><h4>输出 OUTPUT <span class="pill" id="demo-out-pill">—</span></h4><div class="body" id="demo-out"></div></div>
+    </div>
+
+    <div class="demo-nav">
+      <button id="demo-prev">← 上一步</button>
+      <div class="center" id="demo-pos">— / —</div>
+      <button id="demo-next">下一步 →</button>
+    </div>
+
+  </section>
+
+  <!-- ─── Panel: storage ──────────────────────────────────────── -->
+  <section class="panel" id="panel-storage">
+
+    <div class="section-title">数据存储结构</div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px">
+
+      <div style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: 0 2px 8px -4px rgba(15,23,42,0.06)">
+        <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--c-blue); margin-bottom: 12px; font-weight: 600">~/.memex/ 目录</h4>
+        <pre style="font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.65; color: var(--text-2); background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; white-space: pre"><span style="color:#4f46e5; font-weight: 600">~/.memex/</span>
+├── <span style="color:#d97706">config.toml</span>            <span style="color:#94a3b8"># 主配置</span>
+├── <span style="color:#dc2626">redactions.yaml</span>       <span style="color:#94a3b8"># 脱敏规则</span>
+├── <span style="color:#dc2626">credentials.toml</span>      <span style="color:#94a3b8"># API key (600)</span>
+├── <span style="color:#2563eb; font-weight: 600">index.db</span>               <span style="color:#94a3b8"># SQLite 索引</span>
+├── <span style="color:#059669">sessions/</span>              <span style="color:#94a3b8"># Markdown 真源</span>
+│   └── YYYY-MM-DD/
+│       └── <span style="color:#64748b">&lt;adapter&gt;_&lt;topic&gt;.md</span>
+├── <span style="color:#7c3aed">reports/</span>               <span style="color:#94a3b8"># 周报/日报</span>
+├── <span style="color:#64748b">logs/</span>                  <span style="color:#94a3b8"># 运行日志</span>
+├── <span style="color:#64748b">cache/</span>                 <span style="color:#94a3b8"># 临时缓存</span>
+├── <span style="color:#64748b">backup/</span>                <span style="color:#94a3b8"># 自动备份</span>
+└── <span style="color:#d97706">daemon.lock</span>            <span style="color:#94a3b8"># PID + 端口</span></pre>
+      </div>
+
+      <div style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: 0 2px 8px -4px rgba(15,23,42,0.06)">
+        <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--c-blue); margin-bottom: 12px; font-weight: 600">index.db 表结构</h4>
+        <pre style="font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.65; color: var(--text-2); background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; white-space: pre"><span style="color:#4f46e5; font-weight: 600">index.db</span> <span style="color:#94a3b8">(WAL mode)</span>
+├── <span style="color:#0891b2">sources</span>        <span style="color:#94a3b8"># adapter 扫描状态</span>
+├── <span style="color:#059669">sessions</span>       <span style="color:#94a3b8"># 会话元信息</span>
+├── <span style="color:#059669">messages</span>       <span style="color:#94a3b8"># 原始消息</span>
+├── <span style="color:#d97706">chunks</span>         <span style="color:#94a3b8"># 切片（最小检索单位）</span>
+├── <span style="color:#d97706; font-weight: 600">chunks_fts</span>     <span style="color:#94a3b8"># FTS5 全文索引</span>
+├── <span style="color:#7c3aed">summaries</span>      <span style="color:#94a3b8"># L1~L4 摘要</span>
+├── <span style="color:#dc2626">redactions</span>     <span style="color:#94a3b8"># 脱敏记录（hash only）</span>
+├── <span style="color:#64748b">tags</span>           <span style="color:#94a3b8"># 标签</span>
+├── <span style="color:#64748b">session_tags</span>   <span style="color:#94a3b8"># session ↔ tag</span>
+├── <span style="color:#ea580c">access_log</span>     <span style="color:#94a3b8"># 搜索日志</span>
+├── <span style="color:#ea580c">metrics</span>        <span style="color:#94a3b8"># 聚合统计</span>
+└── <span style="color:#64748b">kv</span>             <span style="color:#94a3b8"># 系统元数据</span></pre>
+      </div>
+
+    </div>
+
+    <div style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; box-shadow: 0 2px 8px -4px rgba(15,23,42,0.06); margin-bottom: 20px">
+      <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--c-orange); margin-bottom: 12px; font-weight: 600">数据源（AI 工具本地路径）</h4>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px">
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px">
+          <div style="font-size: 11px; font-weight: 600; color: var(--c-indigo); margin-bottom: 6px">Claude Code</div>
+          <code style="font-size: 10.5px; color: var(--text-2); word-break: break-all">~/.claude/projects/&lt;hash&gt;/*.jsonl</code>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px">
+          <div style="font-size: 11px; font-weight: 600; color: var(--c-indigo); margin-bottom: 6px">Cursor</div>
+          <code style="font-size: 10.5px; color: var(--text-2); word-break: break-all">~/Library/.../Cursor/state.vscdb</code>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px">
+          <div style="font-size: 11px; font-weight: 600; color: var(--c-indigo); margin-bottom: 6px">Codex</div>
+          <code style="font-size: 10.5px; color: var(--text-2); word-break: break-all">~/.codex/sessions/&lt;uuid&gt;/*.jsonl</code>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px">
+          <div style="font-size: 11px; font-weight: 600; color: var(--c-indigo); margin-bottom: 6px">OpenCode</div>
+          <code style="font-size: 10.5px; color: var(--text-2); word-break: break-all">~/.opencode/sessions/*.json</code>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px">
+      <div style="background: rgba(37,99,235,0.06); border-radius: 10px; padding: 12px 14px">
+        <div style="font-size: 10px; color: var(--c-blue); font-weight: 600; margin-bottom: 4px">Markdown 是真源</div>
+        <div style="font-size: 11px; color: var(--text-3); line-height: 1.45">卸载后仍可读，cp 即备份</div>
+      </div>
+      <div style="background: rgba(37,99,235,0.06); border-radius: 10px; padding: 12px 14px">
+        <div style="font-size: 10px; color: var(--c-blue); font-weight: 600; margin-bottom: 4px">SQLite 可重建</div>
+        <div style="font-size: 11px; color: var(--text-3); line-height: 1.45">rebuild-index 从 MD 恢复</div>
+      </div>
+      <div style="background: rgba(220,38,38,0.06); border-radius: 10px; padding: 12px 14px">
+        <div style="font-size: 10px; color: var(--c-red); font-weight: 600; margin-bottom: 4px">凭证隔离</div>
+        <div style="font-size: 11px; color: var(--text-3); line-height: 1.45">credentials.toml 权限 600</div>
+      </div>
+      <div style="background: rgba(5,150,105,0.06); border-radius: 10px; padding: 12px 14px">
+        <div style="font-size: 10px; color: var(--c-green); font-weight: 600; margin-bottom: 4px">offset 最后写</div>
+        <div style="font-size: 11px; color: var(--text-3); line-height: 1.45">全成功才推进，失败重放</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ─── Panel: vstars ─────────────────────────────────────── -->
+  <section class="panel" id="panel-vstars">
+
+    <div class="section-title">同一个环节，tars 怎么做 · Memex 怎么做</div>
+
+    <div class="compare-table">
+      <div class="row head">
+        <div class="cell">环节</div>
+        <div class="cell">tars 现状（参考实现）</div>
+        <div class="cell">Memex 设计（v4）</div>
+        <div class="cell" style="text-align:center">差异</div>
+      </div>
+      <!-- generated by JS -->
+      <div id="compare-rows"></div>
+    </div>
+
+    <div style="background: var(--bg-1); border: 1px solid var(--border); border-radius: 14px; padding: 22px 28px; margin-top: 20px; box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.06)">
+      <div style="color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-weight: 600">总结一句话</div>
+      <p style="color: var(--text-2); font-size: 14px; line-height: 1.7">
+        tars 的最小存储和检索单位是 <code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">session</code>，所有处理都围绕「一个 session 一个 markdown」展开。
+        Memex 在 tars 的基础上下沉了两层：把 session 切成 <code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">message</code>，把 message 再切成 <code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">chunk</code>，并把 <code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">redact</code>、<code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">FTS5</code>、<code style="color: #be185d; background: rgba(15, 23, 42, 0.06); padding: 1px 6px; border-radius: 4px; font-size:12px">offset 增量</code> 这三个 tars 没有的东西做成了独立 stage。
+        换句话说：tars 解决了「让人能看见」，Memex 在这之上解决「让 AI 能精准命中」和「让数据安全可控」。
+      </p>
+    </div>
+
+  </section>
+
+  <!-- ─── Panel: keys ───────────────────────────────────────── -->
+  <section class="panel" id="panel-keys">
+
+    <div class="section-title">4 个关键设计决策 — 为什么要这么做</div>
+
+    <div class="decisions" id="decisions"></div>
+
+  </section>
+
+  <footer class="page">
+    <div>Memex v4 数据演变可视化 · 2026-05-31</div>
+    <div>设计文档：design/20260531-03-Memex-v4最终设计文档.md · 参考项目：tars-ai-butler</div>
+  </footer>
+
+</div>
+
+<script>
+/* ──────────────────────────────────────────────────────────────
+   Data: 8 stages
+   ────────────────────────────────────────────────────────────── */
+
+const ICONS = {
+  collect: '<path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7M3 7l2-4h14l2 4M3 7h18M9 11h6"/>',
+  normalize: '<path d="M4 6h16M4 12h12M4 18h8"/>',
+  chunk: '<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  redact: '<path d="M12 1l9 4v6c0 5.5-3.8 10.7-9 12-5.2-1.3-9-6.5-9-12V5l9-4z"/><line x1="9" y1="11" x2="15" y2="11"/>',
+  metadata: '<path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+  summarize: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',
+  storage: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/>',
+  retrieve: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+};
+
+const STAGES = [
+  {
+    id: 'collect', color: 'var(--c-cyan)', name: '采集', en: 'Collector', icon: ICONS.collect,
+    one: '从各 AI 工具本地文件按增量游标读取新增消息',
+    inType: '本地源文件',
+    outType: 'new_messages[]',
+    purpose: 'Collector 监听 4 类 AI 工具的本地会话文件变化（mtime / fs event / 手动 ingest），按 adapter 注册的解析方式读取「自上次处理之后」的新增内容，避免每次全量重读。',
+    inputs: [
+      '~/.claude/projects/ 下 jsonl 文件',
+      '~/Library/Application Support/Cursor/.../state.vscdb',
+      '~/.codex/sessions/ 下会话',
+      '~/.opencode/ 下会话',
+    ],
+    outputs: [
+      'new_messages[] — 还未规范化的消息序列',
+      'adapter_state.last_processed_offset — 字节级游标',
+      '附带 source_message_id、raw_offset_start / end，用于幂等',
+    ],
+    keypoint: 'offset 是字节级的，对于不能按字节稳定追加的源（比如 cursor sqlite），adapter 内部可以映射成 line_number / event_index / 游标，但对 Collector 暴露的字段统一叫 last_processed_offset。',
+    code: `<span class="cmt">// adapter_state 示例（每个 adapter 一条记录）</span>
+{
+  <span class="key">"adapter"</span>: <span class="str">"cursor"</span>,
+  <span class="key">"source_path"</span>: <span class="str">"/Users/.../session.jsonl"</span>,
+  <span class="key">"last_processed_offset"</span>: <span class="num-tok">18792</span>,
+  <span class="key">"last_processed_message_id"</span>: <span class="str">"cursor-msg-8f31"</span>,
+  <span class="key">"last_seen_mtime"</span>: <span class="str">"2026-05-31T10:12:22+08:00"</span>,
+  <span class="key">"status"</span>: <span class="str">"healthy"</span>
+}`,
+  },
+  {
+    id: 'normalize', color: 'var(--c-purple)', name: '规范化', en: 'Normalize', icon: ICONS.normalize,
+    one: '把各 adapter 字段统一成 message envelope',
+    inType: 'new_messages[]',
+    outType: 'message envelope',
+    purpose: 'Claude 用 type=user/assistant、Cursor 用 role、Codex 用 author … 字段名各不相同。Normalize 把它们对齐到一份统一的 message envelope，让后续所有 stage 不用关心源工具差异。',
+    inputs: [
+      '不同 adapter 的原始 dict',
+      '可能带有工具特有字段（如 Claude 的 isCompactSummary、recap）',
+    ],
+    outputs: [
+      'role（user / assistant / tool）',
+      'timestamp（统一 ISO-8601 UTC）',
+      'content（统一为字符串或 content block 数组）',
+      'tool_call（如果是工具调用，保留 name + input）',
+      '保留 source_message_id 用作幂等键',
+    ],
+    keypoint: '规范化只做字段对齐，不做内容修改、不做切片、不做翻译。这一步必须稳定、确定、可重放。',
+    code: `<span class="cmt">// 规范化后的统一格式</span>
+{
+  <span class="key">"id"</span>: <span class="num-tok">27</span>,
+  <span class="key">"session_id"</span>: <span class="str">"cursor_20260531-1012"</span>,
+  <span class="key">"source_message_id"</span>: <span class="str">"cursor-msg-8f31"</span>,
+  <span class="key">"role"</span>: <span class="str">"user"</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2026-05-31T10:12:03+08:00"</span>,
+  <span class="key">"content"</span>: <span class="str">"Redis 批量写入..."</span>,
+  <span class="key">"content_hash"</span>: <span class="str">"sha256:9ad1..."</span>,
+  <span class="key">"raw_offset_start"</span>: <span class="num-tok">18420</span>,
+  <span class="key">"raw_offset_end"</span>: <span class="num-tok">18792</span>
+}`,
+  },
+  {
+    id: 'chunk', color: 'var(--c-amber)', name: '切片', en: 'Chunk', icon: ICONS.chunk,
+    one: '把 message 切成 Memex 的最小检索单位 chunk',
+    inType: 'message envelope',
+    outType: 'chunks[]',
+    purpose: '一条 assistant 消息可能同时包含「解释、方案、代码、结论」混在一起的 2000 字内容。如果直接对整条 message 做全文索引，snippet 不准、ranking 容易被长日志污染。Memex 把 message 按结构切成 chunk，让搜索能精准命中「那段代码」「那个 tool 调用」。',
+    inputs: [
+      '规范化后的 message（可能很长）',
+      'message 内的 Markdown 结构、代码块、tool call、tool result',
+    ],
+    outputs: [
+      '若干 chunk（每个 chunk 保留 message_id 用于回到原文）',
+      'chunk_type：user_turn / assistant_text / code / tool_call / tool_result / sensitive_context',
+      'position：chunk 在 message 内的序号',
+      'token_count：方便后续 LLM 拼装上下文',
+    ],
+    keypoint: '这是 Memex 比 tars 多的一层。tars 的最小单位是 session（一条 session 一个 .md），所以 tars 没法做"代码块独立命中"。Memex 把 chunk 做成独立 stage，是为了让 FTS5 BM25 能在 chunk 粒度上排序。',
+    code: `<span class="cmt">// 一条 assistant 消息被切成 3 个 chunk</span>
+[
+  { <span class="key">"id"</span>:<span class="num-tok">101</span>, <span class="key">"chunk_type"</span>:<span class="str">"user_turn"</span>,
+    <span class="key">"content"</span>:<span class="str">"Redis 批量写入..."</span>, <span class="key">"position"</span>:<span class="num-tok">1</span> },
+  { <span class="key">"id"</span>:<span class="num-tok">102</span>, <span class="key">"chunk_type"</span>:<span class="str">"sensitive_context"</span>,
+    <span class="key">"content"</span>:<span class="str">"测试脚本里 token..."</span>, <span class="key">"position"</span>:<span class="num-tok">2</span> },
+  { <span class="key">"id"</span>:<span class="num-tok">103</span>, <span class="key">"chunk_type"</span>:<span class="str">"code"</span>,
+    <span class="key">"content"</span>:<span class="str">"pipe = redis.pipeline()..."</span>, <span class="key">"position"</span>:<span class="num-tok">3</span> }
+]`,
+  },
+  {
+    id: 'redact', color: 'var(--c-red)', name: '脱敏', en: 'Redact', icon: ICONS.redact,
+    one: '在内容入库前替换敏感片段并留下可审计的指纹',
+    inType: 'chunks[]',
+    outType: 'redacted_chunks + redactions',
+    purpose: '原始消息里可能有 API key、邮箱、内网域名、IP、bank card、password 等敏感信息。Redact 在内容进入 FTS / 摘要 / 云端 fallback 之前先把它们替换成占位符，并把原始指纹（hash + 位置）单独存到 redactions 表，便于事后审计。',
+    inputs: [
+      'chunk 的 content 字段',
+      '内置规则（email / phone / api_key / ip / bank-card）',
+      '用户自定义规则 ~/.memex/redactions.yaml',
+      '上下文规则（password is xxx、token: xxx 等）',
+    ],
+    outputs: [
+      'redacted_content — 替换后的可读文本（保留语义）',
+      'redactions 记录 — 只存 hash 和位置，不可还原',
+      'private session 标记 — 默认不进入 MCP 搜索',
+    ],
+    keypoint: '替换保留语义占位符（如 [REDACTED:api_key]），让检索仍然知道"这里出现过敏感信息"。redactions 表只存 hash，**不存可还原原文** — 这是 Memex 的硬性安全承诺。',
+    code: `<span class="cmt">// 脱敏前</span>
+<span class="del">"The API key is sk-ant-123456 and the host is db.internal.zoom.local"</span>
+
+<span class="cmt">// 脱敏后</span>
+<span class="add">"The API key is [REDACTED:api_key] and the host is [REDACTED:internal_host]"</span>
+
+<span class="cmt">// redactions 表里的记录</span>
+{
+  <span class="key">"id"</span>: <span class="num-tok">501</span>,
+  <span class="key">"chunk_id"</span>: <span class="num-tok">102</span>,
+  <span class="key">"rule_name"</span>: <span class="str">"api_key"</span>,
+  <span class="key">"placeholder"</span>: <span class="str">"[REDACTED:api_key]"</span>,
+  <span class="key">"value_hash"</span>: <span class="str">"sha256:4c21..."</span>,  <span class="cmt">// 只存指纹</span>
+  <span class="key">"start_char"</span>: <span class="num-tok">10</span>,
+  <span class="key">"end_char"</span>: <span class="num-tok">25</span>
+}`,
+  },
+  {
+    id: 'metadata', color: 'var(--c-green)', name: '元数据', en: 'Metadata', icon: ICONS.metadata,
+    one: '用确定性规则抽取 topics / languages / tools_used 等结构化信号',
+    inType: 'redacted chunks',
+    outType: 'chunk.metadata',
+    purpose: 'Metadata 是从 chunk 里抽出的结构化信号，**不依赖 LLM**，纯规则。它的作用不是给人读的正文，而是给搜索做过滤 / 排序 / 聚合 / 报告。在完全没有 LLM 的降级场景里，metadata 是关键的"非关键词信号"。',
+    inputs: [
+      'chunk 的 redacted_content',
+      'chunk_type（code / tool_call / …）',
+      '工具调用名（来自规范化阶段的 tool_call 字段）',
+      '错误关键词词典（timeout / retry / oom / panic …）',
+    ],
+    outputs: [
+      'topics — 主题词（redis / pipeline / rust-migration …）',
+      'languages — 编程语言（仅对 code chunk）',
+      'has_code — 是否包含代码',
+      'tools_used — 用到的工具（read_file / shell …）',
+      'error_keywords — 错误信号（timeout / retry / …）',
+      'project — 来自 working_dir 的项目名',
+    ],
+    keypoint: 'Metadata 是确定性步骤，必须永远执行。这意味着即使 Ollama 不可用、Claude 没开，Memex 仍然能做"按项目过滤、按语言过滤、找包含错误的 session"。',
+    code: `<span class="cmt">// 一条 chunk 的 metadata 抽取结果</span>
+{
+  <span class="key">"topics"</span>: [<span class="str">"redis"</span>, <span class="str">"pipeline"</span>, <span class="str">"error-recovery"</span>],
+  <span class="key">"languages"</span>: [<span class="str">"python"</span>],
+  <span class="key">"has_code"</span>: <span class="kw">true</span>,
+  <span class="key">"tools_used"</span>: [<span class="str">"read_file"</span>, <span class="str">"shell"</span>],
+  <span class="key">"error_keywords"</span>: [<span class="str">"timeout"</span>, <span class="str">"retry"</span>],
+  <span class="key">"sentiment"</span>: <span class="str">"neutral"</span>,
+  <span class="key">"project"</span>: <span class="str">"memex"</span>
+}`,
+  },
+  {
+    id: 'summarize', color: 'var(--c-pink)', name: '摘要', en: 'Summarize', icon: ICONS.summarize,
+    one: '4 层摘要（chunk / session / project / week），可选增强',
+    inType: 'chunks + metadata',
+    outType: 'summaries (L1-L4)',
+    purpose: '把长内容压缩成易于检索和复用的「记忆」。Memex 把摘要分 4 层：L1 给单个 chunk 写一句话、L2 总结整个 session、L3 跨多 session 做项目摘要、L4 出周报。LLM 优先级链：Ollama → Claude (opt-in) → 跳过（summary_status=pending_local_llm）。',
+    inputs: [
+      'chunk 内容 + metadata（L1）',
+      '一个 session 内的所有 chunks（L2）',
+      '一段时间内、某个项目的所有 sessions（L3）',
+      '一周内所有 sessions（L4）',
+    ],
+    outputs: [
+      'chunks.summary（L1，每个 chunk 一句话）',
+      'summaries 表（L2/L3/L4，带 source + confidence）',
+      'summary_status：completed / pending_local_llm / disabled',
+    ],
+    keypoint: '摘要是「增强步骤」，失败时**不能阻塞**确定性数据入库。如果 LLM 都不可用，chunk 仍然写入，只是 summary 为 null、status=pending_local_llm，等用户配好 Ollama 后批量补摘要。这是 Memex 的最小可用承诺。',
+    code: `<span class="cmt">// LLM 不可用时的 chunk 入库结果</span>
+{
+  <span class="key">"chunk_id"</span>: <span class="num-tok">101</span>,
+  <span class="key">"summary"</span>: <span class="kw">null</span>,
+  <span class="key">"summary_status"</span>: <span class="str">"pending_local_llm"</span>,
+  <span class="key">"embedding_status"</span>: <span class="str">"disabled"</span>,
+  <span class="key">"searchable_by"</span>: [<span class="str">"fts5"</span>, <span class="str">"metadata"</span>, <span class="str">"time"</span>, <span class="str">"adapter"</span>, <span class="str">"project"</span>]
+}
+
+<span class="cmt">// 用户仍然能搜 'redis pipeline'、按项目过滤、打开完整 session</span>
+<span class="cmt">// 只是看不到自然语言摘要</span>`,
+  },
+  {
+    id: 'storage', color: 'var(--c-blue)', name: '存储', en: 'Storage', icon: ICONS.storage,
+    one: 'Markdown 是真源，SQLite + FTS5 是可重建索引',
+    inType: '完整处理结果',
+    outType: 'Markdown + SQLite + FTS5',
+    purpose: '严格按顺序写入：Markdown → SQLite → FTS5 → offset。Markdown 是用户即使卸载 Memex 也能直接阅读的「真源」；SQLite 是可以从 Markdown 完全重建的索引；FTS5 是 chunk 级 BM25 全文索引。**offset 最后更新**保证任一环节写入失败时，下次采集都会从旧 offset 重放，不丢消息。',
+    inputs: [
+      'chunks + redactions + metadata + summaries',
+      'session frontmatter（adapter / project / privacy …）',
+    ],
+    outputs: [
+      'sessions/YYYY-MM-DD/<adapter>-<topic>.md — 主存储',
+      'index.db / sessions, messages, chunks, …',
+      'chunks_fts — FTS5 chunk 级全文索引',
+      'adapter_state.last_processed_offset 被推进',
+    ],
+    keypoint: '关键不变量：offset 只在 Markdown 和 SQLite 都写成功之后才推进。重复写入由 source_message_id + content_hash 做幂等保护。这两条规则让"采集进程随时被杀"成为安全操作。',
+    code: `<span class="cmt">// 写入顺序（不可调换）</span>
+<span class="meta">1.</span> 写 Markdown            <span class="cmt">// 失败 → 下次重放</span>
+<span class="meta">2.</span> 写 SQLite (messages / chunks / redactions / metadata)
+<span class="meta">3.</span> 写 FTS5 (chunks_fts)
+<span class="meta">4.</span> 更新 adapter_state.last_processed_offset   <span class="hl">← 最后一步</span>
+
+<span class="cmt">// 失败恢复策略</span>
+- Markdown 写失败 → 重试 → 进 dead letter queue
+- SQLite 写失败  → 保留 Markdown，下次 memex rebuild-index
+- FTS5 损坏      → 从 chunks 表 rebuild`,
+  },
+  {
+    id: 'retrieve', color: 'var(--c-orange)', name: '检索', en: 'Retriever', icon: ICONS.retrieve,
+    one: '三级 fallback：FTS5 → Ollama 语义 → Claude 兜底',
+    inType: 'query string',
+    outType: 'ranked results',
+    purpose: '同一份数据，多种检索路径。第一级永远是本地 FTS5 BM25 chunk 级关键词检索（< 50ms）；命中不足时降级到 Ollama 本地语义检索；最后是用户 opt-in 后才会启用的 Claude 云端兜底。返回带 match_reason 解释「为什么命中」。',
+    inputs: [
+      '用户/AI 输入的 query 字符串',
+      '可选过滤：adapter / project / 时间范围',
+      '当前 working_directory（用于相关性加权）',
+    ],
+    outputs: [
+      'ranked chunks（带 snippet）',
+      'match_reason — 解释命中原因（fts5 / semantic / cloud）',
+      'session_id + url（memex://session/<id>）用于跳回原文',
+      '写 access_log + metrics（用于排序学习）',
+    ],
+    keypoint: '排序信号是组合的：BM25 + 时间衰减 + 当前 working_dir 匹配 + 同 session 相关性 + 用户点击/使用频率。这让"我现在在写代码"的隐式上下文也能影响排序。',
+    code: `<span class="cmt">// 检索三级 fallback</span>
+query
+  ↓
+<span class="meta">L1</span>  FTS5 BM25 chunk 级关键词检索
+       ├─ 命中 ≥ N → 返回
+       └─ 命中不足 ↓
+<span class="meta">L2</span>  Ollama 本地语义检索
+       ├─ 命中 ≥ N → 返回
+       └─ 命中不足 ↓
+<span class="meta">L3</span>  Claude 云端兜底   <span class="hl">仅在用户 opt-in 后</span>
+       └─ 先 redact → 再调 API → 标记 cloud_fallback`,
+  },
+];
+
+/* ──────────────────────────────────────────────────────────────
+   Render: pipeline grid + stage detail
+   ────────────────────────────────────────────────────────────── */
+
+const grid = document.getElementById('pipeline-grid');
+const detail = document.getElementById('stage-detail');
+
+function svgIcon(d) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+}
+
+function renderGrid(activeIdx) {
+  grid.innerHTML = STAGES.map((s, i) => `
+    <div class="stage-card ${i === activeIdx ? 'active' : ''}" style="--stage-color:${s.color}" data-idx="${i}">
+      <div class="num">${String(i + 1).padStart(2, '0')}</div>
+      <div class="icon">${svgIcon(s.icon)}</div>
+      <h3>${s.name}</h3>
+      <div class="stage-name-en">${s.en}</div>
+      <div class="one-liner">${s.one}</div>
+      <div class="io"><span>${s.inType}</span><span class="arrow">→</span><span>${s.outType}</span></div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.stage-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.idx, 10);
+      renderGrid(idx);
+      renderDetail(idx);
+    });
+  });
+}
+
+function renderDetail(idx) {
+  const s = STAGES[idx];
+  detail.style.setProperty('--current-color', s.color);
+  detail.innerHTML = `
+    <div class="head">
+      <div class="badge">${svgIcon(s.icon)}</div>
+      <div>
+        <h2>${s.name}</h2>
+        <div class="sub">${s.one}</div>
+      </div>
+      <div class="stage-tag">${String(idx + 1).padStart(2, '0')} · ${s.en}</div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-block">
+        <h4>这一步在做什么</h4>
+        <p style="margin-bottom: 18px">${s.purpose}</p>
+
+        <h4>输入</h4>
+        <ul style="margin-bottom: 16px">
+          ${s.inputs.map(x => `<li>${x}</li>`).join('')}
+        </ul>
+
+        <h4>输出</h4>
+        <ul>
+          ${s.outputs.map(x => `<li>${x}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div class="detail-block">
+        <h4>关键设计点</h4>
+        <p style="margin-bottom: 16px">${s.keypoint}</p>
+
+        <h4>实际数据形态</h4>
+        <pre class="codeblock">${s.code}</pre>
+      </div>
+    </div>
+  `;
+}
+
+renderGrid(0);
+renderDetail(0);
+
+/* ──────────────────────────────────────────────────────────────
+   Demo data: step-by-step walkthrough
+   ────────────────────────────────────────────────────────────── */
+
+const DEMO_STEPS = [
+  {
+    stage: 'collect', color: 'var(--c-cyan)', label: '采集', en: 'Collect',
+    pillIn: '本地文件 +372B', pillProc: 'cursor adapter', pillOut: 'new_messages',
+    input: `<pre>cursor session.jsonl
+  ...
+  offset 18420
+  offset 18420 + 372B  ← 新增
+  offset 18792</pre>
+<div class="note">Collector 监听 mtime 变化，发现 session.jsonl 在 last_processed_offset=18420 之后新增了 372 字节。</div>`,
+    process: `<pre>1. 匹配 adapter = cursor
+2. 从 last_processed_offset=18420
+   开始读取
+3. 解析 372 字节为 2 条 JSONL
+4. 暂存为 new_messages[]</pre>
+<div class="note">Collector 不解读内容，只负责<b style="color:#0891b2">"读到正确的新增片段"</b>。</div>`,
+    output: `<pre>new_messages = [
+  { source_message_id: "cursor-msg-8f30",
+    role: "user", raw: "..." },
+  { source_message_id: "cursor-msg-8f31",
+    role: "assistant", raw: "..." }
+]
+
+raw_offset_start: 18420
+raw_offset_end:   18792
+<span style="color:#d97706">⚠ offset 暂不更新，等全部 stage 成功</span></pre>`,
+  },
+  {
+    stage: 'normalize', color: 'var(--c-purple)', label: '规范化', en: 'Normalize',
+    pillIn: '2 条原始消息', pillProc: 'envelope 转换', pillOut: '2 条 envelope',
+    input: `<pre>cursor 原始 dict（字段不统一）
+{
+  "type": "user",
+  "ts": 1717128723000,
+  "text": "Redis 批量写入...",
+  "msg_id": "cursor-msg-8f30"
+}
+{
+  "type": "ai",
+  "ts": 1717128738000,
+  "text": "可以。建议用 pipeline...",
+  "msg_id": "cursor-msg-8f31"
+}</pre>`,
+    process: `<pre>字段对齐：
+  type      → role
+  ts (ms)   → created_at (ISO)
+  text      → content
+  msg_id    → source_message_id
+
+补充字段：
+  + id (自增)
+  + session_id
+  + content_hash (sha256)
+  + raw_offset_start/end</pre>`,
+    output: `<pre>[
+  { id: 26, session_id: "cursor-...",
+    source_message_id: "cursor-msg-8f30",
+    role: "user",
+    created_at: "2026-05-31T10:12:03+08:00",
+    content: "Redis 批量写入...",
+    content_hash: "sha256:9ad1..." },
+  { id: 27, session_id: "cursor-...",
+    source_message_id: "cursor-msg-8f31",
+    role: "assistant",
+    created_at: "2026-05-31T10:12:18+08:00",
+    content: "可以。建议用 pipeline...",
+    content_hash: "sha256:7bc4..." }
+]</pre>`,
+  },
+  {
+    stage: 'chunk', color: 'var(--c-amber)', label: '切片', en: 'Chunk',
+    pillIn: '2 条 message', pillProc: '按结构切', pillOut: '3 个 chunk',
+    input: `<pre>message 26 (user, 88 字)
+  "Redis 批量写入现在太慢了..."
+  ↓ 含敏感 token 提示
+
+message 27 (assistant, 312 字)
+  "可以。建议用 pipeline 批量执行..."
+  + python 代码块</pre>`,
+    process: `<pre>切片规则：
+1. user 整段 → 1 个 user_turn chunk
+2. 检测到敏感 context 提示 →
+   单独切出 sensitive_context chunk
+3. assistant 的代码块 →
+   独立 code chunk
+4. 每个 chunk 保留 message_id
+   用于回到完整上下文
+
+token_count 用 tiktoken 估算</pre>`,
+    output: `<pre>chunks = [
+  { id:101, message_id:26, position:1,
+    chunk_type:"user_turn",
+    content:"Redis 批量写入...",
+    token_count: 24 },
+  { id:102, message_id:26, position:2,
+    chunk_type:"sensitive_context",
+    content:"测试脚本里 token 是 sk-ant...",
+    token_count: 18 },
+  { id:103, message_id:27, position:1,
+    chunk_type:"code",
+    content:"pipe = redis.pipeline()...",
+    token_count: 42 }
+]
+<span style="color:#0891b2">⬆ 用户搜 "redis pipeline" 会命中 #101 和 #103</span>
+<span style="color:#0891b2">  而不是整条 312 字的 message 27</span></pre>`,
+  },
+  {
+    stage: 'redact', color: 'var(--c-red)', label: '脱敏', en: 'Redact',
+    pillIn: '3 个 chunk', pillProc: '规则匹配+替换', pillOut: 'redacted + log',
+    input: `<pre>chunk #102 (sensitive_context)
+content:
+  "测试脚本里 token 是
+   <span style="color:#dc2626">sk-ant-demo-123</span>，不要泄露。"
+
+可触发规则：
+  - api_key (内置)
+  - 上下文 "token is xxx"</pre>`,
+    process: `<pre>1. 用 api_key 正则扫描 content
+   命中：sk-ant-demo-123
+        (offset 11~26)
+2. 替换为占位符：
+   [REDACTED:api_key]
+3. 计算原 value 的 sha256
+4. 写 redactions 表
+   （只存 hash，不存原文）
+
+其他 chunk 无敏感信息 → 跳过</pre>`,
+    output: `<pre>chunk #102 更新为：
+  redacted_content:
+    "测试脚本里 token 是
+     <span style="color:#15803d">[REDACTED:api_key]</span>，不要泄露。"
+
+redactions 表新增：
+  { id: 501,
+    chunk_id: 102,
+    rule_name: "api_key",
+    placeholder: "[REDACTED:api_key]",
+    value_hash: "sha256:4c21...",  <span style="color:#64748b">// 不可还原</span>
+    start_char: 11, end_char: 26 }
+
+<span style="color:#dc2626">⚠ 后续 FTS5 / 摘要 / 云端调用都用</span>
+<span style="color:#dc2626">  redacted_content，绝不接触原文</span></pre>`,
+  },
+  {
+    stage: 'metadata', color: 'var(--c-green)', label: '元数据', en: 'Metadata',
+    pillIn: '3 个 chunk', pillProc: '规则抽取', pillOut: 'metadata',
+    input: `<pre>chunk #101 (user_turn)
+  "Redis 批量写入..."
+chunk #102 (sensitive_context)
+  "测试脚本里 token..."
+chunk #103 (code)
+  "pipe = redis.pipeline()
+   for item in items:
+     pipe.set(...)"</pre>`,
+    process: `<pre>对每个 chunk 抽取：
+- topics: 词典 + 共现
+- languages: 看 chunk_type=code
+             + 关键词匹配 python/rust/...
+- has_code: chunk_type=='code'
+- tools_used: 来自 normalize 阶段
+- error_keywords: 错误词典
+- project: 来自 working_dir
+
+全程纯规则，不依赖 LLM</pre>`,
+    output: `<pre>chunk #101.metadata =
+  { topics: ["redis","pipeline","batch-write"],
+    languages: [], has_code: false,
+    tools_used: [], error_keywords: [],
+    project: "memex" }
+
+chunk #102.metadata =
+  { topics: ["security","redaction"],
+    has_code: false, project: "memex" }
+
+chunk #103.metadata =
+  { topics: ["redis","pipeline"],
+    languages: ["python"], has_code: true,
+    project: "memex" }
+
+<span style="color:#059669">✓ 即使没有 LLM，用户依然能：</span>
+<span style="color:#059669">  - 按 project=memex 过滤</span>
+<span style="color:#059669">  - 按 languages=python 过滤</span>
+<span style="color:#059669">  - 按 topics 聚合</span></pre>`,
+  },
+  {
+    stage: 'summarize', color: 'var(--c-pink)', label: '摘要', en: 'Summarize',
+    pillIn: '3 chunk + metadata', pillProc: 'LLM 优先级链', pillOut: 'L1 + L2',
+    input: `<pre>3 个 chunk（已脱敏）
++ chunk.metadata
++ session.frontmatter
++ 用户配置：
+    summarize_backend = "ollama"
+    ollama_model = "qwen2.5:7b"</pre>`,
+    process: `<pre>L1 chunk 摘要 (循环每个 chunk)：
+  调用 ollama
+  → "用户询问 Redis 批量写入..."
+  → "用户提醒脚本含敏感 token"
+  → "Redis pipeline 批量 SET 示例"
+
+L2 session 摘要：
+  汇总所有 chunk + L1
+  → "讨论 Redis 批量写入慢的问题
+     方案是用 pipeline 批量执行 SET"
+
+<span style="color:#d97706">若 ollama 不可用：</span>
+  summary = null
+  summary_status = "pending_local_llm"
+  ✓ 仍然继续写入</pre>`,
+    output: `<pre>chunks 表更新：
+  #101.summary = "用户询问 Redis ..."
+  #102.summary = "提醒含敏感 token"
+  #103.summary = "Redis pipeline 示例"
+  summary_status = "completed"
+
+summaries 表新增 L2：
+  { session_id: "cursor_20260531-1012",
+    level: 2,
+    text: "讨论 Redis 批量写入慢的问题...",
+    source: "ollama",
+    confidence: "medium" }
+
+<span style="color:#db2777">⬆ confidence 决定是否被新摘要覆盖</span>
+<span style="color:#db2777">  high > medium > low</span></pre>`,
+  },
+  {
+    stage: 'storage', color: 'var(--c-blue)', label: '存储', en: 'Storage',
+    pillIn: '全部处理结果', pillProc: 'MD→SQLite→FTS5→offset', pillOut: '可检索状态',
+    input: `<pre>待写入：
+- session frontmatter
+- 3 个 chunk + summary + metadata
+- 1 条 redaction
+- L2 摘要
+- 新的 last_processed_offset = 18792</pre>`,
+    process: `<pre><span style="color:#059669">step 1.</span> 写 Markdown
+  sessions/2026-05-31/cursor_redis-pipeline.md
+  ✓ 用户即使卸载 Memex 也能读
+
+<span style="color:#059669">step 2.</span> 写 SQLite
+  insert sessions / messages / chunks
+         redactions / summaries / metadata
+  txn 包裹，全 commit
+
+<span style="color:#059669">step 3.</span> 写 FTS5
+  insert chunks_fts (rowid=chunks.id,
+                     content=redacted_content)
+
+<span style="color:#059669">step 4.</span> <span class="hl" style="background:rgba(99,102,241,0.18);padding:1px 4px;border-radius:3px">更新 offset → 18792</span>
+  <span style="color:#64748b">// 只有这一步成功后才算"已处理"</span></pre>`,
+    output: `<pre>~/.memex/
+  sessions/2026-05-31/
+    cursor_redis-pipeline.md  ← <span style="color:#2563eb">真源</span>
+  index.db
+    sessions   (1 新增)
+    messages   (2 新增)
+    chunks     (3 新增)
+    chunks_fts (3 新增) ← <span style="color:#2563eb">FTS5 索引</span>
+    redactions (1 新增)
+    summaries  (1 新增)
+  adapter_state.cursor.last_processed_offset
+    = 18792 ✓
+
+<span style="color:#059669">现在可以被任何入口检索到</span></pre>`,
+  },
+  {
+    stage: 'retrieve', color: 'var(--c-orange)', label: '检索', en: 'Retrieve',
+    pillIn: 'query', pillProc: '3 级 fallback', pillOut: 'ranked chunks',
+    input: `<pre>用户在 Cursor 里问：
+  "之前讨论过 redis pipeline 怎么写吗？"
+
+Cursor 通过 MCP 调用：
+  memex search --json "redis pipeline"
+  limit: 5
+
+可用信号：
+  + 当前 working_dir = ~/projects/memex
+  + 时间 = 2026-05-31 22:30</pre>`,
+    process: `<pre><span style="color:#ea580c">L1</span> FTS5 BM25 chunk 级关键词检索
+   matches:
+     #101 score=8.2 (user_turn)
+     #103 score=9.7 (code, 命中 redis+pipeline)
+   ✓ 命中 ≥ 2，跳过 L2/L3
+
+排序信号组合：
+  bm25 * 0.6
+  + recency_decay * 0.2
+  + working_dir_match * 0.15
+  + click_score * 0.05
+
+生成 match_reason:
+  "FTS5: 命中 'redis' 和 'pipeline'
+   关键词，同项目，今天发生"</pre>`,
+    output: `<pre>返回 JSON：
+[
+  { id: 103, session_id: "cursor-...",
+    adapter: "cursor",
+    timestamp: "2026-05-31T10:12:18+08:00",
+    snippet: "pipe = redis.pipeline()
+              for item in items: ...",
+    summary: "Redis pipeline 批量 SET 示例",
+    match_reason: "FTS5: 命中 redis+pipeline...",
+    url: "memex://session/cursor_20260531-1012" },
+  { id: 101, ... }
+]
+
+<span style="color:#ea580c">Cursor 拿到这份 JSON 后</span>
+<span style="color:#ea580c">可以直接基于历史上下文回答</span>
+<span style="color:#ea580c">而不需要重新生成答案</span>
+
+同时写入：
+  + access_log (用于点击信号学习)
+  + metrics (统计用)</pre>`,
+  },
+];
+
+const demoSteps = document.getElementById('demo-steps');
+const demoIn = document.getElementById('demo-in');
+const demoProc = document.getElementById('demo-proc');
+const demoOut = document.getElementById('demo-out');
+const demoInPill = document.getElementById('demo-in-pill');
+const demoProcPill = document.getElementById('demo-proc-pill');
+const demoOutPill = document.getElementById('demo-out-pill');
+const demoPrev = document.getElementById('demo-prev');
+const demoNext = document.getElementById('demo-next');
+const demoPos = document.getElementById('demo-pos');
+
+let demoIdx = 0;
+
+function renderDemoSteps() {
+  demoSteps.innerHTML = DEMO_STEPS.map((s, i) => {
+    const status = i === demoIdx ? 'active' : (i < demoIdx ? 'done' : '');
+    return `<div class="progress-step ${status}" style="--step-color:${s.color}" data-i="${i}">
+      <div class="progress-line"></div>
+      <div class="dot">${i + 1}</div>
+      <div class="lbl">${s.label}</div>
+      <div class="lbl-en">${s.en}</div>
+    </div>`;
+  }).join('');
+  demoSteps.querySelectorAll('.progress-step').forEach(el => {
+    el.addEventListener('click', () => {
+      demoIdx = parseInt(el.dataset.i, 10);
+      renderDemo();
+    });
+  });
+}
+
+function renderDemo() {
+  const s = DEMO_STEPS[demoIdx];
+  demoIn.innerHTML = s.input;
+  demoProc.innerHTML = s.process;
+  demoOut.innerHTML = s.output;
+  demoInPill.textContent = s.pillIn;
+  demoProcPill.textContent = s.pillProc;
+  demoOutPill.textContent = s.pillOut;
+  demoPos.textContent = `${String(demoIdx + 1).padStart(2, '0')} / ${String(DEMO_STEPS.length).padStart(2, '0')} · ${s.label}`;
+  demoPrev.disabled = demoIdx === 0;
+  demoNext.disabled = demoIdx === DEMO_STEPS.length - 1;
+  renderDemoSteps();
+}
+
+demoPrev.addEventListener('click', () => { if (demoIdx > 0) { demoIdx--; renderDemo(); } });
+demoNext.addEventListener('click', () => { if (demoIdx < DEMO_STEPS.length - 1) { demoIdx++; renderDemo(); } });
+
+renderDemo();
+
+/* ──────────────────────────────────────────────────────────────
+   vs tars comparison
+   ────────────────────────────────────────────────────────────── */
+
+const COMPARE = [
+  {
+    stage: '采集', en: 'Collector',
+    tars: '每个 adapter 实现 <code>parse_history()</code> 全量重读源文件，按 <code>session_id</code> 分组成 <code>WorkContext</code>。Cursor 用只读 SQLite 打开 <code>state.vscdb</code> 读 <code>composer.composerData</code>。',
+    memex: '同样按 adapter 分流，但**按 <code>last_processed_offset</code> 增量读取**新增字节/事件，避免每次全量重扫。失败重放安全：offset 是最后一个被推进的字段。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '规范化', en: 'Normalize',
+    tars: '隐式融在 <code>_extract_session_data</code> 里。各 adapter 自己抽取 branch / session_name / user_messages / native_summary / recap 等。不同 adapter 字段并不完全对齐。',
+    memex: '提为**独立 stage**，所有 adapter 必须把字段对齐到统一的 <code>message envelope</code>（role / timestamp / content / tool_call）。后续 stage 不再感知 adapter 差异。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '切片', en: 'Chunk',
+    tars: '<b>没有</b>。tars 的最小单位是 session，整个 session 一个 markdown，全文搜索靠 grep / matcher。',
+    memex: '**Memex 独有**。把 message 按 Markdown 标题 / 代码块 / tool call 切成 chunk。chunk 是检索、snippet、ranking 的最小单位。',
+    diff: 'new', diffText: '新增',
+  },
+  {
+    stage: '脱敏', en: 'Redact',
+    tars: '<b>没有</b>。tars 把内容直接写入 markdown，不区分 API key / 邮箱 / 内网地址。',
+    memex: '**Memex 独有**。内置规则 + 用户自定义 + 上下文规则 + private session。<code>redactions</code> 表只存 hash 和位置，<b style="color:#dc2626">绝不存可还原原文</b>。',
+    diff: 'new', diffText: '新增',
+  },
+  {
+    stage: '元数据', en: 'Metadata',
+    tars: '隐含在 <code>WorkContext</code> 字段里（branch / files_touched / native_summary 等）。靠 <code>classifier.py</code> 做基于关键词的项目分类。',
+    memex: '提为**独立 stage**，按 chunk 抽 <code>topics</code> / <code>languages</code> / <code>tools_used</code> / <code>error_keywords</code>。纯规则、不依赖 LLM，是 LLM 不可用时的关键过滤信号。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '摘要', en: 'Summarize',
+    tars: 'session 级，4 级 fallback：<code>recap (high)</code> → <code>native_summary (high)</code> → <code>ollama (medium)</code> → <code>smart_extract (low)</code>。用 <code>SummaryResult</code> 带 source + confidence。',
+    memex: '**4 层摘要**：L1 chunk / L2 session / L3 project / L4 week。LLM 优先级链：Ollama → Claude (opt-in) → 跳过。沿用了 tars 的 source + confidence 设计。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '去重', en: 'Dedupe',
+    tars: 'Note ↔ Meeting 配对：Jaccard 标题相似度 ≥ 0.6 + 1 天窗口。处理"会议总结笔记和会议数据 80% 重叠"。',
+    memex: '依赖 <code>source_message_id</code> + <code>content_hash</code> 做幂等。还未做 tars 那种跨源的语义级配对（v0.4+ 考虑）。',
+    diff: 'same', diffText: '相似',
+  },
+  {
+    stage: '存储', en: 'Storage',
+    tars: '**单存储**：Markdown only。所有元信息塞进 YAML frontmatter。检索靠 grep。<code>~/.tars/contexts/&lt;session_id&gt;.md</code>',
+    memex: '**双存储**：Markdown 是真源 + SQLite (含 FTS5) 是可重建索引。<code>~/.memex/sessions/YYYY-MM-DD/...md</code> + <code>~/.memex/index.db</code>。写入顺序严格：MD → SQLite → FTS5 → offset。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '增量', en: 'Incremental',
+    tars: '靠 mtime 和 <code>enrich_existing</code>：已有 .md 可能是 stop hook 在 Claude 写 recap 之前创建的，重跑时按 <code>_CONF_RANK</code> 比较置信度，只升级不降级。',
+    memex: '<b>字节级 <code>last_processed_offset</code></b>。失败时不推进 offset → 下次重放。重复入库由 <code>source_message_id</code> + <code>content_hash</code> 做幂等保护。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '检索', en: 'Retriever',
+    tars: '<code>matcher.search</code> 在内存中对 markdown 内容做模糊匹配 + recency_score 排序。',
+    memex: '**3 级 fallback**：L1 FTS5 BM25 chunk 级 → L2 Ollama 本地语义 → L3 Claude 兜底 (opt-in)。带 <code>match_reason</code> 解释命中原因。',
+    diff: 'enhance', diffText: '增强',
+  },
+  {
+    stage: '暴露', en: 'Exposure',
+    tars: 'CLI only（<code>tars search/brief/plan/...</code>）。',
+    memex: '5 类入口：**CLI / MCP / Skill / menubar / HTTP API**。CLI 是稳定契约，MCP 永远 spawn CLI，HTTP 仅供 daemon 内部加速。',
+    diff: 'enhance', diffText: '增强',
+  },
+];
+
+const compareRows = document.getElementById('compare-rows');
+compareRows.innerHTML = COMPARE.map(c => `
+  <div class="row">
+    <div class="cell stage-name">${c.stage}<span class="en">${c.en}</span></div>
+    <div class="cell tars">${c.tars}</div>
+    <div class="cell memex">${c.memex}</div>
+    <div class="cell"><span class="badge-diff badge-${c.diff}">${c.diffText}</span></div>
+  </div>
+`).join('');
+
+/* ──────────────────────────────────────────────────────────────
+   Key design decisions
+   ────────────────────────────────────────────────────────────── */
+
+const DECISIONS = [
+  {
+    q: '问题 01',
+    title: '为什么要把 message 再切成 chunk？',
+    body: '一条 assistant 消息可能同时混合"自然语言解释 + 代码 + tool call + 长日志"几千字。如果整条 message 进 FTS，<b>snippet 不准</b>（用户搜代码却返回大段文字）、<b>ranking 容易被长日志污染</b>（错误日志反复出现，BM25 分数虚高）、<b>tool call 没法独立命中</b>。',
+    why: '<b>结论</b>：chunk 是 BM25 + snippet 能正常工作的"刚刚好"粒度。每个 chunk 保留 message_id，命中时仍能跳回完整上下文。这是 Memex 比 tars 多的一层、也是检索质量的核心。',
+  },
+  {
+    q: '问题 02',
+    title: '为什么 Memex 必须有 redact、而 tars 没有？',
+    body: 'tars 是"找回我自己的工作记忆"，所有数据都在自己的机器自己看，没有暴露面。Memex 的边界更大：要喂给 <b>MCP 给 AI 编辑器</b>（AI 拿到的内容会成为下一次 prompt 的一部分），还可能 <b>opt-in 后被发送给 Claude</b>。这两条路径都会让 API key / 内网地址等敏感信息泄露。',
+    why: '<b>结论</b>：redact 是 Memex 把"本地工具"升级为"AI 上下文供给"必须付出的代价。<code>redactions</code> 表只存 hash 不存原文，是硬性安全承诺；占位符保留语义，让 FTS 仍然知道"这里出现过 api_key"。',
+  },
+  {
+    q: '问题 03',
+    title: '为什么 Markdown + SQLite 双存储？只用一份不行吗？',
+    body: '只用 Markdown：grep 慢、没排序、没 BM25、没法做"按项目过滤 + 按时间排序 + 按 chunk_type 过滤"。这就是 tars 现在的痛点。只用 SQLite：用户卸载 Memex 后什么都看不见、备份恢复要懂 schema、迁移成本高。',
+    why: '<b>结论</b>：把两者职责分开 — Markdown 是<b>用户的真源</b>（可读可备份可卸载继承），SQLite 是<b>可重建的索引</b>（损坏可以 <code>memex rebuild-index</code> 从 Markdown 重生）。这让 Memex 既能高速检索又永不锁定用户数据。',
+  },
+  {
+    q: '问题 04',
+    title: '为什么 offset 必须最后一个更新？',
+    body: '处理一条新消息要经过 chunk → redact → metadata → summarize → 写 Markdown → 写 SQLite → 写 FTS 六步，任何一步都可能失败（磁盘满、SQLite 锁、Ollama 超时、进程被杀）。如果先更新 offset 再写数据，<b>失败的那条消息会永远丢失</b>，因为下次启动会从更新过的 offset 开始读。',
+    why: '<b>结论</b>：<b>offset 是事务的提交点</b>。Markdown 写完 → SQLite 写完 → FTS5 写完，全部成功才推进 offset。任何中间失败 → 下次重放。重复入库由 <code>source_message_id</code> + <code>content_hash</code> 兜底幂等。这让"Memex 进程随时被杀"成为安全操作。',
+  },
+];
+
+document.getElementById('decisions').innerHTML = DECISIONS.map(d => `
+  <div class="decision-card">
+    <div class="q">${d.q}</div>
+    <h3>${d.title}</h3>
+    <p>${d.body}</p>
+    <div class="why">${d.why}</div>
+  </div>
+`).join('');
+
+/* ──────────────────────────────────────────────────────────────
+   Tab switching
+   ────────────────────────────────────────────────────────────── */
+
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
