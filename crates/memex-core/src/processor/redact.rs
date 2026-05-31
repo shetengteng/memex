@@ -1,40 +1,83 @@
+use std::fs;
+use std::path::Path;
+use std::sync::{LazyLock, Mutex};
+
 use regex::Regex;
-use std::sync::LazyLock;
+use serde::Deserialize;
 
 struct RedactionRule {
     pattern: Regex,
-    label: &'static str,
+    label: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RedactionsFile {
+    #[serde(default)]
+    rules: Vec<CustomRule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CustomRule {
+    pattern: String,
+    label: String,
+}
+
+static CUSTOM_RULES: LazyLock<Mutex<Vec<RedactionRule>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+
+pub fn load_custom_rules(path: &Path) {
+    if !path.exists() {
+        return;
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let parsed: RedactionsFile = match serde_yaml_ng::from_str(&content) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let mut rules = CUSTOM_RULES.lock().unwrap();
+    rules.clear();
+    for rule in parsed.rules {
+        if let Ok(re) = Regex::new(&rule.pattern) {
+            rules.push(RedactionRule {
+                pattern: re,
+                label: rule.label,
+            });
+        }
+    }
 }
 
 static RULES: LazyLock<Vec<RedactionRule>> = LazyLock::new(|| {
     vec![
         RedactionRule {
             pattern: Regex::new(r"sk-[a-zA-Z0-9_-]{20,}").unwrap(),
-            label: "api_key",
+            label: "api_key".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r#"(?i)(api[_\-]?key|token|secret)[:\s=]+['"]?([a-zA-Z0-9_\-/.]{16,})['"]?"#).unwrap(),
-            label: "token",
+            label: "token".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap(),
-            label: "email",
+            label: "email".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r"(\+?86[-\s]?)?1[3-9]\d{9}").unwrap(),
-            label: "phone",
+            label: "phone".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap(),
-            label: "ip",
+            label: "ip".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r"\b[3-6]\d{3}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b").unwrap(),
-            label: "bank_card",
+            label: "bank_card".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(r"(?i)password\s*(is|=|:)\s*\S+").unwrap(),
-            label: "password",
+            label: "password".to_string(),
         },
     ]
 });
@@ -46,6 +89,14 @@ pub fn redact(content: &str) -> String {
             .pattern
             .replace_all(&result, format!("[REDACTED:{}]", rule.label))
             .to_string();
+    }
+    if let Ok(custom) = CUSTOM_RULES.lock() {
+        for rule in custom.iter() {
+            result = rule
+                .pattern
+                .replace_all(&result, format!("[REDACTED:{}]", rule.label))
+                .to_string();
+        }
     }
     result
 }
@@ -110,5 +161,27 @@ mod tests {
         let input = "Keys: sk-ant-xxxxxxxxxxxxxxxxxxxx and sk-ant-yyyyyyyyyyyyyyyyyyyy";
         let output = redact(input);
         assert_eq!(output.matches("[REDACTED:api_key]").count(), 2);
+    }
+
+    #[test]
+    fn test_custom_rules() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join("memex_test_redact");
+        std::fs::create_dir_all(&dir).unwrap();
+        let yaml_path = dir.join("redactions.yaml");
+        let mut f = std::fs::File::create(&yaml_path).unwrap();
+        writeln!(f, "rules:").unwrap();
+        writeln!(f, "  - pattern: \"INTERNAL-\\\\d+\"").unwrap();
+        writeln!(f, "    label: internal_id").unwrap();
+        drop(f);
+
+        load_custom_rules(&yaml_path);
+
+        let output = redact("Ticket INTERNAL-42 opened");
+        assert!(output.contains("[REDACTED:internal_id]"));
+        assert!(!output.contains("INTERNAL-42"));
+
+        // cleanup
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

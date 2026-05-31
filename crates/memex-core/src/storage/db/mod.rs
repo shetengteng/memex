@@ -169,6 +169,68 @@ impl Db {
         Ok(conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?)
     }
 
+    pub fn get_session(&self, session_id: &str) -> Result<Option<SessionDetail>> {
+        let conn = self.conn.lock().unwrap();
+        let session = conn
+            .query_row(
+                "SELECT id, source, project_path, file_path, message_count, created_at, updated_at
+                 FROM sessions WHERE id = ?1",
+                params![session_id],
+                |row| {
+                    Ok(SessionDetail {
+                        id: row.get(0)?,
+                        source: row.get(1)?,
+                        project_path: row.get(2)?,
+                        file_path: row.get(3)?,
+                        message_count: row.get(4)?,
+                        created_at: row.get(5)?,
+                        updated_at: row.get(6)?,
+                        messages: vec![],
+                    })
+                },
+            )
+            .ok();
+
+        let Some(mut detail) = session else {
+            return Ok(None);
+        };
+
+        let mut stmt = conn.prepare(
+            "SELECT id, role, content, timestamp FROM messages
+             WHERE session_id = ?1 ORDER BY source_offset ASC",
+        )?;
+        detail.messages = stmt
+            .query_map(params![session_id], |row| {
+                Ok(MessageRow {
+                    id: row.get(0)?,
+                    role: row.get(1)?,
+                    content: row.get(2)?,
+                    timestamp: row.get(3)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(Some(detail))
+    }
+
+    pub fn kv_get(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let val = conn
+            .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| row.get(0))
+            .ok();
+        Ok(val)
+    }
+
+    pub fn kv_set(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO kv (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
     pub fn list_sessions(&self, limit: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -195,6 +257,26 @@ pub struct SessionRow {
     pub project_path: Option<String>,
     pub message_count: i64,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionDetail {
+    pub id: String,
+    pub source: String,
+    pub project_path: Option<String>,
+    pub file_path: String,
+    pub message_count: i64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub messages: Vec<MessageRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MessageRow {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: Option<String>,
 }
 
 #[cfg(test)]

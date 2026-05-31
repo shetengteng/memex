@@ -12,6 +12,8 @@ pub fn run(adapter_filter: Option<&str>, json: bool) -> Result<()> {
     let memex = memex_dir();
     ensure_memex_dir(&memex)?;
 
+    memex_core::processor::redact::load_custom_rules(&memex.join("redactions.yaml"));
+
     let db_path = memex.join("memex.db");
     let db = Db::open(&db_path)?;
 

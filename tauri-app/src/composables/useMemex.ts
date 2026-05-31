@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -14,5 +14,9 @@ export function useMemex() {
     return invoke<SearchResult[]>('search_memex', { query, limit })
   }
 
-  return { getStats, listRecent, searchMemex }
+  async function getSession(sessionId: string): Promise<SessionDetail | null> {
+    return invoke<SessionDetail | null>('get_session', { sessionId })
+  }
+
+  return { getStats, listRecent, searchMemex, getSession }
 }

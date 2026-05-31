@@ -22,3 +22,4 @@ blake3.workspace = true
 walkdir.workspace = true
 flate2 = "1"
 tar = "0.4"
+dirs = "6"

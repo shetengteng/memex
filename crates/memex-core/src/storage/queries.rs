@@ -147,23 +147,6 @@ impl Db {
         Ok(rows)
     }
 
-    pub fn kv_get(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
-        Ok(conn
-            .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| row.get(0))
-            .ok())
-    }
-
-    pub fn kv_set(&self, key: &str, value: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO kv (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![key, value],
-        )?;
-        Ok(())
-    }
-
     pub fn find_session_by_prefix(&self, prefix: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let pattern = format!("{}%", prefix);

@@ -65,6 +65,11 @@ enum Commands {
     RebuildIndex,
     /// Start MCP server (stdio JSON-RPC)
     Mcp,
+    /// Configure MCP for a specific AI tool
+    Setup {
+        /// Target tool (cursor, claude-code)
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -99,5 +104,6 @@ fn main() -> Result<()> {
         Commands::Backup { path } => commands::backup::run(&path, cli.json),
         Commands::RebuildIndex => commands::rebuild::run(cli.json),
         Commands::Mcp => commands::mcp::run(),
+        Commands::Setup { target } => commands::setup::run(&target),
     }
 }
