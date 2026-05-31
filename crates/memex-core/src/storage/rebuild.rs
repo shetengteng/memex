@@ -155,27 +155,8 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
     for line in body.lines() {
         if let Some(role) = detect_message_header(line) {
             if let Some(prev_role) = current_role.take() {
-                let trimmed = current_content.trim().to_string();
-                if !trimmed.is_empty() {
-                    let id = blake3::hash(
-                        format!(
-                            "rebuild:{}:{}:{}",
-                            session_id,
-                            msg_index,
-                            &trimmed[..trimmed.len().min(100)]
-                        )
-                        .as_bytes(),
-                    )
-                    .to_hex()
-                    .to_string();
-                    messages.push(RawMessage {
-                        id,
-                        session_id: session_id.to_string(),
-                        role: prev_role,
-                        content: trimmed,
-                        timestamp: None,
-                        source_offset: msg_index,
-                    });
+                if let Some(msg) = build_rebuild_message(session_id, prev_role, &current_content, msg_index) {
+                    messages.push(msg);
                     msg_index += 1;
                 }
             }
@@ -190,31 +171,38 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
     }
 
     if let Some(role) = current_role {
-        let trimmed = current_content.trim().to_string();
-        if !trimmed.is_empty() {
-            let id = blake3::hash(
-                format!(
-                    "rebuild:{}:{}:{}",
-                    session_id,
-                    msg_index,
-                    &trimmed[..trimmed.len().min(100)]
-                )
-                .as_bytes(),
-            )
-            .to_hex()
-            .to_string();
-            messages.push(RawMessage {
-                id,
-                session_id: session_id.to_string(),
-                role,
-                content: trimmed,
-                timestamp: None,
-                source_offset: msg_index,
-            });
+        if let Some(msg) = build_rebuild_message(session_id, role, &current_content, msg_index) {
+            messages.push(msg);
         }
     }
 
     messages
+}
+
+fn build_rebuild_message(session_id: &str, role: Role, raw_content: &str, index: u64) -> Option<RawMessage> {
+    let trimmed = raw_content.trim().to_string();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let id = blake3::hash(
+        format!(
+            "rebuild:{}:{}:{}",
+            session_id,
+            index,
+            &trimmed[..trimmed.len().min(100)]
+        )
+        .as_bytes(),
+    )
+    .to_hex()
+    .to_string();
+    Some(RawMessage {
+        id,
+        session_id: session_id.to_string(),
+        role,
+        content: trimmed,
+        timestamp: None,
+        source_offset: index,
+    })
 }
 
 fn detect_message_header(line: &str) -> Option<Role> {

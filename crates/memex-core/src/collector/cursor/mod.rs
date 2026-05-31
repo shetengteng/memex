@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -65,18 +68,10 @@ impl CursorAdapter {
     }
 
     fn extract_project_name(&self, file_path: &Path) -> Option<String> {
-        let path_str = file_path.to_string_lossy();
-        let base_str = self.base_dir.to_string_lossy();
-        let relative = path_str
-            .strip_prefix(base_str.as_ref())?
-            .trim_start_matches('/');
-        let workspace_part = relative.split('/').next()?;
-        Some(
-            workspace_part
-                .replace("Users-TerrellShe-Documents-", "")
-                .replace("Users-TerrellShe-", "")
-                .replace("Library-Application-Support-Cursor-Workspaces-", "ws:"),
-        )
+        let relative = file_path.strip_prefix(&self.base_dir).ok()?;
+        let workspace_part = relative.components().next()?;
+        let raw = workspace_part.as_os_str().to_string_lossy().to_string();
+        Some(normalize_workspace_name(&raw))
     }
 
     fn session_id_from_path(path: &Path) -> String {
@@ -88,6 +83,21 @@ impl CursorAdapter {
                     .to_string()
             })
     }
+}
+
+/// Strip common Cursor workspace path prefixes (Users-<name>-Documents-, etc.)
+fn normalize_workspace_name(raw: &str) -> String {
+    let mut name = raw.to_string();
+    if let Some(idx) = name.find("-Documents-") {
+        name = name[idx + "-Documents-".len()..].to_string();
+    } else if let Some(idx) = name.find("-Library-Application-Support-Cursor-Workspaces-") {
+        name = format!("ws:{}", &name[idx + "-Library-Application-Support-Cursor-Workspaces-".len()..]);
+    } else if let Some(start) = name.find("Users-") {
+        if let Some(sep) = name[start + "Users-".len()..].find('-') {
+            name = name[start + "Users-".len() + sep + 1..].to_string();
+        }
+    }
+    name
 }
 
 impl Adapter for CursorAdapter {
@@ -237,62 +247,5 @@ fn extract_content(message: &Option<CursorMessage>) -> Option<String> {
             }
         }
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_parse_cursor_jsonl() {
-        let tmp = TempDir::new().unwrap();
-        let content = r#"{"role":"user","message":{"content":[{"type":"text","text":"hello cursor"}]}}
-{"role":"assistant","message":{"content":[{"type":"text","text":"hi from cursor assistant"}]}}
-"#;
-        let dir = tmp.path().join("proj/agent-transcripts/uuid1");
-        fs::create_dir_all(&dir).unwrap();
-        let file_path = dir.join("uuid1.jsonl");
-        fs::write(&file_path, content).unwrap();
-
-        let adapter = CursorAdapter::with_base_dir(tmp.path().to_path_buf());
-        let session = SessionMeta {
-            id: "uuid1".to_string(),
-            source: "cursor".to_string(),
-            project_path: Some("proj".to_string()),
-            file_path: file_path.to_string_lossy().to_string(),
-            last_offset: 0,
-            mtime: 0,
-        };
-
-        let messages = adapter.collect(&session).unwrap();
-        assert_eq!(messages.len(), 2);
-        assert_eq!(messages[0].role, Role::User);
-        assert!(messages[0].content.contains("hello cursor"));
-        assert_eq!(messages[1].role, Role::Assistant);
-    }
-
-    #[test]
-    fn test_scan_discovers_transcripts() {
-        let tmp = TempDir::new().unwrap();
-        let dir1 = tmp.path().join("proj-a/agent-transcripts/s1");
-        let dir2 = tmp.path().join("proj-b/agent-transcripts/s2");
-        fs::create_dir_all(&dir1).unwrap();
-        fs::create_dir_all(&dir2).unwrap();
-        fs::write(
-            dir1.join("s1.jsonl"),
-            r#"{"role":"user","message":{"content":"hi"}}"#,
-        )
-        .unwrap();
-        fs::write(
-            dir2.join("s2.jsonl"),
-            r#"{"role":"user","message":{"content":"hey"}}"#,
-        )
-        .unwrap();
-
-        let adapter = CursorAdapter::with_base_dir(tmp.path().to_path_buf());
-        let sessions = adapter.scan().unwrap();
-        assert_eq!(sessions.len(), 2);
     }
 }

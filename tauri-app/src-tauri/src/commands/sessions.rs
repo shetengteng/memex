@@ -21,5 +21,6 @@ pub fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> 
     }
 
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.get_session(&session_id).map_err(|e| e.to_string())
+    db.get_session_detail(&session_id)
+        .map_err(|e| e.to_string())
 }

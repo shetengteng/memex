@@ -1,29 +1,15 @@
+//! Read-only queries that are not part of the per-table CRUD modules:
+//!   * `doctor` payload (schema version, fts health, adapter status, counts)
+//!   * `access_log` write helper
+//!   * Session-id prefix lookup (used by `memex session show <prefix>`)
+//!
+//! Per-table CRUD lives under `db/{sources,sessions,messages,chunks,kv}.rs`.
+
 use anyhow::Result;
 use rusqlite::params;
 use serde::Serialize;
 
 use super::db::Db;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SessionDetail {
-    pub id: String,
-    pub source: String,
-    pub project_path: Option<String>,
-    pub file_path: String,
-    pub title: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub message_count: i64,
-    pub messages: Vec<MessageRow>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct MessageRow {
-    pub id: String,
-    pub role: String,
-    pub content: String,
-    pub timestamp: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DoctorReport {
@@ -45,56 +31,6 @@ pub struct AdapterStatus {
 }
 
 impl Db {
-    pub fn get_session_detail(&self, session_id: &str) -> Result<Option<SessionDetail>> {
-        let conn = self.conn.lock().unwrap();
-
-        let session = conn
-            .query_row(
-                "SELECT id, source, project_path, file_path, title, created_at, updated_at, message_count
-                 FROM sessions WHERE id = ?1",
-                params![session_id],
-                |row| {
-                    Ok(SessionDetail {
-                        id: row.get(0)?,
-                        source: row.get(1)?,
-                        project_path: row.get(2)?,
-                        file_path: row.get(3)?,
-                        title: row.get(4)?,
-                        created_at: row.get(5)?,
-                        updated_at: row.get(6)?,
-                        message_count: row.get(7)?,
-                        messages: Vec::new(),
-                    })
-                },
-            )
-            .ok();
-
-        let mut detail = match session {
-            Some(d) => d,
-            None => return Ok(None),
-        };
-
-        let mut stmt = conn.prepare(
-            "SELECT id, role, content, timestamp FROM messages
-             WHERE session_id = ?1
-             ORDER BY source_offset ASC",
-        )?;
-
-        detail.messages = stmt
-            .query_map(params![session_id], |row| {
-                Ok(MessageRow {
-                    id: row.get(0)?,
-                    role: row.get(1)?,
-                    content: row.get(2)?,
-                    timestamp: row.get(3)?,
-                })
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        Ok(Some(detail))
-    }
-
     pub fn write_access_log(
         &self,
         query: &str,
@@ -104,7 +40,12 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO access_log (query, result_count, latency_ms, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![query, result_count as i64, latency_ms as i64, chrono::Utc::now().to_rfc3339()],
+            params![
+                query,
+                result_count as i64,
+                latency_ms as i64,
+                chrono::Utc::now().to_rfc3339()
+            ],
         )?;
         Ok(())
     }
@@ -169,40 +110,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_session_detail() {
-        let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
-            .unwrap();
-        let hash = blake3::hash(b"hello").to_hex().to_string();
-        db.insert_message("m1", "s1", "user", "hello", None, 0, &hash)
-            .unwrap();
-
-        let detail = db.get_session_detail("s1").unwrap().unwrap();
-        assert_eq!(detail.id, "s1");
-        assert_eq!(detail.messages.len(), 1);
-        assert_eq!(detail.messages[0].role, "user");
-    }
-
-    #[test]
-    fn test_session_detail_not_found() {
-        let db = Db::open_in_memory().unwrap();
-        assert!(db.get_session_detail("nonexistent").unwrap().is_none());
-    }
-
-    #[test]
     fn test_access_log() {
         let db = Db::open_in_memory().unwrap();
         db.write_access_log("redis", 5, 42).unwrap();
-    }
-
-    #[test]
-    fn test_kv_store() {
-        let db = Db::open_in_memory().unwrap();
-        assert!(db.kv_get("missing").unwrap().is_none());
-        db.kv_set("foo", "bar").unwrap();
-        assert_eq!(db.kv_get("foo").unwrap().unwrap(), "bar");
-        db.kv_set("foo", "baz").unwrap();
-        assert_eq!(db.kv_get("foo").unwrap().unwrap(), "baz");
     }
 
     #[test]

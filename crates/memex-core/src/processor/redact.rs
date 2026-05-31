@@ -98,33 +98,28 @@ pub fn redact_with_hits(content: &str) -> (String, Vec<RedactionHit>) {
     let mut result = content.to_string();
     let mut hits = Vec::new();
 
-    for rule in RULES.iter() {
-        for m in rule.pattern.find_iter(&result.clone()) {
+    apply_rules(&RULES, &mut result, &mut hits);
+    if let Ok(custom) = CUSTOM_RULES.lock() {
+        apply_rules(&custom, &mut result, &mut hits);
+    }
+    (result, hits)
+}
+
+fn apply_rules(rules: &[RedactionRule], result: &mut String, hits: &mut Vec<RedactionHit>) {
+    for rule in rules {
+        let match_count = rule.pattern.find_iter(result).count();
+        if match_count == 0 {
+            continue;
+        }
+        for m in rule.pattern.find_iter(result.as_str()) {
             hits.push(RedactionHit {
                 redaction_type: rule.label.clone(),
                 original_length: m.len(),
             });
         }
-        result = rule
-            .pattern
-            .replace_all(&result, format!("[REDACTED:{}]", rule.label))
-            .to_string();
+        let replacement = format!("[REDACTED:{}]", rule.label);
+        *result = rule.pattern.replace_all(result, replacement.as_str()).into_owned();
     }
-    if let Ok(custom) = CUSTOM_RULES.lock() {
-        for rule in custom.iter() {
-            for m in rule.pattern.find_iter(&result.clone()) {
-                hits.push(RedactionHit {
-                    redaction_type: rule.label.clone(),
-                    original_length: m.len(),
-                });
-            }
-            result = rule
-                .pattern
-                .replace_all(&result, format!("[REDACTED:{}]", rule.label))
-                .to_string();
-        }
-    }
-    (result, hits)
 }
 
 #[cfg(test)]

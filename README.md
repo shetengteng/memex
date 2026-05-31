@@ -30,7 +30,7 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 - [`20260531-12-Memex-技术栈.md`](design/20260531-12-Memex-技术栈.md) — 技术选型 + 代码复用来源（DiskMind / tokenbar / tars-ai-butler）
 
 **开发计划**
-- [`20260531-13-Memex-执行计划-Rust.md`](design/20260531-13-Memex-执行计划-Rust.md) — Sprint 1 ~ 11 详细排期（带 checkbox）
+- [`20260531-13-Memex-执行计划-Rust-60%.md`](design/20260531-13-Memex-执行计划-Rust-60%.md) — Sprint 1 ~ 11 详细排期（带 checkbox，文件名含整体完成率）
 - [`20260531-01-Memex-v4功能点开发清单.md`](design/20260531-01-Memex-v4功能点开发清单.md) — 功能模块视角的全集 checklist
 
 **测试**
