@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memex Menubar v3 — 单 Popup 聚焦模型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafbfc; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0;
+    --card: #ffffff; --primary: #4f46e5; --success: #059669;
+    --warning: #d97706; --danger: #dc2626;
+    --shadow: 0 8px 32px -8px rgba(15,23,42,0.12), 0 4px 12px -4px rgba(15,23,42,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { min-height: 100vh; font-family: "Inter", -apple-system, system-ui, sans-serif; font-size: 13px; color: var(--fg); background: var(--bg); -webkit-font-smoothing: antialiased; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  .stage { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+  .stage h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .stage .subtitle { color: var(--muted); font-size: 14px; margin: 0 0 32px; line-height: 1.5; }
+
+  .desktop { position: relative; min-height: 520px; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; background: linear-gradient(180deg, #f1f5f9, #e2e8f0); box-shadow: var(--shadow); }
+  .desktop::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(15,23,42,0.04) 1px, transparent 0); background-size: 20px 20px; pointer-events: none; }
+  .menubar { position: relative; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: rgba(255,255,255,0.88); border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); font-size: 13px; z-index: 1; }
+  .menu-left { display: flex; gap: 16px; }
+  .menu-left .app { font-weight: 600; }
+  .menu-left span:not(.app) { color: var(--muted); }
+  .menu-right { display: flex; align-items: center; gap: 12px; }
+  .memex-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(79,70,229,0.3); background: rgba(79,70,229,0.08); color: var(--primary); font-size: 11px; font-weight: 500; cursor: pointer; transition: all 160ms; }
+  .memex-chip:hover { background: rgba(79,70,229,0.15); }
+  .memex-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); }
+
+  /* ─── Popup ─── */
+  .popup { position: absolute; top: 38px; right: 20px; width: 360px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; z-index: 10; animation: popIn 180ms cubic-bezier(0.16,1,0.3,1); }
+  .popup.hidden { display: none; }
+  @keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+  .popup-input { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .popup-input svg { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+  .popup-input input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 13px; font-family: inherit; color: var(--fg); }
+  .popup-input input::placeholder { color: var(--muted); }
+  .popup-input kbd { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--muted); padding: 2px 5px; border: 1px solid var(--border); border-radius: 3px; background: #f8fafc; }
+
+  /* Views — only one visible at a time */
+  .popup-view { display: none; }
+  .popup-view.active { display: block; }
+
+  .popup-list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
+  .popup-item { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 7px 14px; border: none; background: none; width: 100%; text-align: left; cursor: pointer; transition: background 120ms; }
+  .popup-item:hover, .popup-item.selected { background: #f1f5f9; }
+  .popup-item .icon { width: 22px; height: 20px; display: grid; place-items: center; border-radius: 4px; font-size: 9px; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+  .popup-item .icon.cc { background: rgba(79,70,229,0.12); color: var(--primary); }
+  .popup-item .icon.cu { background: rgba(5,150,105,0.12); color: var(--success); }
+  .popup-item .icon.cx { background: rgba(217,119,6,0.12); color: var(--warning); }
+  .popup-item .body { min-width: 0; }
+  .popup-item .body strong { font-size: 12px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .popup-item .body span { font-size: 11px; color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .popup-item .time { font-size: 10px; color: var(--muted); font-family: "JetBrains Mono", monospace; }
+
+  /* Settings view */
+  .settings-list { padding: 10px 14px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 12px; }
+  .settings-row + .settings-row { border-top: 1px solid rgba(0,0,0,0.04); }
+  .settings-row .label-text { display: flex; align-items: center; gap: 6px; }
+  .settings-row .dot-status { width: 6px; height: 6px; border-radius: 50%; }
+  .settings-row .dot-status.on { background: var(--success); }
+  .settings-row .dot-status.off { background: var(--muted); }
+  .toggle-sm { width: 28px; height: 16px; border-radius: 999px; border: none; cursor: pointer; position: relative; transition: background 160ms; }
+  .toggle-sm.on { background: var(--primary); }
+  .toggle-sm.off { background: #cbd5e1; }
+  .toggle-sm::after { content: ""; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: white; transition: left 160ms; }
+  .toggle-sm.on::after { left: 14px; }
+  .toggle-sm.off::after { left: 2px; }
+  .settings-section { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding: 8px 0 4px; margin-top: 4px; }
+  .settings-section:first-child { margin-top: 0; padding-top: 0; }
+
+  /* Footer */
+  .popup-footer { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; border-top: 1px solid var(--border); background: #f8fafc; }
+  .popup-footer .info { font-size: 10px; color: var(--muted); font-family: "JetBrains Mono", monospace; }
+  .footer-actions { display: flex; gap: 2px; }
+  .footer-btn { width: 26px; height: 26px; display: grid; place-items: center; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--muted); transition: all 120ms; }
+  .footer-btn:hover, .footer-btn.active { background: rgba(79,70,229,0.1); color: var(--primary); }
+  .footer-btn svg { width: 13px; height: 13px; }
+
+  .hints { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .hint-card { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+  .hint-card h3 { font-size: 12px; font-weight: 600; margin: 0 0 8px; }
+  .hint-card p, .hint-card .code { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .hint-card .code { margin-top: 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; padding: 8px 10px; border-radius: 6px; background: #f1f5f9; border: 1px solid var(--border); line-height: 1.7; }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <h1>Memex menubar v3</h1>
+    <p class="subtitle">单 popup 聚焦模型 — 一个弹框承载所有操作。<br>默认是搜索，底部图标切换到设置/状态。不外跳窗口。</p>
+
+    <section class="desktop" id="desktop">
+      <div class="menubar">
+        <div class="menu-left"><span class="app">Finder</span><span>File</span><span>Edit</span><span>View</span></div>
+        <div class="menu-right">
+          <button class="memex-chip" id="chip" type="button"><span class="dot"></span><span class="mono">Memex</span></button>
+          <span class="mono" style="font-size:12px;color:var(--muted)">10:31</span>
+        </div>
+      </div>
+
+      <div class="popup" id="popup">
+        <div class="popup-input">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="searchInput" type="text" placeholder="搜索 AI 对话历史..." autofocus>
+          <kbd>Esc</kbd>
+        </div>
+
+        <!-- View: Search (default) -->
+        <div class="popup-view active" id="view-search">
+          <div class="popup-list" id="list">
+            <button class="popup-item" type="button"><span class="icon cc">CC</span><span class="body"><strong>Rust 主体迁移方案</strong><span>CLI 是稳定契约层，MCP spawn CLI</span></span><span class="time">5m</span></button>
+            <button class="popup-item" type="button"><span class="icon cu">Cu</span><span class="body"><strong>SQLite FTS5 chunk 检索</strong><span>message→chunk 级索引，snippet 命中↑</span></span><span class="time">1h</span></button>
+            <button class="popup-item" type="button"><span class="icon cx">Cx</span><span class="body"><strong>Tauri menubar 原型</strong><span>输入法弹框模型，极简设计</span></span><span class="time">3h</span></button>
+            <button class="popup-item" type="button"><span class="icon cc">CC</span><span class="body"><strong>Redis pipeline 批量写入</strong><span>pipeline SET 吞吐提升 3x</span></span><span class="time">2h</span></button>
+            <button class="popup-item" type="button"><span class="icon cu">Cu</span><span class="body"><strong>脱敏规则配置</strong><span>redactions.yaml 正则 + hash-only</span></span><span class="time">1d</span></button>
+          </div>
+        </div>
+
+        <!-- View: Settings -->
+        <div class="popup-view" id="view-settings">
+          <div class="settings-list">
+            <div class="settings-section">Adapters</div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status on"></span>Claude Code</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status on"></span>Cursor</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status on"></span>Codex</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status off"></span>OpenCode</span><button class="toggle-sm off" data-toggle></button></div>
+            <div class="settings-section">LLM</div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status on"></span>Ollama (qwen2.5:7b)</span><span style="font-size:10px;color:var(--success)" class="mono">local</span></div>
+            <div class="settings-row"><span class="label-text"><span class="dot-status off"></span>Claude fallback</span><span style="font-size:10px;color:var(--muted)" class="mono">未配置 key</span></div>
+            <div class="settings-section">隐私</div>
+            <div class="settings-row"><span class="label-text">自动脱敏</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-row"><span class="label-text">Private session 隐藏</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-section">维护</div>
+            <div class="settings-row"><span class="label-text">每周备份</span><button class="toggle-sm on" data-toggle></button></div>
+            <div class="settings-row"><span class="label-text">上次 doctor</span><span style="font-size:10px;color:var(--success)" class="mono">✓ all pass</span></div>
+          </div>
+        </div>
+
+        <!-- View: Status/Doctor -->
+        <div class="popup-view" id="view-status">
+          <div style="padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.8;color:var(--fg)">
+            <div><span style="color:var(--success)">✓</span> index.db — 2.3MB, 128 sessions</div>
+            <div><span style="color:var(--success)">✓</span> Claude adapter — offset: 847</div>
+            <div><span style="color:var(--success)">✓</span> Cursor adapter — offset: 1203</div>
+            <div><span style="color:var(--success)">✓</span> Codex adapter — offset: 312</div>
+            <div><span style="color:var(--warning)">!</span> OpenCode — disabled</div>
+            <div><span style="color:var(--success)">✓</span> Ollama — 45ms latency</div>
+            <div><span style="color:var(--success)">✓</span> FTS5 — 4,231 chunks</div>
+            <div><span style="color:var(--success)">✓</span> 备份 — 2026-05-28</div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--muted)">9/10 pass · daemon PID 42817</div>
+          </div>
+        </div>
+
+        <div class="popup-footer">
+          <span class="info">23 sessions · <span style="color:var(--success)">●</span> healthy</span>
+          <div class="footer-actions">
+            <button class="footer-btn active" id="btn-search" type="button" title="搜索">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            </button>
+            <button class="footer-btn" id="btn-settings" type="button" title="设置">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+            <button class="footer-btn" id="btn-status" type="button" title="健康状态">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="position:absolute;left:24px;bottom:20px;color:rgba(15,23,42,0.4);font-size:11px;font-family:'JetBrains Mono',monospace;pointer-events:none">
+        点击 chip 打开/关闭 · 底部图标切换视图 · Esc 关闭
+      </div>
+    </section>
+
+    <section class="hints">
+      <div class="hint-card">
+        <h3>单 Popup 模型</h3>
+        <p>所有功能聚焦在一个 360px popup 内。底部 3 个图标切换视图：</p>
+        <div class="code">
+🔍 搜索（默认）— 输入即过滤，选中即跳转<br>
+⚙️ 设置 — adapter 开关 / LLM / 隐私 / 备份<br>
+📊 状态 — doctor 输出，一眼确认健康
+        </div>
+      </div>
+      <div class="hint-card">
+        <h3>交互流程</h3>
+        <div class="code">
+⌘⇧M → 弹出（默认搜索态）<br>
+输入 → 实时过滤<br>
+↑↓ / 鼠标 → 选中<br>
+⏎ → 跳转 IDE + 自动关闭<br>
+点击 ⚙️ → 切到设置（同 popup）<br>
+Esc → 关闭
+        </div>
+      </div>
+      <div class="hint-card">
+        <h3>为什么不需要独立窗口</h3>
+        <p>
+          <b>API key</b> — 设置视图显示状态，点击跳 CLI 命令提示<br>
+          <b>Adapter 开关</b> — 设置视图直接 toggle<br>
+          <b>Doctor</b> — 状态视图一屏展示<br>
+          <b>Report</b> — CLI 生成，menubar 只展示摘要
+        </p>
+      </div>
+      <div class="hint-card">
+        <h3>与 v1/v2 对比</h3>
+        <div class="code">
+v1: 6 tab mini app (440px, 593行)<br>
+v2: 2 tab + 右键下沉 (440px, 480行)<br>
+v3: 0 tab 单 popup (360px, 230行)<br>
+&nbsp;&nbsp;&nbsp; 底部 icon 切视图，不切 tab
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const chip = document.getElementById("chip");
+    const popup = document.getElementById("popup");
+    const searchInput = document.getElementById("searchInput");
+    const views = { search: document.getElementById("view-search"), settings: document.getElementById("view-settings"), status: document.getElementById("view-status") };
+    const btns = { search: document.getElementById("btn-search"), settings: document.getElementById("btn-settings"), status: document.getElementById("btn-status") };
+    const items = Array.from(document.querySelectorAll(".popup-item"));
+
+    function togglePopup() {
+      popup.classList.toggle("hidden");
+      if (!popup.classList.contains("hidden")) { switchView("search"); searchInput.focus(); }
+    }
+
+    function switchView(name) {
+      Object.entries(views).forEach(([k, v]) => v.classList.toggle("active", k === name));
+      Object.entries(btns).forEach(([k, b]) => b.classList.toggle("active", k === name));
+      if (name === "search") { searchInput.placeholder = "搜索 AI 对话历史..."; searchInput.value = ""; filterItems(""); }
+    }
+
+    function filterItems(q) {
+      const query = q.toLowerCase();
+      items.forEach(item => { item.style.display = !query || item.textContent.toLowerCase().includes(query) ? "" : "none"; });
+    }
+
+    chip.addEventListener("click", togglePopup);
+    searchInput.addEventListener("input", (e) => { switchView("search"); filterItems(e.target.value); });
+    Object.entries(btns).forEach(([name, btn]) => btn.addEventListener("click", () => switchView(name)));
+
+    items.forEach(item => item.addEventListener("click", () => {
+      item.style.background = "rgba(79,70,229,0.1)";
+      setTimeout(togglePopup, 280);
+    }));
+
+    document.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => {
+      const on = btn.classList.contains("on");
+      btn.classList.toggle("on", !on);
+      btn.classList.toggle("off", on);
+      const dot = btn.closest(".settings-row").querySelector(".dot-status");
+      if (dot) { dot.classList.toggle("on", !on); dot.classList.toggle("off", on); }
+    }));
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !popup.classList.contains("hidden")) togglePopup();
+    });
+  </script>
+</body>
+</html>
