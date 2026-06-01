@@ -23,4 +23,5 @@ prompts.txt
 target/
 tauri-app/node_modules/
 tauri-app/dist/
+tauri-app/tsconfig.tsbuildinfo
 .github/

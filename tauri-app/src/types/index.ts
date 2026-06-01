@@ -36,6 +36,7 @@ export interface SessionDetail {
   id: string
   source: string
   project_path: string | null
+  title: string | null
   file_path: string
   message_count: number
   created_at: string
