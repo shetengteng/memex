@@ -61,13 +61,7 @@ const adapterColors: Record<string, string> = {
   opencode: '#22c55e', aider: '#f59e0b', continue_dev: '#4ade80', cline: '#ec4899',
 }
 
-const timelineMax = computed(() => {
-  const grouped = new Map<string, number>()
-  for (const e of props.timeline) {
-    grouped.set(e.date, (grouped.get(e.date) ?? 0) + e.sessions)
-  }
-  return Math.max(...Array.from(grouped.values()), 1)
-})
+const TIMELINE_DAYS = 30
 
 const timelineDates = computed(() => {
   const grouped = new Map<string, { sessions: number; messages: number }>()
@@ -75,10 +69,24 @@ const timelineDates = computed(() => {
     const prev = grouped.get(e.date) ?? { sessions: 0, messages: 0 }
     grouped.set(e.date, { sessions: prev.sessions + e.sessions, messages: prev.messages + e.messages })
   }
-  return Array.from(grouped.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, v]) => ({ date, ...v }))
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const out: { date: string; sessions: number; messages: number }[] = []
+  for (let i = TIMELINE_DAYS - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setUTCDate(today.getUTCDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    const v = grouped.get(key) ?? { sessions: 0, messages: 0 }
+    out.push({ date: key, sessions: v.sessions, messages: v.messages })
+  }
+  return out
 })
+
+const timelineMax = computed(() => Math.max(...timelineDates.value.map((d) => d.sessions), 1))
+
+const timelineTotal = computed(() => timelineDates.value.reduce((acc, d) => acc + d.sessions, 0))
+const timelineActiveDays = computed(() => timelineDates.value.filter((d) => d.sessions > 0).length)
+const timelinePeakDay = computed(() => timelineDates.value.reduce((best, d) => (d.sessions > best.sessions ? d : best), { date: '', sessions: 0, messages: 0 }))
 
 const projectCount = computed(() => {
   if (!props.breakdown) return 0
@@ -164,25 +172,33 @@ const topProjects = computed<Array<[string, number]>>(() => {
   <section class="mt-8">
     <div class="mb-3 flex items-baseline justify-between">
       <h3 class="text-sm font-semibold">Daily activity</h3>
-      <span class="text-xs text-muted-foreground">last 30 days</span>
+      <span class="text-xs text-muted-foreground">
+        last {{ TIMELINE_DAYS }} days ·
+        {{ formatNumber(timelineTotal) }} sessions across
+        {{ timelineActiveDays }} active day{{ timelineActiveDays === 1 ? '' : 's' }}
+        <template v-if="timelinePeakDay.sessions > 0">
+          · peak {{ formatNumber(timelinePeakDay.sessions) }} on {{ timelinePeakDay.date }}
+        </template>
+      </span>
     </div>
-    <div v-if="timelineDates.length" class="flex h-32 items-end gap-[2px]">
-      <div v-for="d in timelineDates" :key="d.date" class="group relative flex flex-1 flex-col items-center">
+    <div class="flex h-40 items-end gap-[3px]">
+      <div v-for="d in timelineDates" :key="d.date" class="group relative flex h-full flex-1 flex-col items-center justify-end">
         <div
-          class="w-full rounded-sm bg-primary/40 transition-colors group-hover:bg-primary"
-          :style="{ height: Math.max((d.sessions / timelineMax) * 100, 3) + '%', minHeight: '2px' }"
+          class="w-full rounded-sm transition-colors"
+          :class="d.sessions > 0 ? 'bg-primary/40 group-hover:bg-primary' : 'bg-muted'"
+          :style="{ height: d.sessions > 0 ? Math.max((d.sessions / timelineMax) * 100, 4) + '%' : '4px' }"
         />
         <div class="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md group-hover:block">
-          <div class="mono font-semibold">{{ d.date }}</div>
-          <div class="mt-0.5 text-muted-foreground">{{ d.sessions }} sessions · {{ d.messages }} msg</div>
+          <div class="font-semibold tabular-nums">{{ d.date }}</div>
+          <div v-if="d.sessions > 0" class="mt-0.5 text-muted-foreground">{{ d.sessions }} sessions · {{ d.messages }} msg</div>
+          <div v-else class="mt-0.5 text-muted-foreground">no activity</div>
         </div>
       </div>
     </div>
-    <div v-else-if="(stats?.sessions ?? 0) === 0" class="flex h-32 items-center justify-center text-xs text-muted-foreground">
-      No sessions yet. Run <code class="mono mx-1 rounded bg-muted px-1.5 py-0.5">memex ingest</code> to collect history.
-    </div>
-    <div v-else class="flex h-32 items-center justify-center text-xs text-muted-foreground">
-      Loading activity data...
+    <div class="mt-1 flex justify-between text-[10px] text-muted-foreground">
+      <span>{{ timelineDates[0]?.date }}</span>
+      <span>{{ timelineDates[Math.floor(timelineDates.length / 2)]?.date }}</span>
+      <span>{{ timelineDates[timelineDates.length - 1]?.date }}</span>
     </div>
   </section>
 
