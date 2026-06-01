@@ -57,48 +57,57 @@ onMounted(async () => {
   configLoaded.value = true
 })
 
-async function toggleAdapter(key: string) {
+async function setAdapter(key: string, value: boolean) {
   const a = adapters.value.find((x) => x.key === key)
-  if (!a) return
-  const newVal = !a.enabled
+  if (!a || a.enabled === value) return
+  const prev = a.enabled
+  a.enabled = value
   try {
-    await ipcToggleAdapter(key, newVal)
-    a.enabled = newVal
-  } catch { /* ignore */ }
-}
-
-async function toggleOllama() {
-  llm.value.ollamaChecking = true
-  const available = await checkOllamaAvailability()
-  llm.value.ollamaAvailable = available
-  llm.value.ollamaChecking = false
-
-  if (!available && !llm.value.ollamaEnabled) {
-    return
+    await ipcToggleAdapter(key, value)
+  } catch {
+    a.enabled = prev
   }
-
-  const newVal = !llm.value.ollamaEnabled
-  try {
-    await setConfig('llm.ollama_enabled', String(newVal))
-    llm.value.ollamaEnabled = newVal
-  } catch { /* ignore */ }
 }
 
-async function togglePrivacy(field: 'autoRedact' | 'privateFromMcp') {
-  const newVal = !privacy.value[field]
+async function setOllama(value: boolean) {
+  if (llm.value.ollamaEnabled === value) return
+  if (value) {
+    llm.value.ollamaChecking = true
+    const available = await checkOllamaAvailability()
+    llm.value.ollamaAvailable = available
+    llm.value.ollamaChecking = false
+    if (!available) return
+  }
+  const prev = llm.value.ollamaEnabled
+  llm.value.ollamaEnabled = value
+  try {
+    await setConfig('llm.ollama_enabled', String(value))
+  } catch {
+    llm.value.ollamaEnabled = prev
+  }
+}
+
+async function setPrivacy(field: 'autoRedact' | 'privateFromMcp', value: boolean) {
+  if (privacy.value[field] === value) return
   const keyMap = { autoRedact: 'privacy.auto_redact', privateFromMcp: 'privacy.private_from_mcp' }
+  const prev = privacy.value[field]
+  privacy.value[field] = value
   try {
-    await setConfig(keyMap[field], String(newVal))
-    privacy.value[field] = newVal
-  } catch { /* ignore */ }
+    await setConfig(keyMap[field], String(value))
+  } catch {
+    privacy.value[field] = prev
+  }
 }
 
-async function toggleCloudFallback() {
-  const newVal = !llm.value.claudeFallback
+async function setCloudFallback(value: boolean) {
+  if (llm.value.claudeFallback === value) return
+  const prev = llm.value.claudeFallback
+  llm.value.claudeFallback = value
   try {
-    await setConfig('llm.cloud_fallback', String(newVal))
-    llm.value.claudeFallback = newVal
-  } catch { /* ignore */ }
+    await setConfig('llm.cloud_fallback', String(value))
+  } catch {
+    llm.value.claudeFallback = prev
+  }
 }
 </script>
 
@@ -109,22 +118,25 @@ async function toggleCloudFallback() {
     <div
       v-for="(a, i) in adapters"
       :key="a.key"
-      class="flex cursor-pointer items-center justify-between py-1.5"
+      class="flex items-center justify-between py-1.5"
       :class="{ 'border-t border-border/40': i > 0 }"
-      @click="toggleAdapter(a.key)"
     >
       <span class="flex items-center gap-1.5 text-xs">
         <span class="inline-block h-1.5 w-1.5 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
         {{ a.label }}
       </span>
-      <Switch :checked="a.enabled" class="scale-75" @click.stop="toggleAdapter(a.key)" />
+      <Switch
+        :model-value="a.enabled"
+        class="scale-75"
+        @update:model-value="(v: boolean) => setAdapter(a.key, v)"
+      />
     </div>
 
     <Separator class="my-1.5" />
 
     <!-- LLM -->
     <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
-    <div class="flex cursor-pointer items-center justify-between py-1.5" @click="toggleOllama">
+    <div class="flex items-center justify-between py-1.5">
       <span class="flex items-center gap-1.5 text-xs">
         <span
           class="inline-block h-1.5 w-1.5 rounded-full"
@@ -139,28 +151,44 @@ async function toggleCloudFallback() {
         >
           {{ llm.ollamaChecking ? '...' : llm.ollamaAvailable ? 'local' : 'offline' }}
         </span>
-        <Switch :checked="llm.ollamaEnabled" class="scale-75" @click.stop="toggleOllama" />
+        <Switch
+          :model-value="llm.ollamaEnabled"
+          class="scale-75"
+          @update:model-value="(v: boolean) => setOllama(v)"
+        />
       </div>
     </div>
-    <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="toggleCloudFallback">
+    <div class="flex items-center justify-between border-t border-border/40 py-1.5">
       <span class="flex items-center gap-1.5 text-xs">
         <span class="inline-block h-1.5 w-1.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
         Claude fallback
       </span>
-      <Switch :checked="llm.claudeFallback" class="scale-75" @click.stop="toggleCloudFallback" />
+      <Switch
+        :model-value="llm.claudeFallback"
+        class="scale-75"
+        @update:model-value="(v: boolean) => setCloudFallback(v)"
+      />
     </div>
 
     <Separator class="my-1.5" />
 
     <!-- Privacy -->
     <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
-    <div class="flex cursor-pointer items-center justify-between py-1.5" @click="togglePrivacy('autoRedact')">
+    <div class="flex items-center justify-between py-1.5">
       <span class="text-xs">自动脱敏</span>
-      <Switch :checked="privacy.autoRedact" class="scale-75" @click.stop="togglePrivacy('autoRedact')" />
+      <Switch
+        :model-value="privacy.autoRedact"
+        class="scale-75"
+        @update:model-value="(v: boolean) => setPrivacy('autoRedact', v)"
+      />
     </div>
-    <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="togglePrivacy('privateFromMcp')">
+    <div class="flex items-center justify-between border-t border-border/40 py-1.5">
       <span class="text-xs">Private session 隐藏</span>
-      <Switch :checked="privacy.privateFromMcp" class="scale-75" @click.stop="togglePrivacy('privateFromMcp')" />
+      <Switch
+        :model-value="privacy.privateFromMcp"
+        class="scale-75"
+        @update:model-value="(v: boolean) => setPrivacy('privateFromMcp', v)"
+      />
     </div>
   </div>
 </template>

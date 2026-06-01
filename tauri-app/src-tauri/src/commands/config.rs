@@ -18,7 +18,7 @@ fn save_config(config: &MemexConfig) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_config(key: String) -> Result<Option<String>, String> {
+pub async fn get_config(key: String) -> Result<Option<String>, String> {
     let config = load_config()?;
     let val = match key.as_str() {
         "llm.ollama_enabled" => Some(config.llm.ollama_enabled.to_string()),
@@ -50,7 +50,7 @@ pub fn get_config(key: String) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn set_config(key: String, value: String) -> Result<(), String> {
+pub async fn set_config(key: String, value: String) -> Result<(), String> {
     let mut config = load_config()?;
     let is_true = value == "true";
     match key.as_str() {
@@ -79,7 +79,7 @@ pub fn set_config(key: String, value: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn toggle_adapter(adapter: String, enabled: bool) -> Result<(), String> {
+pub async fn toggle_adapter(adapter: String, enabled: bool) -> Result<(), String> {
     let mut config = load_config()?;
     match adapter.as_str() {
         "claude_code" => config.adapters.claude_code = enabled,

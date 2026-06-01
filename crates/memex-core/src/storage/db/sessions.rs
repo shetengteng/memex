@@ -17,6 +17,13 @@ pub struct SessionRow {
     pub message_count: i64,
     pub created_at: String,
     pub updated_at: String,
+    /// L2 summary title (already mirrored into `sessions.title`, but kept
+    /// explicit so the UI can distinguish "human/source title" vs "LLM-derived
+    /// title"). Currently same value as `title`; reserved for future split.
+    pub summary_title: Option<String>,
+    /// First user message preview (~120 chars), used as fallback when no
+    /// summary exists yet so the popup list isn't empty.
+    pub first_user_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -65,8 +72,18 @@ impl Db {
     pub fn list_sessions_paged(&self, limit: usize, offset: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, title, message_count, created_at, updated_at
-             FROM sessions ORDER BY updated_at DESC LIMIT ?1 OFFSET ?2",
+            "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
+                    s.created_at, s.updated_at,
+                    sm.title AS summary_title,
+                    (SELECT substr(m.content, 1, 120)
+                     FROM messages m
+                     WHERE m.session_id = s.id AND m.role = 'user'
+                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message
+             FROM sessions s
+             LEFT JOIN summaries sm
+                ON sm.session_id = s.id AND sm.level = 'L2_session'
+             ORDER BY s.updated_at DESC
+             LIMIT ?1 OFFSET ?2",
         )?;
         let rows = stmt
             .query_map(params![limit as i64, offset as i64], |row| {
@@ -78,6 +95,8 @@ impl Db {
                     message_count: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
+                    summary_title: row.get(7)?,
+                    first_user_message: row.get(8)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -157,6 +176,8 @@ impl Db {
                     message_count: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
+                    summary_title: None,
+                    first_user_message: None,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -196,6 +217,8 @@ impl Db {
                     message_count: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
+                    summary_title: None,
+                    first_user_message: None,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

@@ -2,14 +2,15 @@
 import { ref, computed, provide, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { Search, Settings, Activity, LayoutDashboard } from 'lucide-vue-next'
+import { Search, Settings, Activity, LayoutDashboard, Home } from 'lucide-vue-next'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { formatNumber } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import SearchView from '@/views/search/index.vue'
 import SettingsView from '@/views/settings/index.vue'
 import StatusView from '@/views/status/index.vue'
@@ -44,6 +45,27 @@ function switchView(view: ViewName) {
   currentView.value = view
   if (view === 'search') {
     nextTick(() => searchInputRef.value?.focus())
+  }
+}
+
+function goHome() {
+  searchQuery.value = ''
+  selectedSessionId.value = null
+  currentView.value = 'search'
+  nextTick(() => searchInputRef.value?.focus())
+}
+
+const navValue = computed<string>(() => {
+  if (currentView.value === 'search') return 'home'
+  return currentView.value
+})
+
+function onNav(v: unknown) {
+  if (typeof v !== 'string') return
+  switch (v) {
+    case 'home': goHome(); break
+    case 'settings': switchView('settings'); break
+    case 'status': switchView('status'); break
   }
 }
 
@@ -129,17 +151,17 @@ onUnmounted(() => {
       tabindex="0"
     >
       <!-- Search Bar -->
-      <div v-if="currentView !== 'session'" class="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Search class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <div v-if="currentView !== 'session'" class="flex items-center gap-2 border-b border-border px-3 py-3">
+        <Search class="h-4 w-4 shrink-0 text-muted-foreground" />
         <Input
           ref="searchInputRef"
           v-model="searchQuery"
           type="text"
           :placeholder="currentView === 'search' ? '搜索 AI 对话历史...' : '搜索...'"
-          class="h-7 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+          class="h-8 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
           @focus="switchView('search')"
         />
-        <kbd class="mono shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Esc</kbd>
+        <kbd class="mono shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Esc</kbd>
       </div>
 
       <!-- View Content -->
@@ -155,8 +177,8 @@ onUnmounted(() => {
 
       <!-- Footer -->
       <Separator />
-      <div class="flex items-center justify-between bg-muted/50 px-3.5 py-1.5">
-        <span class="mono text-[10px] text-muted-foreground">
+      <div class="flex items-center justify-between bg-muted/50 px-3.5 py-2">
+        <span class="mono text-xs text-muted-foreground">
           {{ formatNumber(stats.sessions) }} sessions ·
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
           {{ stats.db_exists ? 'healthy' : 'no db' }}
@@ -167,46 +189,52 @@ onUnmounted(() => {
             </span>
           </template>
         </span>
-        <div class="flex gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            :class="{ 'bg-primary/10 text-primary': currentView === 'search' }"
-            @click="switchView('search')"
-            title="搜索"
+        <div class="flex items-center gap-1.5">
+          <ToggleGroup
+            type="single"
+            size="sm"
+            :model-value="navValue"
+            @update:model-value="onNav"
           >
-            <Search class="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            :class="{ 'bg-primary/10 text-primary': currentView === 'settings' }"
-            @click="switchView('settings')"
-            title="设置"
-          >
-            <Settings class="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            :class="{ 'bg-primary/10 text-primary': currentView === 'status' }"
-            @click="switchView('status')"
-            title="健康状态"
-          >
-            <Activity class="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            @click="openDashboard"
-            title="打开 Dashboard"
-          >
-            <LayoutDashboard class="h-3.5 w-3.5" />
-          </Button>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <ToggleGroupItem value="home" aria-label="Home / 最近会话">
+                  <Home class="h-4 w-4" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent side="top">Home</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <ToggleGroupItem value="settings" aria-label="设置">
+                  <Settings class="h-4 w-4" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent side="top">Settings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <ToggleGroupItem value="status" aria-label="健康状态">
+                  <Activity class="h-4 w-4" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent side="top">Status</TooltipContent>
+            </Tooltip>
+          </ToggleGroup>
+          <Separator orientation="vertical" class="h-5" />
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8"
+                @click="openDashboard"
+              >
+                <LayoutDashboard class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Open Dashboard</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>

@@ -102,7 +102,7 @@ onMounted(loadProjects)
         <span
           v-for="[name, count] in Object.entries(p.by_adapter).sort((a, b) => b[1] - a[1])"
           :key="name"
-          class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+          class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold"
           :class="[adapterBg(name), adapterColor(name)]"
         >
           {{ adapterLabel(name) }} {{ count }}

@@ -16,6 +16,8 @@ export interface SessionRow {
   message_count: number
   created_at: string
   updated_at: string
+  summary_title: string | null
+  first_user_message: string | null
 }
 
 export interface SearchResult {

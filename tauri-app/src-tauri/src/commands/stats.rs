@@ -16,7 +16,7 @@ pub struct Stats {
 }
 
 #[tauri::command]
-pub fn get_stats() -> Result<Stats, String> {
+pub async fn get_stats() -> Result<Stats, String> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
@@ -48,7 +48,7 @@ pub fn get_stats() -> Result<Stats, String> {
 }
 
 #[tauri::command]
-pub fn get_breakdown() -> Result<StatsBreakdown, String> {
+pub async fn get_breakdown() -> Result<StatsBreakdown, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(StatsBreakdown {
@@ -65,7 +65,7 @@ pub fn get_breakdown() -> Result<StatsBreakdown, String> {
 }
 
 #[tauri::command]
-pub fn get_timeline(days: Option<u32>) -> Result<Vec<TimelineEntry>, String> {
+pub async fn get_timeline(days: Option<u32>) -> Result<Vec<TimelineEntry>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
@@ -75,7 +75,7 @@ pub fn get_timeline(days: Option<u32>) -> Result<Vec<TimelineEntry>, String> {
 }
 
 #[tauri::command]
-pub fn list_projects() -> Result<Vec<ProjectSummary>, String> {
+pub async fn list_projects() -> Result<Vec<ProjectSummary>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);

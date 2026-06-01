@@ -98,6 +98,25 @@ function onScroll() {
 function openSession(sessionId: string) {
   navigate('session', sessionId)
 }
+
+function sessionLine1(s: SessionRow): string {
+  const candidates: Array<string | null | undefined> = [
+    s.summary_title,
+    s.title,
+    s.first_user_message,
+  ]
+  for (const c of candidates) {
+    const trimmed = c?.trim()
+    if (trimmed) return trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed
+  }
+  return s.id.slice(0, 16)
+}
+
+function sessionLine2(s: SessionRow): string {
+  const project = s.project_path?.split('/').filter(Boolean).pop()
+  const msg = `${s.message_count} msg`
+  return project ? `${project} · ${msg}` : msg
+}
 </script>
 
 <template>
@@ -114,22 +133,22 @@ function openSession(sessionId: string) {
         <button
           v-for="r in results"
           :key="r.chunk_id"
-          class="grid w-full grid-cols-[26px_1fr_auto] items-center gap-2 px-3.5 py-[7px] text-left transition-colors hover:bg-accent"
+          class="grid w-full grid-cols-[32px_1fr_auto] items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent"
           @click="openSession(r.session_id)"
         >
           <Tooltip>
             <TooltipTrigger as-child>
-              <span class="mono grid h-5 w-[22px] place-items-center rounded text-[9px] font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
+              <span class="mono grid h-6 w-7 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
                 {{ adapterAbbr(r.adapter ?? '') }}
               </span>
             </TooltipTrigger>
             <TooltipContent side="right">{{ r.adapter }}</TooltipContent>
           </Tooltip>
           <span class="min-w-0">
-            <strong class="block truncate text-xs font-semibold">{{ r.content.slice(0, 60) }}</strong>
-            <span class="block truncate text-[11px] text-muted-foreground" v-html="r.snippet" />
+            <strong class="block truncate text-sm font-semibold">{{ r.content.slice(0, 60) }}</strong>
+            <span class="block truncate text-xs text-muted-foreground" v-html="r.snippet" />
           </span>
-          <span v-if="r.timestamp" class="mono shrink-0 text-[10px] text-muted-foreground">{{ timeAgo(r.timestamp) }}</span>
+          <span v-if="r.timestamp" class="mono shrink-0 text-xs text-muted-foreground">{{ timeAgo(r.timestamp) }}</span>
         </button>
         <div v-if="loadingMore" class="flex items-center justify-center py-3">
           <Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -145,17 +164,17 @@ function openSession(sessionId: string) {
       <button
         v-for="s in recentSessions"
         :key="s.id"
-        class="grid w-full grid-cols-[26px_1fr_auto] items-center gap-2 px-3.5 py-[7px] text-left transition-colors hover:bg-accent"
+        class="grid w-full grid-cols-[32px_1fr_auto] items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent"
         @click="openSession(s.id)"
       >
-        <span class="mono grid h-5 w-[22px] place-items-center rounded text-[9px] font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
+        <span class="mono grid h-6 w-7 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
           {{ adapterAbbr(s.source) }}
         </span>
         <span class="min-w-0">
-          <strong class="block truncate text-xs font-semibold">{{ s.project_path?.split('/').pop() ?? s.id.slice(0, 16) }}</strong>
-          <span class="block truncate text-[11px] text-muted-foreground">{{ s.message_count }} messages · {{ adapterAbbr(s.source) }}</span>
+          <strong class="block truncate text-sm font-semibold">{{ sessionLine1(s) }}</strong>
+          <span class="block truncate text-xs text-muted-foreground">{{ sessionLine2(s) }}</span>
         </span>
-        <span class="mono shrink-0 text-[10px] text-muted-foreground">{{ timeAgo(s.updated_at) }}</span>
+        <span class="mono shrink-0 text-xs text-muted-foreground">{{ timeAgo(s.updated_at) }}</span>
       </button>
       <div v-if="loadingMore" class="flex items-center justify-center py-3">
         <Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />

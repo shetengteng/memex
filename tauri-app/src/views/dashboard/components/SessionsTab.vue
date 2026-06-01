@@ -71,6 +71,12 @@ function formatDate(dateStr: string): string {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return dateStr }
 }
+
+function summaryLine(s: SessionRow): string {
+  const c = (s.summary_title ?? s.title ?? s.first_user_message ?? '').trim()
+  if (!c) return '—'
+  return c.length > 90 ? c.slice(0, 90) + '…' : c
+}
 </script>
 
 <template>
@@ -114,12 +120,12 @@ function formatDate(dateStr: string): string {
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-border bg-muted/50">
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Project</th>
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tool</th>
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Summary</th>
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Messages</th>
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Created</th>
-          <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Updated</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tool</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Messages</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Created</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Updated</th>
         </tr>
       </thead>
       <tbody>
@@ -133,12 +139,12 @@ function formatDate(dateStr: string): string {
           @click="emit('openSession', s.id)"
         >
           <td class="px-4 py-2.5 text-xs font-semibold">{{ s.project_path?.split('/').pop() ?? '-' }}</td>
-          <td class="px-4 py-2.5">
-            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
+          <td class="whitespace-nowrap px-4 py-2.5">
+            <span class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
               {{ adapterLabel(s.source) }}
             </span>
           </td>
-          <td class="max-w-[280px] truncate px-4 py-2.5 text-xs text-muted-foreground">{{ s.title ?? '-' }}</td>
+          <td class="max-w-[320px] truncate px-4 py-2.5 text-xs text-muted-foreground">{{ summaryLine(s) }}</td>
           <td class="px-4 py-2.5 text-xs">{{ s.message_count }}</td>
           <td class="px-4 py-2.5 text-xs text-muted-foreground">{{ formatDate(s.created_at) }}</td>
           <td class="px-4 py-2.5 text-xs text-muted-foreground">{{ timeAgo(s.updated_at) }}</td>

@@ -1,11 +1,19 @@
-//! SQLite schema (v2). Tables, FTS5 virtual table, and shadow triggers that
+//! SQLite schema (v3). Tables, FTS5 virtual table, and shadow triggers that
 //! mirror INSERT / UPDATE / DELETE on `chunks` into `chunks_fts`.
 //!
 //! v2 additions:
 //! - `chunks.summary` column for L1 one-sentence summaries.
 //! - `aggregate_summaries` table for L3 (project) / L4 (periodic) summaries.
+//!
+//! v3 additions:
+//! - Index `idx_messages_session_role_offset` on `messages(session_id, role,
+//!   source_offset)` — required for the popup / dashboard "first user
+//!   message preview" subquery to avoid full table scan (≥10× speedup on
+//!   real-world DBs).
+//! - Index `idx_summaries_session_level` on `summaries(session_id, level)` —
+//!   speeds up `LEFT JOIN summaries` in `list_sessions_paged`.
 
-pub(super) const SCHEMA_VERSION: u32 = 2;
+pub(super) const SCHEMA_VERSION: u32 = 3;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -129,4 +137,14 @@ CREATE TABLE IF NOT EXISTS aggregate_summaries (
     created_at TEXT NOT NULL,
     UNIQUE(scope_type, scope_key)
 );
+
+-- v3: indexes for popup / dashboard list_sessions_paged hot path
+CREATE INDEX IF NOT EXISTS idx_messages_session_role_offset
+    ON messages(session_id, role, source_offset);
+
+CREATE INDEX IF NOT EXISTS idx_summaries_session_level
+    ON summaries(session_id, level);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
+    ON sessions(updated_at DESC);
 ";

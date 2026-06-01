@@ -6,7 +6,7 @@ use memex_core::memex_dir;
 use memex_core::storage::db::{Db, SessionDetail, SessionRow};
 
 #[tauri::command]
-pub fn list_recent(limit: Option<usize>, offset: Option<usize>) -> Result<Vec<SessionRow>, String> {
+pub async fn list_recent(limit: Option<usize>, offset: Option<usize>) -> Result<Vec<SessionRow>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
@@ -18,7 +18,7 @@ pub fn list_recent(limit: Option<usize>, offset: Option<usize>) -> Result<Vec<Se
 }
 
 #[tauri::command]
-pub fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> {
+pub async fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(None);
@@ -30,7 +30,7 @@ pub fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> 
 }
 
 #[tauri::command]
-pub fn retry_summary(session_id: String) -> Result<bool, String> {
+pub async fn retry_summary(session_id: String) -> Result<bool, String> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
@@ -57,7 +57,7 @@ pub struct SummaryProgress {
 }
 
 #[tauri::command]
-pub fn batch_summarize(app: AppHandle) -> Result<usize, String> {
+pub async fn batch_summarize(app: AppHandle) -> Result<usize, String> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {

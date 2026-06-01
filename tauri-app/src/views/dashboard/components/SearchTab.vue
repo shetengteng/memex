@@ -59,7 +59,7 @@ async function doSearch() {
           @click="emit('openSession', r.session_id)"
         >
           <div class="mb-2 flex items-center gap-2 text-xs">
-            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
+            <span class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
               {{ adapterLabel(r.adapter ?? '') }}
             </span>
             <span class="truncate font-medium">{{ r.project?.split('/').pop() ?? '-' }}</span>

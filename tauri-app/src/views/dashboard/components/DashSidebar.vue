@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { LayoutDashboard, List, Search, FolderOpen } from 'lucide-vue-next'
-import { Separator } from '@/components/ui/separator'
 
 export type DashTab = 'overview' | 'sessions' | 'projects' | 'search' | 'session-detail'
 
@@ -19,9 +18,8 @@ const navItems: { key: DashTab; icon: typeof LayoutDashboard; label: string }[] 
   <div class="flex w-52 shrink-0 flex-col border-r border-border bg-card">
     <div class="px-4 py-5">
       <h1 class="text-lg font-extrabold tracking-widest"><span class="text-primary">M</span>EMEX</h1>
-      <p class="mt-0.5 text-[11px] text-muted-foreground">AI Session Memory</p>
+      <p class="mt-0.5 text-xs text-muted-foreground">AI Session Memory</p>
     </div>
-    <Separator />
     <nav class="flex-1 space-y-0.5 p-2">
       <button
         v-for="item in navItems"
@@ -36,7 +34,6 @@ const navItems: { key: DashTab; icon: typeof LayoutDashboard; label: string }[] 
         {{ item.label }}
       </button>
     </nav>
-    <Separator />
-    <div class="px-4 py-3 text-[10px] text-muted-foreground">Memex v0.1.0 · Local Only</div>
+    <div class="px-4 py-3 text-xs text-muted-foreground">Memex v0.1.0 · local only</div>
   </div>
 </template>

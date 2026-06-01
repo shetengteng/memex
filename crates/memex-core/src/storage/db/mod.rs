@@ -111,6 +111,23 @@ impl Db {
                 params![2u32],
             )?;
         }
+        if from < 3 {
+            // v3: add indexes for popup list_sessions_paged hot path
+            // (the SCHEMA_SQL block above re-runs CREATE INDEX IF NOT EXISTS,
+            // so this just bumps the version for existing DBs.)
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_messages_session_role_offset
+                    ON messages(session_id, role, source_offset);
+                 CREATE INDEX IF NOT EXISTS idx_summaries_session_level
+                    ON summaries(session_id, level);
+                 CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
+                    ON sessions(updated_at DESC);",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![3u32],
+            )?;
+        }
         Ok(())
     }
 }

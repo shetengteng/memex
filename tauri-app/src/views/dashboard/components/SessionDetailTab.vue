@@ -52,7 +52,7 @@ async function handleRetrySummary() {
   <template v-else-if="session">
     <div class="mb-5">
       <h2 class="text-lg font-bold">
-        <span class="mr-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="[adapterBg(session.source), adapterColor(session.source)]">
+        <span class="mr-2 inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(session.source), adapterColor(session.source)]">
           {{ adapterLabel(session.source) }}
         </span>
         {{ session.project_path?.split('/').pop() ?? session.id.slice(0, 16) }}

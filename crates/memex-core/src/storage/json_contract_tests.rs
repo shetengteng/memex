@@ -88,10 +88,20 @@ fn test_session_row_json_fields() {
         message_count: 5,
         created_at: "2026-06-01T00:00:00+00:00".into(),
         updated_at: "2026-06-01T00:00:00+00:00".into(),
+        summary_title: None,
+        first_user_message: Some("hello there".into()),
     };
     let json: serde_json::Value = serde_json::to_value(&row).unwrap();
     let obj = json.as_object().unwrap();
-    let required = ["id", "source", "project_path", "message_count", "updated_at"];
+    let required = [
+        "id",
+        "source",
+        "project_path",
+        "message_count",
+        "updated_at",
+        "summary_title",
+        "first_user_message",
+    ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionRow missing: {}", field);
     }
