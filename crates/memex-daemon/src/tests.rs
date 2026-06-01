@@ -67,7 +67,7 @@ async fn test_sessions_list_empty() {
 #[tokio::test]
 async fn test_search_returns_seeded_chunk() {
     let db = Arc::new(Db::open_in_memory().unwrap());
-    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl").unwrap();
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0).unwrap();
     let hash = blake3::hash(b"redis pipeline tuning").to_hex().to_string();
     db.insert_message("m1", "s1", "user", "redis pipeline tuning", None, 0, &hash)
         .unwrap();
@@ -104,7 +104,7 @@ async fn test_search_returns_seeded_chunk() {
 #[tokio::test]
 async fn test_search_records_access_log_and_metric() {
     let db = Arc::new(Db::open_in_memory().unwrap());
-    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0)
         .unwrap();
     let hash = blake3::hash(b"observability tracing").to_hex().to_string();
     db.insert_message("m1", "s1", "user", "observability tracing", None, 0, &hash)

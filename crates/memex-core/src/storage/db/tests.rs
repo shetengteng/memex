@@ -10,7 +10,7 @@ fn test_schema_init() {
 #[test]
 fn test_insert_and_dedup() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl")
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0)
         .unwrap();
     let hash = blake3::hash(b"hello").to_hex().to_string();
     assert!(
@@ -27,7 +27,7 @@ fn test_insert_and_dedup() {
 #[test]
 fn test_fts_search() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0).unwrap();
     let hash = blake3::hash(b"redis pipeline").to_hex().to_string();
     db.insert_message("m1", "s1", "assistant", "redis pipeline", None, 0, &hash)
         .unwrap();
@@ -75,7 +75,7 @@ fn test_kv_roundtrip() {
 #[test]
 fn test_summary_upsert_and_get() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0).unwrap();
     db.upsert_summary(
         "s1", "L2_session", Some("Fix auth bug"),
         "Fixed JWT parsing issue.", &["auth".into()], &["use RS256".into()],
@@ -104,7 +104,7 @@ fn test_summary_not_found() {
 #[test]
 fn test_chunk_summary_update() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0).unwrap();
     let hash = blake3::hash(b"content").to_hex().to_string();
     db.insert_message("m1", "s1", "assistant", "content", None, 0, &hash).unwrap();
     let chunk = Chunk {
@@ -133,7 +133,7 @@ fn test_chunk_summary_update() {
 #[test]
 fn test_chunks_without_summary_respects_min_tokens() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "cursor", None, "/f.jsonl").unwrap();
+    db.insert_session("s1", "cursor", None, "/f.jsonl", 0).unwrap();
     let hash = blake3::hash(b"tiny").to_hex().to_string();
     db.insert_message("m1", "s1", "user", "tiny", None, 0, &hash).unwrap();
     let small_chunk = Chunk {

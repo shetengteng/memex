@@ -63,6 +63,13 @@ const adapterColors: Record<string, string> = {
 
 const TIMELINE_DAYS = 30
 
+function localDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 const timelineDates = computed(() => {
   const grouped = new Map<string, { sessions: number; messages: number }>()
   for (const e of props.timeline) {
@@ -70,12 +77,12 @@ const timelineDates = computed(() => {
     grouped.set(e.date, { sessions: prev.sessions + e.sessions, messages: prev.messages + e.messages })
   }
   const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
   const out: { date: string; sessions: number; messages: number }[] = []
   for (let i = TIMELINE_DAYS - 1; i >= 0; i--) {
     const d = new Date(today)
-    d.setUTCDate(today.getUTCDate() - i)
-    const key = d.toISOString().slice(0, 10)
+    d.setDate(today.getDate() - i)
+    const key = localDateKey(d)
     const v = grouped.get(key) ?? { sessions: 0, messages: 0 }
     out.push({ date: key, sessions: v.sessions, messages: v.messages })
   }

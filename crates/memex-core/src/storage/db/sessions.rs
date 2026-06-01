@@ -54,14 +54,32 @@ impl Db {
         source: &str,
         project_path: Option<&str>,
         file_path: &str,
+        session_mtime_secs: u64,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT OR IGNORE INTO sessions (id, source, project_path, file_path, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, source, project_path, file_path, now, now],
-        )?;
+        let now = chrono::Utc::now();
+        let has_real_mtime = session_mtime_secs > 0;
+        let session_time = if has_real_mtime {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(session_mtime_secs as i64, 0)
+                .unwrap_or(now)
+        } else {
+            now
+        };
+        let session_time_str = session_time.to_rfc3339();
+        // When the adapter provides a real activity timestamp (`session_mtime_secs > 0`),
+        // overwrite `updated_at` with it so that legacy rows that were stamped with the
+        // first-ingest NOW() are healed. Without a real mtime, keep the existing
+        // value so we don't keep bumping `updated_at` forward on every scan.
+        let sql = if has_real_mtime {
+            "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at"
+        } else {
+            "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(id) DO NOTHING"
+        };
+        conn.execute(sql, params![id, source, project_path, file_path, session_time_str])?;
         Ok(())
     }
 

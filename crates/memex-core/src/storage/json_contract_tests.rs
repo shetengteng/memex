@@ -6,7 +6,7 @@ use crate::storage::models::{SearchResult, Chunk, ChunkType, ChunkMetadata};
 
 fn setup_db() -> Db {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("sess-001", "claude_code", Some("/proj"), "/f.jsonl")
+    db.insert_session("sess-001", "claude_code", Some("/proj"), "/f.jsonl", 0)
         .unwrap();
     let hash = blake3::hash(b"test content").to_hex().to_string();
     db.insert_message("msg-001", "sess-001", "user", "hello world", None, 0, &hash)

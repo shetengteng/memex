@@ -348,16 +348,22 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
         session.last_offset = stored_offset;
 
         let messages = adapter.collect(&session)?;
-        if messages.is_empty() {
-            continue;
-        }
 
+        // Always upsert session row first so that even sessions without new
+        // messages get their updated_at refreshed from the adapter mtime.
+        // This is what backfills correct timestamps on subsequent ingests
+        // after we started tracking real session activity time.
         db.insert_session(
             &session.id,
             adapter.name(),
             session.project_path.as_deref(),
             &session.file_path,
+            session.mtime,
         )?;
+
+        if messages.is_empty() {
+            continue;
+        }
 
         let needs_batching = messages.len() > MESSAGE_BATCH_SIZE;
         if needs_batching {

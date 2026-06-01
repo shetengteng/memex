@@ -7,7 +7,7 @@ use crate::storage::models::{Chunk, ChunkMetadata, ChunkType};
 
 fn setup_db() -> Db {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("sess-001", "claude_code", Some("/proj"), "/f.jsonl")
+    db.insert_session("sess-001", "claude_code", Some("/proj"), "/f.jsonl", 0)
         .unwrap();
     let hash = blake3::hash(b"hello redis").to_hex().to_string();
     db.insert_message("msg-001", "sess-001", "user", "hello redis", None, 0, &hash)

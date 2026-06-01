@@ -136,8 +136,10 @@ impl Db {
     pub fn timeline(&self, days: u32) -> Result<Vec<TimelineEntry>> {
         let conn = self.conn.lock().unwrap();
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
+        // Use local-time bucketing so the user sees days in their own timezone
+        // (matters when sessions span the UTC midnight boundary).
         let mut stmt = conn.prepare(
-            "SELECT DATE(updated_at) as d, source, COUNT(*) as cnt,
+            "SELECT DATE(updated_at, 'localtime') as d, source, COUNT(*) as cnt,
                     SUM(message_count) as msgs
              FROM sessions WHERE updated_at >= ?1
              GROUP BY d, source ORDER BY d DESC",
@@ -270,10 +272,10 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         let offset = format!("-{days} days");
         let mut stmt = conn.prepare(
-            "SELECT DATE(updated_at) as day, source, COUNT(*) as cnt,
+            "SELECT DATE(updated_at, 'localtime') as day, source, COUNT(*) as cnt,
                     COALESCE(SUM(message_count), 0) as msgs
              FROM sessions
-             WHERE updated_at >= DATE('now', ?1)
+             WHERE updated_at >= DATE('now', 'localtime', ?1)
              GROUP BY day, source
              ORDER BY day ASC",
         )?;
@@ -304,7 +306,7 @@ mod tests {
     #[test]
     fn test_find_session_by_prefix() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl")
+        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl", 0)
             .unwrap();
         assert_eq!(
             db.find_session_by_prefix("abc-1").unwrap().unwrap(),
