@@ -1,5 +1,8 @@
+pub mod aider;
 pub mod claude_code;
+pub mod cline;
 pub mod codex;
+pub mod continue_dev;
 pub mod cursor;
 pub mod opencode;
 
@@ -29,5 +32,8 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
         Box::new(cursor::CursorAdapter::new()),
         Box::new(codex::CodexAdapter::new()),
         Box::new(opencode::OpenCodeAdapter::new()),
+        Box::new(aider::AiderAdapter::new()),
+        Box::new(continue_dev::ContinueAdapter::new()),
+        Box::new(cline::ClineAdapter::new()),
     ]
 }

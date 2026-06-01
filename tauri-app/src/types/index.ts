@@ -45,4 +45,4 @@ export interface MessageRow {
   timestamp: string | null
 }
 
-export type ViewName = 'home' | 'search' | 'session' | 'settings'
+export type ViewName = 'search' | 'settings' | 'status' | 'session'

@@ -26,6 +26,12 @@ pub struct AdaptersConfig {
     pub codex: bool,
     #[serde(default = "default_true")]
     pub opencode: bool,
+    #[serde(default = "default_true")]
+    pub aider: bool,
+    #[serde(default = "default_true")]
+    pub continue_dev: bool,
+    #[serde(default = "default_true")]
+    pub cline: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -33,6 +33,9 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             if let Err(e) = tray::install(app.handle()) {
                 tracing::error!("failed to install tray icon: {e:?}");
             }

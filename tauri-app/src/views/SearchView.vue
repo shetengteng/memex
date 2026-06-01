@@ -1,143 +1,111 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { Search, X, Loader2 } from 'lucide-vue-next'
-import type { SearchResult } from '@/types'
+import { ref, inject, watch, onMounted } from 'vue'
+import { Loader2 } from 'lucide-vue-next'
+import type { SearchResult, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
-import SearchResultItem from '@/components/SearchResultItem.vue'
-import ViewHeader from '@/components/ViewHeader.vue'
+import { adapterAbbr, adapterColor, adapterBg, timeAgo } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-const { searchMemex } = useMemex()
+const props = defineProps<{ query: string }>()
+const navigate = inject<(view: ViewName, id?: string) => void>('navigate')!
+const { searchMemex, listRecent } = useMemex()
 
-const query = ref('')
 const results = ref<SearchResult[]>([])
+const recentSessions = ref<SessionRow[]>([])
 const searching = ref(false)
-const searched = ref(false)
-
-const activeFilter = ref<string>('all')
-const filters = ['all', 'claude_code', 'cursor', 'codex', 'opencode'] as const
+const hasSearched = ref(false)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(query, (val) => {
+onMounted(async () => {
+  try {
+    recentSessions.value = await listRecent(8)
+  } catch { /* ignore */ }
+})
+
+watch(() => props.query, (val) => {
   if (debounceTimer) clearTimeout(debounceTimer)
   if (!val.trim()) {
     results.value = []
-    searched.value = false
+    hasSearched.value = false
     return
   }
   debounceTimer = setTimeout(() => doSearch(), 300)
 })
 
 async function doSearch() {
-  const q = query.value.trim()
+  const q = props.query.trim()
   if (!q) return
   searching.value = true
-  searched.value = true
+  hasSearched.value = true
   try {
-    const raw = await searchMemex(q, 20)
-    results.value = activeFilter.value === 'all'
-      ? raw
-      : raw.filter((r) => r.session_id.startsWith(activeFilter.value))
-  } catch (e) {
-    console.error('Search failed:', e)
+    results.value = await searchMemex(q, 20)
+  } catch {
     results.value = []
   } finally {
     searching.value = false
   }
 }
 
-function clearQuery() {
-  query.value = ''
-  results.value = []
-  searched.value = false
-}
-
-function setFilter(f: string) {
-  activeFilter.value = f
-  if (query.value.trim()) doSearch()
-}
-
-const filterLabel: Record<string, string> = {
-  all: 'All',
-  claude_code: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-  opencode: 'OpenCode',
+function openSession(sessionId: string) {
+  navigate('session', sessionId)
 }
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
-    <ViewHeader title="Search Memories" show-back />
-
-    <!-- Search Input -->
-    <div class="border-b border-border px-3 py-2">
-      <div class="relative">
-        <Search class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          ref="searchInput"
-          v-model="query"
-          type="text"
-          placeholder="Search across all sessions…"
-          class="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-8 text-sm outline-none transition-colors focus:ring-1 focus:ring-ring"
-          autofocus
-        />
+  <div class="h-full overflow-y-auto">
+    <!-- Search Results -->
+    <template v-if="hasSearched || query.trim()">
+      <div v-if="searching" class="flex items-center justify-center py-10">
+        <Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+      <div v-else-if="results.length === 0 && hasSearched" class="py-10 text-center text-xs text-muted-foreground">
+        无结果 "{{ query }}"
+      </div>
+      <div v-else>
         <button
-          v-if="query"
-          class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-accent"
-          @click="clearQuery"
-        >
-          <X class="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      </div>
-
-      <!-- Filters -->
-      <div class="mt-2 flex gap-1.5">
-        <button
-          v-for="f in filters"
-          :key="f"
-          :class="[
-            'rounded-md px-2 py-1 text-xs font-medium transition-colors',
-            activeFilter === f
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent',
-          ]"
-          @click="setFilter(f)"
-        >
-          {{ filterLabel[f] }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Results -->
-    <div class="flex-1 overflow-y-auto px-1">
-      <div v-if="searching" class="flex items-center justify-center py-12">
-        <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-
-      <div v-else-if="searched && results.length === 0" class="px-3 py-12 text-center">
-        <p class="text-sm text-muted-foreground">No results for "{{ query }}"</p>
-        <p class="mt-1 text-xs text-muted-foreground">Try different keywords or broaden filters.</p>
-      </div>
-
-      <div v-else class="space-y-0.5 py-1">
-        <SearchResultItem
-          v-for="(r, i) in results"
+          v-for="r in results"
           :key="r.chunk_id"
-          :result="r"
-          :index="i"
-        />
+          class="grid w-full grid-cols-[26px_1fr_auto] items-center gap-2 px-3.5 py-[7px] text-left transition-colors hover:bg-accent"
+          @click="openSession(r.session_id)"
+        >
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <span class="mono grid h-5 w-[22px] place-items-center rounded text-[9px] font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
+                {{ adapterAbbr(r.adapter ?? '') }}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right">{{ r.adapter }}</TooltipContent>
+          </Tooltip>
+          <span class="min-w-0">
+            <strong class="block truncate text-xs font-semibold">{{ r.content.slice(0, 60) }}</strong>
+            <span class="block truncate text-[11px] text-muted-foreground" v-html="r.snippet" />
+          </span>
+          <span v-if="r.timestamp" class="mono shrink-0 text-[10px] text-muted-foreground">{{ timeAgo(r.timestamp) }}</span>
+        </button>
       </div>
-    </div>
+    </template>
 
-    <!-- Status bar -->
-    <div class="flex shrink-0 items-center justify-between border-t border-border px-3 py-1.5">
-      <span class="text-[10px] text-muted-foreground">
-        {{ searched ? `${results.length} result(s)` : 'Type to search' }}
-      </span>
-      <span class="text-[10px] text-muted-foreground">
-        ↵ Open · Esc Back
-      </span>
-    </div>
+    <!-- Recent Sessions (default) -->
+    <template v-else>
+      <button
+        v-for="s in recentSessions"
+        :key="s.id"
+        class="grid w-full grid-cols-[26px_1fr_auto] items-center gap-2 px-3.5 py-[7px] text-left transition-colors hover:bg-accent"
+        @click="openSession(s.id)"
+      >
+        <span class="mono grid h-5 w-[22px] place-items-center rounded text-[9px] font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
+          {{ adapterAbbr(s.source) }}
+        </span>
+        <span class="min-w-0">
+          <strong class="block truncate text-xs font-semibold">{{ s.project_path?.split('/').pop() ?? s.id.slice(0, 16) }}</strong>
+          <span class="block truncate text-[11px] text-muted-foreground">{{ s.message_count }} messages · {{ adapterAbbr(s.source) }}</span>
+        </span>
+        <span class="mono shrink-0 text-[10px] text-muted-foreground">{{ timeAgo(s.updated_at) }}</span>
+      </button>
+      <div v-if="recentSessions.length === 0" class="py-10 text-center text-xs text-muted-foreground">
+        暂无 session，运行 <code class="mono rounded bg-muted px-1 py-0.5 text-[11px]">memex ingest</code> 开始采集
+      </div>
+    </template>
   </div>
 </template>

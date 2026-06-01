@@ -1,120 +1,115 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ToggleRight, Shield, Brain, Database } from 'lucide-vue-next'
-import ViewHeader from '@/components/ViewHeader.vue'
+import { ref, onMounted } from 'vue'
+import { useMemex } from '@/composables/useMemex'
+import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 
-interface AdapterSetting {
-  key: string
-  label: string
-  path: string
-  enabled: boolean
-}
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
 
-const adapters = ref<AdapterSetting[]>([
-  { key: 'claude_code', label: 'Claude Code', path: '~/.claude/projects', enabled: true },
-  { key: 'cursor', label: 'Cursor', path: '~/Library/.../workspaceStorage', enabled: true },
-  { key: 'codex', label: 'Codex', path: '~/.codex/sessions', enabled: true },
-  { key: 'opencode', label: 'OpenCode', path: '~/.opencode', enabled: false },
+interface AdapterRow { key: string; label: string; enabled: boolean }
+
+const adapters = ref<AdapterRow[]>([
+  { key: 'claude_code', label: 'Claude Code', enabled: true },
+  { key: 'cursor', label: 'Cursor', enabled: true },
+  { key: 'codex', label: 'Codex', enabled: true },
+  { key: 'opencode', label: 'OpenCode', enabled: false },
+  { key: 'aider', label: 'Aider', enabled: true },
+  { key: 'continue_dev', label: 'Continue', enabled: true },
+  { key: 'cline', label: 'Cline', enabled: true },
 ])
 
-const privacy = ref({
-  autoRedact: true,
-  privateFromMcp: true,
-  privateMode: false,
+const privacy = ref({ autoRedact: true, privateFromMcp: true })
+const llm = ref({ ollamaModel: 'qwen2.5:7b', claudeFallback: false })
+
+onMounted(async () => {
+  for (const a of adapters.value) {
+    try {
+      const val = await getConfig(`adapter.${a.key}.enabled`)
+      if (val !== null) a.enabled = val === 'true'
+    } catch { /* default */ }
+  }
+  try {
+    const v = await getConfig('llm.cloud_fallback')
+    if (v !== null) llm.value.claudeFallback = v === 'true'
+  } catch { /* default */ }
 })
 
-const llm = ref({
-  ollamaModel: 'qwen2.5:7b',
-  claudeFallback: false,
-})
-
-function toggleAdapter(key: string) {
+async function toggleAdapter(key: string) {
   const a = adapters.value.find((x) => x.key === key)
-  if (a) a.enabled = !a.enabled
+  if (!a) return
+  const newVal = !a.enabled
+  try {
+    await ipcToggleAdapter(key, newVal)
+    a.enabled = newVal
+  } catch { /* ignore */ }
+}
+
+async function togglePrivacy(field: 'autoRedact' | 'privateFromMcp') {
+  const newVal = !privacy.value[field]
+  const keyMap = { autoRedact: 'privacy.auto_redact', privateFromMcp: 'privacy.private_from_mcp' }
+  try {
+    await setConfig(keyMap[field], String(newVal))
+    privacy.value[field] = newVal
+  } catch { /* ignore */ }
+}
+
+async function toggleCloudFallback() {
+  const newVal = !llm.value.claudeFallback
+  try {
+    await setConfig('llm.cloud_fallback', String(newVal))
+    llm.value.claudeFallback = newVal
+  } catch { /* ignore */ }
 }
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
-    <ViewHeader title="Settings" show-back />
-
-    <div class="flex-1 space-y-4 overflow-y-auto px-3 py-3">
-      <!-- Adapters -->
-      <section>
-        <h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <Database class="h-3.5 w-3.5" />
-          Adapters
-        </h2>
-        <div class="space-y-1">
-          <button
-            v-for="a in adapters"
-            :key="a.key"
-            class="flex w-full items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-accent"
-            @click="toggleAdapter(a.key)"
-          >
-            <div>
-              <p class="text-sm font-medium">{{ a.label }}</p>
-              <p class="text-xs text-muted-foreground">{{ a.path }}</p>
-            </div>
-            <ToggleRight
-              :class="[
-                'h-5 w-5 transition-colors',
-                a.enabled ? 'text-primary' : 'text-muted-foreground',
-              ]"
-            />
-          </button>
-        </div>
-      </section>
-
-      <!-- Privacy -->
-      <section>
-        <h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <Shield class="h-3.5 w-3.5" />
-          Privacy
-        </h2>
-        <div class="space-y-1">
-          <label class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 hover:bg-accent">
-            <span class="text-sm">Auto redact sensitive data</span>
-            <input v-model="privacy.autoRedact" type="checkbox" class="accent-primary" />
-          </label>
-          <label class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 hover:bg-accent">
-            <span class="text-sm">Hide private sessions from MCP</span>
-            <input v-model="privacy.privateFromMcp" type="checkbox" class="accent-primary" />
-          </label>
-          <label class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 hover:bg-accent">
-            <span class="text-sm">Private Mode</span>
-            <input v-model="privacy.privateMode" type="checkbox" class="accent-primary" />
-          </label>
-        </div>
-      </section>
-
-      <!-- LLM -->
-      <section>
-        <h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <Brain class="h-3.5 w-3.5" />
-          LLM
-        </h2>
-        <div class="space-y-1">
-          <div class="flex items-center justify-between rounded-lg px-3 py-2">
-            <span class="text-sm">Local Summary (Ollama)</span>
-            <span class="text-xs text-muted-foreground">{{ llm.ollamaModel }}</span>
-          </div>
-          <label class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 hover:bg-accent">
-            <div>
-              <span class="text-sm">Claude Cloud Fallback</span>
-              <p class="text-xs text-muted-foreground">Requires ANTHROPIC_API_KEY</p>
-            </div>
-            <input v-model="llm.claudeFallback" type="checkbox" class="accent-primary" />
-          </label>
-        </div>
-      </section>
+  <div class="h-full space-y-1 overflow-y-auto px-3.5 py-2.5">
+    <!-- Adapters -->
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Adapters</p>
+    <div
+      v-for="(a, i) in adapters"
+      :key="a.key"
+      class="flex cursor-pointer items-center justify-between py-1.5"
+      :class="{ 'border-t border-border/40': i > 0 }"
+      @click="toggleAdapter(a.key)"
+    >
+      <span class="flex items-center gap-1.5 text-xs">
+        <span class="inline-block h-1.5 w-1.5 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
+        {{ a.label }}
+      </span>
+      <Switch :checked="a.enabled" class="scale-75" @click.stop @update:checked="toggleAdapter(a.key)" />
     </div>
 
-    <!-- Footer -->
-    <div class="shrink-0 border-t border-border px-3 py-2">
-      <p class="text-center text-[10px] text-muted-foreground">
-        Memex v0.1.0 · Data stays local
-      </p>
+    <Separator class="my-1.5" />
+
+    <!-- LLM -->
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
+    <div class="flex items-center justify-between py-1.5">
+      <span class="flex items-center gap-1.5 text-xs">
+        <span class="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+        Ollama ({{ llm.ollamaModel }})
+      </span>
+      <span class="mono text-[10px] text-success">local</span>
+    </div>
+    <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="toggleCloudFallback">
+      <span class="flex items-center gap-1.5 text-xs">
+        <span class="inline-block h-1.5 w-1.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
+        Claude fallback
+      </span>
+      <Switch :checked="llm.claudeFallback" class="scale-75" @click.stop @update:checked="toggleCloudFallback" />
+    </div>
+
+    <Separator class="my-1.5" />
+
+    <!-- Privacy -->
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
+    <div class="flex cursor-pointer items-center justify-between py-1.5" @click="togglePrivacy('autoRedact')">
+      <span class="text-xs">自动脱敏</span>
+      <Switch :checked="privacy.autoRedact" class="scale-75" @click.stop @update:checked="togglePrivacy('autoRedact')" />
+    </div>
+    <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="togglePrivacy('privateFromMcp')">
+      <span class="text-xs">Private session 隐藏</span>
+      <Switch :checked="privacy.privateFromMcp" class="scale-75" @click.stop @update:checked="togglePrivacy('privateFromMcp')" />
     </div>
   </div>
 </template>

@@ -18,5 +18,17 @@ export function useMemex() {
     return invoke<SessionDetail | null>('get_session', { sessionId })
   }
 
-  return { getStats, listRecent, searchMemex, getSession }
+  async function toggleAdapter(adapter: string, enabled: boolean): Promise<void> {
+    return invoke<void>('toggle_adapter', { adapter, enabled })
+  }
+
+  async function getConfig(key: string): Promise<string | null> {
+    return invoke<string | null>('get_config', { key })
+  }
+
+  async function setConfig(key: string, value: string): Promise<void> {
+    return invoke<void>('set_config', { key, value })
+  }
+
+  return { getStats, listRecent, searchMemex, getSession, toggleAdapter, getConfig, setConfig }
 }

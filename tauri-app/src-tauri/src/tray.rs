@@ -46,10 +46,32 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
                 .unwrap_or_else(|| tauri::image::Image::new_owned(vec![0, 0, 0, 0], 1, 1)),
         )
         .icon_as_template(true)
-        .title("Memex")
+        .title("")
         .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { .. } = event {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
                 if let Some(win) = tray.app_handle().get_webview_window("main") {
+                    if win.is_visible().unwrap_or(false) {
+                        let _ = win.hide();
+                        return;
+                    }
+                    let (ix, iy) = match rect.position {
+                        tauri::Position::Physical(p) => (p.x as f64, p.y as f64),
+                        tauri::Position::Logical(p) => (p.x, p.y),
+                    };
+                    let (iw, ih) = match rect.size {
+                        tauri::Size::Physical(s) => (s.width as f64, s.height as f64),
+                        tauri::Size::Logical(s) => (s.width, s.height),
+                    };
+                    let win_w = 380.0_f64;
+                    let x = ix - win_w / 2.0 + iw / 2.0;
+                    let y = iy + ih;
+                    let _ = win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
@@ -70,7 +92,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
                 warn!("tray: failed to update count: {e:?}");
             }
             if let Some(tray) = app_handle.tray_by_id("memex") {
-                let _ = tray.set_title(Some(&format!("Memex {count}")));
+                let _ = tray.set_title(Some(""));
             }
         }
     });
