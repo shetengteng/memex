@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useMemex } from '@/composables/useMemex'
 import { formatNumber } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-vue-next'
 import type { Stats } from '@/types'
 
 const { getStats, getConfig } = useMemex()
@@ -148,71 +150,70 @@ const valueClass: Record<Tone, string> = {
 
 <template>
   <div class="h-full overflow-y-auto px-4 py-4">
-    <header class="mb-3 flex items-baseline justify-between">
-      <h2 class="text-sm font-semibold">Health</h2>
-      <button
-        class="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-        :disabled="loading"
-        @click="refresh"
-      >{{ loading ? 'refreshing…' : 'refresh' }}</button>
+    <header class="mb-4 flex items-baseline justify-between">
+      <h2 class="text-base font-semibold">Health</h2>
+      <Button variant="ghost" size="sm" :disabled="loading" class="gap-1.5" @click="refresh">
+        <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
+        {{ loading ? 'Refreshing' : 'Refresh' }}
+      </Button>
     </header>
 
-    <div v-if="loading && daemonOk === null" class="text-xs text-muted-foreground">Loading…</div>
+    <div v-if="loading && daemonOk === null" class="text-sm text-muted-foreground">Loading…</div>
 
     <template v-else>
       <!-- System -->
       <section>
-        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">System</div>
-        <ul class="space-y-1.5">
-          <li v-for="s in systemSignals()" :key="s.label" class="flex items-center gap-2">
-            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-xs text-foreground">{{ s.label }}</span>
-            <span class="text-xs font-medium" :class="valueClass[s.tone]">{{ s.value }}</span>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">System</div>
+        <ul class="space-y-2">
+          <li v-for="s in systemSignals()" :key="s.label" class="flex items-center gap-2.5">
+            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-sm text-foreground">{{ s.label }}</span>
+            <span class="text-sm font-medium" :class="valueClass[s.tone]">{{ s.value }}</span>
           </li>
         </ul>
-        <ul class="mt-1 space-y-0.5 pl-3.5">
+        <ul class="mt-1.5 space-y-1 pl-4">
           <li
             v-for="s in systemSignals().filter((x) => x.hint)"
             :key="s.label + '-hint'"
-            class="text-[11px] text-muted-foreground"
+            class="text-xs text-muted-foreground"
           >{{ s.label }}: {{ s.hint }}</li>
         </ul>
       </section>
 
-      <Separator class="my-3" />
+      <Separator class="my-4" />
 
       <!-- Adapters -->
       <section>
-        <div class="mb-1.5 flex items-baseline justify-between">
-          <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Adapters</div>
-          <div class="text-[11px] text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }}/{{ adapterDefs.length }} on</div>
+        <div class="mb-2 flex items-baseline justify-between">
+          <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Adapters</div>
+          <div class="text-xs text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }}/{{ adapterDefs.length }} on</div>
         </div>
-        <ul class="space-y-1.5">
-          <li v-for="s in adapterSignals()" :key="s.label" class="flex items-center gap-2">
-            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-xs">{{ s.label }}</span>
-            <span class="text-xs" :class="valueClass[s.tone]">{{ s.value }}</span>
+        <ul class="space-y-2">
+          <li v-for="s in adapterSignals()" :key="s.label" class="flex items-center gap-2.5">
+            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-sm">{{ s.label }}</span>
+            <span class="text-sm" :class="valueClass[s.tone]">{{ s.value }}</span>
           </li>
         </ul>
       </section>
 
-      <Separator class="my-3" />
+      <Separator class="my-4" />
 
       <!-- LLM -->
       <section>
-        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">LLM</div>
-        <ul class="space-y-1.5">
-          <li v-for="s in llmSignals()" :key="s.label" class="flex items-center gap-2">
-            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-xs">{{ s.label }}</span>
-            <span class="text-xs" :class="valueClass[s.tone]">{{ s.value }}</span>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">LLM</div>
+        <ul class="space-y-2">
+          <li v-for="s in llmSignals()" :key="s.label" class="flex items-center gap-2.5">
+            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-sm">{{ s.label }}</span>
+            <span class="text-sm" :class="valueClass[s.tone]">{{ s.value }}</span>
           </li>
         </ul>
-        <ul class="mt-1 space-y-0.5 pl-3.5">
+        <ul class="mt-1.5 space-y-1 pl-4">
           <li
             v-for="s in llmSignals().filter((x) => x.hint)"
             :key="s.label + '-hint'"
-            class="text-[11px] text-muted-foreground"
+            class="text-xs text-muted-foreground"
           >{{ s.label }}: {{ s.hint }}</li>
         </ul>
       </section>

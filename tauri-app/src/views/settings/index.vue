@@ -112,81 +112,76 @@ async function setCloudFallback(value: boolean) {
 </script>
 
 <template>
-  <div class="h-full space-y-1 overflow-y-auto px-3.5 py-2.5">
+  <div class="h-full space-y-2 overflow-y-auto px-4 py-3">
     <!-- Adapters -->
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Adapters</p>
+    <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Adapters</p>
     <div
       v-for="(a, i) in adapters"
       :key="a.key"
-      class="flex items-center justify-between py-1.5"
+      class="flex items-center justify-between py-2"
       :class="{ 'border-t border-border/40': i > 0 }"
     >
-      <span class="flex items-center gap-1.5 text-xs">
-        <span class="inline-block h-1.5 w-1.5 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
+      <span class="flex items-center gap-2 text-sm">
+        <span class="inline-block h-2 w-2 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
         {{ a.label }}
       </span>
       <Switch
         :model-value="a.enabled"
-        class="scale-75"
         @update:model-value="(v: boolean) => setAdapter(a.key, v)"
       />
     </div>
 
-    <Separator class="my-1.5" />
+    <Separator class="my-2" />
 
     <!-- LLM -->
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
-    <div class="flex items-center justify-between py-1.5">
-      <span class="flex items-center gap-1.5 text-xs">
+    <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
+    <div class="flex items-center justify-between py-2">
+      <span class="flex items-center gap-2 text-sm">
         <span
-          class="inline-block h-1.5 w-1.5 rounded-full"
+          class="inline-block h-2 w-2 rounded-full"
           :class="llm.ollamaEnabled && llm.ollamaAvailable ? 'bg-success' : llm.ollamaChecking ? 'bg-warning animate-pulse' : 'bg-muted-foreground'"
         />
         Ollama ({{ llm.ollamaModel }})
       </span>
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-2">
         <span
-          class="mono text-[10px]"
+          class="text-xs"
           :class="llm.ollamaAvailable ? 'text-success' : 'text-destructive'"
         >
           {{ llm.ollamaChecking ? '...' : llm.ollamaAvailable ? 'local' : 'offline' }}
         </span>
         <Switch
           :model-value="llm.ollamaEnabled"
-          class="scale-75"
           @update:model-value="(v: boolean) => setOllama(v)"
         />
       </div>
     </div>
-    <div class="flex items-center justify-between border-t border-border/40 py-1.5">
-      <span class="flex items-center gap-1.5 text-xs">
-        <span class="inline-block h-1.5 w-1.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
+    <div class="flex items-center justify-between border-t border-border/40 py-2">
+      <span class="flex items-center gap-2 text-sm">
+        <span class="inline-block h-2 w-2 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
         Claude fallback
       </span>
       <Switch
         :model-value="llm.claudeFallback"
-        class="scale-75"
         @update:model-value="(v: boolean) => setCloudFallback(v)"
       />
     </div>
 
-    <Separator class="my-1.5" />
+    <Separator class="my-2" />
 
     <!-- Privacy -->
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
-    <div class="flex items-center justify-between py-1.5">
-      <span class="text-xs">自动脱敏</span>
+    <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
+    <div class="flex items-center justify-between py-2">
+      <span class="text-sm">自动脱敏</span>
       <Switch
         :model-value="privacy.autoRedact"
-        class="scale-75"
         @update:model-value="(v: boolean) => setPrivacy('autoRedact', v)"
       />
     </div>
-    <div class="flex items-center justify-between border-t border-border/40 py-1.5">
-      <span class="text-xs">Private session 隐藏</span>
+    <div class="flex items-center justify-between border-t border-border/40 py-2">
+      <span class="text-sm">Private session 隐藏</span>
       <Switch
         :model-value="privacy.privateFromMcp"
-        class="scale-75"
         @update:model-value="(v: boolean) => setPrivacy('privateFromMcp', v)"
       />
     </div>
