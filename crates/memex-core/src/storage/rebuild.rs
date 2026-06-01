@@ -87,6 +87,7 @@ fn rebuild_session_file(path: &Path, sessions_root: &Path, db: &Db) -> Result<(u
         project.as_deref(),
         &path.to_string_lossy(),
         0,
+        0,
     )?;
 
     let messages = parse_messages_from_body(&body, &session_id);

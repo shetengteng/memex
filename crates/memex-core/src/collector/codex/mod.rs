@@ -104,6 +104,7 @@ impl Adapter for CodexAdapter {
                     None => continue,
                 };
             let mtime = mtime_secs(&session_file).unwrap_or(0);
+            let created_secs = created_secs(&session_file).unwrap_or(0);
 
             sessions.push(SessionMeta {
                 id: session_id,
@@ -112,6 +113,7 @@ impl Adapter for CodexAdapter {
                 file_path: session_file.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
+                created_secs,
             });
         }
 
@@ -187,6 +189,16 @@ fn mtime_secs(path: &Path) -> Option<u64> {
     fs::metadata(path)
         .ok()?
         .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs())
+}
+
+fn created_secs(path: &Path) -> Option<u64> {
+    fs::metadata(path)
+        .ok()?
+        .created()
         .ok()?
         .duration_since(std::time::UNIX_EPOCH)
         .ok()

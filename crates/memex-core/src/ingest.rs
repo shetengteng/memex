@@ -358,6 +358,7 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
             adapter.name(),
             session.project_path.as_deref(),
             &session.file_path,
+            session.created_secs,
             session.mtime,
         )?;
 

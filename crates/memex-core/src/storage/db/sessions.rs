@@ -54,32 +54,55 @@ impl Db {
         source: &str,
         project_path: Option<&str>,
         file_path: &str,
+        session_created_secs: u64,
         session_mtime_secs: u64,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now();
-        let has_real_mtime = session_mtime_secs > 0;
-        let session_time = if has_real_mtime {
+        let now_str = now.to_rfc3339();
+
+        let created_str = if session_created_secs > 0 {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(session_created_secs as i64, 0)
+                .unwrap_or(now)
+                .to_rfc3339()
+        } else {
+            now_str.clone()
+        };
+        let updated_str = if session_mtime_secs > 0 {
             chrono::DateTime::<chrono::Utc>::from_timestamp(session_mtime_secs as i64, 0)
                 .unwrap_or(now)
+                .to_rfc3339()
         } else {
-            now
+            created_str.clone()
         };
-        let session_time_str = session_time.to_rfc3339();
-        // When the adapter provides a real activity timestamp (`session_mtime_secs > 0`),
-        // overwrite `updated_at` with it so that legacy rows that were stamped with the
-        // first-ingest NOW() are healed. Without a real mtime, keep the existing
-        // value so we don't keep bumping `updated_at` forward on every scan.
-        let sql = if has_real_mtime {
-            "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-             ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at"
-        } else {
-            "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-             ON CONFLICT(id) DO NOTHING"
+        let has_real_created = session_created_secs > 0;
+        let has_real_mtime = session_mtime_secs > 0;
+
+        // Heal both timestamps on subsequent ingests when the adapter has real
+        // values; otherwise leave the existing values alone so we never drift
+        // forward on every scan.
+        let sql = match (has_real_created, has_real_mtime) {
+            (true, true) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(id) DO UPDATE SET
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at",
+            (true, false) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(id) DO UPDATE SET
+                    created_at = excluded.created_at",
+            (false, true) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(id) DO UPDATE SET
+                    updated_at = excluded.updated_at",
+            (false, false) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(id) DO NOTHING",
         };
-        conn.execute(sql, params![id, source, project_path, file_path, session_time_str])?;
+        conn.execute(
+            sql,
+            params![id, source, project_path, file_path, created_str, updated_str],
+        )?;
         Ok(())
     }
 

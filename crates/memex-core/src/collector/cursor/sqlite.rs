@@ -237,6 +237,8 @@ impl Adapter for CursorSqliteAdapter {
             } else {
                 0
             };
+            let created_ms = composer.created_at.unwrap_or(0);
+            let created_secs = if created_ms > 0 { (created_ms / 1000) as u64 } else { 0 };
 
             sessions.push(SessionMeta {
                 id: format!("cursor-{}", composer_id),
@@ -245,6 +247,7 @@ impl Adapter for CursorSqliteAdapter {
                 file_path: self.db_path.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
+                created_secs,
             });
         }
         Ok(sessions)

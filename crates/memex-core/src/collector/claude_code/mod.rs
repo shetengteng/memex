@@ -88,6 +88,12 @@ impl Adapter for ClaudeCodeAdapter {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
+            let created_secs = meta
+                .created()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
 
             let session_id = Self::session_id_from_path(&file_path);
             let project_path = self.extract_project_path(&file_path);
@@ -99,6 +105,7 @@ impl Adapter for ClaudeCodeAdapter {
                 file_path: file_path.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
+                created_secs,
             });
         }
 
@@ -188,6 +195,7 @@ mod tests {
             file_path: file_path.to_string_lossy().to_string(),
             last_offset: 0,
             mtime: 0,
+            created_secs: 0,
         };
         let messages = adapter.collect(&session).unwrap();
         assert_eq!(messages.len(), 2);
@@ -218,6 +226,7 @@ mod tests {
             file_path: file_path.to_string_lossy().to_string(),
             last_offset: 0,
             mtime: 0,
+            created_secs: 0,
         };
         let messages = adapter.collect(&session).unwrap();
         assert!(messages.is_empty());

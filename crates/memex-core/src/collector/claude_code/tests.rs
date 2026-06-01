@@ -24,6 +24,7 @@ fn make_session(file_path: &Path, id: &str, last_offset: u64) -> SessionMeta {
         file_path: file_path.to_string_lossy().to_string(),
         last_offset,
         mtime: 0,
+        created_secs: 0,
     }
 }
 

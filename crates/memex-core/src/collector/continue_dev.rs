@@ -125,6 +125,13 @@ impl Adapter for ContinueAdapter {
                 .as_deref()
                 .and_then(workspace_to_project);
 
+            let created_secs = fs::metadata(&file_path)
+                .ok()
+                .and_then(|m| m.created().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
             sessions.push(SessionMeta {
                 id: entry.session_id.clone(),
                 source: "continue".to_string(),
@@ -132,6 +139,7 @@ impl Adapter for ContinueAdapter {
                 file_path: file_path.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
+                created_secs,
             });
         }
 

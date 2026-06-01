@@ -153,6 +153,13 @@ impl Adapter for ClineAdapter {
 
                 let project = Self::read_task_prompt(&task_dir);
 
+                let created_secs = fs::metadata(&conv_file)
+                    .ok()
+                    .and_then(|m| m.created().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+
                 sessions.push(SessionMeta {
                     id: format!("cline-{}", task_id),
                     source: "cline".to_string(),
@@ -160,6 +167,7 @@ impl Adapter for ClineAdapter {
                     file_path: conv_file.to_string_lossy().to_string(),
                     last_offset: 0,
                     mtime,
+                    created_secs,
                 });
             }
         }

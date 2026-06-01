@@ -9,6 +9,12 @@ pub struct SessionMeta {
     pub file_path: String,
     pub last_offset: u64,
     pub mtime: u64,
+    /// Unix seconds of the session's true creation/start time, when the
+    /// adapter can recover it (cursor composer.created_at, opencode
+    /// time_created, file metadata.created()). 0 means unknown; the DB
+    /// layer falls back to `now()` only on first insert in that case.
+    #[serde(default)]
+    pub created_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

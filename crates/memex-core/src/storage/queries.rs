@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_find_session_by_prefix() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl", 0)
+        db.insert_session("abc-12345", "claude_code", None, "/f.jsonl", 0, 0)
             .unwrap();
         assert_eq!(
             db.find_session_by_prefix("abc-1").unwrap().unwrap(),

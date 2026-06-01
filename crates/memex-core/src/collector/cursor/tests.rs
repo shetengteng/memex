@@ -23,6 +23,7 @@ fn test_parse_cursor_jsonl() {
         file_path: file_path.to_string_lossy().to_string(),
         last_offset: 0,
         mtime: 0,
+        created_secs: 0,
     };
 
     let messages = adapter.collect(&session).unwrap();

@@ -78,9 +78,10 @@ impl Adapter for OpenCodeAdapter {
                 let id: String = row.get(0)?;
                 let _title: String = row.get(1)?;
                 let directory: String = row.get(2)?;
-                let _time_created: i64 = row.get(3)?;
+                let time_created: i64 = row.get(3)?;
                 let time_updated: i64 = row.get(4)?;
                 let mtime_secs = (time_updated / 1000) as u64;
+                let created_secs = if time_created > 0 { (time_created / 1000) as u64 } else { 0 };
 
                 Ok(SessionMeta {
                     id,
@@ -89,6 +90,7 @@ impl Adapter for OpenCodeAdapter {
                     file_path: self.db_path.to_string_lossy().to_string(),
                     last_offset: 0,
                     mtime: mtime_secs,
+                    created_secs,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

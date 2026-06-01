@@ -218,6 +218,7 @@ impl Adapter for AiderAdapter {
                     file_path: file_path.to_string_lossy().to_string(),
                     last_offset: i as u64,
                     mtime: mtime + i as u64,
+                    created_secs: 0,
                 });
                 let _ = ts;
             }

@@ -133,6 +133,13 @@ impl Adapter for CursorJsonlAdapter {
             let session_id = Self::session_id_from_path(&file_path);
             let project_path = self.extract_project_name(&file_path);
 
+            let created_secs = meta
+                .created()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
             sessions.push(SessionMeta {
                 id: session_id,
                 source: "cursor".to_string(),
@@ -140,6 +147,7 @@ impl Adapter for CursorJsonlAdapter {
                 file_path: file_path.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
+                created_secs,
             });
         }
 
