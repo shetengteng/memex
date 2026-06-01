@@ -40,16 +40,15 @@ async function copyContent() {
         Back
       </Button>
       <template v-if="detail">
-        <span class="grid h-6 w-7 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(detail.source), adapterColor(detail.source)]">
+        <span class="grid h-7 w-7 shrink-0 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(detail.source), adapterColor(detail.source)]">
           {{ adapterAbbr(detail.source) }}
         </span>
         <span class="truncate text-sm font-semibold">{{ detail.project_path?.split('/').pop() ?? detail.id.slice(0, 12) }}</span>
         <span class="shrink-0 text-xs text-muted-foreground">{{ detail.message_count }} msg · {{ timeAgo(detail.updated_at) }}</span>
       </template>
       <span class="flex-1" />
-      <Button v-if="detail" variant="outline" size="sm" class="gap-1.5" @click="copyContent">
+      <Button v-if="detail" variant="ghost" size="icon" class="h-8 w-8 shrink-0" @click="copyContent" :title="copied ? 'Copied' : 'Copy session'">
         <component :is="copied ? Check : Copy" class="h-4 w-4" />
-        {{ copied ? 'Copied' : 'Copy' }}
       </Button>
     </div>
 

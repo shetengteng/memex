@@ -10,11 +10,15 @@ produce a concise summary. Output JSON with exactly these fields:
 - summary: 2-4 sentence overview of what was accomplished
 - topics: array of 1-5 topic keywords
 - decisions: array of key decisions made (0-3 items)
+ALL natural-language fields (title, summary, topics, decisions) MUST be in Simplified Chinese, \
+regardless of the source language. Keep technical identifiers (file paths, command names, \
+function names, English acronyms like SQL/HTTP) in their original form.
 Respond ONLY with valid JSON, no markdown fences.";
 
 const CHUNK_SUMMARY_SYSTEM: &str = "\
 You are a technical content summarizer. Given a piece of text from a coding session, \
-produce a single concise sentence (max 120 chars) that captures the key information. \
+produce a single concise sentence (max 120 chars, Simplified Chinese) that captures the key information. \
+Keep technical identifiers (file paths, commands, code symbols) in their original form. \
 Output ONLY the sentence, no quotes, no markdown, no extra formatting.";
 
 const PROJECT_SUMMARY_SYSTEM: &str = "\
@@ -24,15 +28,22 @@ produce a project-level overview. Output JSON with exactly these fields:
 - summary: 3-5 sentence overview of project progress and current state
 - topics: array of 1-8 topic keywords across all sessions
 - decisions: array of key architectural/technical decisions (0-5 items)
+ALL natural-language fields MUST be in Simplified Chinese, regardless of the source language. \
+Keep technical identifiers (file paths, command names, function names, English acronyms like SQL/HTTP) \
+in their original form.
 Respond ONLY with valid JSON, no markdown fences.";
 
 const PERIODIC_SUMMARY_SYSTEM: &str = "\
 You are a work journal summarizer. Given session summaries from a time period, \
 produce a periodic report. Output JSON with exactly these fields:
-- title: period label (e.g. \"Daily Report 2026-06-01\")
+- title: period label (e.g. \"日报 2026-06-01\" or \"周报 2026-W22\")
 - summary: 3-6 sentence overview of work accomplished in this period
 - topics: array of 1-8 topic keywords
 - decisions: array of key decisions made (0-5 items)
+ALL natural-language fields MUST be in Simplified Chinese, regardless of the source language \
+(e.g. even when input session summaries are in English, output Chinese). \
+Keep technical identifiers (file paths, command names, function names, English acronyms like SQL/HTTP) \
+in their original form.
 Respond ONLY with valid JSON, no markdown fences.";
 
 const MAX_INPUT_CHARS: usize = 8000;
