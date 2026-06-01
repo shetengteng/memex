@@ -1,14 +1,9 @@
-//! Embedded Web UI static file serving.
-//! Serves from `~/.memex/web/` if it exists, otherwise returns embedded assets.
+//! Web UI static file serving.
+//! Serves from `~/.memex/web/` if it exists, otherwise returns a redirect to Tauri app.
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::get;
 use axum::Router;
-
-const EMBEDDED_INDEX: &str = include_str!("../../../web-ui/index.html");
-const EMBEDDED_CSS: &str = include_str!("../../../web-ui/style.css");
-const EMBEDDED_JS: &str = include_str!("../../../web-ui/app.js");
 
 pub fn static_router() -> Router {
     let web_dir = memex_core::memex_dir().join("web");
@@ -17,33 +12,17 @@ pub fn static_router() -> Router {
             .not_found_service(tower_http::services::ServeFile::new(web_dir.join("index.html")));
         Router::new().fallback_service(axum::routing::any_service(serve))
     } else {
-        Router::new()
-            .route("/style.css", get(embedded_css))
-            .route("/app.js", get(embedded_js))
-            .fallback(embedded_index)
+        Router::new().fallback(fallback_page)
     }
 }
 
-async fn embedded_index() -> impl IntoResponse {
+async fn fallback_page() -> impl IntoResponse {
     (
         StatusCode::OK,
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        EMBEDDED_INDEX,
-    )
-}
-
-async fn embedded_css() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
-        EMBEDDED_CSS,
-    )
-}
-
-async fn embedded_js() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
-        EMBEDDED_JS,
+        "<html><body style='font-family:system-ui;text-align:center;padding:60px;color:#888'>\
+         <h2>Memex</h2><p>Dashboard has moved to the Tauri desktop app.</p>\
+         <p style='font-size:14px'>Use the menu bar tray icon to open the dashboard.</p>\
+         </body></html>",
     )
 }

@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import DashboardView from './views/dashboard/index.vue'
 import './styles/main.css'
 
-createApp(App).mount('#app')
+const isDashboard = window.location.hash === '#/dashboard'
+createApp(isDashboard ? DashboardView : App).mount('#app')

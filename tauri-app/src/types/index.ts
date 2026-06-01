@@ -48,4 +48,20 @@ export interface MessageRow {
   timestamp: string | null
 }
 
-export type ViewName = 'search' | 'settings' | 'status' | 'session'
+export interface StatsBreakdown {
+  by_adapter: Record<string, number>
+  by_project: Record<string, number>
+  recent_7d_sessions: number
+  recent_7d_messages: number
+  recent_30d_sessions: number
+  recent_30d_messages: number
+}
+
+export interface TimelineEntry {
+  date: string
+  adapter: string
+  sessions: number
+  messages: number
+}
+
+export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

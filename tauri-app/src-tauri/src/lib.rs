@@ -15,6 +15,12 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -49,6 +55,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_stats,
+            commands::get_breakdown,
+            commands::get_timeline,
             commands::list_recent,
             commands::get_session,
             commands::search_memex,

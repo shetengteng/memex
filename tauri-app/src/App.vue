@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, provide, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { Search, Settings, Activity, ExternalLink } from 'lucide-vue-next'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { Search, Settings, Activity, LayoutDashboard } from 'lucide-vue-next'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { formatNumber } from '@/lib/utils'
@@ -10,10 +10,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import SearchView from '@/views/SearchView.vue'
-import SettingsView from '@/views/SettingsView.vue'
-import StatusView from '@/views/StatusView.vue'
-import SessionView from '@/views/SessionView.vue'
+import SearchView from '@/views/search/index.vue'
+import SettingsView from '@/views/settings/index.vue'
+import StatusView from '@/views/status/index.vue'
+import SessionView from '@/views/session/index.vue'
 
 const currentView = ref<ViewName>('search')
 const selectedSessionId = ref<string | null>(null)
@@ -45,6 +45,33 @@ function switchView(view: ViewName) {
   if (view === 'search') {
     nextTick(() => searchInputRef.value?.focus())
   }
+}
+
+async function openDashboard() {
+  const existing = await WebviewWindow.getByLabel('dashboard')
+  if (existing) {
+    await existing.setFocus()
+    return
+  }
+  const url = import.meta.env.DEV
+    ? 'http://localhost:1420/#/dashboard'
+    : 'index.html#/dashboard'
+  const wv = new WebviewWindow('dashboard', {
+    title: 'Memex Dashboard',
+    url,
+    width: 1100,
+    height: 720,
+    minWidth: 800,
+    minHeight: 500,
+    center: true,
+    decorations: true,
+    resizable: true,
+    transparent: false,
+  })
+  wv.once('tauri://error', (e) => {
+    console.error('Dashboard window creation failed:', e)
+  })
+  await hidePopup()
 }
 
 provide('navigate', navigate)
@@ -175,10 +202,10 @@ onUnmounted(() => {
             variant="ghost"
             size="icon"
             class="h-6 w-6"
-            @click="openUrl('http://127.0.0.1:9999')"
-            title="打开 Web Dashboard"
+            @click="openDashboard"
+            title="打开 Dashboard"
           >
-            <ExternalLink class="h-3.5 w-3.5" />
+            <LayoutDashboard class="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

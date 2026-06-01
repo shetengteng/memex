@@ -1,9 +1,17 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
     return invoke<Stats>('get_stats')
+  }
+
+  async function getBreakdown(): Promise<StatsBreakdown> {
+    return invoke<StatsBreakdown>('get_breakdown')
+  }
+
+  async function getTimeline(days = 30): Promise<TimelineEntry[]> {
+    return invoke<TimelineEntry[]>('get_timeline', { days })
   }
 
   async function listRecent(limit = 20, offset = 0): Promise<SessionRow[]> {
@@ -30,5 +38,5 @@ export function useMemex() {
     return invoke<void>('set_config', { key, value })
   }
 
-  return { getStats, listRecent, searchMemex, getSession, toggleAdapter, getConfig, setConfig }
+  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, toggleAdapter, getConfig, setConfig }
 }
