@@ -91,6 +91,18 @@ const timelineDates = computed(() => {
 
 const timelineMax = computed(() => Math.max(...timelineDates.value.map((d) => d.sessions), 1))
 
+// Bars often span 1..700; on a linear scale the long-tail days collapse
+// to invisible 1-pixel slivers. log1p flattens the dynamic range so a
+// 5-session day still reads as a real bar next to a 700-session day.
+const timelineLogMax = computed(() => Math.log1p(timelineMax.value))
+
+function barHeightPercent(sessions: number): number {
+  if (sessions <= 0) return 0
+  const ratio = Math.log1p(sessions) / timelineLogMax.value
+  // floor at 12% so any non-zero day is legible
+  return Math.max(ratio * 100, 12)
+}
+
 const timelineTotal = computed(() => timelineDates.value.reduce((acc, d) => acc + d.sessions, 0))
 const timelineActiveDays = computed(() => timelineDates.value.filter((d) => d.sessions > 0).length)
 const timelinePeakDay = computed(() => timelineDates.value.reduce((best, d) => (d.sessions > best.sessions ? d : best), { date: '', sessions: 0, messages: 0 }))
@@ -180,7 +192,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
     <div class="mb-3 flex items-baseline justify-between">
       <h3 class="text-sm font-semibold">Daily activity</h3>
       <span class="text-xs text-muted-foreground">
-        last {{ TIMELINE_DAYS }} days ·
+        last {{ TIMELINE_DAYS }} days · log scale ·
         {{ formatNumber(timelineTotal) }} sessions across
         {{ timelineActiveDays }} active day{{ timelineActiveDays === 1 ? '' : 's' }}
         <template v-if="timelinePeakDay.sessions > 0">
@@ -193,7 +205,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
         <div
           class="w-full rounded-sm transition-colors"
           :class="d.sessions > 0 ? 'bg-primary/40 group-hover:bg-primary' : 'bg-muted'"
-          :style="{ height: d.sessions > 0 ? Math.max((d.sessions / timelineMax) * 100, 4) + '%' : '4px' }"
+          :style="{ height: d.sessions > 0 ? barHeightPercent(d.sessions) + '%' : '4px' }"
         />
         <div class="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md group-hover:block">
           <div class="font-semibold tabular-nums">{{ d.date }}</div>
