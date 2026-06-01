@@ -9,6 +9,8 @@ use std::path::Path;
 use crate::config::LlmConfig;
 use provider::LlmProvider;
 
+pub const CLOUD_NOTICE_KV_KEY: &str = "cloud_fallback_notice_shown";
+
 /// Select the best available LLM provider, given the user's `LlmConfig` and
 /// the on-disk Memex working directory (where `credentials.toml` may live).
 ///
@@ -30,12 +32,27 @@ pub fn select_provider(config: &LlmConfig, memex_dir: &Path) -> Option<Box<dyn L
     if config.cloud_fallback {
         if let Some(provider) = anthropic::AnthropicProvider::from_credentials_or_env(memex_dir) {
             if provider.is_available() {
+                tracing::info!("{}", cloud_upload_scope());
                 return Some(Box::new(provider));
             }
         }
     }
 
     None
+}
+
+/// Describes what data scope is uploaded when cloud fallback is active.
+/// Callers (CLI, daemon, Tauri) can use this to display a notice before
+/// the first cloud LLM call.
+pub fn cloud_upload_scope() -> String {
+    concat!(
+        "Cloud LLM fallback active (Anthropic). Data sent to cloud API:\n",
+        "  - Redacted chunk content (for L1 chunk summaries)\n",
+        "  - Redacted session messages (for L2 session summaries)\n",
+        "  - L2 summary titles/topics (for L3 project / L4 periodic summaries)\n",
+        "All content is redacted before upload (API keys, emails, IPs, etc. replaced with [REDACTED]).\n",
+        "Raw source files are never uploaded. Disable with: memex config set llm.cloud_fallback false",
+    ).to_string()
 }
 
 #[cfg(test)]
@@ -93,5 +110,13 @@ mod tests {
             provider.is_none(),
             "cloud_fallback=false should not return Anthropic even if creds exist"
         );
+    }
+
+    #[test]
+    fn cloud_upload_scope_contains_key_info() {
+        let scope = cloud_upload_scope();
+        assert!(scope.contains("Redacted"));
+        assert!(scope.contains("cloud_fallback"));
+        assert!(scope.contains("Anthropic"));
     }
 }

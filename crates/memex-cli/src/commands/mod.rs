@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod config;
+pub mod credentials;
 pub mod daemon;
 pub mod daemon_client;
 pub mod doctor;
@@ -11,3 +12,11 @@ pub mod session;
 pub mod sessions;
 pub mod setup;
 pub mod stats;
+
+use std::path::Path;
+
+pub(crate) fn credentials_path_string(memex_dir: &Path) -> String {
+    memex_core::llm::credentials::credentials_path(memex_dir)
+        .display()
+        .to_string()
+}

@@ -30,6 +30,24 @@ pub struct AdapterStatus {
     pub last_scan: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TimelineEntry {
+    pub date: String,
+    pub adapter: String,
+    pub sessions: i64,
+    pub messages: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StatsBreakdown {
+    pub by_adapter: std::collections::BTreeMap<String, i64>,
+    pub by_project: std::collections::BTreeMap<String, i64>,
+    pub recent_7d_sessions: i64,
+    pub recent_7d_messages: i64,
+    pub recent_30d_sessions: i64,
+    pub recent_30d_messages: i64,
+}
+
 impl Db {
     pub fn write_access_log(
         &self,
@@ -102,6 +120,104 @@ impl Db {
                 |row| row.get(0),
             )
             .ok())
+    }
+
+    pub fn timeline(&self, days: u32) -> Result<Vec<TimelineEntry>> {
+        let conn = self.conn.lock().unwrap();
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
+        let mut stmt = conn.prepare(
+            "SELECT DATE(updated_at) as d, source, COUNT(*) as cnt,
+                    SUM(message_count) as msgs
+             FROM sessions WHERE updated_at >= ?1
+             GROUP BY d, source ORDER BY d DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![cutoff], |row| {
+                Ok(TimelineEntry {
+                    date: row.get(0)?,
+                    adapter: row.get(1)?,
+                    sessions: row.get(2)?,
+                    messages: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(rows)
+    }
+
+    pub fn stats_breakdown(&self) -> Result<StatsBreakdown> {
+        let conn = self.conn.lock().unwrap();
+        let mut by_adapter = std::collections::BTreeMap::new();
+        {
+            let mut stmt = conn.prepare(
+                "SELECT source, COUNT(*) FROM sessions GROUP BY source",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            for r in rows.flatten() {
+                by_adapter.insert(r.0, r.1);
+            }
+        }
+        let mut by_project = std::collections::BTreeMap::new();
+        {
+            let mut stmt = conn.prepare(
+                "SELECT project_path, COUNT(*) FROM sessions
+                 WHERE project_path IS NOT NULL GROUP BY project_path
+                 ORDER BY COUNT(*) DESC LIMIT 20",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            for r in rows.flatten() {
+                by_project.insert(r.0, r.1);
+            }
+        }
+        let now = chrono::Utc::now();
+        let d7 = (now - chrono::Duration::days(7)).to_rfc3339();
+        let d30 = (now - chrono::Duration::days(30)).to_rfc3339();
+        let recent_7d: (i64, i64) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(message_count),0) FROM sessions WHERE updated_at >= ?1",
+            params![d7],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap_or((0, 0));
+        let recent_30d: (i64, i64) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(message_count),0) FROM sessions WHERE updated_at >= ?1",
+            params![d30],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap_or((0, 0));
+        Ok(StatsBreakdown {
+            by_adapter,
+            by_project,
+            recent_7d_sessions: recent_7d.0,
+            recent_7d_messages: recent_7d.1,
+            recent_30d_sessions: recent_30d.0,
+            recent_30d_messages: recent_30d.1,
+        })
+    }
+
+    pub fn daily_session_counts(&self, days: u32) -> Result<Vec<TimelineEntry>> {
+        let conn = self.conn.lock().unwrap();
+        let offset = format!("-{days} days");
+        let mut stmt = conn.prepare(
+            "SELECT DATE(updated_at) as day, source, COUNT(*) as cnt,
+                    COALESCE(SUM(message_count), 0) as msgs
+             FROM sessions
+             WHERE updated_at >= DATE('now', ?1)
+             GROUP BY day, source
+             ORDER BY day ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![offset], |row| {
+                Ok(TimelineEntry {
+                    date: row.get(0)?,
+                    adapter: row.get(1)?,
+                    sessions: row.get(2)?,
+                    messages: row.get(3)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 }
 

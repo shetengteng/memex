@@ -31,7 +31,8 @@ impl<'a> Retriever<'a> {
         limit: usize,
         filter: &SearchFilter,
     ) -> Result<Vec<SearchResult>> {
-        let mut results = self.db.fts_search(query, limit * 3)?;
+        let expanded = cjk_expand_query(query);
+        let mut results = self.db.fts_search(&expanded, limit * 3)?;
 
         if let Some(ref adapter) = filter.adapter {
             results.retain(|r| r.adapter.as_deref() == Some(adapter.as_str()));
@@ -129,6 +130,56 @@ fn estimate_age_days(ts: &str, now: &str) -> f64 {
     }
 }
 
+fn is_cjk(c: char) -> bool {
+    matches!(c,
+        '\u{4E00}'..='\u{9FFF}' |
+        '\u{3400}'..='\u{4DBF}' |
+        '\u{F900}'..='\u{FAFF}' |
+        '\u{2F800}'..='\u{2FA1F}'
+    )
+}
+
+/// Expand CJK sequences in query to FTS5 NEAR phrases for better Chinese search.
+/// "redis 数据库" → "redis NEAR(数 据 库, 0)"
+/// Pure CJK "数据库" → "NEAR(数 据 库, 0)"
+fn cjk_expand_query(query: &str) -> String {
+    let chars: Vec<char> = query.chars().collect();
+    if !chars.iter().any(|c| is_cjk(*c)) {
+        return query.to_string();
+    }
+
+    let mut parts = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if is_cjk(chars[i]) {
+            let mut cjk_chars = Vec::new();
+            while i < chars.len() && is_cjk(chars[i]) {
+                cjk_chars.push(chars[i]);
+                i += 1;
+            }
+            if cjk_chars.len() == 1 {
+                parts.push(cjk_chars[0].to_string());
+            } else {
+                let tokens: Vec<String> = cjk_chars.iter().map(|c| c.to_string()).collect();
+                parts.push(format!("NEAR({}, 0)", tokens.join(" ")));
+            }
+        } else if chars[i].is_whitespace() {
+            i += 1;
+        } else {
+            let mut word = String::new();
+            while i < chars.len() && !chars[i].is_whitespace() && !is_cjk(chars[i]) {
+                word.push(chars[i]);
+                i += 1;
+            }
+            if !word.is_empty() {
+                parts.push(word);
+            }
+        }
+    }
+
+    parts.join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,5 +243,29 @@ mod tests {
         ];
         apply_recency_boost(&mut results);
         assert_eq!(results[0].chunk_id, 2);
+    }
+
+    #[test]
+    fn test_cjk_expand_query_pure_chinese() {
+        let expanded = cjk_expand_query("数据库");
+        assert_eq!(expanded, "NEAR(数 据 库, 0)");
+    }
+
+    #[test]
+    fn test_cjk_expand_query_mixed() {
+        let expanded = cjk_expand_query("redis 数据库");
+        assert_eq!(expanded, "redis NEAR(数 据 库, 0)");
+    }
+
+    #[test]
+    fn test_cjk_expand_query_no_cjk() {
+        let expanded = cjk_expand_query("redis pipeline");
+        assert_eq!(expanded, "redis pipeline");
+    }
+
+    #[test]
+    fn test_cjk_expand_single_char() {
+        let expanded = cjk_expand_query("库");
+        assert_eq!(expanded, "库");
     }
 }

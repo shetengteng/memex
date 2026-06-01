@@ -53,6 +53,29 @@ fn test_scan_discovers_transcripts() {
     assert_eq!(sessions.len(), 2);
 }
 
+#[cfg(unix)]
+#[test]
+fn test_scan_returns_empty_on_permission_denied() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("proj-a/agent-transcripts")).unwrap();
+    let restricted_root = tmp.path().to_path_buf();
+    let mut perms = fs::metadata(&restricted_root).unwrap().permissions();
+    perms.set_mode(0o000);
+    fs::set_permissions(&restricted_root, perms).unwrap();
+
+    let adapter = CursorAdapter::with_base_dir(restricted_root.clone());
+    let sessions = adapter.scan().unwrap_or_default();
+    assert!(
+        sessions.is_empty(),
+        "permission denied should yield empty scan, not panic / propagate"
+    );
+
+    let mut restore = fs::metadata(&restricted_root).unwrap().permissions();
+    restore.set_mode(0o755);
+    fs::set_permissions(&restricted_root, restore).unwrap();
+}
+
 #[test]
 fn test_normalize_workspace_name() {
     assert_eq!(

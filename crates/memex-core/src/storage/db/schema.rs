@@ -1,7 +1,11 @@
-//! SQLite schema (v1). Tables, FTS5 virtual table, and shadow triggers that
+//! SQLite schema (v2). Tables, FTS5 virtual table, and shadow triggers that
 //! mirror INSERT / UPDATE / DELETE on `chunks` into `chunks_fts`.
+//!
+//! v2 additions:
+//! - `chunks.summary` column for L1 one-sentence summaries.
+//! - `aggregate_summaries` table for L3 (project) / L4 (periodic) summaries.
 
-pub(super) const SCHEMA_VERSION: u32 = 1;
+pub(super) const SCHEMA_VERSION: u32 = 2;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -43,7 +47,8 @@ CREATE TABLE IF NOT EXISTS chunks (
     redacted_content TEXT,
     position INTEGER NOT NULL DEFAULT 0,
     token_count INTEGER NOT NULL DEFAULT 0,
-    metadata_json TEXT NOT NULL DEFAULT '{}'
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    summary TEXT
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
@@ -103,12 +108,25 @@ CREATE TABLE IF NOT EXISTS redactions (
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES sessions(id),
-    level TEXT NOT NULL,  -- 'L1_chunk' | 'L2_session' | 'L3_project' | 'L4_periodic'
+    level TEXT NOT NULL,  -- 'L2_session'
     title TEXT,
     summary TEXT NOT NULL,
     topics_json TEXT NOT NULL DEFAULT '[]',
     decisions_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     UNIQUE(session_id, level)
+);
+
+CREATE TABLE IF NOT EXISTS aggregate_summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_type TEXT NOT NULL,  -- 'project' | 'daily' | 'weekly'
+    scope_key TEXT NOT NULL,
+    title TEXT,
+    summary TEXT NOT NULL,
+    topics_json TEXT NOT NULL DEFAULT '[]',
+    decisions_json TEXT NOT NULL DEFAULT '[]',
+    session_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    UNIQUE(scope_type, scope_key)
 );
 ";

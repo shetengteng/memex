@@ -26,7 +26,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 
 pub use sessions::{MessageRow, SessionDetail, SessionRow};
-pub use summaries::SummaryRow;
+pub use summaries::{AggregateSummaryRow, SummaryRow};
 
 pub struct Db {
     pub(crate) conn: Mutex<Connection>,
@@ -75,6 +75,42 @@ impl Db {
         }
 
         conn.execute_batch(schema::SCHEMA_SQL)?;
+
+        if let Some(v) = version {
+            Self::run_migrations(&conn, v)?;
+        }
+
+        Ok(())
+    }
+
+    fn run_migrations(conn: &Connection, from: u32) -> Result<()> {
+        if from < 2 {
+            let has_summary: bool = conn
+                .prepare("PRAGMA table_info(chunks)")?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .any(|name| name.as_deref() == Ok("summary"));
+            if !has_summary {
+                conn.execute_batch("ALTER TABLE chunks ADD COLUMN summary TEXT;")?;
+            }
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS aggregate_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scope_type TEXT NOT NULL,
+                    scope_key TEXT NOT NULL,
+                    title TEXT,
+                    summary TEXT NOT NULL,
+                    topics_json TEXT NOT NULL DEFAULT '[]',
+                    decisions_json TEXT NOT NULL DEFAULT '[]',
+                    session_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(scope_type, scope_key)
+                );",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![2u32],
+            )?;
+        }
         Ok(())
     }
 }

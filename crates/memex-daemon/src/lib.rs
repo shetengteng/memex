@@ -3,6 +3,7 @@ pub mod lockfile;
 pub mod logging;
 pub mod routes;
 pub mod watcher;
+pub mod web;
 
 #[cfg(test)]
 mod tests;
@@ -63,14 +64,18 @@ pub async fn run(port: u16) -> Result<()> {
 }
 
 pub fn build_router(db: Arc<Db>) -> Router {
-    Router::new()
+    let api = Router::new()
         .route("/health", get(routes::health))
         .route("/search", get(routes::search))
         .route("/sessions", get(routes::list_sessions))
         .route("/sessions/{id}", get(routes::get_session))
         .route("/stats", get(routes::stats))
+        .route("/stats/breakdown", get(routes::stats_breakdown))
+        .route("/timeline", get(routes::timeline))
         .route("/config", get(routes::get_config).post(routes::set_config))
-        .with_state(db)
+        .with_state(db);
+
+    api.fallback_service(web::static_service())
 }
 
 async fn shutdown_signal() {

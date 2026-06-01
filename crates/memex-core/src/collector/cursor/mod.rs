@@ -49,13 +49,54 @@ impl CursorAdapter {
     fn discover_session_files(&self) -> Result<Vec<PathBuf>> {
         let mut files = Vec::new();
         if !self.base_dir.exists() {
+            debug!(
+                "cursor: base_dir does not exist ({}); skipping",
+                self.base_dir.display()
+            );
             return Ok(files);
         }
 
-        for entry in walkdir::WalkDir::new(&self.base_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        match fs::read_dir(&self.base_dir) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                warn!(
+                    "cursor: permission denied reading {}.\n  \
+                     macOS likely needs Full Disk Access for the terminal running `memex`.\n  \
+                     Grant it via System Settings → Privacy & Security → Full Disk Access,\n  \
+                     then re-run `memex ingest`. Skipping cursor adapter for now.",
+                    self.base_dir.display()
+                );
+                return Ok(files);
+            }
+            Err(e) => {
+                return Err(e).with_context(|| {
+                    format!("cursor: failed to read {}", self.base_dir.display())
+                });
+            }
+        }
+
+        let mut perm_warned = false;
+        for entry in walkdir::WalkDir::new(&self.base_dir).into_iter() {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    if e.io_error()
+                        .is_some_and(|io| io.kind() == std::io::ErrorKind::PermissionDenied)
+                        && !perm_warned
+                    {
+                        warn!(
+                            "cursor: walkdir hit permission denied at {:?}; \
+                             some Cursor session files may be skipped. \
+                             Grant Full Disk Access to fix.",
+                            e.path()
+                        );
+                        perm_warned = true;
+                    } else {
+                        debug!("cursor: walkdir error: {}", e);
+                    }
+                    continue;
+                }
+            };
             let path = entry.path();
             if path.is_file()
                 && path.extension().is_some_and(|ext| ext == "jsonl")

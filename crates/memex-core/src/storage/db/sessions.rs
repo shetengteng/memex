@@ -131,4 +131,63 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         Ok(conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?)
     }
+
+    pub fn list_sessions_by_project(&self, project_path: &str) -> Result<Vec<SessionRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, source, project_path, message_count, updated_at
+             FROM sessions WHERE project_path = ?1
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![project_path], |row| {
+                Ok(SessionRow {
+                    id: row.get(0)?,
+                    source: row.get(1)?,
+                    project_path: row.get(2)?,
+                    message_count: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn distinct_projects(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT project_path FROM sessions
+             WHERE project_path IS NOT NULL ORDER BY project_path",
+        )?;
+        let rows = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn list_sessions_in_range(
+        &self,
+        after: &str,
+        before: &str,
+    ) -> Result<Vec<SessionRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, source, project_path, message_count, updated_at
+             FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![after, before], |row| {
+                Ok(SessionRow {
+                    id: row.get(0)?,
+                    source: row.get(1)?,
+                    project_path: row.get(2)?,
+                    message_count: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
 }

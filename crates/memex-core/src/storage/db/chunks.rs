@@ -34,6 +34,33 @@ impl Db {
         Ok(conn.query_row("SELECT COUNT(*) FROM chunks", [], |row| row.get(0))?)
     }
 
+    pub fn update_chunk_summary(&self, chunk_id: i64, summary: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE chunks SET summary = ?1 WHERE id = ?2",
+            params![summary, chunk_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn chunks_without_summary(&self, min_token_count: u32, limit: usize) -> Result<Vec<(i64, String, String)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, content, redacted_content FROM chunks
+             WHERE summary IS NULL AND token_count >= ?1
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![min_token_count, limit as i64], |row| {
+                let id: i64 = row.get(0)?;
+                let content: String = row.get(1)?;
+                let redacted: Option<String> = row.get(2)?;
+                Ok((id, redacted.unwrap_or(content), "".to_string()))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     pub fn fts_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

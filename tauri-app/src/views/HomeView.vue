@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, onMounted } from 'vue'
-import { Search, Settings, Database, MessageSquare, Layers } from 'lucide-vue-next'
+import { Search, Settings, Database, MessageSquare, Layers, ExternalLink } from 'lucide-vue-next'
 import type { Stats, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import SessionCard from '@/components/SessionCard.vue'
@@ -23,6 +23,22 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+async function openDashboard() {
+  try {
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+    new WebviewWindow('dashboard', {
+      url: 'http://127.0.0.1:9999/',
+      title: 'Memex Dashboard',
+      width: 900,
+      height: 650,
+      resizable: true,
+      center: true,
+    })
+  } catch (e) {
+    window.open('http://127.0.0.1:9999/', '_blank')
+  }
+}
 </script>
 
 <template>
@@ -104,12 +120,21 @@ onMounted(async () => {
       <span class="text-[10px] text-muted-foreground">
         {{ stats.db_exists ? 'Database ready' : 'No database' }}
       </span>
-      <button
-        class="text-xs font-medium text-primary transition-colors hover:underline"
-        @click="navigate('search')"
-      >
-        Open Search
-      </button>
+      <div class="flex items-center gap-3">
+        <button
+          class="inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"
+          @click="openDashboard"
+        >
+          <ExternalLink class="h-3 w-3" />
+          Dashboard
+        </button>
+        <button
+          class="text-xs font-medium text-primary transition-colors hover:underline"
+          @click="navigate('search')"
+        >
+          Open Search
+        </button>
+      </div>
     </div>
   </div>
 </template>

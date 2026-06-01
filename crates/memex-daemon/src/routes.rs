@@ -146,3 +146,57 @@ pub async fn set_config(
 fn err_body(e: &anyhow::Error) -> serde_json::Value {
     serde_json::json!({ "error": e.to_string() })
 }
+
+#[derive(Deserialize)]
+pub struct TimelineParams {
+    #[serde(default = "default_timeline_days")]
+    pub days: u32,
+}
+
+fn default_timeline_days() -> u32 {
+    30
+}
+
+pub async fn timeline(
+    State(db): State<AppState>,
+    Query(params): Query<TimelineParams>,
+) -> impl IntoResponse {
+    match db.timeline(params.days) {
+        Ok(entries) => {
+            let mut grouped: std::collections::BTreeMap<String, serde_json::Value> =
+                std::collections::BTreeMap::new();
+            for e in &entries {
+                let day = grouped
+                    .entry(e.date.clone())
+                    .or_insert_with(|| serde_json::json!({
+                        "date": e.date,
+                        "sessions": 0i64,
+                        "messages": 0i64,
+                        "by_adapter": {}
+                    }));
+                if let Some(obj) = day.as_object_mut() {
+                    *obj.entry("sessions").or_insert(serde_json::json!(0)) =
+                        serde_json::json!(obj["sessions"].as_i64().unwrap_or(0) + e.sessions);
+                    *obj.entry("messages").or_insert(serde_json::json!(0)) =
+                        serde_json::json!(obj["messages"].as_i64().unwrap_or(0) + e.messages);
+                    let adapters = obj
+                        .entry("by_adapter")
+                        .or_insert_with(|| serde_json::json!({}));
+                    if let Some(a) = adapters.as_object_mut() {
+                        a.insert(e.adapter.clone(), serde_json::json!(e.sessions));
+                    }
+                }
+            }
+            let timeline: Vec<serde_json::Value> = grouped.into_values().rev().collect();
+            Json(serde_json::json!({ "timeline": timeline })).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    }
+}
+
+pub async fn stats_breakdown(State(db): State<AppState>) -> impl IntoResponse {
+    match db.stats_breakdown() {
+        Ok(breakdown) => Json(serde_json::json!(breakdown)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    }
+}

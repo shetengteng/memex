@@ -84,6 +84,11 @@ enum Commands {
         #[command(subcommand)]
         action: DaemonAction,
     },
+    /// Manage cloud LLM credentials (`~/.memex/credentials.toml`, chmod 0600)
+    Credentials {
+        #[command(subcommand)]
+        action: CredentialsAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -102,6 +107,27 @@ enum DaemonAction {
     Stop,
     /// Show daemon status
     Status,
+}
+
+#[derive(Subcommand)]
+enum CredentialsAction {
+    /// Set the API key (and optional model) for a cloud provider
+    Set {
+        /// Provider name. Currently supported: anthropic
+        provider: String,
+        /// API key value
+        api_key: String,
+        /// Override the default model
+        #[arg(long)]
+        model: Option<String>,
+    },
+    /// Show which providers are currently configured
+    Show,
+    /// Clear stored credentials for a provider
+    Clear {
+        /// Provider name. Currently supported: anthropic
+        provider: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -141,6 +167,23 @@ fn main() -> Result<()> {
             DaemonAction::Start => commands::daemon::start(cli.json),
             DaemonAction::Stop => commands::daemon::stop(cli.json),
             DaemonAction::Status => commands::daemon::status(cli.json),
+        },
+        Commands::Credentials { action } => match action {
+            CredentialsAction::Set { provider, api_key, model } => match provider.as_str() {
+                "anthropic" => commands::credentials::set_anthropic(&api_key, model, cli.json),
+                other => {
+                    eprintln!("unsupported credentials provider: {} (supported: anthropic)", other);
+                    Ok(())
+                }
+            },
+            CredentialsAction::Show => commands::credentials::show(cli.json),
+            CredentialsAction::Clear { provider } => match provider.as_str() {
+                "anthropic" => commands::credentials::clear_anthropic(cli.json),
+                other => {
+                    eprintln!("unsupported credentials provider: {} (supported: anthropic)", other);
+                    Ok(())
+                }
+            },
         },
     }
 }

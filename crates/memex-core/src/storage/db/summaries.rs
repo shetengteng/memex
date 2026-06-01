@@ -95,4 +95,75 @@ impl Db {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    pub fn upsert_aggregate_summary(
+        &self,
+        scope_type: &str,
+        scope_key: &str,
+        title: Option<&str>,
+        summary: &str,
+        topics: &[String],
+        decisions: &[String],
+        session_count: i64,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let topics_json = serde_json::to_string(topics)?;
+        let decisions_json = serde_json::to_string(decisions)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO aggregate_summaries (scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(scope_type, scope_key) DO UPDATE SET
+                title = excluded.title,
+                summary = excluded.summary,
+                topics_json = excluded.topics_json,
+                decisions_json = excluded.decisions_json,
+                session_count = excluded.session_count,
+                created_at = excluded.created_at",
+            params![scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_aggregate_summary(
+        &self,
+        scope_type: &str,
+        scope_key: &str,
+    ) -> Result<Option<AggregateSummaryRow>> {
+        let conn = self.conn.lock().unwrap();
+        let row = conn.query_row(
+            "SELECT id, scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at
+             FROM aggregate_summaries WHERE scope_type = ?1 AND scope_key = ?2",
+            params![scope_type, scope_key],
+            |row| {
+                let topics_json: String = row.get(5)?;
+                let decisions_json: String = row.get(6)?;
+                Ok(AggregateSummaryRow {
+                    id: row.get(0)?,
+                    scope_type: row.get(1)?,
+                    scope_key: row.get(2)?,
+                    title: row.get(3)?,
+                    summary: row.get(4)?,
+                    topics: serde_json::from_str(&topics_json).unwrap_or_default(),
+                    decisions: serde_json::from_str(&decisions_json).unwrap_or_default(),
+                    session_count: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            },
+        ).ok();
+        Ok(row)
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AggregateSummaryRow {
+    pub id: i64,
+    pub scope_type: String,
+    pub scope_key: String,
+    pub title: Option<String>,
+    pub summary: String,
+    pub topics: Vec<String>,
+    pub decisions: Vec<String>,
+    pub session_count: i64,
+    pub created_at: String,
 }

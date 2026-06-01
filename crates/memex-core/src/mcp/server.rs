@@ -60,6 +60,11 @@ fn handle_request(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
     }
 }
 
+#[cfg(test)]
+pub fn handle_request_for_test(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
+    handle_request(req, db)
+}
+
 fn handle_initialize(req: &JsonRpcRequest) -> JsonRpcResponse {
     JsonRpcResponse::success(
         req.id.clone(),

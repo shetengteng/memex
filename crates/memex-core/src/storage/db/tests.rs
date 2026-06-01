@@ -100,3 +100,84 @@ fn test_summary_not_found() {
     let db = Db::open_in_memory().unwrap();
     assert!(db.get_summary("nonexist", "L2_session").unwrap().is_none());
 }
+
+#[test]
+fn test_chunk_summary_update() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl").unwrap();
+    let hash = blake3::hash(b"content").to_hex().to_string();
+    db.insert_message("m1", "s1", "assistant", "content", None, 0, &hash).unwrap();
+    let chunk = Chunk {
+        id: None,
+        message_id: "m1".into(),
+        session_id: "s1".into(),
+        chunk_type: ChunkType::Text,
+        content: "This is a long piece of content about implementing a Redis caching layer.".into(),
+        redacted_content: None,
+        position: 0,
+        token_count: 50,
+        metadata: ChunkMetadata::default(),
+    };
+    let chunk_id = db.insert_chunk(&chunk).unwrap();
+
+    let unsummarized = db.chunks_without_summary(10, 10).unwrap();
+    assert_eq!(unsummarized.len(), 1);
+    assert_eq!(unsummarized[0].0, chunk_id);
+
+    db.update_chunk_summary(chunk_id, "Implemented Redis caching.").unwrap();
+
+    let after = db.chunks_without_summary(10, 10).unwrap();
+    assert!(after.is_empty());
+}
+
+#[test]
+fn test_chunks_without_summary_respects_min_tokens() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "cursor", None, "/f.jsonl").unwrap();
+    let hash = blake3::hash(b"tiny").to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "tiny", None, 0, &hash).unwrap();
+    let small_chunk = Chunk {
+        id: None,
+        message_id: "m1".into(),
+        session_id: "s1".into(),
+        chunk_type: ChunkType::Text,
+        content: "small".into(),
+        redacted_content: None,
+        position: 0,
+        token_count: 2,
+        metadata: ChunkMetadata::default(),
+    };
+    db.insert_chunk(&small_chunk).unwrap();
+
+    let results = db.chunks_without_summary(50, 10).unwrap();
+    assert!(results.is_empty(), "chunks below min_token_count should be excluded");
+}
+
+#[test]
+fn test_aggregate_summary_upsert_and_get() {
+    let db = Db::open_in_memory().unwrap();
+    db.upsert_aggregate_summary(
+        "project", "/my/project",
+        Some("My Project"), "Project-level summary.",
+        &["rust".into()], &["use FTS5".into()], 3,
+    ).unwrap();
+
+    let s = db.get_aggregate_summary("project", "/my/project").unwrap().unwrap();
+    assert_eq!(s.title.as_deref(), Some("My Project"));
+    assert_eq!(s.session_count, 3);
+
+    db.upsert_aggregate_summary(
+        "project", "/my/project",
+        Some("Updated Project"), "Updated summary.",
+        &["rust".into(), "search".into()], &[], 5,
+    ).unwrap();
+    let updated = db.get_aggregate_summary("project", "/my/project").unwrap().unwrap();
+    assert_eq!(updated.title.as_deref(), Some("Updated Project"));
+    assert_eq!(updated.session_count, 5);
+}
+
+#[test]
+fn test_aggregate_summary_not_found() {
+    let db = Db::open_in_memory().unwrap();
+    assert!(db.get_aggregate_summary("project", "nonexist").unwrap().is_none());
+}
