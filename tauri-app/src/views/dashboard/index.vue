@@ -19,6 +19,7 @@ const sessions = ref<SessionRow[]>([])
 const sessionsLoading = ref(false)
 const detailSession = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
+const refreshing = ref(false)
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadDashboard() {
@@ -45,6 +46,12 @@ async function openSessionDetail(sessionId: string) {
   detailLoading.value = false
 }
 
+async function manualRefresh() {
+  refreshing.value = true
+  await loadDashboard()
+  refreshing.value = false
+}
+
 function switchTab(t: DashTab) {
   tab.value = t
   if (t === 'sessions' && sessions.value.length === 0) loadSessions()
@@ -64,7 +71,15 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 
     <div class="flex-1 overflow-y-auto p-6">
       <div class="mx-auto max-w-5xl">
-        <OverviewTab v-if="tab === 'overview'" :stats="stats" :breakdown="breakdown" :timeline="timeline" />
+        <OverviewTab
+          v-if="tab === 'overview'"
+          :stats="stats"
+          :breakdown="breakdown"
+          :timeline="timeline"
+          :refreshing="refreshing"
+          @refresh="manualRefresh"
+          @navigate-projects="switchTab('sessions')"
+        />
         <SessionsTab v-else-if="tab === 'sessions'" :sessions="sessions" :loading="sessionsLoading" @open-session="openSessionDetail" />
         <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
         <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" />

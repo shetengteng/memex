@@ -13,7 +13,9 @@ pub struct SessionRow {
     pub id: String,
     pub source: String,
     pub project_path: Option<String>,
+    pub title: Option<String>,
     pub message_count: i64,
+    pub created_at: String,
     pub updated_at: String,
 }
 
@@ -63,7 +65,7 @@ impl Db {
     pub fn list_sessions_paged(&self, limit: usize, offset: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, message_count, updated_at
+            "SELECT id, source, project_path, title, message_count, created_at, updated_at
              FROM sessions ORDER BY updated_at DESC LIMIT ?1 OFFSET ?2",
         )?;
         let rows = stmt
@@ -72,8 +74,10 @@ impl Db {
                     id: row.get(0)?,
                     source: row.get(1)?,
                     project_path: row.get(2)?,
-                    message_count: row.get(3)?,
-                    updated_at: row.get(4)?,
+                    title: row.get(3)?,
+                    message_count: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -139,7 +143,7 @@ impl Db {
     pub fn list_sessions_by_project(&self, project_path: &str) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, message_count, updated_at
+            "SELECT id, source, project_path, title, message_count, created_at, updated_at
              FROM sessions WHERE project_path = ?1
              ORDER BY updated_at DESC",
         )?;
@@ -149,8 +153,10 @@ impl Db {
                     id: row.get(0)?,
                     source: row.get(1)?,
                     project_path: row.get(2)?,
-                    message_count: row.get(3)?,
-                    updated_at: row.get(4)?,
+                    title: row.get(3)?,
+                    message_count: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -176,7 +182,7 @@ impl Db {
     ) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, message_count, updated_at
+            "SELECT id, source, project_path, title, message_count, created_at, updated_at
              FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
              ORDER BY updated_at DESC",
         )?;
@@ -186,8 +192,10 @@ impl Db {
                     id: row.get(0)?,
                     source: row.get(1)?,
                     project_path: row.get(2)?,
-                    message_count: row.get(3)?,
-                    updated_at: row.get(4)?,
+                    title: row.get(3)?,
+                    message_count: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

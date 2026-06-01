@@ -12,7 +12,9 @@ export interface SessionRow {
   id: string
   source: string
   project_path: string | null
+  title: string | null
   message_count: number
+  created_at: string
   updated_at: string
 }
 

@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RefreshCw } from 'lucide-vue-next'
 import type { Stats, StatsBreakdown, TimelineEntry } from '@/types'
 import { formatNumber, adapterLabel } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 const props = defineProps<{
   stats: Stats | null
   breakdown: StatsBreakdown | null
   timeline: TimelineEntry[]
+  refreshing?: boolean
+}>()
+
+const emit = defineEmits<{
+  refresh: []
+  navigateProjects: []
 }>()
 
 const adapterColors: Record<string, string> = {
@@ -32,87 +40,132 @@ const timelineDates = computed(() => {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, v]) => ({ date, ...v }))
 })
+
+const projectCount = computed(() => {
+  if (!props.breakdown) return 0
+  return Object.keys(props.breakdown.by_project).length
+})
+
+const adapterEntries = computed(() => {
+  if (!props.breakdown) return []
+  return Object.entries(props.breakdown.by_adapter).sort((a, b) => b[1] - a[1])
+})
+
+const totalSessions = computed(() => props.stats?.sessions ?? 0)
 </script>
 
 <template>
-  <h2 class="mb-5 text-xl font-bold tracking-tight">Dashboard</h2>
+  <div class="mb-5 flex items-center justify-between">
+    <h2 class="text-xl font-bold tracking-tight">Dashboard</h2>
+    <Button variant="outline" size="sm" @click="emit('refresh')" :disabled="refreshing">
+      <RefreshCw class="mr-1.5 h-3.5 w-3.5" :class="{ 'animate-spin': refreshing }" />
+      Refresh Data
+    </Button>
+  </div>
 
+  <!-- Stat Cards -->
   <div class="grid grid-cols-4 gap-3">
     <div class="rounded-lg border border-border bg-card p-4">
-      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sessions</div>
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Sessions</div>
       <div class="mt-2 text-2xl font-bold">{{ formatNumber(stats?.sessions ?? 0) }}</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">AI: {{ formatNumber(stats?.sessions ?? 0) }}</div>
+    </div>
+    <div class="cursor-pointer rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/30" @click="emit('navigateProjects')">
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Projects</div>
+      <div class="mt-2 text-2xl font-bold">{{ projectCount }}</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">click to view</div>
     </div>
     <div class="rounded-lg border border-border bg-card p-4">
-      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Messages</div>
-      <div class="mt-2 text-2xl font-bold">{{ formatNumber(stats?.messages ?? 0) }}</div>
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Last 7 Days</div>
+      <div class="mt-2 text-2xl font-bold">{{ formatNumber(breakdown?.recent_7d_sessions ?? 0) }}</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">{{ formatNumber(breakdown?.recent_7d_messages ?? 0) }} messages</div>
     </div>
     <div class="rounded-lg border border-border bg-card p-4">
-      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Chunks</div>
-      <div class="mt-2 text-2xl font-bold">{{ formatNumber(stats?.chunks ?? 0) }}</div>
-    </div>
-    <div class="rounded-lg border border-border bg-card p-4">
-      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">LLM Summaries</div>
-      <div class="mt-2 text-2xl font-bold text-primary">{{ stats?.summaries ?? 0 }}<span class="text-sm text-muted-foreground">/{{ stats?.sessions ?? 0 }}</span></div>
-      <div v-if="stats?.llm_provider" class="mt-1 text-[11px] text-muted-foreground">
-        <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500" />{{ stats.llm_provider }}
-      </div>
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Last 30 Days</div>
+      <div class="mt-2 text-2xl font-bold">{{ formatNumber(breakdown?.recent_30d_sessions ?? 0) }}</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">{{ formatNumber(breakdown?.recent_30d_messages ?? 0) }} messages</div>
     </div>
   </div>
 
+  <!-- Timeline -->
   <div class="mt-5 rounded-lg border border-border bg-card p-5">
     <h3 class="mb-4 text-sm font-semibold">Daily Activity (last 30 days)</h3>
-    <div v-if="timelineDates.length" class="flex h-32 items-end gap-px">
+    <div v-if="timelineDates.length" class="flex h-36 items-end gap-px">
       <div v-for="d in timelineDates" :key="d.date" class="group relative flex flex-1 flex-col items-center">
         <div
           class="w-full rounded-t bg-primary/50 transition-all group-hover:bg-primary"
           :style="{ height: Math.max((d.sessions / timelineMax) * 100, 3) + '%', minHeight: '2px' }"
         />
-        <div class="absolute bottom-full mb-1 hidden rounded border border-border bg-popover px-2 py-1 text-[10px] shadow-lg group-hover:block">
-          {{ d.date.slice(5) }} · {{ d.sessions }} sessions
+        <div class="absolute bottom-full z-10 mb-1 hidden whitespace-nowrap rounded border border-border bg-popover px-2 py-1.5 text-[10px] shadow-lg group-hover:block">
+          <div class="font-semibold">{{ d.date }}</div>
+          <div>{{ d.sessions }} AI sessions</div>
+          <div class="text-muted-foreground">{{ d.messages }} messages</div>
+        </div>
+        <div class="mt-1 origin-top-left -rotate-45 text-[8px] text-muted-foreground opacity-0 group-hover:opacity-100">
+          {{ d.date.slice(5) }}
         </div>
       </div>
     </div>
-    <div v-else class="flex h-32 items-center justify-center text-xs text-muted-foreground">No data</div>
+    <div v-else class="flex h-36 items-center justify-center text-xs text-muted-foreground">No activity data</div>
   </div>
 
-  <div v-if="breakdown" class="mt-5 grid grid-cols-3 gap-3">
+  <!-- Breakdown -->
+  <div v-if="breakdown" class="mt-5 grid grid-cols-2 gap-3">
+    <!-- By IDE/Tool -->
     <div class="rounded-lg border border-border bg-card p-4">
-      <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">By Source</h4>
-      <div class="space-y-2">
-        <div v-for="[name, count] in Object.entries(breakdown.by_adapter).sort((a, b) => b[1] - a[1])" :key="name" class="flex items-center gap-2 text-xs">
-          <span class="h-2 w-2 shrink-0 rounded-full" :style="{ background: adapterColors[name] ?? '#71717a' }" />
-          <span class="min-w-0 truncate">{{ adapterLabel(name) }}</span>
+      <h4 class="mb-3 text-sm font-semibold">By IDE / Tool</h4>
+      <div class="space-y-2.5">
+        <div v-for="[name, count] in adapterEntries" :key="name" class="flex items-center gap-2.5 text-xs">
+          <span class="h-3 w-3 shrink-0 rounded" :style="{ background: adapterColors[name] ?? '#71717a' }" />
+          <span class="min-w-0 truncate font-medium">{{ adapterLabel(name) }}</span>
           <div class="flex-1">
-            <div class="h-1 overflow-hidden rounded-full bg-muted">
-              <div class="h-full rounded-full" :style="{ width: (count / (stats?.sessions ?? 1) * 100) + '%', background: adapterColors[name] ?? '#71717a' }" />
+            <div class="h-2 overflow-hidden rounded-full bg-muted">
+              <div class="h-full rounded-full transition-all" :style="{ width: (count / totalSessions * 100) + '%', background: adapterColors[name] ?? '#71717a' }" />
             </div>
           </div>
-          <span class="shrink-0 text-muted-foreground">{{ count }}</span>
+          <span class="shrink-0 font-mono text-muted-foreground">{{ count }} ({{ Math.round(count / totalSessions * 100) }}%)</span>
         </div>
       </div>
     </div>
+    <!-- Top Projects -->
     <div class="rounded-lg border border-border bg-card p-4">
-      <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Top Projects</h4>
-      <div class="space-y-2">
-        <div v-for="[name, count] in Object.entries(breakdown.by_project).sort((a, b) => b[1] - a[1]).slice(0, 8)" :key="name" class="flex items-center gap-2 text-xs">
-          <span class="h-2 w-2 shrink-0 rounded-full bg-primary" />
-          <span class="min-w-0 truncate" :title="name">{{ name.split('/').pop() }}</span>
-          <span class="ml-auto shrink-0 text-muted-foreground">{{ count }}</span>
+      <h4 class="mb-3 text-sm font-semibold">Top Projects</h4>
+      <div class="space-y-2.5">
+        <div v-for="[name, count] in Object.entries(breakdown.by_project).sort((a, b) => b[1] - a[1]).slice(0, 10)" :key="name" class="flex items-center gap-2.5 text-xs">
+          <span class="h-3 w-3 shrink-0 rounded bg-primary/60" />
+          <span class="min-w-0 truncate font-medium" :title="name">{{ name.split('/').pop() }}</span>
+          <div class="flex-1">
+            <div class="h-2 overflow-hidden rounded-full bg-muted">
+              <div class="h-full rounded-full bg-primary/60 transition-all" :style="{ width: (count / totalSessions * 100) + '%' }" />
+            </div>
+          </div>
+          <span class="shrink-0 font-mono text-muted-foreground">{{ count }}</span>
         </div>
       </div>
     </div>
-    <div class="rounded-lg border border-border bg-card p-4">
-      <h4 class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h4>
-      <div class="space-y-3">
-        <div>
-          <div class="text-[11px] text-muted-foreground">Last 7 Days</div>
-          <div class="text-xl font-bold">{{ formatNumber(breakdown.recent_7d_sessions) }} <span class="text-xs font-normal text-muted-foreground">sessions</span></div>
-          <div class="text-[11px] text-muted-foreground">{{ formatNumber(breakdown.recent_7d_messages) }} messages</div>
-        </div>
-        <div>
-          <div class="text-[11px] text-muted-foreground">Last 30 Days</div>
-          <div class="text-xl font-bold">{{ formatNumber(breakdown.recent_30d_sessions) }} <span class="text-xs font-normal text-muted-foreground">sessions</span></div>
-          <div class="text-[11px] text-muted-foreground">{{ formatNumber(breakdown.recent_30d_messages) }} messages</div>
+  </div>
+
+  <!-- LLM Status -->
+  <div v-if="stats" class="mt-5 rounded-lg border border-border bg-card p-4">
+    <h4 class="mb-2 text-sm font-semibold">LLM Summary</h4>
+    <div class="flex items-center gap-4 text-xs">
+      <div>
+        <span class="text-muted-foreground">Provider: </span>
+        <span :class="stats.llm_provider ? 'text-primary font-medium' : 'text-warning'">
+          {{ stats.llm_provider ?? 'disabled' }}
+        </span>
+      </div>
+      <div>
+        <span class="text-muted-foreground">Summaries: </span>
+        <span class="font-medium">{{ stats.summaries }}/{{ stats.sessions }}</span>
+      </div>
+      <div>
+        <span class="text-muted-foreground">Chunks: </span>
+        <span class="font-medium">{{ formatNumber(stats.chunks) }}</span>
+      </div>
+      <div v-if="stats.llm_provider" class="ml-auto">
+        <div class="h-2 w-32 overflow-hidden rounded-full bg-muted">
+          <div class="h-full rounded-full bg-primary transition-all" :style="{ width: (stats.sessions > 0 ? stats.summaries / stats.sessions * 100 : 0) + '%' }" />
         </div>
       </div>
     </div>
