@@ -200,3 +200,37 @@ pub async fn stats_breakdown(State(db): State<AppState>) -> impl IntoResponse {
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
     }
 }
+
+pub async fn summary_stats(State(db): State<AppState>) -> impl IntoResponse {
+    let session_summaries = db.summary_count().unwrap_or(0);
+    let chunk_summaries = db.chunks_with_summary_count().unwrap_or(0);
+    let sessions_total = db.session_count().unwrap_or(0);
+    let chunks_total = db.chunk_count().unwrap_or(0);
+
+    let memex_dir = memex_core::memex_dir();
+    let config = memex_core::config::MemexConfig::load(&memex_dir).unwrap_or_default();
+    let provider = memex_core::llm::select_provider(&config.llm, &memex_dir)
+        .map(|p| p.name().to_string());
+
+    Json(serde_json::json!({
+        "session_summaries": session_summaries,
+        "chunk_summaries": chunk_summaries,
+        "sessions_total": sessions_total,
+        "chunks_total": chunks_total,
+        "llm_provider": provider,
+        "ollama_enabled": config.llm.ollama_enabled,
+        "ollama_model": config.llm.ollama_model,
+        "cloud_fallback": config.llm.cloud_fallback,
+    }))
+}
+
+pub async fn get_session_summary(
+    State(db): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match db.get_summary(&id, "L2_session") {
+        Ok(Some(summary)) => Json(serde_json::json!(summary)).into_response(),
+        Ok(None) => Json(serde_json::json!(null)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    }
+}

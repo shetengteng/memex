@@ -139,13 +139,31 @@ fn is_cjk(c: char) -> bool {
     )
 }
 
+fn needs_quoting(word: &str) -> bool {
+    word.contains('-')
+        || word.contains('.')
+        || word.contains('/')
+        || word.contains(':')
+        || word.contains('@')
+        || word.contains('_')
+}
+
+fn quote_token(word: &str) -> String {
+    if needs_quoting(word) {
+        format!("\"{}\"", word)
+    } else {
+        word.to_string()
+    }
+}
+
 /// Expand CJK sequences in query to FTS5 NEAR phrases for better Chinese search.
+/// Also quotes tokens containing special FTS5 operators (e.g. `-`, `.`).
 /// "redis 数据库" → "redis NEAR(数 据 库, 0)"
-/// Pure CJK "数据库" → "NEAR(数 据 库, 0)"
+/// "ZOOM-1248726" → "\"ZOOM-1248726\""
 fn cjk_expand_query(query: &str) -> String {
     let chars: Vec<char> = query.chars().collect();
     if !chars.iter().any(|c| is_cjk(*c)) {
-        return query.to_string();
+        return query.split_whitespace().map(quote_token).collect::<Vec<_>>().join(" ");
     }
 
     let mut parts = Vec::new();
@@ -172,7 +190,7 @@ fn cjk_expand_query(query: &str) -> String {
                 i += 1;
             }
             if !word.is_empty() {
-                parts.push(word);
+                parts.push(quote_token(&word));
             }
         }
     }
@@ -267,5 +285,17 @@ mod tests {
     fn test_cjk_expand_single_char() {
         let expanded = cjk_expand_query("库");
         assert_eq!(expanded, "库");
+    }
+
+    #[test]
+    fn test_query_with_hyphen_is_quoted() {
+        let expanded = cjk_expand_query("ZOOM-1248726");
+        assert_eq!(expanded, "\"ZOOM-1248726\"");
+    }
+
+    #[test]
+    fn test_query_mixed_with_special_chars() {
+        let expanded = cjk_expand_query("user@email.com search");
+        assert_eq!(expanded, "\"user@email.com\" search");
     }
 }

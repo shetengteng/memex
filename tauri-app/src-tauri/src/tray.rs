@@ -40,11 +40,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Memex — Local AI Memory Hub")
-        .icon(
-            app.default_window_icon()
-                .cloned()
-                .unwrap_or_else(|| tauri::image::Image::new_owned(vec![0, 0, 0, 0], 1, 1)),
-        )
+        .icon(tauri::image::Image::from_bytes(include_bytes!("../icons/tray-22x22.png")).unwrap())
         .icon_as_template(true)
         .title("")
         .on_tray_icon_event(|tray, event| {
@@ -68,7 +64,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
                         tauri::Size::Physical(s) => (s.width as f64, s.height as f64),
                         tauri::Size::Logical(s) => (s.width, s.height),
                     };
-                    let win_w = 380.0_f64;
+                    let win_w = 420.0_f64;
                     let x = ix - win_w / 2.0 + iw / 2.0;
                     let y = iy + ih;
                     let _ = win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));

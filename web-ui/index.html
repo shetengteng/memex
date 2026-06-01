@@ -4,248 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Memex — AI Session Memory</title>
-<style>
-:root {
-  --bg: #0d1117;
-  --bg-card: #161b22;
-  --bg-hover: #1c2333;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text-dim: #8b949e;
-  --text-muted: #484f58;
-  --accent: #58a6ff;
-  --accent-dim: #1f6feb;
-  --green: #3fb950;
-  --orange: #d29922;
-  --red: #f85149;
-  --purple: #bc8cff;
-  --cyan: #39d2c0;
-  --radius: 8px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  min-height: 100vh;
-}
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-.app { display: flex; min-height: 100vh; }
-.sidebar {
-  width: 200px;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border);
-  padding: 20px 0;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  overflow-y: auto;
-  z-index: 10;
-}
-.main { margin-left: 200px; flex: 1; padding: 24px 32px; min-width: 0; }
-
-.logo { padding: 0 16px 16px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
-.logo h1 { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
-.logo span { color: var(--accent); }
-.logo p { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-.nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px; cursor: pointer;
-  color: var(--text-dim); font-size: 14px;
-  transition: all 0.15s;
-  border-right: 2px solid transparent;
-}
-.nav-item:hover { background: var(--bg-hover); color: var(--text); }
-.nav-item.active { color: var(--accent); background: rgba(88,166,255,0.08); border-right-color: var(--accent); }
-.nav-icon { width: 18px; text-align: center; font-size: 15px; }
-
-.page { display: none; }
-.page.active { display: block; }
-.page-title { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
-
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
-.card {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 18px;
-  box-shadow: var(--shadow);
-}
-.card-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
-.card-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
-.card-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
-
-.toolbar {
-  display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
-}
-.search-box {
-  flex: 1; min-width: 200px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 8px 14px;
-  color: var(--text); font-size: 14px;
-  outline: none; transition: border-color 0.2s;
-}
-.search-box:focus { border-color: var(--accent); }
-.search-box::placeholder { color: var(--text-muted); }
-.filter-select {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 8px 12px;
-  color: var(--text); font-size: 13px;
-  outline: none; cursor: pointer;
-}
-.btn {
-  background: var(--accent-dim); color: #fff; border: none;
-  border-radius: var(--radius); padding: 8px 16px;
-  font-size: 13px; cursor: pointer; font-weight: 500;
-  transition: background 0.15s;
-}
-.btn:hover { background: var(--accent); }
-.btn-ghost {
-  background: transparent; color: var(--text-dim);
-  border: 1px solid var(--border);
-}
-.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-
-.table-wrap { overflow-x: auto; }
-table {
-  width: 100%; border-collapse: collapse;
-  background: var(--bg-card); border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-th {
-  text-align: left; padding: 10px 14px;
-  font-size: 11px; color: var(--text-dim);
-  text-transform: uppercase; letter-spacing: 0.5px;
-  background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-td {
-  padding: 10px 14px; font-size: 13px;
-  border-bottom: 1px solid var(--border);
-  max-width: 400px;
-}
-tr:hover td { background: var(--bg-hover); }
-tr:last-child td { border-bottom: none; }
-tr { cursor: pointer; }
-
-.badge {
-  display: inline-block; padding: 2px 8px;
-  border-radius: 12px; font-size: 11px; font-weight: 600;
-  white-space: nowrap;
-}
-.badge-claude_code { background: rgba(88,166,255,0.15); color: var(--accent); }
-.badge-cursor { background: rgba(188,140,255,0.15); color: var(--purple); }
-.badge-codex { background: rgba(57,210,192,0.15); color: var(--cyan); }
-.badge-opencode { background: rgba(63,185,80,0.15); color: var(--green); }
-.badge-aider { background: rgba(210,153,34,0.15); color: var(--orange); }
-.badge-continue { background: rgba(74,222,128,0.15); color: #4ade80; }
-.badge-cline { background: rgba(244,114,182,0.15); color: #f472b6; }
-
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.detail-back { cursor: pointer; color: var(--accent); font-size: 13px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 4px; }
-.detail-header { margin-bottom: 24px; }
-.detail-header h2 { font-size: 20px; margin-bottom: 8px; }
-.detail-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); }
-.detail-section { margin-bottom: 20px; }
-.detail-section h3 { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-.detail-section .content {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px;
-  font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
-}
-
-.chart-container {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px; margin-bottom: 24px;
-}
-.chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
-.bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
-.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
-.bar {
-  width: 100%; min-height: 2px;
-  background: var(--accent-dim); border-radius: 2px 2px 0 0;
-  transition: height 0.3s;
-  cursor: pointer;
-  position: relative;
-}
-.bar:hover { background: var(--accent); }
-.bar-label { font-size: 9px; color: var(--text-muted); margin-top: 4px; writing-mode: vertical-rl; max-height: 40px; overflow: hidden; }
-.bar-tooltip {
-  display: none; position: absolute; bottom: 100%; left: 50%;
-  transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 4px; padding: 4px 8px; font-size: 11px; white-space: nowrap;
-  pointer-events: none; z-index: 100;
-}
-.bar:hover .bar-tooltip { display: block; }
-
-.pagination {
-  display: flex; gap: 8px; margin-top: 16px; align-items: center;
-  justify-content: center;
-}
-.pagination .info { font-size: 13px; color: var(--text-dim); }
-
-.pie-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
-.pie-card {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px; flex: 1; min-width: 240px;
-}
-.pie-card h3 { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-.pie-items { display: flex; flex-direction: column; gap: 8px; }
-.pie-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
-.pie-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.pie-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
-.pie-bar-fill { height: 100%; border-radius: 3px; }
-.pie-count { font-size: 12px; color: var(--text-dim); min-width: 50px; text-align: right; }
-.pie-label { min-width: 80px; }
-
-.search-result {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
-  cursor: pointer; transition: border-color 0.15s;
-}
-.search-result:hover { border-color: var(--accent); }
-.search-result .result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
-.search-result .result-snippet {
-  font-size: 13px; color: var(--text-dim); line-height: 1.6;
-  max-height: 4.8em; overflow: hidden;
-}
-.search-result .result-snippet b, .search-result .result-snippet mark {
-  color: var(--accent); background: none; font-weight: 600;
-}
-.search-result .result-meta { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
-
-.loading { text-align: center; padding: 40px; color: var(--text-dim); }
-.empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-
-@media (max-width: 768px) {
-  .sidebar { display: none; }
-  .main { margin-left: 0; padding: 16px; }
-  .cards { grid-template-columns: repeat(2, 1fr); }
-  .pie-row { flex-direction: column; }
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
   <div class="sidebar">
-    <div class="logo">
+    <div class="sidebar-header">
       <h1><span>M</span>EMEX</h1>
       <p>AI Session Memory</p>
     </div>
-    <div class="nav-item active" data-page="dashboard">
-      <span class="nav-icon">&#9632;</span> Dashboard
+    <div class="sidebar-nav">
+      <div class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">&#9632;</span> Dashboard
+      </div>
+      <div class="nav-item" data-page="sessions">
+        <span class="nav-icon">&#9776;</span> Sessions
+      </div>
+      <div class="nav-item" data-page="search">
+        <span class="nav-icon">&#128269;</span> Search
+      </div>
     </div>
-    <div class="nav-item" data-page="sessions">
-      <span class="nav-icon">&#9776;</span> Sessions
-    </div>
-    <div class="nav-item" data-page="search">
-      <span class="nav-icon">&#128269;</span> Search
+    <div class="sidebar-footer">
+      Memex v0.1.0 &middot; Local Only
     </div>
   </div>
 
@@ -265,10 +45,23 @@ tr { cursor: pointer; }
     <div class="page" id="page-sessions">
       <h1 class="page-title">Sessions</h1>
       <div class="toolbar">
-        <select class="filter-select" id="sessions-limit">
-          <option value="20">20 per page</option>
+        <input type="search" class="search-box" id="sessions-search"
+          placeholder="Filter by project, source, ID..."
+          style="flex:1;min-width:200px" oninput="filterSessions()">
+        <select class="filter-select" id="sessions-source-filter" onchange="filterSessions()">
+          <option value="">All Sources</option>
+          <option value="claude_code">Claude Code</option>
+          <option value="cursor">Cursor</option>
+          <option value="codex">Codex</option>
+          <option value="opencode">OpenCode</option>
+          <option value="aider">Aider</option>
+          <option value="continue_dev">Continue</option>
+          <option value="cline">Cline</option>
+        </select>
+        <select class="filter-select" id="sessions-limit" onchange="loadSessions()">
           <option value="50">50 per page</option>
           <option value="100">100 per page</option>
+          <option value="200">200 per page</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="loadSessions()">Refresh</button>
       </div>
@@ -286,6 +79,7 @@ tr { cursor: pointer; }
           <tbody id="sessions-body"></tbody>
         </table>
       </div>
+      <div class="pagination" id="sessions-pagination"></div>
     </div>
 
     <!-- Session Detail -->
@@ -298,7 +92,9 @@ tr { cursor: pointer; }
     <div class="page" id="page-search">
       <h1 class="page-title">Search</h1>
       <div class="toolbar">
-        <input class="search-box" id="search-input" placeholder="Search across all sessions..." onkeydown="if(event.key==='Enter')doSearch()">
+        <input type="search" class="search-box" id="search-input"
+          placeholder="Search across all sessions..."
+          style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')doSearch()">
         <select class="filter-select" id="search-adapter">
           <option value="">All Sources</option>
           <option value="claude_code">Claude Code</option>
@@ -306,301 +102,19 @@ tr { cursor: pointer; }
           <option value="codex">Codex</option>
           <option value="opencode">OpenCode</option>
           <option value="aider">Aider</option>
-          <option value="continue">Continue</option>
+          <option value="continue_dev">Continue</option>
           <option value="cline">Cline</option>
         </select>
-        <input class="search-box" id="search-project" placeholder="Project filter..." style="flex:0.5;min-width:120px">
+        <input type="text" class="search-box" id="search-project"
+          placeholder="Project filter..." style="flex:0.4;min-width:120px">
         <button class="btn" onclick="doSearch()">Search</button>
       </div>
       <div id="search-results">
-        <div class="empty">Enter a query and press Enter or click Search</div>
+        <div class="empty">Enter a query and press Enter to search across all sessions</div>
       </div>
     </div>
   </div>
 </div>
-
-<script>
-const API = '';
-
-function showPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const page = document.getElementById('page-' + name);
-  if (page) page.classList.add('active');
-  const nav = document.querySelector('[data-page="' + name + '"]');
-  if (nav) nav.classList.add('active');
-}
-
-document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => {
-    const page = item.dataset.page;
-    showPage(page);
-    if (page === 'sessions') loadSessions();
-  });
-});
-
-const ADAPTER_COLORS = {
-  claude_code: 'var(--accent)',
-  cursor: 'var(--purple)',
-  codex: 'var(--cyan)',
-  opencode: 'var(--green)',
-  aider: 'var(--orange)',
-  continue: '#4ade80',
-  cline: '#f472b6',
-};
-
-function badgeFor(source) {
-  const cls = 'badge badge-' + (source || 'unknown');
-  const label = (source || 'unknown').replace('_', ' ');
-  return '<span class="' + cls + '">' + label + '</span>';
-}
-
-function relativeTime(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = (now - d) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
-  return d.toLocaleDateString();
-}
-
-function shortId(id) {
-  if (!id) return '-';
-  return id.length > 12 ? id.substring(0, 12) + '...' : id;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-async function api(path) {
-  const resp = await fetch(API + path);
-  if (!resp.ok) throw new Error('API error: ' + resp.status);
-  return resp.json();
-}
-
-async function loadDashboard() {
-  try {
-    const [stats, breakdown, timeline] = await Promise.all([
-      api('/stats'),
-      api('/stats/breakdown'),
-      api('/timeline?days=30'),
-    ]);
-    renderStatsCards(stats);
-    renderTimeline(timeline.timeline || []);
-    renderBreakdown(breakdown);
-  } catch (e) {
-    document.getElementById('stats-cards').innerHTML =
-      '<div class="card"><div class="card-label">Error</div><div class="card-sub">' + escapeHtml(e.message) + '</div></div>';
-  }
-}
-
-function renderStatsCards(stats) {
-  const el = document.getElementById('stats-cards');
-  el.innerHTML = [
-    card('Total Sessions', stats.sessions, ''),
-    card('Messages', stats.messages, ''),
-    card('Chunks', stats.chunks, 'indexed'),
-    card('Sources', stats.sources, 'adapters'),
-  ].join('');
-}
-
-function card(label, value, sub) {
-  return '<div class="card"><div class="card-label">' + label + '</div>' +
-    '<div class="card-value">' + (value || 0).toLocaleString() + '</div>' +
-    (sub ? '<div class="card-sub">' + sub + '</div>' : '') + '</div>';
-}
-
-function renderTimeline(timeline) {
-  const el = document.getElementById('timeline-chart');
-  if (!timeline.length) {
-    el.innerHTML = '<div class="empty" style="padding:20px">No data</div>';
-    return;
-  }
-  const max = Math.max(...timeline.map(d => d.sessions || d.total || 0), 1);
-  el.innerHTML = timeline.map(d => {
-    const v = d.sessions || d.total || 0;
-    const pct = Math.max((v / max) * 100, 2);
-    const dateLabel = (d.date || '').slice(5);
-    const adapters = d.by_adapter
-      ? Object.entries(d.by_adapter).map(([k, c]) => k + ': ' + c).join(', ')
-      : '';
-    return '<div class="bar-col">' +
-      '<div class="bar" style="height:' + pct + '%">' +
-        '<div class="bar-tooltip">' + d.date + '<br>' + v + ' sessions' + (adapters ? '<br>' + adapters : '') + '</div>' +
-      '</div>' +
-      '<div class="bar-label">' + dateLabel + '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function renderBreakdown(bd) {
-  const el = document.getElementById('breakdown-row');
-  let html = '';
-
-  if (bd.by_adapter) {
-    const total = Object.values(bd.by_adapter).reduce((a, b) => a + b, 0) || 1;
-    html += '<div class="pie-card"><h3>By Source</h3><div class="pie-items">';
-    for (const [name, count] of Object.entries(bd.by_adapter).sort((a, b) => b[1] - a[1])) {
-      const pct = (count / total * 100).toFixed(0);
-      const color = ADAPTER_COLORS[name] || 'var(--text-dim)';
-      html += '<div class="pie-item">' +
-        '<div class="pie-dot" style="background:' + color + '"></div>' +
-        '<span class="pie-label">' + name + '</span>' +
-        '<div class="pie-bar-bg"><div class="pie-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
-        '<span class="pie-count">' + count + ' (' + pct + '%)</span>' +
-      '</div>';
-    }
-    html += '</div></div>';
-  }
-
-  if (bd.by_project) {
-    const entries = Object.entries(bd.by_project).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const total = entries.reduce((a, [, b]) => a + b, 0) || 1;
-    html += '<div class="pie-card"><h3>Top Projects</h3><div class="pie-items">';
-    for (const [name, count] of entries) {
-      const pct = (count / total * 100).toFixed(0);
-      const label = name.split('/').pop() || name;
-      html += '<div class="pie-item">' +
-        '<div class="pie-dot" style="background:var(--accent)"></div>' +
-        '<span class="pie-label truncate" title="' + escapeHtml(name) + '">' + escapeHtml(label) + '</span>' +
-        '<div class="pie-bar-bg"><div class="pie-bar-fill" style="width:' + pct + '%;background:var(--accent-dim)"></div></div>' +
-        '<span class="pie-count">' + count + '</span>' +
-      '</div>';
-    }
-    html += '</div></div>';
-  }
-
-  const r7 = bd.recent_7d_sessions || 0;
-  const r30 = bd.recent_30d_sessions || 0;
-  const m7 = bd.recent_7d_messages || 0;
-  const m30 = bd.recent_30d_messages || 0;
-  html += '<div class="pie-card"><h3>Recent Activity</h3><div class="pie-items" style="gap:14px">' +
-    '<div><div class="card-label">Last 7 Days</div><div style="font-size:20px;font-weight:700;margin-top:4px">' + r7 + ' sessions</div><div class="card-sub">' + m7 + ' messages</div></div>' +
-    '<div><div class="card-label">Last 30 Days</div><div style="font-size:20px;font-weight:700;margin-top:4px">' + r30 + ' sessions</div><div class="card-sub">' + m30 + ' messages</div></div>' +
-  '</div></div>';
-
-  el.innerHTML = html;
-}
-
-async function loadSessions() {
-  const limit = document.getElementById('sessions-limit').value;
-  const body = document.getElementById('sessions-body');
-  body.innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
-  try {
-    const data = await api('/sessions?limit=' + limit);
-    const sessions = data.sessions || [];
-    if (!sessions.length) {
-      body.innerHTML = '<tr><td colspan="5" class="empty">No sessions found</td></tr>';
-      return;
-    }
-    body.innerHTML = sessions.map(s =>
-      '<tr onclick="showSessionDetail(\'' + escapeHtml(s.id) + '\')">' +
-        '<td>' + badgeFor(s.source) + '</td>' +
-        '<td class="truncate" style="max-width:200px" title="' + escapeHtml(s.project_path || '') + '">' + escapeHtml((s.project_path || '').split('/').pop() || '-') + '</td>' +
-        '<td>' + (s.message_count || 0) + '</td>' +
-        '<td>' + relativeTime(s.updated_at) + '</td>' +
-        '<td style="font-family:monospace;font-size:12px;color:var(--text-dim)">' + shortId(s.id) + '</td>' +
-      '</tr>'
-    ).join('');
-  } catch (e) {
-    body.innerHTML = '<tr><td colspan="5" class="empty">Error: ' + escapeHtml(e.message) + '</td></tr>';
-  }
-}
-
-async function showSessionDetail(id) {
-  showPage('session-detail');
-  const el = document.getElementById('session-detail-content');
-  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const s = await api('/sessions/' + encodeURIComponent(id));
-    let html = '<div class="detail-header">' +
-      '<h2>' + badgeFor(s.source) + ' ' + escapeHtml((s.project_path || '').split('/').pop() || s.id) + '</h2>' +
-      '<div class="detail-meta">' +
-        '<span>ID: <code>' + escapeHtml(s.id) + '</code></span>' +
-        '<span>Messages: ' + (s.message_count || 0) + '</span>' +
-        '<span>Updated: ' + relativeTime(s.updated_at) + '</span>' +
-      '</div></div>';
-
-    if (s.project_path) {
-      html += '<div class="detail-section"><h3>Project Path</h3>' +
-        '<div class="content">' + escapeHtml(s.project_path) + '</div></div>';
-    }
-
-    if (s.summary) {
-      html += '<div class="detail-section"><h3>Summary</h3>' +
-        '<div class="content">' + escapeHtml(typeof s.summary === 'string' ? s.summary : JSON.stringify(s.summary, null, 2)) + '</div></div>';
-    }
-
-    if (s.messages && s.messages.length) {
-      html += '<div class="detail-section"><h3>Messages (' + s.messages.length + ')</h3>';
-      for (const m of s.messages.slice(0, 50)) {
-        const role = m.role || 'unknown';
-        const roleColor = role === 'assistant' ? 'var(--accent)' : role === 'user' ? 'var(--green)' : 'var(--text-dim)';
-        const content = (m.content || '').substring(0, 500);
-        html += '<div style="margin-bottom:12px">' +
-          '<div style="font-size:12px;margin-bottom:4px"><span style="color:' + roleColor + ';font-weight:600">' + role + '</span>' +
-          (m.timestamp ? ' <span style="color:var(--text-muted);font-size:11px">' + new Date(m.timestamp).toLocaleTimeString() + '</span>' : '') +
-          '</div>' +
-          '<div class="content" style="padding:12px;font-size:12px;max-height:200px;overflow-y:auto">' + escapeHtml(content) + (content.length >= 500 ? '...' : '') + '</div></div>';
-      }
-      if (s.messages.length > 50) {
-        html += '<div class="card-sub" style="text-align:center;padding:12px">... and ' + (s.messages.length - 50) + ' more messages</div>';
-      }
-      html += '</div>';
-    }
-
-    el.innerHTML = html;
-  } catch (e) {
-    el.innerHTML = '<div class="empty">Error: ' + escapeHtml(e.message) + '</div>';
-  }
-}
-
-async function doSearch() {
-  const q = document.getElementById('search-input').value.trim();
-  if (!q) return;
-  const adapter = document.getElementById('search-adapter').value;
-  const project = document.getElementById('search-project').value.trim();
-  const el = document.getElementById('search-results');
-  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-  let url = '/search?q=' + encodeURIComponent(q) + '&limit=30';
-  if (adapter) url += '&adapter=' + encodeURIComponent(adapter);
-  if (project) url += '&project=' + encodeURIComponent(project);
-
-  try {
-    const data = await api(url);
-    const results = data.results || [];
-    if (!results.length) {
-      el.innerHTML = '<div class="empty">No results for "' + escapeHtml(q) + '"</div>';
-      return;
-    }
-    el.innerHTML = results.map(r => {
-      const snippet = r.snippet || r.content || '';
-      return '<div class="search-result" onclick="showSessionDetail(\'' + escapeHtml(r.session_id || '') + '\')">' +
-        '<div class="result-header">' +
-          badgeFor(r.adapter || r.source) +
-          '<span class="truncate" style="color:var(--text)">' + escapeHtml((r.project || '').split('/').pop() || '-') + '</span>' +
-          '<span style="color:var(--text-muted);margin-left:auto">' + (r.chunk_type || '') + '</span>' +
-        '</div>' +
-        '<div class="result-snippet">' + snippet + '</div>' +
-        '<div class="result-meta">' +
-          'Session: ' + shortId(r.session_id) + ' &middot; ' +
-          (r.match_reason || '') +
-        '</div>' +
-      '</div>';
-    }).join('');
-  } catch (e) {
-    el.innerHTML = '<div class="empty">Error: ' + escapeHtml(e.message) + '</div>';
-  }
-}
-
-loadDashboard();
-</script>
+<script src="app.js"></script>
 </body>
 </html>

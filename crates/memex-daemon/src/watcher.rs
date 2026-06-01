@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,33 +8,44 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+use memex_core::config::MemexConfig;
 use memex_core::ingest;
 use memex_core::storage::db::Db;
 
 const DEBOUNCE_SECS: u64 = 2;
 
-pub fn adapter_watch_dirs() -> Vec<PathBuf> {
+pub fn adapter_watch_dirs(memex_dir: &Path) -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_default();
+    let config = MemexConfig::load(memex_dir).unwrap_or_default();
     let mut dirs = Vec::new();
 
-    let claude = home.join(".claude/projects");
-    if claude.exists() {
-        dirs.push(claude);
+    if config.adapters.claude_code {
+        let p = home.join(".claude/projects");
+        if p.exists() { dirs.push(p); }
     }
-
-    let cursor = home.join(".cursor/projects");
-    if cursor.exists() {
-        dirs.push(cursor);
+    if config.adapters.cursor {
+        let p = home.join(".cursor/projects");
+        if p.exists() { dirs.push(p); }
     }
-
-    let codex = home.join(".codex");
-    if codex.exists() {
-        dirs.push(codex);
+    if config.adapters.codex {
+        let p = home.join(".codex");
+        if p.exists() { dirs.push(p); }
     }
-
-    let opencode = home.join(".opencode/sessions");
-    if opencode.exists() {
-        dirs.push(opencode);
+    if config.adapters.opencode {
+        let p = home.join(".opencode/sessions");
+        if p.exists() { dirs.push(p); }
+    }
+    if config.adapters.aider {
+        let p = home.join(".aider");
+        if p.exists() { dirs.push(p); }
+    }
+    if config.adapters.continue_dev {
+        let p = home.join(".continue");
+        if p.exists() { dirs.push(p); }
+    }
+    if config.adapters.cline {
+        let p = home.join(".cline");
+        if p.exists() { dirs.push(p); }
     }
 
     dirs
@@ -61,7 +72,7 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
             }
         })?;
 
-    let watch_dirs = adapter_watch_dirs();
+    let watch_dirs = adapter_watch_dirs(&memex_dir);
     if watch_dirs.is_empty() {
         info!("no adapter directories found to watch");
         return Ok(());

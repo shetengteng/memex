@@ -3,6 +3,9 @@ export interface Stats {
   messages: number
   chunks: number
   db_exists: boolean
+  summaries: number
+  chunks_summarized: number
+  llm_provider: string | null
 }
 
 export interface SessionRow {

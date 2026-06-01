@@ -64,7 +64,7 @@ pub async fn run(port: u16) -> Result<()> {
 }
 
 pub fn build_router(db: Arc<Db>) -> Router {
-    let api = Router::new()
+    Router::new()
         .route("/health", get(routes::health))
         .route("/search", get(routes::search))
         .route("/sessions", get(routes::list_sessions))
@@ -73,9 +73,10 @@ pub fn build_router(db: Arc<Db>) -> Router {
         .route("/stats/breakdown", get(routes::stats_breakdown))
         .route("/timeline", get(routes::timeline))
         .route("/config", get(routes::get_config).post(routes::set_config))
-        .with_state(db);
-
-    api.fallback_service(web::static_service())
+        .route("/summaries/stats", get(routes::summary_stats))
+        .route("/sessions/{id}/summary", get(routes::get_session_summary))
+        .with_state(db)
+        .merge(web::static_router())
 }
 
 async fn shutdown_signal() {

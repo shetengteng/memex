@@ -10,12 +10,13 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
         "title": "Memex",
-        "width": 380,
-        "height": 500,
+        "width": 420,
+        "height": 560,
         "visible": false,
         "decorations": false,
         "transparent": true,

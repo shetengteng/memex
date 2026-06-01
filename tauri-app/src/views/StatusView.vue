@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import type { Stats } from '@/types'
 
 const { getStats } = useMemex()
-const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false })
+const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, chunks_summarized: 0, llm_provider: null })
 const loading = ref(true)
 
 const adapterList = ['Claude Code', 'Cursor', 'Codex', 'OpenCode', 'Aider', 'Continue', 'Cline']
@@ -25,7 +25,15 @@ onMounted(async () => {
       <div v-for="a in adapterList" :key="a"><span class="text-success">✓</span> {{ a }} adapter</div>
       <div><span class="text-success">✓</span> HTTP — 127.0.0.1:9999</div>
       <Separator class="my-1.5" />
-      <div class="text-muted-foreground">{{ adapterList.length + 2 }} checks · daemon running</div>
+      <div :class="stats.llm_provider ? 'text-success' : 'text-warning'">
+        <span>{{ stats.llm_provider ? '✓' : '!' }}</span>
+        LLM — {{ stats.llm_provider ?? 'disabled' }}
+      </div>
+      <div class="text-muted-foreground pl-3">
+        {{ stats.summaries }} session summaries · {{ stats.chunks_summarized }} chunk summaries
+      </div>
+      <Separator class="my-1.5" />
+      <div class="text-muted-foreground">{{ adapterList.length + 3 }} checks · daemon running</div>
     </template>
     <div v-else class="text-muted-foreground">加载中...</div>
   </div>

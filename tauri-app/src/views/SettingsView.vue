@@ -19,7 +19,22 @@ const adapters = ref<AdapterRow[]>([
 ])
 
 const privacy = ref({ autoRedact: true, privateFromMcp: true })
-const llm = ref({ ollamaModel: 'qwen2.5:7b', claudeFallback: false })
+const llm = ref({
+  ollamaEnabled: false,
+  ollamaModel: 'qwen2.5:7b',
+  ollamaAvailable: false,
+  ollamaChecking: false,
+  claudeFallback: false,
+})
+
+async function checkOllamaAvailability(): Promise<boolean> {
+  try {
+    const resp = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
 
 onMounted(async () => {
   for (const a of adapters.value) {
@@ -29,9 +44,15 @@ onMounted(async () => {
     } catch { /* default */ }
   }
   try {
+    const v = await getConfig('llm.ollama_enabled')
+    if (v !== null) llm.value.ollamaEnabled = v === 'true'
+  } catch { /* default */ }
+  try {
     const v = await getConfig('llm.cloud_fallback')
     if (v !== null) llm.value.claudeFallback = v === 'true'
   } catch { /* default */ }
+
+  llm.value.ollamaAvailable = await checkOllamaAvailability()
 })
 
 async function toggleAdapter(key: string) {
@@ -41,6 +62,23 @@ async function toggleAdapter(key: string) {
   try {
     await ipcToggleAdapter(key, newVal)
     a.enabled = newVal
+  } catch { /* ignore */ }
+}
+
+async function toggleOllama() {
+  llm.value.ollamaChecking = true
+  const available = await checkOllamaAvailability()
+  llm.value.ollamaAvailable = available
+  llm.value.ollamaChecking = false
+
+  if (!available && !llm.value.ollamaEnabled) {
+    return
+  }
+
+  const newVal = !llm.value.ollamaEnabled
+  try {
+    await setConfig('llm.ollama_enabled', String(newVal))
+    llm.value.ollamaEnabled = newVal
   } catch { /* ignore */ }
 }
 
@@ -84,12 +122,23 @@ async function toggleCloudFallback() {
 
     <!-- LLM -->
     <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
-    <div class="flex items-center justify-between py-1.5">
+    <div class="flex cursor-pointer items-center justify-between py-1.5" @click="toggleOllama">
       <span class="flex items-center gap-1.5 text-xs">
-        <span class="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+        <span
+          class="inline-block h-1.5 w-1.5 rounded-full"
+          :class="llm.ollamaEnabled && llm.ollamaAvailable ? 'bg-success' : llm.ollamaChecking ? 'bg-warning animate-pulse' : 'bg-muted-foreground'"
+        />
         Ollama ({{ llm.ollamaModel }})
       </span>
-      <span class="mono text-[10px] text-success">local</span>
+      <div class="flex items-center gap-1.5">
+        <span
+          class="mono text-[10px]"
+          :class="llm.ollamaAvailable ? 'text-success' : 'text-destructive'"
+        >
+          {{ llm.ollamaChecking ? '...' : llm.ollamaAvailable ? 'local' : 'offline' }}
+        </span>
+        <Switch :checked="llm.ollamaEnabled" class="scale-75" @click.stop @update:checked="toggleOllama" />
+      </div>
     </div>
     <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="toggleCloudFallback">
       <span class="flex items-center gap-1.5 text-xs">

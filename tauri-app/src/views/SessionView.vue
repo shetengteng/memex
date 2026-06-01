@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, inject, onMounted } from 'vue'
-import { ArrowLeft, Copy, Check } from 'lucide-vue-next'
+import { ArrowLeft, Copy, Check, User, Bot } from 'lucide-vue-next'
 import type { SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
-import { adapterAbbr, adapterColor, adapterBg, timeAgo } from '@/lib/utils'
+import { adapterAbbr, adapterColor, adapterBg, timeAgo, formatTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import MarkdownContent from '@/components/MarkdownContent.vue'
 
 const props = defineProps<{ sessionId: string }>()
 const back = inject<() => void>('back')!
@@ -52,22 +53,33 @@ async function copyContent() {
     </div>
 
     <!-- Messages -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 select-text overflow-y-auto">
       <div v-if="loading" class="py-10 text-center text-xs text-muted-foreground">加载中...</div>
       <div v-else-if="!detail" class="py-10 text-center text-xs text-muted-foreground">Session not found.</div>
       <template v-else>
         <div
           v-for="msg in detail.messages"
           :key="msg.id"
-          class="border-b border-border/30 px-3.5 py-2"
+          class="border-b border-border/30 px-3.5 py-2.5"
         >
-          <div class="mono mb-1 flex items-center gap-1.5 text-[10px]">
-            <span :class="msg.role === 'user' ? 'font-semibold text-primary' : 'font-semibold text-success'">{{ msg.role }}</span>
-            <span v-if="msg.timestamp" class="text-muted-foreground">{{ msg.timestamp }}</span>
+          <div class="mb-1.5 flex items-center gap-1.5">
+            <span
+              class="flex h-5 w-5 items-center justify-center rounded-full text-white"
+              :class="msg.role === 'user' ? 'bg-primary' : 'bg-success'"
+            >
+              <User v-if="msg.role === 'user'" class="h-3 w-3" />
+              <Bot v-else class="h-3 w-3" />
+            </span>
+            <span class="text-xs font-semibold" :class="msg.role === 'user' ? 'text-primary' : 'text-success'">
+              {{ msg.role === 'user' ? 'User' : 'Assistant' }}
+            </span>
+            <span v-if="msg.timestamp" class="mono text-[10px] text-muted-foreground">
+              {{ formatTime(msg.timestamp) }}
+            </span>
           </div>
-          <p class="whitespace-pre-wrap break-words text-xs leading-relaxed">
-            {{ msg.content.length > 2000 ? msg.content.slice(0, 2000) + '…' : msg.content }}
-          </p>
+          <div class="pl-[26px]">
+            <MarkdownContent :content="msg.content" :max-len="3000" />
+          </div>
         </div>
       </template>
     </div>

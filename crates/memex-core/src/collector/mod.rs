@@ -6,6 +6,7 @@ pub mod continue_dev;
 pub mod cursor;
 pub mod opencode;
 
+use crate::config::AdaptersConfig;
 use crate::storage::models::{RawMessage, SessionMeta};
 use anyhow::Result;
 
@@ -36,4 +37,16 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
         Box::new(continue_dev::ContinueAdapter::new()),
         Box::new(cline::ClineAdapter::new()),
     ]
+}
+
+pub fn enabled_adapters(config: &AdaptersConfig) -> Vec<Box<dyn Adapter>> {
+    let mut adapters: Vec<Box<dyn Adapter>> = Vec::new();
+    if config.claude_code { adapters.push(Box::new(claude_code::ClaudeCodeAdapter::new())); }
+    if config.cursor { adapters.push(Box::new(cursor::CursorAdapter::new())); }
+    if config.codex { adapters.push(Box::new(codex::CodexAdapter::new())); }
+    if config.opencode { adapters.push(Box::new(opencode::OpenCodeAdapter::new())); }
+    if config.aider { adapters.push(Box::new(aider::AiderAdapter::new())); }
+    if config.continue_dev { adapters.push(Box::new(continue_dev::ContinueAdapter::new())); }
+    if config.cline { adapters.push(Box::new(cline::ClineAdapter::new())); }
+    adapters
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, provide, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, provide, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { Search, Settings, Activity } from 'lucide-vue-next'
+import { Search, Settings, Activity, ExternalLink } from 'lucide-vue-next'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { formatNumber } from '@/lib/utils'
@@ -20,7 +21,7 @@ const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const appWindow = getCurrentWindow()
 const { getStats } = useMemex()
-const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false })
+const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, chunks_summarized: 0, llm_provider: null })
 
 function navigate(view: ViewName, sessionId?: string) {
   currentView.value = view
@@ -65,22 +66,38 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+let statsTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshStats() {
+  try { stats.value = await getStats() } catch { /* ignore */ }
+}
+
+const summaryProgress = computed(() => {
+  if (!stats.value.llm_provider) return null
+  const total = stats.value.sessions
+  const done = stats.value.summaries
+  if (total === 0) return null
+  return { done, total, pct: Math.round((done / total) * 100) }
+})
+
 onMounted(async () => {
   appWindow.onFocusChanged(({ payload: focused }) => {
     if (!focused) hidePopup()
   })
-  try {
-    stats.value = await getStats()
-  } catch { /* ignore */ }
+  await refreshStats()
+  statsTimer = setInterval(refreshStats, 10_000)
+})
+
+onUnmounted(() => {
+  if (statsTimer) clearInterval(statsTimer)
 })
 </script>
 
 <template>
   <TooltipProvider>
-    <div class="flex h-screen w-screen items-start justify-center p-[10px]" style="background: transparent;">
+    <div class="flex h-screen w-screen flex-col p-[10px]" style="background: transparent;">
     <div
-      class="flex w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-[0_8px_32px_-8px_rgba(15,23,42,0.12),0_4px_12px_-4px_rgba(15,23,42,0.08)]"
-      style="max-height: calc(100vh - 20px);"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-[0_8px_32px_-8px_rgba(15,23,42,0.12),0_4px_12px_-4px_rgba(15,23,42,0.08)]"
       @keydown="onKeydown"
       tabindex="0"
     >
@@ -116,6 +133,12 @@ onMounted(async () => {
           {{ formatNumber(stats.sessions) }} sessions ·
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
           {{ stats.db_exists ? 'healthy' : 'no db' }}
+          <template v-if="stats.llm_provider">
+            · <span class="text-primary">{{ stats.llm_provider }}</span>
+            <span v-if="summaryProgress" :title="`${summaryProgress.done}/${summaryProgress.total} sessions summarized`">
+              {{ summaryProgress.pct }}%
+            </span>
+          </template>
         </span>
         <div class="flex gap-0.5">
           <Button
@@ -147,6 +170,15 @@ onMounted(async () => {
             title="健康状态"
           >
             <Activity class="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            @click="openUrl('http://127.0.0.1:9999')"
+            title="打开 Web Dashboard"
+          >
+            <ExternalLink class="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

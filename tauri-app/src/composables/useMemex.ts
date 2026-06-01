@@ -6,12 +6,12 @@ export function useMemex() {
     return invoke<Stats>('get_stats')
   }
 
-  async function listRecent(limit = 10): Promise<SessionRow[]> {
-    return invoke<SessionRow[]>('list_recent', { limit })
+  async function listRecent(limit = 20, offset = 0): Promise<SessionRow[]> {
+    return invoke<SessionRow[]>('list_recent', { limit, offset })
   }
 
-  async function searchMemex(query: string, limit = 20): Promise<SearchResult[]> {
-    return invoke<SearchResult[]>('search_memex', { query, limit })
+  async function searchMemex(query: string, limit = 20, offset = 0): Promise<SearchResult[]> {
+    return invoke<SearchResult[]>('search_memex', { query, limit, offset })
   }
 
   async function getSession(sessionId: string): Promise<SessionDetail | null> {

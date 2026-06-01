@@ -7,46 +7,161 @@
 
 ## 为什么
 
-你现在每天在 5 个 AI 工具之间切换：Cursor、Claude Code、Codex、OpenCode、Claude Desktop……
+你现在每天在多个 AI 工具之间切换：Cursor、Claude Code、Codex、OpenCode、Aider、Continue、Cline……
 每打开一个新 session，AI 都从零开始。**你和 AI 几万次对话的经验全部在浪费。**
 
 Memex 是一个本地优先的"AI 记忆中枢"：
 - 自动采集所有主流 AI CLI / 编辑器的会话历史
-- 统一索引、统一查询
-- 通过标准化协议暴露给任意 AI 编辑器，让每个新 session 都能 "想起" 你之前说过什么
+- 统一索引、全文检索、智能摘要
+- 通过 MCP 协议暴露给任意 AI 编辑器，让每个新 session 都能 "想起" 你之前说过什么
 
 **致敬 1945 年** — Vannevar Bush 在 *As We May Think* 中提出 Memex 概念：一台能记住一切、随时调取关联的人类记忆扩展机器。AI 时代终于让这个 80 年前的愿景成真。
 
 ---
 
-## 现状
+## 特性
 
-🚧 **设计阶段** — v4 架构已收敛，技术路线为**全程 Rust + Tauri 2 + Vue 3 + shadcn-vue**（无 Python 中间态）。
+| 特性 | 说明 |
+|---|---|
+| 7 种 Adapter | Claude Code · Cursor · Codex · OpenCode · Aider · Continue · Cline |
+| 本地优先 | 所有数据留在本地 `~/.memex/`，默认不上传任何会话内容 |
+| 全文检索 | SQLite FTS5 + BM25 排序 + 时间衰减 + 中文 bigram |
+| 智能摘要 | Ollama 本地 LLM 四级摘要（chunk → session → project → 日报） |
+| MCP 协议 | 4 个工具：`search_memory` / `get_session` / `list_recent` / `stats` |
+| 系统托盘 | macOS 透明圆角 popup，shadcn-vue UI，⌘⇧M 快捷键唤起 |
+| Web Dashboard | `http://127.0.0.1:9999` 完整统计面板 |
+| 隐私保护 | 自动脱敏 + 云端 opt-in + private session 过滤 |
+| 实时监听 | 文件系统事件驱动，2 秒内自动入库 |
 
-设计文档在 [`design/`](design/) 目录：
+---
 
-**架构与设计**
-- [`20260531-03-Memex-v4最终设计文档.md`](design/20260531-03-Memex-v4最终设计文档.md) — v4 最终架构、模块边界、数据模型
-- [`20260531-12-Memex-技术栈.md`](design/20260531-12-Memex-技术栈.md) — 技术选型 + 代码复用来源（DiskMind / tokenbar / tars-ai-butler）
+## 快速开始
 
-**开发计划**
-- [`20260531-13-Memex-执行计划-Rust-70%.md`](design/20260531-13-Memex-执行计划-Rust-70%.md) — Sprint 1 ~ 11 详细排期（带 checkbox，文件名含整体完成率）
-- [`20260531-01-Memex-v4功能点开发清单-75%.md`](design/20260531-01-Memex-v4功能点开发清单-75%.md) — 功能模块视角的全集 checklist（文件名含整体完成率）
+### 安装
 
-**测试**
-- [`20260531-14-Memex-单元测试用例设计.md`](design/20260531-14-Memex-单元测试用例设计.md) — 模块级测试用例与 fixture
-- [`20260531-15-Memex-测试TODO.md`](design/20260531-15-Memex-测试TODO.md) — 按 Sprint 拆分的测试 checklist
+```bash
+# 从源码构建
+git clone https://github.com/user/memex.git
+cd memex
 
-**MCP 接入（AI 客户端 Skill）**
-- [`SKILL.md`](SKILL.md) — 通用 SKILL（4 个 MCP 工具 + CLI 速查 + 配置键参考）
-- [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) — Cursor 专属（Composer 调用样例 + Cursor 注意事项）
-- [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) — Claude Code 专属（`mcp__memex__*` 命名空间 + 调用样例）
+# 构建 CLI + Daemon
+cargo build --release
 
-**UI 原型**
-- [`20260531-04-Memex-menubar-ASCII原型与功能设计.md`](design/20260531-04-Memex-menubar-ASCII原型与功能设计.md) — menubar 信息架构与 ASCII 原型
-- [`20260531-05-Memex-menubar-交互原型.html`](design/20260531-05-Memex-menubar-交互原型.html) — 浅色 shadcn 完整面板原型（设计参考）
-- [`20260531-09-Memex-menubar-交互原型-v3.html`](design/20260531-09-Memex-menubar-交互原型-v3.html) — 单 popup 聚焦版（实际执行方向）
-- [`20260531-06-Memex-数据演变可视化.html`](design/20260531-06-Memex-数据演变可视化.html) — 数据从 raw 到 chunk / metadata 的演变可视化
+# 构建 Tauri Menubar App（需要 Node.js）
+cd tauri-app && npm install && npx tauri build
+```
+
+### 首次运行
+
+```bash
+# 1. 启动 daemon（自动创建 ~/.memex/ 目录和 config.toml）
+./target/release/memex-daemon
+
+# 2. 手动采集一次
+./target/release/memex ingest
+
+# 3. 搜索你的 AI 历史
+./target/release/memex search "如何优化数据库查询"
+
+# 4. 查看统计
+./target/release/memex stats
+
+# 5. 安装 Menubar App
+open target/release/bundle/macos/Memex.app
+```
+
+### MCP 接入
+
+```bash
+# 为 Cursor 配置 MCP
+./target/release/memex setup cursor
+
+# 为 Claude Code 配置 MCP
+./target/release/memex setup claude-code
+```
+
+---
+
+## 架构
+
+```
+┌──────────────────────────────────────────────────────┐
+│  AI 编辑器 (Cursor / Claude Code / Codex / ...)      │
+└────────────┬────────────────────────────┬────────────┘
+             │ MCP (stdio)               │ 写入 session 文件
+             ▼                           ▼
+┌─────────────────┐      ┌──────────────────────────┐
+│   memex mcp     │      │  memex-daemon            │
+│   (stdio 模式)   │      │  ├─ watcher (notify)     │
+│                 │      │  ├─ auto ingest           │
+│                 │      │  └─ HTTP API :9999        │
+└───────┬─────────┘      └──────────┬───────────────┘
+        │                           │
+        ▼                           ▼
+┌──────────────────────────────────────────────────────┐
+│              memex-core                              │
+│  ├─ collector (7 adapters)                           │
+│  ├─ processor (normalize · chunk · redact · meta)    │
+│  ├─ storage   (Markdown 真源 + SQLite FTS5)          │
+│  ├─ retriever (BM25 + recency)                       │
+│  └─ llm       (Ollama / Anthropic provider)          │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| Core | Rust + SQLite (FTS5 / WAL) + blake3 |
+| CLI | clap |
+| Daemon | axum + tokio + notify |
+| MCP | 手写 stdio JSON-RPC |
+| Menubar | Tauri 2 + Vue 3 + TypeScript + shadcn-vue |
+| LLM | Ollama (本地) / Anthropic (可选云端) |
+| 构建 | Cargo workspace + Vite |
+
+---
+
+## CLI 命令
+
+```
+memex ingest [--adapter <name>]     # 手动采集
+memex search <query> [--json]       # 全文检索
+memex sessions [--recent N]          # 列出会话
+memex session <id>                   # 查看会话详情
+memex stats                          # 统计信息
+memex config show / set <key> <val>  # 配置管理
+memex backup <path>                  # 备份
+memex rebuild-index                  # 从 Markdown 重建索引
+memex doctor                         # 健康检查
+memex daemon start / stop / status   # Daemon 管理
+memex setup cursor / claude-code     # MCP 配置
+memex mcp                            # 进入 MCP 模式
+```
+
+---
+
+## 设计文档
+
+在 [`design/`](design/) 目录：
+
+| 文档 | 内容 |
+|---|---|
+| `20260531-03-*最终设计文档.md` | v4 架构、模块边界、数据模型 |
+| `20260531-12-*技术栈.md` | 技术选型 + 代码复用来源 |
+| `20260531-01-*功能点开发清单.md` | 功能模块视角的全集 checklist |
+| `20260531-13-*执行计划.md` | Sprint 1~11 详细排期 |
+| `20260531-09-*交互原型-v3.html` | 单 popup 聚焦版原型 |
+
+---
+
+## MCP SKILL
+
+- [`SKILL.md`](SKILL.md) — 通用 SKILL（4 个 MCP 工具 + CLI 速查）
+- [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) — Cursor 专属
+- [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) — Claude Code 专属
 
 ---
 

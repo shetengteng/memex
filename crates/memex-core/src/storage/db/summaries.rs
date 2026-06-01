@@ -96,6 +96,16 @@ impl Db {
         Ok(rows)
     }
 
+    pub fn summary_count(&self) -> Result<u64> {
+        let conn = self.conn.lock().unwrap();
+        Ok(conn.query_row("SELECT COUNT(*) FROM summaries", [], |row| row.get(0))?)
+    }
+
+    pub fn chunks_with_summary_count(&self) -> Result<u64> {
+        let conn = self.conn.lock().unwrap();
+        Ok(conn.query_row("SELECT COUNT(*) FROM chunks WHERE summary IS NOT NULL", [], |row| row.get(0))?)
+    }
+
     pub fn upsert_aggregate_summary(
         &self,
         scope_type: &str,

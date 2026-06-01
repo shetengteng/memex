@@ -57,13 +57,17 @@ impl Db {
     }
 
     pub fn list_sessions(&self, limit: usize) -> Result<Vec<SessionRow>> {
+        self.list_sessions_paged(limit, 0)
+    }
+
+    pub fn list_sessions_paged(&self, limit: usize, offset: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, source, project_path, message_count, updated_at
-             FROM sessions ORDER BY updated_at DESC LIMIT ?1",
+             FROM sessions ORDER BY updated_at DESC LIMIT ?1 OFFSET ?2",
         )?;
         let rows = stmt
-            .query_map(params![limit as i64], |row| {
+            .query_map(params![limit as i64, offset as i64], |row| {
                 Ok(SessionRow {
                     id: row.get(0)?,
                     source: row.get(1)?,

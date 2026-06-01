@@ -22,7 +22,8 @@ pub fn run_ingest(db: &Db, memex_dir: &Path, adapter_filter: Option<&str>) -> Re
     processor::redact::load_custom_rules(&redactions_path);
     processor::privacy::load_privacy_rules(&redactions_path);
 
-    let adapters = collector::all_adapters();
+    let config = MemexConfig::load(memex_dir).unwrap_or_default();
+    let adapters = collector::enabled_adapters(&config.adapters);
     let mut result = IngestResult::default();
 
     for adapter in &adapters {

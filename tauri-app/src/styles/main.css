@@ -38,7 +38,7 @@
 html, body, #app {
   @apply m-0 overflow-hidden select-none;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   background: transparent !important;
 }

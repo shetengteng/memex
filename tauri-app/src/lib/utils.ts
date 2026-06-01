@@ -46,6 +46,14 @@ export function adapterBg(source: string): string {
   return adapterMap[source]?.bg ?? 'bg-muted'
 }
 
+export function formatTime(dateStr: string | null): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K'
