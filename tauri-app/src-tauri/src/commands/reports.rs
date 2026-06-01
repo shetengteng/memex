@@ -1,3 +1,6 @@
+use memex_core::config::MemexConfig;
+use memex_core::ingest::{regenerate_daily_report, regenerate_weekly_report};
+use memex_core::llm::select_provider;
 use memex_core::memex_dir;
 use memex_core::storage::db::{AggregateSummaryRow, Db};
 
@@ -10,4 +13,23 @@ pub async fn list_reports(scope: String, limit: Option<u32>) -> Result<Vec<Aggre
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     db.list_aggregate_summaries(&scope, limit.unwrap_or(60))
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn regenerate_report(scope: String) -> Result<Option<AggregateSummaryRow>, String> {
+    let memex = memex_dir();
+    let db_path = memex.join("memex.db");
+    if !db_path.exists() {
+        return Err("memex.db 不存在，请先运行 memex ingest".to_string());
+    }
+    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+    let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
+    let provider = select_provider(&cfg.llm, &memex)
+        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或 Claude".to_string())?;
+
+    match scope.as_str() {
+        "daily" => regenerate_daily_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
+        "weekly" => regenerate_weekly_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
+        other => Err(format!("不支持的报告类型：{}", other)),
+    }
 }

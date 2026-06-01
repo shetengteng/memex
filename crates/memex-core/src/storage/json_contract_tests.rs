@@ -115,6 +115,9 @@ fn test_session_detail_json_fields() {
         project_path: Some("/proj".into()),
         file_path: "/f.jsonl".into(),
         title: Some("Test session".into()),
+        summary: None,
+        topics: Vec::new(),
+        decisions: Vec::new(),
         created_at: "2026-06-01T00:00:00+00:00".into(),
         updated_at: "2026-06-01T01:00:00+00:00".into(),
         message_count: 2,
@@ -129,6 +132,7 @@ fn test_session_detail_json_fields() {
     let obj = json.as_object().unwrap();
     let required = [
         "id", "source", "project_path", "file_path", "title",
+        "summary", "topics", "decisions",
         "created_at", "updated_at", "message_count", "messages",
     ];
     for field in &required {

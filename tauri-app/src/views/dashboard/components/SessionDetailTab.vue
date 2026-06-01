@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { ArrowLeft, Loader2, RefreshCw, Copy, Check, Bot, User as UserIcon } from 'lucide-vue-next'
 import type { SessionDetail } from '@/types'
 import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
 import { useMemex } from '@/composables/useMemex'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 
 const props = defineProps<{
   session: SessionDetail | null
@@ -21,6 +23,8 @@ const { retrySummary } = useMemex()
 const summarizing = ref(false)
 const summaryError = ref('')
 const summarySuccess = ref(false)
+const copied = ref(false)
+const visibleCount = ref(50)
 
 async function handleRetrySummary() {
   if (!props.session) return
@@ -33,66 +37,159 @@ async function handleRetrySummary() {
       summarySuccess.value = true
       emit('refreshSession', props.session.id)
     } else {
-      summaryError.value = 'Session needs at least 2 messages'
+      summaryError.value = '至少需要 2 条消息才能生成摘要'
     }
   } catch (e: unknown) {
     summaryError.value = e instanceof Error ? e.message : String(e)
   }
   summarizing.value = false
 }
+
+async function copySession() {
+  if (!props.session) return
+  const lines: string[] = []
+  lines.push(`# ${projectName.value}`)
+  lines.push(`source: ${adapterLabel(props.session.source)}  ·  id: ${props.session.id}`)
+  if (props.session.title) {
+    lines.push('')
+    lines.push(`摘要：${props.session.title}`)
+  }
+  lines.push('')
+  for (const m of props.session.messages) {
+    const ts = m.timestamp ? ` · ${new Date(m.timestamp).toLocaleString()}` : ''
+    lines.push(`## ${m.role === 'user' ? '用户' : '助手'}${ts}`)
+    lines.push('')
+    lines.push(m.content)
+    lines.push('')
+  }
+  await navigator.clipboard.writeText(lines.join('\n'))
+  copied.value = true
+  setTimeout(() => (copied.value = false), 2000)
+}
+
+const projectName = computed(() => {
+  const p = props.session?.project_path
+  if (p) return p.split('/').filter(Boolean).pop() ?? p
+  return props.session?.id.slice(0, 16) ?? ''
+})
+
+const visibleMessages = computed(() => props.session?.messages.slice(0, visibleCount.value) ?? [])
+
+function loadMore() {
+  visibleCount.value += 50
+}
 </script>
 
 <template>
-  <Button variant="ghost" size="sm" class="mb-4" @click="emit('back')">
-    <ArrowLeft class="mr-1 h-3.5 w-3.5" /> Back to sessions
+  <Button variant="ghost" size="sm" class="mb-4 gap-1.5 -ml-2 text-muted-foreground" @click="emit('back')">
+    <ArrowLeft class="h-4 w-4" />
+    返回会话列表
   </Button>
-  <div v-if="loading" class="flex items-center justify-center py-10">
+
+  <div v-if="loading" class="flex items-center justify-center py-16">
     <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
   </div>
+
   <template v-else-if="session">
-    <div class="mb-5">
-      <h2 class="text-lg font-bold">
-        <span class="mr-2 inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(session.source), adapterColor(session.source)]">
-          {{ adapterLabel(session.source) }}
-        </span>
-        {{ session.project_path?.split('/').pop() ?? session.id.slice(0, 16) }}
-      </h2>
-      <div class="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>ID: <code class="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{{ session.id }}</code></span>
-        <span>{{ session.message_count }} messages</span>
-        <span>Updated: {{ timeAgo(session.updated_at) }}</span>
+    <!-- 标题区 -->
+    <header class="mb-5">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" :class="[adapterBg(session.source), adapterColor(session.source)]" class="border-transparent">
+              {{ adapterLabel(session.source) }}
+            </Badge>
+            <span class="truncate font-mono text-[11px]">{{ session.id }}</span>
+          </div>
+          <h2 class="mt-1.5 truncate text-xl font-bold tracking-tight">{{ projectName }}</h2>
+        </div>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <Button variant="ghost" size="sm" class="h-8 gap-1.5" :disabled="copied" @click="copySession">
+            <component :is="copied ? Check : Copy" class="h-3.5 w-3.5" />
+            {{ copied ? '已复制' : '复制' }}
+          </Button>
+        </div>
       </div>
-      <div class="mt-3 flex items-center gap-2">
-        <span v-if="session.title" class="text-sm text-muted-foreground">
-          Summary: <span class="font-medium text-foreground">{{ session.title }}</span>
-        </span>
-        <span v-else class="text-sm text-muted-foreground italic">No summary generated</span>
-        <Button variant="outline" size="sm" class="ml-auto h-7 text-xs" :disabled="summarizing" @click="handleRetrySummary">
-          <RefreshCw class="mr-1 h-3 w-3" :class="{ 'animate-spin': summarizing }" />
-          {{ summarizing ? 'Generating...' : session.title ? 'Regenerate' : 'Generate' }} Summary
+
+      <!-- KPI 行 -->
+      <dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
+        <dt class="text-muted-foreground">消息</dt>
+        <dd class="tabular-nums">{{ session.message_count }} 条</dd>
+        <dt class="text-muted-foreground">最近更新</dt>
+        <dd>{{ timeAgo(session.updated_at) }}</dd>
+        <template v-if="session.project_path">
+          <dt class="text-muted-foreground">路径</dt>
+          <dd class="truncate font-mono text-xs">{{ session.project_path }}</dd>
+        </template>
+      </dl>
+    </header>
+
+    <!-- 摘要卡 -->
+    <section class="mb-6 rounded-lg border border-border bg-card/50 p-4">
+      <div class="mb-2 flex items-baseline justify-between gap-3">
+        <h3 class="text-sm font-semibold">摘要</h3>
+        <Button variant="outline" size="sm" class="h-7 gap-1.5 text-xs" :disabled="summarizing" @click="handleRetrySummary">
+          <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': summarizing }" />
+          {{ summarizing ? '生成中…' : session.title ? '重新生成' : '生成摘要' }}
         </Button>
       </div>
-      <p v-if="summarizing" class="mt-1 text-xs text-muted-foreground">Calling LLM to generate summary, this may take a few seconds...</p>
-      <p v-else-if="summarySuccess" class="mt-1 text-xs text-green-500">Summary generated successfully!</p>
-      <p v-if="summaryError" class="mt-1 text-xs text-destructive">{{ summaryError }}</p>
-    </div>
-    <div class="space-y-2">
-      <div
-        v-for="(m, i) in session.messages.slice(0, 100)"
-        :key="i"
-        class="rounded-lg p-3 text-xs leading-relaxed"
-        :class="m.role === 'user' ? 'border-l-2 border-green-500 bg-green-500/5' : 'border-l-2 border-primary bg-primary/5'"
-      >
-        <div class="mb-1 flex items-center gap-2 text-[11px]">
-          <span class="font-semibold" :class="m.role === 'user' ? 'text-green-500' : 'text-primary'">{{ m.role }}</span>
-          <span v-if="m.timestamp" class="text-muted-foreground">{{ new Date(m.timestamp).toLocaleTimeString() }}</span>
+      <div v-if="session.title" class="text-sm">
+        <p class="font-medium">{{ session.title }}</p>
+        <p v-if="session.summary" class="mt-2 text-sm leading-relaxed text-muted-foreground">{{ session.summary }}</p>
+        <div v-if="session.topics?.length" class="mt-3 flex flex-wrap gap-1.5">
+          <Badge v-for="t in session.topics" :key="t" variant="secondary">{{ t }}</Badge>
         </div>
-        <MarkdownContent :content="m.content.substring(0, 1200)" />
+        <div v-if="session.decisions?.length" class="mt-3">
+          <div class="mb-1 text-xs font-medium text-muted-foreground">关键决策</div>
+          <ul class="space-y-1 text-sm">
+            <li v-for="(d, i) in session.decisions" :key="i" class="flex gap-2">
+              <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
+              <span>{{ d }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
-      <div v-if="session.messages.length > 100" class="py-3 text-center text-xs text-muted-foreground">
-        … and {{ session.messages.length - 100 }} more messages
+      <p v-else class="text-sm text-muted-foreground">尚未生成摘要。</p>
+      <p v-if="summaryError" class="mt-2 text-xs text-destructive">{{ summaryError }}</p>
+      <p v-else-if="summarySuccess" class="mt-2 text-xs text-success">摘要生成成功</p>
+      <p v-else-if="summarizing" class="mt-2 text-xs text-muted-foreground">正在调用 LLM，可能需要几秒…</p>
+    </section>
+
+    <Separator class="mb-4" />
+
+    <!-- 消息时间线 -->
+    <section>
+      <h3 class="mb-3 text-sm font-semibold">消息</h3>
+      <div class="space-y-5">
+        <article v-for="(m, i) in visibleMessages" :key="i" class="grid grid-cols-[28px_1fr] gap-3">
+          <span
+            class="grid h-7 w-7 place-items-center rounded-full text-white"
+            :class="m.role === 'user' ? 'bg-primary' : 'bg-success'"
+          >
+            <UserIcon v-if="m.role === 'user'" class="h-3.5 w-3.5" />
+            <Bot v-else class="h-3.5 w-3.5" />
+          </span>
+          <div class="min-w-0">
+            <div class="mb-1 flex items-center gap-2 text-xs">
+              <span class="font-semibold" :class="m.role === 'user' ? 'text-primary' : 'text-success'">
+                {{ m.role === 'user' ? '用户' : '助手' }}
+              </span>
+              <span v-if="m.timestamp" class="text-muted-foreground">{{ new Date(m.timestamp).toLocaleString() }}</span>
+            </div>
+            <div class="text-sm leading-relaxed">
+              <MarkdownContent :content="m.content" :max-len="3000" />
+            </div>
+          </div>
+        </article>
       </div>
-    </div>
+
+      <div v-if="session.messages.length > visibleMessages.length" class="mt-6 flex flex-col items-center gap-2">
+        <Button variant="outline" size="sm" @click="loadMore">
+          加载更多（还剩 {{ session.messages.length - visibleMessages.length }} 条）
+        </Button>
+      </div>
+    </section>
   </template>
-  <div v-else class="py-10 text-center text-sm text-muted-foreground">Session not found</div>
+
+  <div v-else class="py-16 text-center text-sm text-muted-foreground">会话未找到</div>
 </template>

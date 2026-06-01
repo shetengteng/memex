@@ -33,6 +33,9 @@ pub struct SessionDetail {
     pub project_path: Option<String>,
     pub file_path: String,
     pub title: Option<String>,
+    pub summary: Option<String>,
+    pub topics: Vec<String>,
+    pub decisions: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
     pub message_count: i64,
@@ -159,6 +162,9 @@ impl Db {
                         project_path: row.get(2)?,
                         file_path: row.get(3)?,
                         title: row.get(4)?,
+                        summary: None,
+                        topics: Vec::new(),
+                        decisions: Vec::new(),
                         created_at: row.get(5)?,
                         updated_at: row.get(6)?,
                         message_count: row.get(7)?,
@@ -171,6 +177,23 @@ impl Db {
         let Some(mut detail) = session else {
             return Ok(None);
         };
+
+        // Pull L2 session summary inline so the UI can render summary, topics
+        // and decisions without a second round-trip. Using the same locked
+        // connection avoids re-acquiring the mutex.
+        if let Ok((title, summary, topics_json, decisions_json)) = conn.query_row::<(Option<String>, String, String, String), _, _>(
+            "SELECT title, summary, topics_json, decisions_json
+             FROM summaries WHERE session_id = ?1 AND level = ?2",
+            params![session_id, "L2_session"],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ) {
+            detail.summary = Some(summary);
+            detail.topics = serde_json::from_str(&topics_json).unwrap_or_default();
+            detail.decisions = serde_json::from_str(&decisions_json).unwrap_or_default();
+            if detail.title.is_none() {
+                detail.title = title;
+            }
+        }
 
         let mut stmt = conn.prepare(
             "SELECT id, role, content, timestamp FROM messages

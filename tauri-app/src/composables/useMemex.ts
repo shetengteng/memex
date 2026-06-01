@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -54,5 +54,21 @@ export function useMemex() {
     return invoke<AggregateSummary[]>('list_reports', { scope, limit })
   }
 
-  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig, listProjects, listReports }
+  async function regenerateReport(scope: 'daily' | 'weekly'): Promise<AggregateSummary | null> {
+    return invoke<AggregateSummary | null>('regenerate_report', { scope })
+  }
+
+  async function daemonStatus(): Promise<DaemonStatus> {
+    return invoke<DaemonStatus>('daemon_status')
+  }
+
+  async function daemonRestart(): Promise<DaemonStatus> {
+    return invoke<DaemonStatus>('daemon_restart')
+  }
+
+  return {
+    getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
+    retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
+    listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
+  }
 }

@@ -155,6 +155,9 @@ pub fn run() {
             commands::set_config,
             commands::toggle_adapter,
             commands::list_reports,
+            commands::regenerate_report,
+            commands::daemon_status,
+            commands::daemon_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memex menubar");

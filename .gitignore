@@ -24,5 +24,6 @@ target/
 tauri-app/node_modules/
 tauri-app/dist/
 tauri-app/tsconfig.tsbuildinfo
+tauri-app/src-tauri/binaries/
 .github/
 image.png

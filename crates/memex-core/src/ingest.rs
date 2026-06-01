@@ -160,18 +160,36 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
 }
 
 fn try_l4_weekly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
+    let _ = regenerate_weekly_report_inner(db, provider, /* force = */ false);
+}
+
+/// 强制重新生成当前 ISO 周的 L4 周报，无论数据库里是否已存在。
+/// 失败时返回 Err；当前周没有任何可用 L2 会话摘要时返回 Ok(None)。
+pub fn regenerate_weekly_report(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
+    regenerate_weekly_report_inner(db, provider, /* force = */ true)
+}
+
+fn regenerate_weekly_report_inner(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    force: bool,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
     use chrono::{Datelike, Utc};
     let now = Utc::now();
     let iso = now.iso_week();
     let scope_key = format!("weekly:{}-W{:02}", iso.year(), iso.week());
 
-    if db
-        .get_aggregate_summary("weekly", &scope_key)
-        .ok()
-        .flatten()
-        .is_some()
+    if !force
+        && db
+            .get_aggregate_summary("weekly", &scope_key)
+            .ok()
+            .flatten()
+            .is_some()
     {
-        return;
+        return Ok(None);
     }
 
     let week_start = chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Mon)
@@ -180,12 +198,13 @@ fn try_l4_weekly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProv
         .map(|d| format!("{}T23:59:59+00:00", d));
     let (after, before) = match (week_start, week_end) {
         (Some(a), Some(b)) => (a, b),
-        _ => return,
+        _ => return Ok(None),
     };
 
+    let min_sessions = if force { 1 } else { 3 };
     let sessions = match db.list_sessions_in_range(&after, &before) {
-        Ok(s) if s.len() >= 3 => s,
-        _ => return,
+        Ok(s) if s.len() >= min_sessions => s,
+        _ => return Ok(None),
     };
 
     let mut l2_summaries = Vec::new();
@@ -200,46 +219,64 @@ fn try_l4_weekly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProv
         }
     }
     if l2_summaries.is_empty() {
-        return;
+        return Ok(None);
     }
 
     let period_label = format!("Week {}-W{:02}", iso.year(), iso.week());
-    match summarize::summarize_period(provider, &period_label, &l2_summaries) {
-        Ok(summary) => {
-            let _ = db.upsert_aggregate_summary(
-                "weekly",
-                &scope_key,
-                Some(&summary.title),
-                &summary.summary,
-                &summary.topics,
-                &summary.decisions,
-                sessions.len() as i64,
-            );
-        }
-        Err(e) => {
+    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
+        .map_err(|e| {
             warn!("L4 weekly summarize failed: {}", e);
-        }
-    }
+            anyhow::anyhow!(e)
+        })?;
+    db.upsert_aggregate_summary(
+        "weekly",
+        &scope_key,
+        Some(&summary.title),
+        &summary.summary,
+        &summary.topics,
+        &summary.decisions,
+        sessions.len() as i64,
+    )?;
+    Ok(db.get_aggregate_summary("weekly", &scope_key)?)
 }
 
 fn try_l4_periodic_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
+    let _ = regenerate_daily_report_inner(db, provider, /* force = */ false);
+}
+
+/// 强制重新生成今天的 L4 日报，无论数据库里是否已存在。
+/// 失败时返回 Err；今天没有任何可用 L2 会话摘要时返回 Ok(None)。
+pub fn regenerate_daily_report(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
+    regenerate_daily_report_inner(db, provider, /* force = */ true)
+}
+
+fn regenerate_daily_report_inner(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    force: bool,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let scope_key = format!("daily:{}", today);
 
-    if db
-        .get_aggregate_summary("daily", &scope_key)
-        .ok()
-        .flatten()
-        .is_some()
+    if !force
+        && db
+            .get_aggregate_summary("daily", &scope_key)
+            .ok()
+            .flatten()
+            .is_some()
     {
-        return;
+        return Ok(None);
     }
 
     let after = format!("{}T00:00:00+00:00", today);
     let before = format!("{}T23:59:59+00:00", today);
+    let min_sessions = if force { 1 } else { 2 };
     let sessions = match db.list_sessions_in_range(&after, &before) {
-        Ok(s) if s.len() >= 2 => s,
-        _ => return,
+        Ok(s) if s.len() >= min_sessions => s,
+        _ => return Ok(None),
     };
 
     let mut l2_summaries = Vec::new();
@@ -254,26 +291,25 @@ fn try_l4_periodic_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPr
         }
     }
     if l2_summaries.is_empty() {
-        return;
+        return Ok(None);
     }
 
     let period_label = format!("Daily {}", today);
-    match summarize::summarize_period(provider, &period_label, &l2_summaries) {
-        Ok(summary) => {
-            let _ = db.upsert_aggregate_summary(
-                "daily",
-                &scope_key,
-                Some(&summary.title),
-                &summary.summary,
-                &summary.topics,
-                &summary.decisions,
-                sessions.len() as i64,
-            );
-        }
-        Err(e) => {
+    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
+        .map_err(|e| {
             warn!("L4 daily summarize failed: {}", e);
-        }
-    }
+            anyhow::anyhow!(e)
+        })?;
+    db.upsert_aggregate_summary(
+        "daily",
+        &scope_key,
+        Some(&summary.title),
+        &summary.summary,
+        &summary.topics,
+        &summary.decisions,
+        sessions.len() as i64,
+    )?;
+    Ok(db.get_aggregate_summary("daily", &scope_key)?)
 }
 
 fn try_l2_session_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {

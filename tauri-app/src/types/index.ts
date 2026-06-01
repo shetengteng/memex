@@ -39,6 +39,9 @@ export interface SessionDetail {
   source: string
   project_path: string | null
   title: string | null
+  summary: string | null
+  topics: string[]
+  decisions: string[]
   file_path: string
   message_count: number
   created_at: string
@@ -97,6 +100,14 @@ export interface AggregateSummary {
   decisions: string[]
   session_count: number
   created_at: string
+}
+
+export interface DaemonStatus {
+  running: boolean
+  pid: number | null
+  port: number | null
+  http_ok: boolean
+  started_at: string | null
 }
 
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

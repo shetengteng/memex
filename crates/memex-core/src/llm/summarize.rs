@@ -4,47 +4,45 @@ use serde::{Deserialize, Serialize};
 use super::provider::{LlmProvider, LlmRequest};
 
 const SUMMARY_SYSTEM: &str = "\
-You are a technical session summarizer. Given a conversation between a user and an AI assistant, \
-produce a concise summary. Output JSON with exactly these fields:
-- title: one-line title (max 60 chars)
-- summary: 2-4 sentence overview of what was accomplished
-- topics: array of 1-5 topic keywords
-- decisions: array of key decisions made (0-3 items)
-ALL natural-language fields (title, summary, topics, decisions) MUST be in Simplified Chinese, \
-regardless of the source language. Keep technical identifiers (file paths, command names, \
-function names, English acronyms like SQL/HTTP) in their original form.
-Respond ONLY with valid JSON, no markdown fences.";
+你是一个面向技术开发场景的会话摘要助手。输入是用户与 AI 助手的一段对话，\
+请生成一段简洁、有结构的摘要。输出 JSON，字段如下：
+- title: 一行标题，不超过 60 个字符
+- summary: 用 2-4 句话概括完成了什么、做了哪些关键决策
+- topics: 1-5 个主题关键词组成的数组
+- decisions: 0-3 个关键决策组成的数组
+所有自然语言字段（title、summary、topics、decisions）都必须使用简体中文，\
+无论输入是什么语言。保持技术标识原样：文件路径、命令名、函数名、英文缩写（SQL/HTTP/API 等）\
+不要翻译。\
+只输出合法 JSON，不要带 markdown 代码块标记。";
 
 const CHUNK_SUMMARY_SYSTEM: &str = "\
-You are a technical content summarizer. Given a piece of text from a coding session, \
-produce a single concise sentence (max 120 chars, Simplified Chinese) that captures the key information. \
-Keep technical identifiers (file paths, commands, code symbols) in their original form. \
-Output ONLY the sentence, no quotes, no markdown, no extra formatting.";
+你是一个面向技术开发场景的文本摘要助手。输入是编程会话中的一段文本，\
+请用一句话（简体中文，不超过 120 字符）抓住核心信息。\
+保持技术标识原样：文件路径、命令、代码符号不要翻译。\
+只输出这一句话，不要带引号、markdown 或任何额外格式。";
 
 const PROJECT_SUMMARY_SYSTEM: &str = "\
-You are a project progress summarizer. Given session summaries from the same project, \
-produce a project-level overview. Output JSON with exactly these fields:
-- title: project name / one-line title (max 60 chars)
-- summary: 3-5 sentence overview of project progress and current state
-- topics: array of 1-8 topic keywords across all sessions
-- decisions: array of key architectural/technical decisions (0-5 items)
-ALL natural-language fields MUST be in Simplified Chinese, regardless of the source language. \
-Keep technical identifiers (file paths, command names, function names, English acronyms like SQL/HTTP) \
-in their original form.
-Respond ONLY with valid JSON, no markdown fences.";
+你是一个项目进展摘要助手。输入是同一个项目内多个会话的摘要，\
+请生成项目级别的总览。输出 JSON，字段如下：
+- title: 项目名或一行标题，不超过 60 个字符
+- summary: 用 3-5 句话概括项目当前的进展、关键状态
+- topics: 1-8 个覆盖所有会话的主题关键词数组
+- decisions: 0-5 个关键架构/技术决策数组
+所有自然语言字段都必须使用简体中文，无论输入语言是什么。\
+保持技术标识原样：文件路径、命令名、函数名、英文缩写（SQL/HTTP/API 等）不要翻译。\
+只输出合法 JSON，不要带 markdown 代码块标记。";
 
 const PERIODIC_SUMMARY_SYSTEM: &str = "\
-You are a work journal summarizer. Given session summaries from a time period, \
-produce a periodic report. Output JSON with exactly these fields:
-- title: period label (e.g. \"日报 2026-06-01\" or \"周报 2026-W22\")
-- summary: 3-6 sentence overview of work accomplished in this period
-- topics: array of 1-8 topic keywords
-- decisions: array of key decisions made (0-5 items)
-ALL natural-language fields MUST be in Simplified Chinese, regardless of the source language \
-(e.g. even when input session summaries are in English, output Chinese). \
-Keep technical identifiers (file paths, command names, function names, English acronyms like SQL/HTTP) \
-in their original form.
-Respond ONLY with valid JSON, no markdown fences.";
+你是一个工作日记摘要助手。输入是某个时间段内多个会话的摘要，\
+请生成周期性工作报告。输出 JSON，字段如下：
+- title: 周期标签，如 \"日报 2026-06-01\" 或 \"周报 2026-W22\"
+- summary: 用 3-6 句话概括这段时间内完成的工作
+- topics: 1-8 个主题关键词数组
+- decisions: 0-5 个关键决策数组
+所有自然语言字段都必须使用简体中文，无论输入会话摘要是什么语言（即使输入是英文，\
+输出也必须是中文）。保持技术标识原样：文件路径、命令名、函数名、英文缩写（SQL/HTTP/API 等）\
+不要翻译。\
+只输出合法 JSON，不要带 markdown 代码块标记。";
 
 const MAX_INPUT_CHARS: usize = 8000;
 const MIN_CHUNK_CHARS_FOR_SUMMARY: usize = 200;
@@ -77,7 +75,7 @@ pub fn summarize_chunk(provider: &dyn LlmProvider, content: &str) -> Result<Stri
     } else {
         content.to_string()
     };
-    let prompt = format!("Summarize this content in one sentence:\n\n{}", truncated);
+    let prompt = format!("请用一句话总结以下内容：\n\n{}", truncated);
     let request = LlmRequest::with_prompt(prompt).with_system(CHUNK_SUMMARY_SYSTEM);
     match provider.generate(&request) {
         Ok(response) => {
@@ -97,21 +95,21 @@ pub fn summarize_project(
     session_summaries: &[SessionSummary],
 ) -> Result<SessionSummary> {
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str("Project session summaries:\n\n");
+    prompt.push_str("以下是同一个项目的多个会话摘要：\n\n");
     for (i, s) in session_summaries.iter().enumerate() {
         let entry = format!(
-            "Session {}: {}\n  {}\n  Topics: {}\n\n",
+            "会话 {}：{}\n  摘要：{}\n  主题：{}\n\n",
             i + 1,
             s.title,
             s.summary,
-            s.topics.join(", ")
+            s.topics.join("、")
         );
         if prompt.len() + entry.len() > MAX_INPUT_CHARS {
             break;
         }
         prompt.push_str(&entry);
     }
-    prompt.push_str("Produce a project-level summary as JSON.");
+    prompt.push_str("请输出一个项目级总览的 JSON。");
     let request = LlmRequest::with_prompt(prompt).with_system(PROJECT_SUMMARY_SYSTEM);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
@@ -123,21 +121,21 @@ pub fn summarize_period(
     session_summaries: &[SessionSummary],
 ) -> Result<SessionSummary> {
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str(&format!("Work sessions for {}:\n\n", period_label));
+    prompt.push_str(&format!("以下是 {} 期间的工作会话摘要：\n\n", period_label));
     for (i, s) in session_summaries.iter().enumerate() {
         let entry = format!(
-            "Session {}: {}\n  {}\n  Decisions: {}\n\n",
+            "会话 {}：{}\n  摘要：{}\n  关键决策：{}\n\n",
             i + 1,
             s.title,
             s.summary,
-            s.decisions.join("; ")
+            s.decisions.join("；")
         );
         if prompt.len() + entry.len() > MAX_INPUT_CHARS {
             break;
         }
         prompt.push_str(&entry);
     }
-    prompt.push_str("Produce a periodic work report as JSON.");
+    prompt.push_str("请输出一份周期性工作报告的 JSON。");
     let request = LlmRequest::with_prompt(prompt).with_system(PERIODIC_SUMMARY_SYSTEM);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
@@ -153,32 +151,32 @@ pub const fn l1_batch_size() -> usize {
 
 fn build_prompt(messages: &[(String, String)]) -> String {
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str("Conversation:\n\n");
+    prompt.push_str("以下是一段对话：\n\n");
 
     let mut total_len = prompt.len();
     for (role, content) in messages {
-        let header = format!("[{}]: ", role);
+        let header = format!("[{}]：", role);
         let truncated = if content.len() > 1000 {
             let end = content.char_indices()
                 .take_while(|(i, _)| *i < 1000)
                 .last()
                 .map(|(i, c)| i + c.len_utf8())
                 .unwrap_or(content.len().min(1000));
-            format!("{}... (truncated)", &content[..end])
+            format!("{}…（已截断）", &content[..end])
         } else {
             content.clone()
         };
         let entry = format!("{}{}\n\n", header, truncated);
 
         if total_len + entry.len() > MAX_INPUT_CHARS {
-            prompt.push_str("... (earlier messages omitted for brevity)\n");
+            prompt.push_str("…（为节省篇幅省略了较早的消息）\n");
             break;
         }
         prompt.push_str(&entry);
         total_len += entry.len();
     }
 
-    prompt.push_str("\nSummarize this conversation as JSON.");
+    prompt.push_str("\n请把这段对话总结为 JSON。");
     prompt
 }
 

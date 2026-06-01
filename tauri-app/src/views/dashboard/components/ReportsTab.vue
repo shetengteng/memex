@@ -3,15 +3,18 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useMemex } from '@/composables/useMemex'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { RefreshCw } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
+import { RefreshCw, Sparkles } from 'lucide-vue-next'
 import type { AggregateSummary } from '@/types'
 
-const { listReports } = useMemex()
+const { listReports, regenerateReport } = useMemex()
 
 const scope = ref<'daily' | 'weekly'>('daily')
 const items = ref<AggregateSummary[]>([])
 const selectedKey = ref<string | null>(null)
 const loading = ref(false)
+const regenerating = ref(false)
+const regenError = ref('')
 
 async function load() {
   loading.value = true
@@ -30,9 +33,31 @@ async function load() {
   }
 }
 
+async function handleRegenerate() {
+  regenerating.value = true
+  regenError.value = ''
+  try {
+    const updated = await regenerateReport(scope.value)
+    if (updated) {
+      await load()
+      selectedKey.value = updated.scope_key
+    } else {
+      regenError.value =
+        scope.value === 'daily'
+          ? '今天没有足够的会话摘要可供生成日报'
+          : '本周没有足够的会话摘要可供生成周报'
+    }
+  } catch (e: unknown) {
+    regenError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    regenerating.value = false
+  }
+}
+
 onMounted(load)
 watch(scope, () => {
   selectedKey.value = null
+  regenError.value = ''
   load()
 })
 
@@ -55,35 +80,53 @@ function formatCreatedAt(iso: string): string {
   <div>
     <header class="mb-6 flex items-baseline justify-between">
       <div>
-        <h2 class="text-xl font-semibold">Reports</h2>
+        <h2 class="text-xl font-semibold">报告</h2>
         <p class="mt-1 text-xs text-muted-foreground">
-          Automatic daily and weekly digests built from L2 session summaries.
+          基于 L2 会话摘要自动生成的日报和周报。
         </p>
       </div>
-      <Button variant="ghost" size="sm" :disabled="loading" @click="load">
-        <RefreshCw class="mr-1.5 h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-        Refresh
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-8 gap-1.5 text-xs"
+          :disabled="regenerating"
+          @click="handleRegenerate"
+        >
+          <Sparkles class="h-3.5 w-3.5" :class="{ 'animate-pulse': regenerating }" />
+          {{ regenerating ? '生成中…' : scope === 'daily' ? '重新生成日报' : '重新生成周报' }}
+        </Button>
+        <Button variant="ghost" size="sm" :disabled="loading" @click="load" class="h-8 gap-1.5">
+          <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
+          刷新
+        </Button>
+      </div>
     </header>
 
     <div class="mb-5 inline-flex rounded-md border border-border p-0.5">
       <button
         v-for="s in (['daily', 'weekly'] as const)"
         :key="s"
-        class="px-3 py-1 text-xs font-medium capitalize transition-colors"
+        class="px-3 py-1 text-xs font-medium transition-colors"
         :class="scope === s ? 'rounded bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
         @click="scope = s"
-      >{{ s }}</button>
+      >{{ s === 'daily' ? '日报' : '周报' }}</button>
     </div>
 
-    <div v-if="loading && !items.length" class="text-sm text-muted-foreground">Loading…</div>
+    <div v-if="regenError" class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+      {{ regenError }}
+    </div>
+
+    <div v-if="loading && !items.length" class="text-sm text-muted-foreground">加载中…</div>
 
     <div v-else-if="!items.length" class="rounded-md border border-dashed border-border px-4 py-8 text-center">
-      <p class="text-sm font-medium">No {{ scope }} reports yet</p>
+      <p class="text-sm font-medium">还没有{{ scope === 'daily' ? '日报' : '周报' }}</p>
       <p class="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-        Reports are generated when an LLM provider is active and there are at least
-        {{ scope === 'daily' ? 2 : 3 }} sessions in the {{ scope === 'daily' ? 'current day' : 'current ISO week' }}.
-        Enable Ollama in <em>Settings</em> or set a Claude API key, then run <code>memex ingest</code>.
+        当 LLM 服务可用且
+        {{ scope === 'daily' ? '当天' : '本 ISO 周' }}内至少有
+        {{ scope === 'daily' ? 2 : 3 }} 个会话时，会在每次 ingest 时自动生成报告。
+        可在<em>设置</em>里启用 Ollama 或配置 Claude API Key，然后运行 <code>memex ingest</code>，
+        或点击右上角"重新生成"按钮立即触发。
       </p>
     </div>
 
@@ -107,8 +150,7 @@ function formatCreatedAt(iso: string): string {
         <header class="mb-3">
           <h3 class="text-lg font-semibold">{{ current.title || formatLabel(current) }}</h3>
           <p class="mt-1 text-xs text-muted-foreground">
-            {{ current.session_count }} session{{ current.session_count === 1 ? '' : 's' }} ·
-            generated {{ formatCreatedAt(current.created_at) }}
+            涵盖 {{ current.session_count }} 个会话 · 生成于 {{ formatCreatedAt(current.created_at) }}
           </p>
         </header>
 
@@ -116,19 +158,15 @@ function formatCreatedAt(iso: string): string {
 
         <template v-if="current.topics.length">
           <Separator class="my-5" />
-          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Topics</div>
+          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">主题</div>
           <div class="flex flex-wrap gap-1.5">
-            <span
-              v-for="t in current.topics"
-              :key="t"
-              class="rounded-md bg-muted px-2 py-0.5 text-xs text-foreground"
-            >{{ t }}</span>
+            <Badge v-for="t in current.topics" :key="t" variant="secondary">{{ t }}</Badge>
           </div>
         </template>
 
         <template v-if="current.decisions.length">
           <Separator class="my-5" />
-          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Decisions</div>
+          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">关键决策</div>
           <ul class="space-y-1.5">
             <li
               v-for="d in current.decisions"
