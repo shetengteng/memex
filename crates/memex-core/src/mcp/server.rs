@@ -163,6 +163,28 @@ fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
     }
 }
 
+fn deep_link_for_session(session_id: &str) -> String {
+    format!("memex://session/{}", session_id)
+}
+
+fn enrich_session_value(value: &mut serde_json::Value) {
+    if let Some(obj) = value.as_object_mut() {
+        if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+            let dl = deep_link_for_session(id);
+            obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
+        }
+    }
+}
+
+fn enrich_search_result(value: &mut serde_json::Value) {
+    if let Some(obj) = value.as_object_mut() {
+        if let Some(id) = obj.get("session_id").and_then(|v| v.as_str()) {
+            let dl = deep_link_for_session(id);
+            obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
+        }
+    }
+}
+
 fn tool_search(db: &Db, args: &serde_json::Value) -> std::result::Result<String, String> {
     let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
     let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
@@ -192,7 +214,13 @@ fn tool_search(db: &Db, args: &serde_json::Value) -> std::result::Result<String,
     let _ = db.write_access_log(query, results.len(), latency_ms);
     let _ = db.record_search_latency(latency_ms);
 
-    serde_json::to_string_pretty(&results).map_err(|e| e.to_string())
+    let mut value = serde_json::to_value(&results).map_err(|e| e.to_string())?;
+    if let Some(arr) = value.as_array_mut() {
+        for item in arr.iter_mut() {
+            enrich_search_result(item);
+        }
+    }
+    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())
 }
 
 fn tool_get_session(db: &Db, args: &serde_json::Value) -> std::result::Result<String, String> {
@@ -211,7 +239,11 @@ fn tool_get_session(db: &Db, args: &serde_json::Value) -> std::result::Result<St
         .get_session_detail(&resolved)
         .map_err(|e| e.to_string())?;
     match detail {
-        Some(d) => serde_json::to_string_pretty(&d).map_err(|e| e.to_string()),
+        Some(d) => {
+            let mut value = serde_json::to_value(&d).map_err(|e| e.to_string())?;
+            enrich_session_value(&mut value);
+            serde_json::to_string_pretty(&value).map_err(|e| e.to_string())
+        }
         None => Err(format!("session not found: {}", sid)),
     }
 }
@@ -223,7 +255,13 @@ fn tool_list_recent(db: &Db, args: &serde_json::Value) -> std::result::Result<St
         !crate::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
     });
     sessions.truncate(limit);
-    serde_json::to_string_pretty(&sessions).map_err(|e| e.to_string())
+    let mut value = serde_json::to_value(&sessions).map_err(|e| e.to_string())?;
+    if let Some(arr) = value.as_array_mut() {
+        for item in arr.iter_mut() {
+            enrich_session_value(item);
+        }
+    }
+    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())
 }
 
 fn tool_stats(db: &Db) -> std::result::Result<String, String> {

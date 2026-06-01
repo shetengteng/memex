@@ -120,5 +120,24 @@ fn print_report(report: &DoctorReport, memex: &std::path::Path, json: bool) -> R
         }
     }
 
+    println!("\nAdapter Health:");
+    println!("  cursor (SQLite): {}", check_cursor_sqlite());
+
     Ok(())
+}
+
+fn check_cursor_sqlite() -> String {
+    use memex_core::collector::cursor::{CursorSqliteAdapter, CursorSqliteProbe};
+    let probe = CursorSqliteAdapter::new().probe();
+    match probe {
+        CursorSqliteProbe::Ok { composer_count, .. } => {
+            format!("OK ({} composer sessions)", composer_count)
+        }
+        CursorSqliteProbe::NotFound { db_path } => format!("not found at {}", db_path),
+        CursorSqliteProbe::PermissionDenied { db_path, .. } => format!(
+            "PERMISSION DENIED at {}\n     → Grant Full Disk Access to your terminal via\n       System Settings → Privacy & Security → Full Disk Access,\n       then re-run `memex doctor`.",
+            db_path
+        ),
+        CursorSqliteProbe::Error { message, .. } => format!("ERROR: {}", message),
+    }
 }

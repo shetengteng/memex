@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -69,12 +71,44 @@ function filterByProject(projectName: string) {
   if (sessions.value.length === 0) loadSessions()
 }
 
+function handleDeepLinkUrl(raw: string) {
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'memex:') return
+    const host = u.hostname || u.pathname.replace(/^\/+/, '').split('/')[0] || ''
+    if (host === 'session') {
+      const id = u.pathname.replace(/^\/+/, '').split('/').filter(Boolean).pop()
+      if (id) openSessionDetail(id)
+    } else if (host === 'search') {
+      tab.value = 'search'
+    } else if (host === 'projects') {
+      tab.value = 'projects'
+    }
+  } catch (e) {
+    console.warn('invalid deep link:', raw, e)
+  }
+}
+
+let unlistenDeepLink: UnlistenFn | null = null
+
 onMounted(async () => {
   await loadDashboard()
   refreshTimer = setInterval(loadDashboard, 15_000)
+
+  unlistenDeepLink = await listen<string>('deep-link', (event) => {
+    handleDeepLinkUrl(event.payload)
+  })
+
+  try {
+    const pending = await invoke<string | null>('take_pending_deep_link')
+    if (pending) handleDeepLinkUrl(pending)
+  } catch { /* ignore */ }
 })
 
-onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
+  unlistenDeepLink?.()
+})
 </script>
 
 <template>

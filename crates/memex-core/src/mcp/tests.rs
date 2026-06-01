@@ -80,6 +80,10 @@ fn test_tool_search_memory() {
     let parsed: Vec<serde_json::Value> = serde_json::from_str(content).unwrap();
     assert!(!parsed.is_empty());
     assert!(parsed[0]["session_id"].as_str().unwrap().contains("sess-001"));
+    assert_eq!(
+        parsed[0]["deep_link"].as_str().unwrap(),
+        "memex://session/sess-001"
+    );
 }
 
 #[test]
@@ -99,6 +103,7 @@ fn test_tool_get_session() {
     let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
     assert_eq!(parsed["id"], "sess-001");
     assert_eq!(parsed["source"], "claude_code");
+    assert_eq!(parsed["deep_link"], "memex://session/sess-001");
 }
 
 #[test]
@@ -117,6 +122,7 @@ fn test_tool_list_recent() {
     let content = result["content"][0]["text"].as_str().unwrap();
     let parsed: Vec<serde_json::Value> = serde_json::from_str(content).unwrap();
     assert!(!parsed.is_empty());
+    assert_eq!(parsed[0]["deep_link"], "memex://session/sess-001");
 }
 
 #[test]
