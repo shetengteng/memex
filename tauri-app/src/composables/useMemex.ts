@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -26,6 +26,14 @@ export function useMemex() {
     return invoke<SessionDetail | null>('get_session', { sessionId })
   }
 
+  async function retrySummary(sessionId: string): Promise<boolean> {
+    return invoke<boolean>('retry_summary', { sessionId })
+  }
+
+  async function batchSummarize(): Promise<number> {
+    return invoke<number>('batch_summarize')
+  }
+
   async function toggleAdapter(adapter: string, enabled: boolean): Promise<void> {
     return invoke<void>('toggle_adapter', { adapter, enabled })
   }
@@ -38,5 +46,9 @@ export function useMemex() {
     return invoke<void>('set_config', { key, value })
   }
 
-  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, toggleAdapter, getConfig, setConfig }
+  async function listProjects(): Promise<ProjectSummary[]> {
+    return invoke<ProjectSummary[]>('list_projects')
+  }
+
+  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig, listProjects }
 }

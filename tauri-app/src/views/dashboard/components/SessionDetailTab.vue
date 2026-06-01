@@ -1,23 +1,51 @@
 <script setup lang="ts">
-import { ArrowLeft, Loader2 } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { ArrowLeft, Loader2, RefreshCw } from 'lucide-vue-next'
 import type { SessionDetail } from '@/types'
 import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { useMemex } from '@/composables/useMemex'
 import MarkdownContent from '@/components/MarkdownContent.vue'
+import { Button } from '@/components/ui/button'
 
-defineProps<{
+const props = defineProps<{
   session: SessionDetail | null
   loading: boolean
 }>()
 
 const emit = defineEmits<{
   back: []
+  refreshSession: [sessionId: string]
 }>()
+
+const { retrySummary } = useMemex()
+const summarizing = ref(false)
+const summaryError = ref('')
+const summarySuccess = ref(false)
+
+async function handleRetrySummary() {
+  if (!props.session) return
+  summarizing.value = true
+  summaryError.value = ''
+  summarySuccess.value = false
+  try {
+    const ok = await retrySummary(props.session.id)
+    if (ok) {
+      summarySuccess.value = true
+      emit('refreshSession', props.session.id)
+    } else {
+      summaryError.value = 'Session needs at least 2 messages'
+    }
+  } catch (e: unknown) {
+    summaryError.value = e instanceof Error ? e.message : String(e)
+  }
+  summarizing.value = false
+}
 </script>
 
 <template>
-  <button class="mb-4 flex items-center gap-1 text-xs font-medium text-primary hover:underline" @click="emit('back')">
-    <ArrowLeft class="h-3.5 w-3.5" /> Back to sessions
-  </button>
+  <Button variant="ghost" size="sm" class="mb-4" @click="emit('back')">
+    <ArrowLeft class="mr-1 h-3.5 w-3.5" /> Back to sessions
+  </Button>
   <div v-if="loading" class="flex items-center justify-center py-10">
     <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
   </div>
@@ -34,6 +62,19 @@ const emit = defineEmits<{
         <span>{{ session.message_count }} messages</span>
         <span>Updated: {{ timeAgo(session.updated_at) }}</span>
       </div>
+      <div class="mt-3 flex items-center gap-2">
+        <span v-if="session.title" class="text-sm text-muted-foreground">
+          Summary: <span class="font-medium text-foreground">{{ session.title }}</span>
+        </span>
+        <span v-else class="text-sm text-muted-foreground italic">No summary generated</span>
+        <Button variant="outline" size="sm" class="ml-auto h-7 text-xs" :disabled="summarizing" @click="handleRetrySummary">
+          <RefreshCw class="mr-1 h-3 w-3" :class="{ 'animate-spin': summarizing }" />
+          {{ summarizing ? 'Generating...' : session.title ? 'Regenerate' : 'Generate' }} Summary
+        </Button>
+      </div>
+      <p v-if="summarizing" class="mt-1 text-xs text-muted-foreground">Calling LLM to generate summary, this may take a few seconds...</p>
+      <p v-else-if="summarySuccess" class="mt-1 text-xs text-green-500">Summary generated successfully!</p>
+      <p v-if="summaryError" class="mt-1 text-xs text-destructive">{{ summaryError }}</p>
     </div>
     <div class="space-y-2">
       <div

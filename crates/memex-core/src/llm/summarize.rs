@@ -148,7 +148,12 @@ fn build_prompt(messages: &[(String, String)]) -> String {
     for (role, content) in messages {
         let header = format!("[{}]: ", role);
         let truncated = if content.len() > 1000 {
-            format!("{}... (truncated)", &content[..1000])
+            let end = content.char_indices()
+                .take_while(|(i, _)| *i < 1000)
+                .last()
+                .map(|(i, c)| i + c.len_utf8())
+                .unwrap_or(content.len().min(1000));
+            format!("{}... (truncated)", &content[..end])
         } else {
             content.clone()
         };

@@ -66,4 +66,22 @@ export interface TimelineEntry {
   messages: number
 }
 
+export interface ProjectSummary {
+  project_path: string
+  name: string
+  session_count: number
+  message_count: number
+  last_title: string | null
+  last_updated: string
+  by_adapter: Record<string, number>
+}
+
+export interface SummaryProgress {
+  current: number
+  total: number
+  session_id: string
+  success: boolean
+  done: boolean
+}
+
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

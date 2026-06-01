@@ -1,7 +1,7 @@
 use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
-use memex_core::storage::queries::{StatsBreakdown, TimelineEntry};
+use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -72,4 +72,14 @@ pub fn get_timeline(days: Option<u32>) -> Result<Vec<TimelineEntry>, String> {
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     db.timeline(days.unwrap_or(30)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_projects() -> Result<Vec<ProjectSummary>, String> {
+    let db_path = memex_dir().join("memex.db");
+    if !db_path.exists() {
+        return Ok(vec![]);
+    }
+    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+    db.list_project_summaries().map_err(|e| e.to_string())
 }

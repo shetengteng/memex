@@ -12,13 +12,14 @@ const adapters = ref<AdapterRow[]>([
   { key: 'claude_code', label: 'Claude Code', enabled: true },
   { key: 'cursor', label: 'Cursor', enabled: true },
   { key: 'codex', label: 'Codex', enabled: true },
-  { key: 'opencode', label: 'OpenCode', enabled: false },
+  { key: 'opencode', label: 'OpenCode', enabled: true },
   { key: 'aider', label: 'Aider', enabled: true },
   { key: 'continue_dev', label: 'Continue', enabled: true },
   { key: 'cline', label: 'Cline', enabled: true },
 ])
 
-const privacy = ref({ autoRedact: true, privateFromMcp: true })
+const privacy = ref({ autoRedact: false, privateFromMcp: false })
+const configLoaded = ref(false)
 const llm = ref({
   ollamaEnabled: false,
   ollamaModel: 'qwen2.5:7b',
@@ -53,6 +54,7 @@ onMounted(async () => {
   } catch { /* default */ }
 
   llm.value.ollamaAvailable = await checkOllamaAvailability()
+  configLoaded.value = true
 })
 
 async function toggleAdapter(key: string) {
@@ -115,7 +117,7 @@ async function toggleCloudFallback() {
         <span class="inline-block h-1.5 w-1.5 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
         {{ a.label }}
       </span>
-      <Switch :checked="a.enabled" class="scale-75" @click.stop @update:checked="toggleAdapter(a.key)" />
+      <Switch :checked="a.enabled" class="scale-75" @click.stop="toggleAdapter(a.key)" />
     </div>
 
     <Separator class="my-1.5" />
@@ -137,7 +139,7 @@ async function toggleCloudFallback() {
         >
           {{ llm.ollamaChecking ? '...' : llm.ollamaAvailable ? 'local' : 'offline' }}
         </span>
-        <Switch :checked="llm.ollamaEnabled" class="scale-75" @click.stop @update:checked="toggleOllama" />
+        <Switch :checked="llm.ollamaEnabled" class="scale-75" @click.stop="toggleOllama" />
       </div>
     </div>
     <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="toggleCloudFallback">
@@ -145,7 +147,7 @@ async function toggleCloudFallback() {
         <span class="inline-block h-1.5 w-1.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
         Claude fallback
       </span>
-      <Switch :checked="llm.claudeFallback" class="scale-75" @click.stop @update:checked="toggleCloudFallback" />
+      <Switch :checked="llm.claudeFallback" class="scale-75" @click.stop="toggleCloudFallback" />
     </div>
 
     <Separator class="my-1.5" />
@@ -154,11 +156,11 @@ async function toggleCloudFallback() {
     <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
     <div class="flex cursor-pointer items-center justify-between py-1.5" @click="togglePrivacy('autoRedact')">
       <span class="text-xs">自动脱敏</span>
-      <Switch :checked="privacy.autoRedact" class="scale-75" @click.stop @update:checked="togglePrivacy('autoRedact')" />
+      <Switch :checked="privacy.autoRedact" class="scale-75" @click.stop="togglePrivacy('autoRedact')" />
     </div>
     <div class="flex cursor-pointer items-center justify-between border-t border-border/40 py-1.5" @click="togglePrivacy('privateFromMcp')">
       <span class="text-xs">Private session 隐藏</span>
-      <Switch :checked="privacy.privateFromMcp" class="scale-75" @click.stop @update:checked="togglePrivacy('privateFromMcp')" />
+      <Switch :checked="privacy.privateFromMcp" class="scale-75" @click.stop="togglePrivacy('privateFromMcp')" />
     </div>
   </div>
 </template>

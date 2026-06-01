@@ -48,6 +48,17 @@ pub struct StatsBreakdown {
     pub recent_30d_messages: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectSummary {
+    pub project_path: String,
+    pub name: String,
+    pub session_count: i64,
+    pub message_count: i64,
+    pub last_title: Option<String>,
+    pub last_updated: String,
+    pub by_adapter: std::collections::BTreeMap<String, i64>,
+}
+
 impl Db {
     pub fn write_access_log(
         &self,
@@ -194,6 +205,65 @@ impl Db {
             recent_30d_sessions: recent_30d.0,
             recent_30d_messages: recent_30d.1,
         })
+    }
+
+    pub fn list_project_summaries(&self) -> Result<Vec<ProjectSummary>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT project_path,
+                    COUNT(*) as cnt,
+                    COALESCE(SUM(message_count), 0) as msgs,
+                    MAX(updated_at) as last_upd
+             FROM sessions
+             WHERE project_path IS NOT NULL
+             GROUP BY project_path
+             ORDER BY last_upd DESC",
+        )?;
+        let base_rows: Vec<(String, i64, i64, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let mut results = Vec::with_capacity(base_rows.len());
+        for (path, session_count, message_count, last_updated) in base_rows {
+            let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+
+            let last_title: Option<String> = conn
+                .query_row(
+                    "SELECT title FROM sessions
+                     WHERE project_path = ?1 AND title IS NOT NULL
+                     ORDER BY updated_at DESC LIMIT 1",
+                    params![path],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            let mut by_adapter = std::collections::BTreeMap::new();
+            {
+                let mut s2 = conn.prepare(
+                    "SELECT source, COUNT(*) FROM sessions
+                     WHERE project_path = ?1 GROUP BY source",
+                )?;
+                let pairs: Vec<(String, i64)> = s2
+                    .query_map(params![path], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                for (src, cnt) in pairs {
+                    by_adapter.insert(src, cnt);
+                }
+            }
+
+            results.push(ProjectSummary {
+                project_path: path,
+                name,
+                session_count,
+                message_count,
+                last_title,
+                last_updated,
+                by_adapter,
+            });
+        }
+        Ok(results)
     }
 
     pub fn daily_session_counts(&self, days: u32) -> Result<Vec<TimelineEntry>> {

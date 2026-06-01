@@ -84,7 +84,9 @@ fn test_session_row_json_fields() {
         id: "sess-001".into(),
         source: "claude_code".into(),
         project_path: Some("/proj".into()),
+        title: None,
         message_count: 5,
+        created_at: "2026-06-01T00:00:00+00:00".into(),
         updated_at: "2026-06-01T00:00:00+00:00".into(),
     };
     let json: serde_json::Value = serde_json::to_value(&row).unwrap();

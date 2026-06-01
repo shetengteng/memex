@@ -44,6 +44,14 @@ impl Db {
                 created_at = excluded.created_at",
             params![session_id, level, title, summary, topics_json, decisions_json, now],
         )?;
+        if level == "L2_session" {
+            if let Some(t) = title {
+                conn.execute(
+                    "UPDATE sessions SET title = ?1 WHERE id = ?2",
+                    params![t, session_id],
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -92,6 +100,36 @@ impl Db {
                     created_at: row.get(7)?,
                 })
             })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn delete_summary(&self, session_id: &str, level: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute(
+            "DELETE FROM summaries WHERE session_id = ?1 AND level = ?2",
+            params![session_id, level],
+        )?;
+        if level == "L2_session" {
+            conn.execute(
+                "UPDATE sessions SET title = NULL WHERE id = ?1",
+                params![session_id],
+            )?;
+        }
+        Ok(deleted > 0)
+    }
+
+    pub fn sessions_without_summary(&self, limit: usize) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT s.id FROM sessions s
+             LEFT JOIN summaries sm ON s.id = sm.session_id AND sm.level = 'L2_session'
+             WHERE sm.id IS NULL AND s.message_count >= 2
+             ORDER BY s.updated_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt
+            .query_map(params![limit as i64], |row| row.get(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }

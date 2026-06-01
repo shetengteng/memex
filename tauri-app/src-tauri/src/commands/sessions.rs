@@ -1,3 +1,7 @@
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+
+use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
 use memex_core::storage::db::{Db, SessionDetail, SessionRow};
 
@@ -23,4 +27,67 @@ pub fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> 
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     db.get_session_detail(&session_id)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn retry_summary(session_id: String) -> Result<bool, String> {
+    let dir = memex_dir();
+    let db_path = dir.join("memex.db");
+    if !db_path.exists() {
+        return Err("Database not found".into());
+    }
+
+    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+    let config = MemexConfig::load(&dir).map_err(|e| e.to_string())?;
+    let provider = memex_core::llm::select_provider(&config.llm, &dir)
+        .ok_or_else(|| "No LLM provider available. Enable Ollama or configure Anthropic API key.".to_string())?;
+
+    let _ = db.delete_summary(&session_id, "L2_session");
+    let ok = memex_core::ingest::summarize_session_by_id(&db, provider.as_ref(), &session_id);
+    Ok(ok)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SummaryProgress {
+    pub current: usize,
+    pub total: usize,
+    pub session_id: String,
+    pub success: bool,
+    pub done: bool,
+}
+
+#[tauri::command]
+pub fn batch_summarize(app: AppHandle) -> Result<usize, String> {
+    let dir = memex_dir();
+    let db_path = dir.join("memex.db");
+    if !db_path.exists() {
+        return Err("Database not found".into());
+    }
+
+    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+    let config = MemexConfig::load(&dir).map_err(|e| e.to_string())?;
+    let provider = memex_core::llm::select_provider(&config.llm, &dir)
+        .ok_or_else(|| "No LLM provider available. Enable Ollama or configure Anthropic API key.".to_string())?;
+
+    let ids = db.sessions_without_summary(100).map_err(|e| e.to_string())?;
+    let total = ids.len();
+
+    if total == 0 {
+        return Ok(0);
+    }
+
+    std::thread::spawn(move || {
+        for (i, sid) in ids.iter().enumerate() {
+            let ok = memex_core::ingest::summarize_session_by_id(&db, provider.as_ref(), sid);
+            let _ = app.emit("summary-progress", SummaryProgress {
+                current: i + 1,
+                total,
+                session_id: sid.clone(),
+                success: ok,
+                done: i + 1 == total,
+            });
+        }
+    });
+
+    Ok(total)
 }

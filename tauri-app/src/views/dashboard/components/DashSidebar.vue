@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { LayoutDashboard, List, Search } from 'lucide-vue-next'
+import { LayoutDashboard, List, Search, FolderOpen } from 'lucide-vue-next'
 import { Separator } from '@/components/ui/separator'
 
-export type DashTab = 'overview' | 'sessions' | 'search' | 'session-detail'
+export type DashTab = 'overview' | 'sessions' | 'projects' | 'search' | 'session-detail'
 
 defineProps<{ activeTab: DashTab }>()
 const emit = defineEmits<{ switchTab: [tab: DashTab] }>()
@@ -10,6 +10,7 @@ const emit = defineEmits<{ switchTab: [tab: DashTab] }>()
 const navItems: { key: DashTab; icon: typeof LayoutDashboard; label: string }[] = [
   { key: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
   { key: 'sessions', icon: List, label: 'Sessions' },
+  { key: 'projects', icon: FolderOpen, label: 'Projects' },
   { key: 'search', icon: Search, label: 'Search' },
 ]
 </script>

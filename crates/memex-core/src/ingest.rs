@@ -213,40 +213,47 @@ fn try_l4_periodic_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPr
 }
 
 fn try_l2_session_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
-    let sessions = match db.list_sessions(5) {
-        Ok(s) => s,
+    let session_ids = match db.sessions_without_summary(20) {
+        Ok(ids) => ids,
         Err(_) => return,
     };
 
-    for session in sessions {
-        if db.get_summary(&session.id, "L2_session").ok().flatten().is_some() {
-            continue;
+    for session_id in session_ids {
+        summarize_session_by_id(db, provider, &session_id);
+    }
+}
+
+pub fn summarize_session_by_id(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    session_id: &str,
+) -> bool {
+    let detail = match db.get_session_detail(session_id) {
+        Ok(Some(d)) if d.messages.len() >= 2 => d,
+        _ => return false,
+    };
+
+    let msgs: Vec<(String, String)> = detail
+        .messages
+        .iter()
+        .map(|m| (m.role.clone(), m.content.clone()))
+        .collect();
+
+    match summarize::summarize_session(provider, &msgs) {
+        Ok(summary) => {
+            let _ = db.upsert_summary(
+                session_id,
+                "L2_session",
+                Some(&summary.title),
+                &summary.summary,
+                &summary.topics,
+                &summary.decisions,
+            );
+            true
         }
-        let detail = match db.get_session_detail(&session.id) {
-            Ok(Some(d)) if d.messages.len() >= 2 => d,
-            _ => continue,
-        };
-
-        let msgs: Vec<(String, String)> = detail
-            .messages
-            .iter()
-            .map(|m| (m.role.clone(), m.content.clone()))
-            .collect();
-
-        match summarize::summarize_session(provider, &msgs) {
-            Ok(summary) => {
-                let _ = db.upsert_summary(
-                    &session.id,
-                    "L2_session",
-                    Some(&summary.title),
-                    &summary.summary,
-                    &summary.topics,
-                    &summary.decisions,
-                );
-            }
-            Err(e) => {
-                warn!("L2 summarize failed for session {}: {}", &session.id[..8.min(session.id.len())], e);
-            }
+        Err(e) => {
+            warn!("L2 summarize failed for session {}: {}", &session_id[..8.min(session_id.len())], e);
+            false
         }
     }
 }
