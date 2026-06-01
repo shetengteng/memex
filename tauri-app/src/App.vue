@@ -177,7 +177,7 @@ onUnmounted(() => {
 
       <!-- Footer -->
       <Separator />
-      <div class="flex items-center justify-between bg-muted/50 px-3.5 py-2">
+      <div class="flex items-center justify-between bg-muted/50 px-4 py-2.5">
         <span class="mono text-xs text-muted-foreground">
           {{ formatNumber(stats.sessions) }} sessions ·
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
@@ -189,17 +189,17 @@ onUnmounted(() => {
             </span>
           </template>
         </span>
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-2">
           <ToggleGroup
             type="single"
-            size="sm"
+            size="xl"
             :model-value="navValue"
             @update:model-value="onNav"
           >
             <Tooltip>
               <TooltipTrigger as-child>
                 <ToggleGroupItem value="home" aria-label="Home / 最近会话">
-                  <Home class="h-4 w-4" />
+                  <Home class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent side="top">Home</TooltipContent>
@@ -207,7 +207,7 @@ onUnmounted(() => {
             <Tooltip>
               <TooltipTrigger as-child>
                 <ToggleGroupItem value="settings" aria-label="设置">
-                  <Settings class="h-4 w-4" />
+                  <Settings class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent side="top">Settings</TooltipContent>
@@ -215,22 +215,22 @@ onUnmounted(() => {
             <Tooltip>
               <TooltipTrigger as-child>
                 <ToggleGroupItem value="status" aria-label="健康状态">
-                  <Activity class="h-4 w-4" />
+                  <Activity class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent side="top">Status</TooltipContent>
             </Tooltip>
           </ToggleGroup>
-          <Separator orientation="vertical" class="h-5" />
+          <Separator orientation="vertical" class="h-7" />
           <Tooltip>
             <TooltipTrigger as-child>
               <Button
                 variant="ghost"
                 size="icon"
-                class="h-8 w-8"
+                class="h-11 w-11"
                 @click="openDashboard"
               >
-                <LayoutDashboard class="h-4 w-4" />
+                <LayoutDashboard class="h-5 w-5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">Open Dashboard</TooltipContent>

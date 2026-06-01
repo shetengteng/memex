@@ -5,36 +5,217 @@ import { formatNumber } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import type { Stats } from '@/types'
 
-const { getStats } = useMemex()
-const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, chunks_summarized: 0, llm_provider: null })
-const loading = ref(true)
+const { getStats, getConfig } = useMemex()
 
-const adapterList = ['Claude Code', 'Cursor', 'Codex', 'OpenCode', 'Aider', 'Continue', 'Cline']
+type Tone = 'success' | 'warning' | 'error' | 'muted'
+interface Signal { label: string; value: string; hint?: string; tone: Tone }
+
+const stats = ref<Stats>({
+  sessions: 0,
+  messages: 0,
+  chunks: 0,
+  db_exists: false,
+  summaries: 0,
+  chunks_summarized: 0,
+  llm_provider: null,
+})
+const loading = ref(true)
+const daemonOk = ref<boolean | null>(null)
+const daemonLatency = ref<number | null>(null)
+
+const adapterDefs: { key: string; label: string }[] = [
+  { key: 'claude_code', label: 'Claude Code' },
+  { key: 'cursor', label: 'Cursor' },
+  { key: 'codex', label: 'Codex' },
+  { key: 'opencode', label: 'OpenCode' },
+]
+
+const adapterEnabled = ref<Record<string, boolean>>({})
+const llmOllama = ref<boolean>(false)
+const llmCloud = ref<boolean>(false)
+
+async function probeDaemon() {
+  const t0 = performance.now()
+  try {
+    const resp = await fetch('http://127.0.0.1:9999/health', {
+      signal: AbortSignal.timeout(1500),
+    })
+    daemonOk.value = resp.ok
+    daemonLatency.value = Math.round(performance.now() - t0)
+  } catch {
+    daemonOk.value = false
+    daemonLatency.value = null
+  }
+}
 
 onMounted(async () => {
   try { stats.value = await getStats() } catch { /* ignore */ }
+
+  for (const a of adapterDefs) {
+    try {
+      const v = await getConfig(`adapter.${a.key}.enabled`)
+      adapterEnabled.value[a.key] = v === null ? true : v === 'true'
+    } catch {
+      adapterEnabled.value[a.key] = true
+    }
+  }
+  try {
+    const v = await getConfig('llm.ollama_enabled')
+    llmOllama.value = v === 'true'
+  } catch { /* default */ }
+  try {
+    const v = await getConfig('llm.cloud_fallback')
+    llmCloud.value = v === 'true'
+  } catch { /* default */ }
+
+  await probeDaemon()
   loading.value = false
 })
+
+function refresh() {
+  loading.value = true
+  Promise.allSettled([getStats().then((s) => (stats.value = s)), probeDaemon()]).finally(() => {
+    loading.value = false
+  })
+}
+
+const systemSignals = (): Signal[] => {
+  const out: Signal[] = []
+  out.push(
+    daemonOk.value === null
+      ? { label: 'Daemon', value: 'checking…', tone: 'muted' }
+      : daemonOk.value
+        ? { label: 'Daemon', value: 'running', hint: daemonLatency.value !== null ? `127.0.0.1:9999 · ${daemonLatency.value}ms` : '127.0.0.1:9999', tone: 'success' }
+        : { label: 'Daemon', value: 'offline', hint: 'memex daemon start', tone: 'error' },
+  )
+  out.push(
+    stats.value.db_exists
+      ? { label: 'Database', value: 'ready', hint: `${formatNumber(stats.value.sessions)} sessions · ${formatNumber(stats.value.messages)} messages`, tone: 'success' }
+      : { label: 'Database', value: 'not initialized', hint: 'memex ingest', tone: 'error' },
+  )
+  out.push({
+    label: 'Index',
+    value: formatNumber(stats.value.chunks) + ' chunks',
+    hint: stats.value.chunks > 0 ? 'FTS5 ready' : 'no chunks yet',
+    tone: stats.value.chunks > 0 ? 'success' : 'muted',
+  })
+  return out
+}
+
+const adapterSignals = (): Signal[] =>
+  adapterDefs.map((a) => ({
+    label: a.label,
+    value: adapterEnabled.value[a.key] ? 'enabled' : 'disabled',
+    tone: adapterEnabled.value[a.key] ? 'success' : 'muted',
+  }))
+
+const llmSignals = (): Signal[] => {
+  const active = stats.value.llm_provider
+  const out: Signal[] = []
+  out.push(
+    active
+      ? { label: 'Active provider', value: active, hint: `${formatNumber(stats.value.summaries)} session · ${formatNumber(stats.value.chunks_summarized)} chunk summaries`, tone: 'success' }
+      : { label: 'Active provider', value: 'none', hint: 'summaries paused', tone: 'muted' },
+  )
+  out.push({
+    label: 'Ollama',
+    value: llmOllama.value ? 'enabled' : 'disabled',
+    tone: llmOllama.value ? 'success' : 'muted',
+  })
+  out.push({
+    label: 'Cloud fallback',
+    value: llmCloud.value ? 'opt-in' : 'off',
+    hint: llmCloud.value ? 'redacted before send' : undefined,
+    tone: llmCloud.value ? 'warning' : 'muted',
+  })
+  return out
+}
+
+const dotClass: Record<Tone, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  error: 'bg-destructive',
+  muted: 'bg-muted-foreground/40',
+}
+
+const valueClass: Record<Tone, string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-destructive',
+  muted: 'text-muted-foreground',
+}
 </script>
 
 <template>
-  <div class="mono h-full space-y-0 overflow-y-auto px-3.5 py-3 text-[11px] leading-relaxed">
-    <template v-if="!loading">
-      <div><span :class="stats.db_exists ? 'text-success' : 'text-warning'">{{ stats.db_exists ? '✓' : '!' }}</span> index.db — {{ formatNumber(stats.sessions) }} sessions, {{ formatNumber(stats.messages) }} messages</div>
-      <div><span class="text-success">✓</span> FTS5 — {{ formatNumber(stats.chunks) }} chunks</div>
-      <div v-for="a in adapterList" :key="a"><span class="text-success">✓</span> {{ a }} adapter</div>
-      <div><span class="text-success">✓</span> HTTP — 127.0.0.1:9999</div>
-      <Separator class="my-1.5" />
-      <div :class="stats.llm_provider ? 'text-success' : 'text-warning'">
-        <span>{{ stats.llm_provider ? '✓' : '!' }}</span>
-        LLM — {{ stats.llm_provider ?? 'disabled' }}
-      </div>
-      <div class="text-muted-foreground pl-3">
-        {{ stats.summaries }} session summaries · {{ stats.chunks_summarized }} chunk summaries
-      </div>
-      <Separator class="my-1.5" />
-      <div class="text-muted-foreground">{{ adapterList.length + 3 }} checks · daemon running</div>
+  <div class="h-full overflow-y-auto px-4 py-4">
+    <header class="mb-3 flex items-baseline justify-between">
+      <h2 class="text-sm font-semibold">Health</h2>
+      <button
+        class="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        :disabled="loading"
+        @click="refresh"
+      >{{ loading ? 'refreshing…' : 'refresh' }}</button>
+    </header>
+
+    <div v-if="loading && daemonOk === null" class="text-xs text-muted-foreground">Loading…</div>
+
+    <template v-else>
+      <!-- System -->
+      <section>
+        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">System</div>
+        <ul class="space-y-1.5">
+          <li v-for="s in systemSignals()" :key="s.label" class="flex items-center gap-2">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-xs text-foreground">{{ s.label }}</span>
+            <span class="text-xs font-medium" :class="valueClass[s.tone]">{{ s.value }}</span>
+          </li>
+        </ul>
+        <ul class="mt-1 space-y-0.5 pl-3.5">
+          <li
+            v-for="s in systemSignals().filter((x) => x.hint)"
+            :key="s.label + '-hint'"
+            class="text-[11px] text-muted-foreground"
+          >{{ s.label }}: {{ s.hint }}</li>
+        </ul>
+      </section>
+
+      <Separator class="my-3" />
+
+      <!-- Adapters -->
+      <section>
+        <div class="mb-1.5 flex items-baseline justify-between">
+          <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Adapters</div>
+          <div class="text-[11px] text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }}/{{ adapterDefs.length }} on</div>
+        </div>
+        <ul class="space-y-1.5">
+          <li v-for="s in adapterSignals()" :key="s.label" class="flex items-center gap-2">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-xs">{{ s.label }}</span>
+            <span class="text-xs" :class="valueClass[s.tone]">{{ s.value }}</span>
+          </li>
+        </ul>
+      </section>
+
+      <Separator class="my-3" />
+
+      <!-- LLM -->
+      <section>
+        <div class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">LLM</div>
+        <ul class="space-y-1.5">
+          <li v-for="s in llmSignals()" :key="s.label" class="flex items-center gap-2">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClass[s.tone]" />
+            <span class="flex-1 text-xs">{{ s.label }}</span>
+            <span class="text-xs" :class="valueClass[s.tone]">{{ s.value }}</span>
+          </li>
+        </ul>
+        <ul class="mt-1 space-y-0.5 pl-3.5">
+          <li
+            v-for="s in llmSignals().filter((x) => x.hint)"
+            :key="s.label + '-hint'"
+            class="text-[11px] text-muted-foreground"
+          >{{ s.label }}: {{ s.hint }}</li>
+        </ul>
+      </section>
     </template>
-    <div v-else class="text-muted-foreground">加载中...</div>
   </div>
 </template>

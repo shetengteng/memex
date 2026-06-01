@@ -87,4 +87,16 @@ export interface SummaryProgress {
   done: boolean
 }
 
+export interface AggregateSummary {
+  id: number
+  scope_type: 'daily' | 'weekly' | 'project' | string
+  scope_key: string
+  title: string | null
+  summary: string
+  topics: string[]
+  decisions: string[]
+  session_count: number
+  created_at: string
+}
+
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

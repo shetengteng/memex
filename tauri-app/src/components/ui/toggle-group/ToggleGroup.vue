@@ -10,7 +10,7 @@ import { computed, provide, type HTMLAttributes } from 'vue'
 
 const props = defineProps<ToggleGroupRootProps & {
   class?: HTMLAttributes['class']
-  size?: 'default' | 'sm' | 'lg'
+  size?: 'default' | 'sm' | 'lg' | 'xl'
   variant?: 'default' | 'outline'
 }>()
 const emits = defineEmits<ToggleGroupRootEmits>()

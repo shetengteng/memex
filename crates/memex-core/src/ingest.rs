@@ -82,6 +82,7 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
     try_l2_session_summaries(db, provider.as_ref());
     try_l3_project_summaries(db, provider.as_ref());
     try_l4_periodic_summaries(db, provider.as_ref());
+    try_l4_weekly_summaries(db, provider.as_ref());
 }
 
 fn try_l1_chunk_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
@@ -154,6 +155,69 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
             Err(e) => {
                 warn!("L3 project summarize failed for {}: {}", project, e);
             }
+        }
+    }
+}
+
+fn try_l4_weekly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
+    use chrono::{Datelike, Utc};
+    let now = Utc::now();
+    let iso = now.iso_week();
+    let scope_key = format!("weekly:{}-W{:02}", iso.year(), iso.week());
+
+    if db
+        .get_aggregate_summary("weekly", &scope_key)
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        return;
+    }
+
+    let week_start = chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Mon)
+        .map(|d| format!("{}T00:00:00+00:00", d));
+    let week_end = chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Sun)
+        .map(|d| format!("{}T23:59:59+00:00", d));
+    let (after, before) = match (week_start, week_end) {
+        (Some(a), Some(b)) => (a, b),
+        _ => return,
+    };
+
+    let sessions = match db.list_sessions_in_range(&after, &before) {
+        Ok(s) if s.len() >= 3 => s,
+        _ => return,
+    };
+
+    let mut l2_summaries = Vec::new();
+    for s in &sessions {
+        if let Ok(Some(row)) = db.get_summary(&s.id, "L2_session") {
+            l2_summaries.push(summarize::SessionSummary {
+                title: row.title.unwrap_or_default(),
+                summary: row.summary,
+                topics: row.topics,
+                decisions: row.decisions,
+            });
+        }
+    }
+    if l2_summaries.is_empty() {
+        return;
+    }
+
+    let period_label = format!("Week {}-W{:02}", iso.year(), iso.week());
+    match summarize::summarize_period(provider, &period_label, &l2_summaries) {
+        Ok(summary) => {
+            let _ = db.upsert_aggregate_summary(
+                "weekly",
+                &scope_key,
+                Some(&summary.title),
+                &summary.summary,
+                &summary.topics,
+                &summary.decisions,
+                sessions.len() as i64,
+            );
+        }
+        Err(e) => {
+            warn!("L4 weekly summarize failed: {}", e);
         }
     }
 }

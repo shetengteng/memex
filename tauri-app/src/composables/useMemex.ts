@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -50,5 +50,9 @@ export function useMemex() {
     return invoke<ProjectSummary[]>('list_projects')
   }
 
-  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig, listProjects }
+  async function listReports(scope: 'daily' | 'weekly', limit = 60): Promise<AggregateSummary[]> {
+    return invoke<AggregateSummary[]>('list_reports', { scope, limit })
+  }
+
+  return { getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession, retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig, listProjects, listReports }
 }

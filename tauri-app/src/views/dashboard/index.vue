@@ -9,6 +9,7 @@ import DashSidebar from './components/DashSidebar.vue'
 import OverviewTab from './components/OverviewTab.vue'
 import SessionsTab from './components/SessionsTab.vue'
 import ProjectsTab from './components/ProjectsTab.vue'
+import ReportsTab from './components/ReportsTab.vue'
 import SearchTab from './components/SearchTab.vue'
 import SessionDetailTab from './components/SessionDetailTab.vue'
 import type { DashTab } from './components/DashSidebar.vue'
@@ -131,6 +132,7 @@ onUnmounted(() => {
         />
         <SessionsTab v-else-if="tab === 'sessions'" :sessions="sessions" :loading="sessionsLoading" :initial-filter="sessionFilter" @open-session="openSessionDetail" />
         <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
+        <ReportsTab v-else-if="tab === 'reports'" />
         <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
         <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" @refresh-session="openSessionDetail" />
       </div>

@@ -173,6 +173,39 @@ impl Db {
         Ok(())
     }
 
+    pub fn list_aggregate_summaries(
+        &self,
+        scope_type: &str,
+        limit: u32,
+    ) -> Result<Vec<AggregateSummaryRow>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at
+             FROM aggregate_summaries
+             WHERE scope_type = ?1
+             ORDER BY scope_key DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![scope_type, limit], |row| {
+                let topics_json: String = row.get(5)?;
+                let decisions_json: String = row.get(6)?;
+                Ok(AggregateSummaryRow {
+                    id: row.get(0)?,
+                    scope_type: row.get(1)?,
+                    scope_key: row.get(2)?,
+                    title: row.get(3)?,
+                    summary: row.get(4)?,
+                    topics: serde_json::from_str(&topics_json).unwrap_or_default(),
+                    decisions: serde_json::from_str(&decisions_json).unwrap_or_default(),
+                    session_count: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
     pub fn get_aggregate_summary(
         &self,
         scope_type: &str,
