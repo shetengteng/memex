@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import { formatNumber } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Power } from 'lucide-vue-next'
 import type { Stats, DaemonStatus } from '@/types'
 
+const { t } = useI18n()
 const { getStats, getConfig, daemonStatus, daemonRestart } = useMemex()
 
 type Tone = 'success' | 'warning' | 'error' | 'muted'
@@ -89,27 +91,27 @@ function refresh() {
 }
 
 function daemonSignal(): Signal {
-  if (!daemon.value) return { label: '后台服务', value: '检查中…', tone: 'muted' }
+  if (!daemon.value) return { label: t('status.daemon.label'), value: t('status.daemon.checking'), tone: 'muted' }
   if (daemon.value.running && daemon.value.http_ok) {
     return {
-      label: '后台服务',
-      value: '运行中',
+      label: t('status.daemon.label'),
+      value: t('common.running'),
       hint: daemon.value.port ? `127.0.0.1:${daemon.value.port} · PID ${daemon.value.pid}` : undefined,
       tone: 'success',
     }
   }
   if (daemon.value.running && !daemon.value.http_ok) {
     return {
-      label: '后台服务',
-      value: '启动中',
-      hint: daemon.value.port ? `PID ${daemon.value.pid}，端口 ${daemon.value.port} 暂无响应` : `PID ${daemon.value.pid}，HTTP 暂无响应`,
+      label: t('status.daemon.label'),
+      value: t('common.starting'),
+      hint: t('status.daemon.starting_hint', { pid: daemon.value.pid ?? '?' }),
       tone: 'warning',
     }
   }
   return {
-    label: '后台服务',
-    value: '未运行',
-    hint: '点击右侧"重启"启动 memex-daemon',
+    label: t('status.daemon.label'),
+    value: t('common.offline'),
+    hint: t('status.daemon.offline_hint'),
     tone: 'error',
   }
 }
@@ -119,13 +121,21 @@ const systemSignals = (): Signal[] => {
   out.push(daemonSignal())
   out.push(
     stats.value.db_exists
-      ? { label: '数据库', value: '就绪', hint: `${formatNumber(stats.value.sessions)} 个会话 · ${formatNumber(stats.value.messages)} 条消息`, tone: 'success' }
-      : { label: '数据库', value: '未初始化', hint: '运行 memex ingest', tone: 'error' },
+      ? {
+          label: t('status.db.label'),
+          value: t('common.ready'),
+          hint: t('status.db.hint_summary', {
+            sessions: formatNumber(stats.value.sessions),
+            messages: formatNumber(stats.value.messages),
+          }),
+          tone: 'success',
+        }
+      : { label: t('status.db.label'), value: t('status.db.not_initialized'), hint: 'memex ingest', tone: 'error' },
   )
   out.push({
-    label: '索引',
-    value: formatNumber(stats.value.chunks) + ' 个 chunk',
-    hint: stats.value.chunks > 0 ? 'FTS5 已就绪' : '尚未生成索引',
+    label: t('status.index.label'),
+    value: t('status.index.value', { count: formatNumber(stats.value.chunks) }),
+    hint: stats.value.chunks > 0 ? t('status.index.fts_ready') : t('status.index.empty'),
     tone: stats.value.chunks > 0 ? 'success' : 'muted',
   })
   return out
@@ -134,7 +144,7 @@ const systemSignals = (): Signal[] => {
 const adapterSignals = (): Signal[] =>
   adapterDefs.map((a) => ({
     label: a.label,
-    value: adapterEnabled.value[a.key] ? '已启用' : '已禁用',
+    value: adapterEnabled.value[a.key] ? t('common.enabled') : t('common.disabled'),
     tone: adapterEnabled.value[a.key] ? 'success' : 'muted',
   }))
 
@@ -143,18 +153,26 @@ const llmSignals = (): Signal[] => {
   const out: Signal[] = []
   out.push(
     active
-      ? { label: '当前提供方', value: active, hint: `${formatNumber(stats.value.summaries)} 个会话 · ${formatNumber(stats.value.chunks_summarized)} 个 chunk 摘要`, tone: 'success' }
-      : { label: '当前提供方', value: '未启用', hint: '摘要功能已暂停', tone: 'muted' },
+      ? {
+          label: t('status.llm.active'),
+          value: active,
+          hint: t('status.llm.active_hint', {
+            sessions: formatNumber(stats.value.summaries),
+            chunks: formatNumber(stats.value.chunks_summarized),
+          }),
+          tone: 'success',
+        }
+      : { label: t('status.llm.active'), value: t('status.llm.active_none'), hint: t('status.llm.paused'), tone: 'muted' },
   )
   out.push({
     label: 'Ollama',
-    value: llmOllama.value ? '已启用' : '已禁用',
+    value: llmOllama.value ? t('common.enabled') : t('common.disabled'),
     tone: llmOllama.value ? 'success' : 'muted',
   })
   out.push({
-    label: '云端兜底',
-    value: llmCloud.value ? '已开启' : '关闭',
-    hint: llmCloud.value ? '发送前会做脱敏' : undefined,
+    label: t('status.llm.cloud'),
+    value: llmCloud.value ? t('status.llm.cloud_on') : t('status.llm.cloud_off'),
+    hint: llmCloud.value ? t('status.llm.cloud_hint') : undefined,
     tone: llmCloud.value ? 'warning' : 'muted',
   })
   return out
@@ -178,19 +196,19 @@ const valueClass: Record<Tone, string> = {
 <template>
   <div class="h-full overflow-y-auto px-4 py-4">
     <header class="mb-4 flex items-baseline justify-between">
-      <h2 class="text-base font-semibold">系统状态</h2>
+      <h2 class="text-base font-semibold">{{ t('status.title') }}</h2>
       <Button variant="ghost" size="sm" :disabled="loading" class="gap-1.5" @click="refresh">
         <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-        {{ loading ? '刷新中' : '刷新' }}
+        {{ loading ? t('common.refreshing') : t('common.refresh') }}
       </Button>
     </header>
 
-    <div v-if="loading && daemon === null" class="text-sm text-muted-foreground">加载中…</div>
+    <div v-if="loading && daemon === null" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
 
     <template v-else>
       <!-- 系统 -->
       <section>
-        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">系统</div>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.system') }}</div>
         <ul class="space-y-2">
           <li v-for="(s, i) in systemSignals()" :key="s.label" class="flex items-center gap-2.5">
             <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
@@ -205,7 +223,7 @@ const valueClass: Record<Tone, string> = {
               @click="handleRestart"
             >
               <Power class="h-3 w-3" :class="{ 'animate-pulse': restarting }" />
-              {{ restarting ? '启动中' : '重启' }}
+              {{ restarting ? t('status.restart.in_progress') : t('status.restart.button') }}
             </Button>
             <Button
               v-else-if="i === 0 && s.tone === 'success'"
@@ -214,10 +232,10 @@ const valueClass: Record<Tone, string> = {
               class="h-6 gap-1 px-2 text-xs text-muted-foreground"
               :disabled="restarting"
               @click="handleRestart"
-              title="重启 memex-daemon"
+              :title="t('status.restart.button')"
             >
               <Power class="h-3 w-3" :class="{ 'animate-pulse': restarting }" />
-              {{ restarting ? '重启中' : '重启' }}
+              {{ restarting ? t('status.restart.in_progress') : t('status.restart.button') }}
             </Button>
           </li>
         </ul>
@@ -227,7 +245,7 @@ const valueClass: Record<Tone, string> = {
             :key="s.label + '-hint'"
             class="text-xs text-muted-foreground"
           >{{ s.label }}: {{ s.hint }}</li>
-          <li v-if="restartError" class="text-xs text-destructive">重启失败: {{ restartError }}</li>
+          <li v-if="restartError" class="text-xs text-destructive">{{ t('status.restart.fail') }}: {{ restartError }}</li>
         </ul>
       </section>
 
@@ -236,8 +254,8 @@ const valueClass: Record<Tone, string> = {
       <!-- 适配器 -->
       <section>
         <div class="mb-2 flex items-baseline justify-between">
-          <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">适配器</div>
-          <div class="text-xs text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }} / {{ adapterDefs.length }} 已启用</div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.adapters') }}</div>
+          <div class="text-xs text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }} / {{ adapterDefs.length }}</div>
         </div>
         <ul class="space-y-2">
           <li v-for="s in adapterSignals()" :key="s.label" class="flex items-center gap-2.5">
@@ -252,7 +270,7 @@ const valueClass: Record<Tone, string> = {
 
       <!-- LLM -->
       <section>
-        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">LLM</div>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.llm') }}</div>
         <ul class="space-y-2">
           <li v-for="s in llmSignals()" :key="s.label" class="flex items-center gap-2.5">
             <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />

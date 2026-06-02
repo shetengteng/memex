@@ -5,6 +5,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Search, Settings, Activity, LayoutDashboard, Home } from 'lucide-vue-next'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import { formatNumber } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ const selectedSessionId = ref<string | null>(null)
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const appWindow = getCurrentWindow()
+const { t } = useI18n()
 const { getStats } = useMemex()
 const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, chunks_summarized: 0, llm_provider: null })
 
@@ -157,7 +159,7 @@ onUnmounted(() => {
           ref="searchInputRef"
           v-model="searchQuery"
           type="text"
-          :placeholder="currentView === 'search' ? '搜索 AI 对话历史...' : '搜索...'"
+          :placeholder="t('search.placeholder')"
           class="h-8 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
           @focus="switchView('search')"
         />
@@ -179,12 +181,12 @@ onUnmounted(() => {
       <Separator />
       <div class="flex items-center justify-between bg-muted/50 px-4 py-2.5">
         <span class="mono text-xs text-muted-foreground">
-          {{ formatNumber(stats.sessions) }} sessions ·
+          {{ formatNumber(stats.sessions) }} · 
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
-          {{ stats.db_exists ? 'healthy' : 'no db' }}
+          {{ stats.db_exists ? t('common.ready') : t('status.db.not_initialized') }}
           <template v-if="stats.llm_provider">
             · <span class="text-primary">{{ stats.llm_provider }}</span>
-            <span v-if="summaryProgress" :title="`${summaryProgress.done}/${summaryProgress.total} sessions summarized`">
+            <span v-if="summaryProgress" :title="`${summaryProgress.done}/${summaryProgress.total}`">
               {{ summaryProgress.pct }}%
             </span>
           </template>
@@ -198,27 +200,27 @@ onUnmounted(() => {
           >
             <Tooltip>
               <TooltipTrigger as-child>
-                <ToggleGroupItem value="home" aria-label="Home / 最近会话">
+                <ToggleGroupItem value="home" :aria-label="t('nav.home')">
                   <Home class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent side="top">Home</TooltipContent>
+              <TooltipContent side="top">{{ t('nav.home') }}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
-                <ToggleGroupItem value="settings" aria-label="设置">
+                <ToggleGroupItem value="settings" :aria-label="t('nav.settings')">
                   <Settings class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent side="top">Settings</TooltipContent>
+              <TooltipContent side="top">{{ t('nav.settings') }}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
-                <ToggleGroupItem value="status" aria-label="健康状态">
+                <ToggleGroupItem value="status" :aria-label="t('nav.status')">
                   <Activity class="h-5 w-5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent side="top">Status</TooltipContent>
+              <TooltipContent side="top">{{ t('nav.status') }}</TooltipContent>
             </Tooltip>
           </ToggleGroup>
           <Separator orientation="vertical" class="h-7" />
@@ -233,7 +235,7 @@ onUnmounted(() => {
                 <LayoutDashboard class="h-5 w-5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Open Dashboard</TooltipContent>
+            <TooltipContent side="top">{{ t('nav.dashboard') }}</TooltipContent>
           </Tooltip>
         </div>
       </div>

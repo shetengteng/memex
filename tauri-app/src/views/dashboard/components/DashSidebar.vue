@@ -1,18 +1,22 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { LayoutDashboard, List, Search, FolderOpen, Newspaper } from 'lucide-vue-next'
+import { useI18n } from '@/i18n'
 
 export type DashTab = 'overview' | 'sessions' | 'projects' | 'reports' | 'search' | 'session-detail'
 
 defineProps<{ activeTab: DashTab }>()
 const emit = defineEmits<{ switchTab: [tab: DashTab] }>()
 
-const navItems: { key: DashTab; icon: typeof LayoutDashboard; label: string }[] = [
-  { key: 'overview', icon: LayoutDashboard, label: 'Dashboard' },
-  { key: 'sessions', icon: List, label: 'Sessions' },
-  { key: 'projects', icon: FolderOpen, label: 'Projects' },
-  { key: 'reports', icon: Newspaper, label: 'Reports' },
-  { key: 'search', icon: Search, label: 'Search' },
-]
+const { t } = useI18n()
+
+const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: string }[]>(() => [
+  { key: 'overview', icon: LayoutDashboard, label: t('dashboard.nav.overview') },
+  { key: 'sessions', icon: List, label: t('dashboard.nav.sessions') },
+  { key: 'projects', icon: FolderOpen, label: t('dashboard.nav.projects') },
+  { key: 'reports', icon: Newspaper, label: t('dashboard.nav.reports') },
+  { key: 'search', icon: Search, label: t('dashboard.nav.search') },
+])
 </script>
 
 <template>

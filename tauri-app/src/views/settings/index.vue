@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 
+const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
+
+async function changeLocale(next: Locale) {
+  if (next === locale.value) return
+  await setLocale(next)
+}
 
 interface AdapterRow { key: string; label: string; enabled: boolean }
 
@@ -27,6 +34,10 @@ const llm = ref({
   ollamaChecking: false,
   claudeFallback: false,
 })
+
+const ollamaLabel = computed(() =>
+  t('settings.llm.ollama_label', { model: llm.value.ollamaModel }),
+)
 
 async function checkOllamaAvailability(): Promise<boolean> {
   try {
@@ -113,8 +124,28 @@ async function setCloudFallback(value: boolean) {
 
 <template>
   <div class="h-full space-y-3 overflow-y-auto px-4 py-4">
-    <!-- Adapters -->
-    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Adapters</p>
+    <!-- 通用 -->
+    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.general') }}</p>
+    <div class="flex items-center justify-between py-2.5">
+      <span class="flex flex-col gap-0.5">
+        <span class="text-base">{{ t('settings.general.language') }}</span>
+        <span class="text-xs text-muted-foreground">{{ t('settings.general.language_hint') }}</span>
+      </span>
+      <div class="inline-flex rounded-md border border-border p-0.5">
+        <button
+          v-for="opt in LOCALE_OPTIONS"
+          :key="opt.value"
+          class="rounded px-3 py-1 text-sm font-medium transition-colors"
+          :class="locale === opt.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
+          @click="changeLocale(opt.value)"
+        >{{ opt.label }}</button>
+      </div>
+    </div>
+
+    <Separator class="my-2" />
+
+    <!-- 适配器 -->
+    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.adapters') }}</p>
     <div
       v-for="(a, i) in adapters"
       :key="a.key"
@@ -135,21 +166,21 @@ async function setCloudFallback(value: boolean) {
     <Separator class="my-2" />
 
     <!-- LLM -->
-    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">LLM</p>
+    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.llm') }}</p>
     <div class="flex items-center justify-between py-2.5">
       <span class="flex items-center gap-2.5 text-base">
         <span
           class="inline-block h-2.5 w-2.5 rounded-full"
           :class="llm.ollamaEnabled && llm.ollamaAvailable ? 'bg-success' : llm.ollamaChecking ? 'bg-warning animate-pulse' : 'bg-muted-foreground'"
         />
-        Ollama ({{ llm.ollamaModel }})
+        {{ ollamaLabel }}
       </span>
       <div class="flex items-center gap-2.5">
         <span
           class="text-sm"
           :class="llm.ollamaAvailable ? 'text-success' : 'text-destructive'"
         >
-          {{ llm.ollamaChecking ? '...' : llm.ollamaAvailable ? 'local' : 'offline' }}
+          {{ llm.ollamaChecking ? '…' : llm.ollamaAvailable ? t('settings.adapters.local') : t('settings.adapters.offline') }}
         </span>
         <Switch
           :model-value="llm.ollamaEnabled"
@@ -161,7 +192,7 @@ async function setCloudFallback(value: boolean) {
     <div class="flex items-center justify-between border-t border-border/40 py-2.5">
       <span class="flex items-center gap-2.5 text-base">
         <span class="inline-block h-2.5 w-2.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
-        Claude fallback
+        {{ t('settings.llm.claude_fallback') }}
       </span>
       <Switch
         :model-value="llm.claudeFallback"
@@ -172,10 +203,10 @@ async function setCloudFallback(value: boolean) {
 
     <Separator class="my-2" />
 
-    <!-- Privacy -->
-    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">隐私</p>
+    <!-- 隐私 -->
+    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.privacy') }}</p>
     <div class="flex items-center justify-between py-2.5">
-      <span class="text-base">自动脱敏</span>
+      <span class="text-base">{{ t('settings.privacy.auto_redact') }}</span>
       <Switch
         :model-value="privacy.autoRedact"
         class="h-7 w-12 [&_>span]:h-6 [&_>span]:w-6 [&[data-state=checked]_>span]:translate-x-5"
@@ -183,7 +214,7 @@ async function setCloudFallback(value: boolean) {
       />
     </div>
     <div class="flex items-center justify-between border-t border-border/40 py-2.5">
-      <span class="text-base">Private session 隐藏</span>
+      <span class="text-base">{{ t('settings.privacy.hide_private') }}</span>
       <Switch
         :model-value="privacy.privateFromMcp"
         class="h-7 w-12 [&_>span]:h-6 [&_>span]:w-6 [&[data-state=checked]_>span]:translate-x-5"

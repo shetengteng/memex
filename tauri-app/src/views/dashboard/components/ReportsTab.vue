@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RefreshCw, Sparkles } from 'lucide-vue-next'
 import type { AggregateSummary } from '@/types'
 
+const { t } = useI18n()
 const { listReports, regenerateReport } = useMemex()
 
 const scope = ref<'daily' | 'weekly'>('daily')
@@ -44,8 +46,8 @@ async function handleRegenerate() {
     } else {
       regenError.value =
         scope.value === 'daily'
-          ? '今天没有足够的会话摘要可供生成日报'
-          : '本周没有足够的会话摘要可供生成周报'
+          ? t('reports.empty.daily')
+          : t('reports.empty.weekly')
     }
   } catch (e: unknown) {
     regenError.value = e instanceof Error ? e.message : String(e)
@@ -80,10 +82,8 @@ function formatCreatedAt(iso: string): string {
   <div>
     <header class="mb-6 flex items-baseline justify-between">
       <div>
-        <h2 class="text-xl font-semibold">报告</h2>
-        <p class="mt-1 text-xs text-muted-foreground">
-          基于 L2 会话摘要自动生成的日报和周报。
-        </p>
+        <h2 class="text-xl font-semibold">{{ t('reports.title') }}</h2>
+        <p class="mt-1 text-xs text-muted-foreground">{{ t('reports.subtitle') }}</p>
       </div>
       <div class="flex items-center gap-2">
         <Button
@@ -94,11 +94,11 @@ function formatCreatedAt(iso: string): string {
           @click="handleRegenerate"
         >
           <Sparkles class="h-3.5 w-3.5" :class="{ 'animate-pulse': regenerating }" />
-          {{ regenerating ? '生成中…' : scope === 'daily' ? '重新生成日报' : '重新生成周报' }}
+          {{ regenerating ? t('reports.regenerate.in_progress') : scope === 'daily' ? t('reports.regenerate.daily') : t('reports.regenerate.weekly') }}
         </Button>
         <Button variant="ghost" size="sm" :disabled="loading" @click="load" class="h-8 gap-1.5">
           <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
-          刷新
+          {{ t('common.refresh') }}
         </Button>
       </div>
     </header>
@@ -110,24 +110,21 @@ function formatCreatedAt(iso: string): string {
         class="px-3 py-1 text-xs font-medium transition-colors"
         :class="scope === s ? 'rounded bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
         @click="scope = s"
-      >{{ s === 'daily' ? '日报' : '周报' }}</button>
+      >{{ s === 'daily' ? t('reports.tab.daily') : t('reports.tab.weekly') }}</button>
     </div>
 
     <div v-if="regenError" class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       {{ regenError }}
     </div>
 
-    <div v-if="loading && !items.length" class="text-sm text-muted-foreground">加载中…</div>
+    <div v-if="loading && !items.length" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
 
     <div v-else-if="!items.length" class="rounded-md border border-dashed border-border px-4 py-8 text-center">
-      <p class="text-sm font-medium">还没有{{ scope === 'daily' ? '日报' : '周报' }}</p>
-      <p class="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-        当 LLM 服务可用且
-        {{ scope === 'daily' ? '当天' : '本 ISO 周' }}内至少有
-        {{ scope === 'daily' ? 2 : 3 }} 个会话时，会在每次 ingest 时自动生成报告。
-        可在<em>设置</em>里启用 Ollama 或配置 Claude API Key，然后运行 <code>memex ingest</code>，
-        或点击右上角"重新生成"按钮立即触发。
-      </p>
+      <p class="text-sm font-medium">{{ scope === 'daily' ? t('reports.empty.daily') : t('reports.empty.weekly') }}</p>
+      <p
+        class="mx-auto mt-2 max-w-md text-xs text-muted-foreground"
+        v-html="t('reports.empty.hint', { scope: scope === 'daily' ? t('reports.tab.daily') : t('reports.tab.weekly'), min: scope === 'daily' ? 2 : 3 })"
+      />
     </div>
 
     <div v-else class="grid grid-cols-[220px_1fr] gap-6">
@@ -150,7 +147,8 @@ function formatCreatedAt(iso: string): string {
         <header class="mb-3">
           <h3 class="text-lg font-semibold">{{ current.title || formatLabel(current) }}</h3>
           <p class="mt-1 text-xs text-muted-foreground">
-            涵盖 {{ current.session_count }} 个会话 · 生成于 {{ formatCreatedAt(current.created_at) }}
+            {{ t('reports.session_count', { count: current.session_count }) }} ·
+            {{ t('reports.generated_at', { time: formatCreatedAt(current.created_at) }) }}
           </p>
         </header>
 
@@ -158,15 +156,15 @@ function formatCreatedAt(iso: string): string {
 
         <template v-if="current.topics.length">
           <Separator class="my-5" />
-          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">主题</div>
+          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('reports.section.topics') }}</div>
           <div class="flex flex-wrap gap-1.5">
-            <Badge v-for="t in current.topics" :key="t" variant="secondary">{{ t }}</Badge>
+            <Badge v-for="topic in current.topics" :key="topic" variant="secondary">{{ topic }}</Badge>
           </div>
         </template>
 
         <template v-if="current.decisions.length">
           <Separator class="my-5" />
-          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">关键决策</div>
+          <div class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ t('reports.section.decisions') }}</div>
           <ul class="space-y-1.5">
             <li
               v-for="d in current.decisions"
