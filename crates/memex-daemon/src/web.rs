@@ -1,5 +1,5 @@
-//! Web UI static file serving.
-//! Serves from `~/.memex/web/` if it exists, otherwise returns a redirect to Tauri app.
+//! Web UI 静态文件托管。
+//! 如果 `~/.memex/web/` 存在就从这里 serve，否则返回一个跳转到 Tauri app 的重定向。
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;

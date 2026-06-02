@@ -1,4 +1,4 @@
-//! MCP tool contract tests — validate JSON-RPC request/response shapes.
+//! MCP 工具契约测试 —— 校验 JSON-RPC 请求 / 响应的字段结构。
 
 use super::protocol::*;
 use super::server::handle_request_for_test;

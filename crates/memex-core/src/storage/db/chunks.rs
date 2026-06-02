@@ -1,6 +1,6 @@
-//! Chunk inserts and FTS5 search. Search is read-only and joins
-//! `chunks_fts` ↔ `chunks` ↔ `sessions` ↔ `messages` to surface adapter,
-//! project, and timestamp alongside the snippet.
+//! chunk 写入和 FTS5 搜索。搜索是只读的，
+//! 通过 `chunks_fts` ↔ `chunks` ↔ `sessions` ↔ `messages` 的 JOIN
+//! 把 adapter、project、timestamp 和 snippet 一起带回来。
 
 use anyhow::Result;
 use rusqlite::params;

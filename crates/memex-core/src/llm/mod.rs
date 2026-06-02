@@ -11,16 +11,16 @@ use provider::LlmProvider;
 
 pub const CLOUD_NOTICE_KV_KEY: &str = "cloud_fallback_notice_shown";
 
-/// Select the best available LLM provider, given the user's `LlmConfig` and
-/// the on-disk Memex working directory (where `credentials.toml` may live).
+/// 根据用户的 `LlmConfig` 和 Memex 工作目录（`credentials.toml` 可能在那里），
+/// 选出当前最合适的 LLM provider。
 ///
-/// Priority:
-///   1. Ollama (local) when `ollama_enabled` is true and the daemon is reachable.
-///   2. Anthropic (cloud) when `cloud_fallback` is true **and** an API key is
-///      available — first via `~/.memex/credentials.toml`, then via the
-///      `ANTHROPIC_API_KEY` environment variable.
-///   3. `None` — caller treats LLM features as unavailable and skips the
-///      summary path without aborting ingest.
+/// 优先级：
+///   1. Ollama（本地）—— 当 `ollama_enabled` 为 true 且 daemon 可达时。
+///   2. Anthropic（云端）—— 当 `cloud_fallback` 为 true **且** 有可用的 API key
+///      时；key 来源优先级：`~/.memex/credentials.toml`，再回退到
+///      `ANTHROPIC_API_KEY` 环境变量。
+///   3. `None` —— 调用方把 LLM 能力当作不可用，摘要链路直接跳过，
+///      不中断 ingest。
 pub fn select_provider(config: &LlmConfig, memex_dir: &Path) -> Option<Box<dyn LlmProvider>> {
     if config.ollama_enabled {
         let ollama = ollama::OllamaProvider::from_config(config);
@@ -41,17 +41,17 @@ pub fn select_provider(config: &LlmConfig, memex_dir: &Path) -> Option<Box<dyn L
     None
 }
 
-/// Describes what data scope is uploaded when cloud fallback is active.
-/// Callers (CLI, daemon, Tauri) can use this to display a notice before
-/// the first cloud LLM call.
+/// 描述启用云端兜底时会上传到云端的数据范围。
+/// 调用方（CLI、daemon、Tauri）可以在首次调用云端 LLM 之前用这段文字
+/// 提示用户。
 pub fn cloud_upload_scope() -> String {
     concat!(
-        "Cloud LLM fallback active (Anthropic). Data sent to cloud API:\n",
-        "  - Redacted chunk content (for L1 chunk summaries)\n",
-        "  - Redacted session messages (for L2 session summaries)\n",
-        "  - L2 summary titles/topics (for L3 project / L4 periodic summaries)\n",
-        "All content is redacted before upload (API keys, emails, IPs, etc. replaced with [REDACTED]).\n",
-        "Raw source files are never uploaded. Disable with: memex config set llm.cloud_fallback false",
+        "云端 LLM 兜底已启用（Anthropic）。会发送到云端 API 的数据：\n",
+        "  - 已脱敏的 chunk 内容（用于 L1 chunk 摘要）\n",
+        "  - 已脱敏的会话消息（用于 L2 会话摘要）\n",
+        "  - L2 摘要的标题/主题（用于 L3 项目 / L4 周期摘要）\n",
+        "所有内容上传前都会做脱敏（API key、邮箱、IP 等会被替换为 [REDACTED]）。\n",
+        "原始来源文件永远不会被上传。关闭方式：memex config set llm.cloud_fallback false",
     ).to_string()
 }
 
@@ -90,7 +90,7 @@ mod tests {
         .unwrap();
         let mut cfg = disabled_config();
         cfg.cloud_fallback = true;
-        let provider = select_provider(&cfg, tmp.path()).expect("anthropic should be selected");
+        let provider = select_provider(&cfg, tmp.path()).expect("anthropic 应该被选中");
         assert_eq!(provider.name(), "anthropic");
     }
 
@@ -108,14 +108,14 @@ mod tests {
         let provider = select_provider(&disabled_config(), tmp.path());
         assert!(
             provider.is_none(),
-            "cloud_fallback=false should not return Anthropic even if creds exist"
+            "cloud_fallback=false 时，即使凭证存在也不应返回 Anthropic"
         );
     }
 
     #[test]
     fn cloud_upload_scope_contains_key_info() {
         let scope = cloud_upload_scope();
-        assert!(scope.contains("Redacted"));
+        assert!(scope.contains("脱敏"));
         assert!(scope.contains("cloud_fallback"));
         assert!(scope.contains("Anthropic"));
     }

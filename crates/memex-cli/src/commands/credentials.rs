@@ -1,9 +1,9 @@
-//! `memex credentials` — manage `~/.memex/credentials.toml`.
+//! `memex credentials` —— 管理 `~/.memex/credentials.toml`。
 //!
-//! Surface area:
-//!     * `set anthropic <key> [--model M]`  — write key (chmod 0600 on Unix).
-//!     * `show`                              — print known providers without leaking the key.
-//!     * `clear anthropic`                   — wipe the anthropic block.
+//! 命令面：
+//!     * `set anthropic <key> [--model M]`  —— 写入 key（Unix 系统会 chmod 0600）。
+//!     * `show`                              —— 打印已配置的提供方，不泄露 key 本身。
+//!     * `clear anthropic`                   —— 清空 anthropic 配置块。
 
 use anyhow::Result;
 use memex_core::llm::credentials::{AnthropicCredentials, Credentials};

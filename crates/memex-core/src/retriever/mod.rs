@@ -156,8 +156,8 @@ fn quote_token(word: &str) -> String {
     }
 }
 
-/// Expand CJK sequences in query to FTS5 NEAR phrases for better Chinese search.
-/// Also quotes tokens containing special FTS5 operators (e.g. `-`, `.`).
+/// 把查询里的中日韩字符序列展开成 FTS5 的 NEAR 短语，提升中文搜索效果。
+/// 同时给包含 FTS5 特殊操作符（如 `-`、`.`）的 token 自动加引号。
 /// "redis 数据库" → "redis NEAR(数 据 库, 0)"
 /// "ZOOM-1248726" → "\"ZOOM-1248726\""
 fn cjk_expand_query(query: &str) -> String {

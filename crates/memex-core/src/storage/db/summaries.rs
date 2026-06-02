@@ -1,5 +1,5 @@
-//! Session summary CRUD — supports L1 (chunk), L2 (session), L3 (project),
-//! L4 (periodic) levels. Upserts by `(session_id, level)` unique pair.
+//! 会话摘要 CRUD —— 支持 L1（chunk）、L2（session）、L3（项目）、
+//! L4（周期）四个层级。按 `(session_id, level)` 这对唯一键做 upsert。
 
 use anyhow::Result;
 use rusqlite::params;

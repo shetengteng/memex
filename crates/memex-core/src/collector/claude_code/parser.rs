@@ -1,5 +1,5 @@
-//! Parse a Claude Code rollout JSONL line into a `RawMessage`.
-//! Mirrors tars-ai-butler `tars/adapters/claude_code.py` content extraction.
+//! 把 Claude Code rollout JSONL 的一行解析成 `RawMessage`。
+//! 对齐 tars-ai-butler `tars/adapters/claude_code.py` 的内容提取逻辑。
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;

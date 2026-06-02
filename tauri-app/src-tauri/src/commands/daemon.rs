@@ -27,7 +27,7 @@ fn read_lock() -> Option<LockInfo> {
 }
 
 fn is_process_alive(pid: u32) -> bool {
-    // kill -0 returns 0 if the process exists and we can signal it.
+    // kill -0 在进程存在且我们有权限给它发信号时返回 0。
     Command::new("kill")
         .args(["-0", &pid.to_string()])
         .stdout(Stdio::null())
@@ -49,8 +49,8 @@ fn http_health_ok(port: u16) -> bool {
 }
 
 fn find_daemon_binary() -> Option<PathBuf> {
-    // Prefer a binary that sits next to the menubar app's own executable,
-    // which is how the bundle layout ships it.
+    // 优先用跟 menubar 主程序同目录的二进制；
+    // bundle 打包出来的目录结构就是这样放的。
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
             let p = parent.join("memex-daemon");
@@ -59,7 +59,7 @@ fn find_daemon_binary() -> Option<PathBuf> {
             }
         }
     }
-    // Fall back to PATH.
+    // 退而求其次：从 PATH 里找。
     if let Ok(out) = Command::new("which").arg("memex-daemon").output() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
@@ -93,7 +93,7 @@ pub async fn daemon_status() -> Result<DaemonStatus, String> {
 
 #[tauri::command]
 pub async fn daemon_restart() -> Result<DaemonStatus, String> {
-    // Stop whatever is running, even if the lock is stale.
+    // 不管当前是不是过期 lock，先把存活的进程杀掉。
     if let Some(info) = read_lock() {
         if is_process_alive(info.pid) {
             let _ = Command::new("kill")
@@ -111,7 +111,7 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
     let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
 
     let bin = find_daemon_binary().ok_or_else(|| {
-        "memex-daemon binary not found next to the app or on PATH".to_string()
+        "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string()
     })?;
 
     Command::new(&bin)
@@ -119,9 +119,9 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("failed to spawn daemon at {}: {}", bin.display(), e))?;
+        .map_err(|e| format!("启动 daemon 失败（{}）：{}", bin.display(), e))?;
 
-    // Give the daemon a moment to write its lock file and bind its port.
+    // 等 daemon 写 lock 文件、绑端口。
     for _ in 0..20 {
         std::thread::sleep(std::time::Duration::from_millis(150));
         if let Some(info) = read_lock() {
@@ -136,8 +136,8 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
             }
         }
     }
-    // Even if HTTP isn't responding yet, report what we know so the UI can
-    // surface "starting…" instead of "offline".
+    // 即使 HTTP 还没就绪，也把已知的状态返回给 UI，
+    // 让它能显示"启动中"而不是"未运行"。
     Ok(daemon_status().await.unwrap_or(DaemonStatus {
         running: false,
         pid: None,

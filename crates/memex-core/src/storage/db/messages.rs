@@ -1,5 +1,5 @@
-//! Message inserts. Idempotent on `(content_hash, session_id)`; bumps
-//! `sessions.message_count` and `sessions.updated_at` only on real inserts.
+//! 消息写入。按 `(content_hash, session_id)` 做幂等去重；
+//! 只有真的插入新行时才会更新 `sessions.message_count` 和 `sessions.updated_at`。
 
 use anyhow::Result;
 use rusqlite::params;

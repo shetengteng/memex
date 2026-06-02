@@ -8,10 +8,10 @@ mod commands;
 #[command(
     name = "memex",
     version,
-    about = "Local-first cross-LLM session memory hub"
+    about = "本地优先的跨 LLM 会话记忆中枢"
 )]
 struct Cli {
-    #[arg(long, global = true, help = "Output in JSON format")]
+    #[arg(long, global = true, help = "以 JSON 格式输出结果")]
     json: bool,
 
     #[command(subcommand)]
@@ -20,71 +20,71 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Ingest sessions from AI tool history
+    /// 从 AI 工具的历史会话中拉取数据
     Ingest {
         #[arg(long)]
         adapter: Option<String>,
     },
-    /// Search across all sessions
+    /// 跨所有会话搜索
     Search {
         query: String,
         #[arg(short, long, default_value = "10")]
         limit: usize,
         #[arg(
             long,
-            help = "Filter by adapter (claude_code, cursor, codex, opencode)"
+            help = "按适配器过滤（claude_code、cursor、codex、opencode）"
         )]
         adapter: Option<String>,
-        #[arg(long, help = "Filter by project name")]
+        #[arg(long, help = "按项目名称过滤")]
         project: Option<String>,
-        #[arg(long, help = "Filter by chunk type")]
+        #[arg(long, help = "按 chunk 类型过滤")]
         chunk_type: Option<String>,
-        #[arg(long, help = "Only results after this date (RFC3339)")]
+        #[arg(long, help = "只返回此时间之后的结果（RFC3339）")]
         after: Option<String>,
-        #[arg(long, help = "Only results before this date (RFC3339)")]
+        #[arg(long, help = "只返回此时间之前的结果（RFC3339）")]
         before: Option<String>,
     },
-    /// List sessions
+    /// 列出会话
     Sessions {
         #[arg(long, default_value = "20")]
         recent: usize,
-        #[arg(long, help = "Only show sessions updated within N days")]
+        #[arg(long, help = "只显示最近 N 天内更新过的会话")]
         days: Option<u32>,
     },
-    /// Show a specific session with its messages
+    /// 显示某个会话及其消息
     Session {
-        /// Session ID (full or prefix)
+        /// 会话 ID（完整或前缀均可）
         id: String,
     },
-    /// Show statistics
+    /// 显示统计信息
     Stats,
-    /// Show or modify configuration
+    /// 显示或修改配置
     Config {
         #[command(subcommand)]
         action: ConfigAction,
     },
-    /// Run system diagnostics
+    /// 运行系统诊断
     Doctor,
-    /// Export data to a tar.gz archive
+    /// 将数据导出为 tar.gz 归档
     Backup {
-        /// Output file path
+        /// 输出文件路径
         path: String,
     },
-    /// Rebuild SQLite index from Markdown session files
+    /// 从 Markdown 会话文件重建 SQLite 索引
     RebuildIndex,
-    /// Start MCP server (stdio JSON-RPC)
+    /// 启动 MCP server（stdio JSON-RPC）
     Mcp,
-    /// Configure MCP for a specific AI tool
+    /// 为指定 AI 工具配置 MCP
     Setup {
-        /// Target tool (cursor, claude-code)
+        /// 目标工具（cursor、claude-code）
         target: String,
     },
-    /// Manage the background daemon
+    /// 管理后台 daemon
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,
     },
-    /// Manage cloud LLM credentials (`~/.memex/credentials.toml`, chmod 0600)
+    /// 管理云端 LLM 凭证（`~/.memex/credentials.toml`，权限 0600）
     Credentials {
         #[command(subcommand)]
         action: CredentialsAction,
@@ -93,39 +93,39 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum ConfigAction {
-    /// Show current configuration
+    /// 显示当前配置
     Show,
-    /// Set a configuration value
+    /// 设置某个配置项
     Set { key: String, value: String },
 }
 
 #[derive(Subcommand)]
 enum DaemonAction {
-    /// Start the daemon in background
+    /// 在后台启动 daemon
     Start,
-    /// Stop a running daemon
+    /// 停止运行中的 daemon
     Stop,
-    /// Show daemon status
+    /// 显示 daemon 状态
     Status,
 }
 
 #[derive(Subcommand)]
 enum CredentialsAction {
-    /// Set the API key (and optional model) for a cloud provider
+    /// 为某个云端 LLM 提供方设置 API key（以及可选 model）
     Set {
-        /// Provider name. Currently supported: anthropic
+        /// 提供方名称。当前支持：anthropic
         provider: String,
-        /// API key value
+        /// API key 值
         api_key: String,
-        /// Override the default model
+        /// 覆盖默认 model
         #[arg(long)]
         model: Option<String>,
     },
-    /// Show which providers are currently configured
+    /// 显示当前已配置的提供方
     Show,
-    /// Clear stored credentials for a provider
+    /// 清除某个提供方的凭证
     Clear {
-        /// Provider name. Currently supported: anthropic
+        /// 提供方名称。当前支持：anthropic
         provider: String,
     },
 }
@@ -172,7 +172,7 @@ fn main() -> Result<()> {
             CredentialsAction::Set { provider, api_key, model } => match provider.as_str() {
                 "anthropic" => commands::credentials::set_anthropic(&api_key, model, cli.json),
                 other => {
-                    eprintln!("unsupported credentials provider: {} (supported: anthropic)", other);
+                    eprintln!("不支持的凭证提供方：{}（支持的有：anthropic）", other);
                     Ok(())
                 }
             },
@@ -180,7 +180,7 @@ fn main() -> Result<()> {
             CredentialsAction::Clear { provider } => match provider.as_str() {
                 "anthropic" => commands::credentials::clear_anthropic(cli.json),
                 other => {
-                    eprintln!("unsupported credentials provider: {} (supported: anthropic)", other);
+                    eprintln!("不支持的凭证提供方：{}（支持的有：anthropic）", other);
                     Ok(())
                 }
             },

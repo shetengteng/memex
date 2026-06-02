@@ -1,13 +1,14 @@
-//! Codex Desktop adapter — reads `~/.codex/session_index.jsonl` to discover
-//! session ids, then locates the full message stream at
-//! `~/.codex/sessions/YYYY/MM/DD/rollout-<datetime>-<session-id>.jsonl`.
+//! Codex Desktop adapter —— 通过读取 `~/.codex/session_index.jsonl` 发现
+//! 所有 session id，然后从
+//! `~/.codex/sessions/YYYY/MM/DD/rollout-<datetime>-<session-id>.jsonl`
+//! 定位到完整的消息流。
 //!
-//! Verified against tars-ai-butler `tars/adapters/codex.py`:
-//! - `session_meta` payload.cwd → project path
-//! - `response_item` payload (role + content array) → user/assistant message,
-//!   filtering `<environment_context>` blocks injected by Codex
-//! - `event_msg` payload.type=`last_agent_message` → final assistant signal
-//! - Timestamps end with `Z` and need RFC3339 normalisation to `+00:00`
+//! 已对照 tars-ai-butler `tars/adapters/codex.py` 验证：
+//! - `session_meta` payload.cwd → 项目路径
+//! - `response_item` payload（role + content 数组）→ user/assistant 消息，
+//!   并过滤掉 Codex 注入的 `<environment_context>` 块
+//! - `event_msg` payload.type=`last_agent_message` → 助手收尾信号
+//! - 时间戳以 `Z` 结尾，需要做 RFC3339 归一化为 `+00:00`
 
 mod discover;
 mod parser;

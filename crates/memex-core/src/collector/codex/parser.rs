@@ -1,6 +1,6 @@
-//! Per-line parser: dispatch a session JSONL entry by its top-level `type`
-//! field and turn `response_item` / `event_msg` payloads into `RawMessage`s.
-//! Mirrors tars-ai-butler `tars/adapters/codex.py` content extraction.
+//! 按行解析器：根据 session JSONL 每行的顶层 `type` 字段分发，
+//! 把 `response_item` / `event_msg` 这两类 payload 转换成 `RawMessage`。
+//! 对齐 tars-ai-butler `tars/adapters/codex.py` 的内容提取逻辑。
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;

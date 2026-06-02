@@ -385,10 +385,9 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
 
         let messages = adapter.collect(&session)?;
 
-        // Always upsert session row first so that even sessions without new
-        // messages get their updated_at refreshed from the adapter mtime.
-        // This is what backfills correct timestamps on subsequent ingests
-        // after we started tracking real session activity time.
+        // 永远先 upsert session 行，这样即便会话没有新消息，updated_at
+        // 也能跟 adapter 的 mtime 同步刷新。
+        // 这是后续 ingest 把历史时间戳逐步修正回真实活动时间的关键。
         db.insert_session(
             &session.id,
             adapter.name(),

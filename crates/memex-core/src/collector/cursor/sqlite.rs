@@ -122,7 +122,7 @@ impl Default for CursorSqliteAdapter {
     }
 }
 
-/// Quick health probe for `memex doctor` and the menubar settings page.
+/// 给 `memex doctor` 和 menubar 设置页用的轻量健康探测。
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case", tag = "status")]
 pub enum CursorSqliteProbe {

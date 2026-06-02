@@ -1,5 +1,5 @@
-//! HTTP route integration tests. We exercise the router with `tower::oneshot`
-//! so we can run the full handler stack without binding a real TCP port.
+//! HTTP 路由集成测试。我们用 `tower::oneshot` 跑 router，
+//! 这样不用真的绑端口就能跑通整个 handler 链路。
 
 use std::sync::Arc;
 

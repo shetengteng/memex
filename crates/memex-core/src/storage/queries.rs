@@ -1,9 +1,9 @@
-//! Read-only queries that are not part of the per-table CRUD modules:
-//!   * `doctor` payload (schema version, fts health, adapter status, counts)
-//!   * `access_log` write helper
-//!   * Session-id prefix lookup (used by `memex session show <prefix>`)
+//! 不属于"按表 CRUD"模块的只读查询：
+//!   * `doctor` 数据（schema 版本、FTS 健康、adapter 状态、各表计数）
+//!   * `access_log` 写入辅助
+//!   * 会话 ID 前缀查询（`memex session show <prefix>` 用）
 //!
-//! Per-table CRUD lives under `db/{sources,sessions,messages,chunks,kv}.rs`.
+//! 按表 CRUD 在 `db/{sources,sessions,messages,chunks,kv}.rs` 各自的模块里。
 
 use anyhow::Result;
 use rusqlite::params;
@@ -136,8 +136,8 @@ impl Db {
     pub fn timeline(&self, days: u32) -> Result<Vec<TimelineEntry>> {
         let conn = self.conn.lock().unwrap();
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
-        // Use local-time bucketing so the user sees days in their own timezone
-        // (matters when sessions span the UTC midnight boundary).
+        // 按本地时间分桶，让用户看到的是自己时区的日期
+        //（跨 UTC 0 点的会话特别需要这样处理）。
         let mut stmt = conn.prepare(
             "SELECT DATE(updated_at, 'localtime') as d, source, COUNT(*) as cnt,
                     SUM(message_count) as msgs

@@ -1,16 +1,16 @@
-//! `~/.memex/credentials.toml` — local-only secret bag for cloud LLM keys.
+//! `~/.memex/credentials.toml` —— 本地存放云端 LLM 凭证的小金库。
 //!
-//! Goals:
-//!   * Keep API keys out of `config.toml` (which is meant to be committable / shareable).
-//!   * Always set 0600 permissions when we write the file ourselves.
-//!   * Allow environment variables (`ANTHROPIC_API_KEY`) to override the file —
-//!     this lets CI / temporary shells inject a key without touching disk.
+//! 目标：
+//!   * API key 不要放进 `config.toml`（那个文件是可共享 / 可提交的）；
+//!   * 自己写入文件时永远设成 0600 权限；
+//!   * 允许环境变量（`ANTHROPIC_API_KEY`）覆盖文件中的值 —— CI / 临时 shell
+//!     就可以不落盘也能注入 key。
 //!
-//! File shape:
+//! 文件结构：
 //! ```toml
 //! [anthropic]
 //! api_key = "sk-ant-..."
-//! model   = "claude-sonnet-4-20250514"   # optional
+//! model   = "claude-sonnet-4-20250514"   # 可选
 //! ```
 
 use std::fs;
@@ -41,9 +41,8 @@ pub fn credentials_path(memex_dir: &Path) -> PathBuf {
 }
 
 impl Credentials {
-    /// Load `credentials.toml` if it exists. Returns `Default::default()`
-    /// when the file is absent — the caller decides whether to fall back to
-    /// environment variables.
+    /// 存在则读取 `credentials.toml`；文件不存在时返回 `Default::default()`，
+    /// 由调用方决定是否回退到环境变量。
     pub fn load(memex_dir: &Path) -> Result<Self> {
         let path = credentials_path(memex_dir);
         if !path.exists() {
@@ -56,8 +55,8 @@ impl Credentials {
         Ok(creds)
     }
 
-    /// Persist credentials and chmod the file to 0600 on Unix-like systems.
-    /// On other platforms we still write the file but skip the permission step.
+    /// 持久化凭证，并在类 Unix 系统上把文件权限改成 0600。
+    /// 其它平台仍然会写入文件，但跳过 chmod 步骤。
     pub fn save(&self, memex_dir: &Path) -> Result<()> {
         fs::create_dir_all(memex_dir)
             .with_context(|| format!("failed to create {}", memex_dir.display()))?;
@@ -69,9 +68,9 @@ impl Credentials {
         Ok(())
     }
 
-    /// Resolve the effective Anthropic API key:
-    ///   1. `credentials.toml` `[anthropic].api_key`
-    ///   2. `ANTHROPIC_API_KEY` environment variable
+    /// 解析当前生效的 Anthropic API key：
+    ///   1. `credentials.toml` 里的 `[anthropic].api_key`
+    ///   2. `ANTHROPIC_API_KEY` 环境变量
     ///   3. `None`
     pub fn resolve_anthropic_key(&self) -> Option<String> {
         if let Some(c) = &self.anthropic
@@ -162,7 +161,7 @@ mod tests {
             .unwrap()
             .permissions()
             .mode();
-        assert_eq!(mode & 0o777, 0o600, "credentials.toml must be 0600");
+        assert_eq!(mode & 0o777, 0o600, "credentials.toml 的权限必须是 0600");
     }
 
     #[test]

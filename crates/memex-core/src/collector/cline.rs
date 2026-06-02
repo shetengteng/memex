@@ -42,12 +42,12 @@ impl ClineAdapter {
         #[cfg(target_os = "macos")]
         {
             if let Some(support) = dirs::data_dir() {
-                // VS Code
+                // VS Code 下的 Cline 任务目录
                 let vsc = support.join("Code/User/globalStorage").join(EXTENSION_ID).join("tasks");
                 if vsc.exists() {
                     task_dirs.push(vsc);
                 }
-                // Cursor
+                // Cursor 下的 Cline 任务目录
                 let cursor = support.join("Cursor/User/globalStorage").join(EXTENSION_ID).join("tasks");
                 if cursor.exists() {
                     task_dirs.push(cursor);
@@ -65,7 +65,7 @@ impl ClineAdapter {
             }
         }
 
-        // CLI storage
+        // CLI 模式下的 Cline 任务目录
         if let Some(home) = dirs::home_dir() {
             let cli_dir = home.join(".cline").join("data").join("tasks");
             if cli_dir.exists() {

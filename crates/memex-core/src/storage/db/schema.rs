@@ -1,17 +1,16 @@
-//! SQLite schema (v3). Tables, FTS5 virtual table, and shadow triggers that
-//! mirror INSERT / UPDATE / DELETE on `chunks` into `chunks_fts`.
+//! SQLite schema（v3）。表结构、FTS5 虚拟表，以及把 `chunks` 上的
+//! INSERT / UPDATE / DELETE 同步到 `chunks_fts` 的影子触发器。
 //!
-//! v2 additions:
-//! - `chunks.summary` column for L1 one-sentence summaries.
-//! - `aggregate_summaries` table for L3 (project) / L4 (periodic) summaries.
+//! v2 新增：
+//! - `chunks.summary` 列，用来存 L1 的一句话摘要。
+//! - `aggregate_summaries` 表，用来存 L3（项目）/ L4（周期）摘要。
 //!
-//! v3 additions:
-//! - Index `idx_messages_session_role_offset` on `messages(session_id, role,
-//!   source_offset)` — required for the popup / dashboard "first user
-//!   message preview" subquery to avoid full table scan (≥10× speedup on
-//!   real-world DBs).
-//! - Index `idx_summaries_session_level` on `summaries(session_id, level)` —
-//!   speeds up `LEFT JOIN summaries` in `list_sessions_paged`.
+//! v3 新增：
+//! - 索引 `idx_messages_session_role_offset` 在 `messages(session_id, role,
+//!   source_offset)` 上 —— popup / dashboard 的"首条 user 消息预览"
+//!   子查询必须用到它，否则会做全表扫描（实际数据库上有 ≥10× 加速）。
+//! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
+//!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
 pub(super) const SCHEMA_VERSION: u32 = 3;
 

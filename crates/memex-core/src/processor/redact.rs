@@ -202,7 +202,7 @@ mod tests {
         assert!(output.contains("[REDACTED:internal_id]"));
         assert!(!output.contains("INTERNAL-42"));
 
-        // cleanup
+        // 清理临时文件
         std::fs::remove_dir_all(&dir).ok();
     }
 }

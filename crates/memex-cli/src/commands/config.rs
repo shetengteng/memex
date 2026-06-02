@@ -89,13 +89,14 @@ fn parse_bool(s: &str) -> Result<bool> {
     match s.to_lowercase().as_str() {
         "true" | "1" | "yes" | "on" => Ok(true),
         "false" | "0" | "no" | "off" => Ok(false),
-        _ => anyhow::bail!("invalid boolean value: {}", s),
+        _ => anyhow::bail!("无效的布尔值：{}", s),
     }
 }
 
-/// Show the data-egress disclosure for `llm.cloud_fallback = true` and require
-/// an interactive yes/no confirmation. JSON / non-TTY callers can opt in
-/// non-interactively by setting `MEMEX_CLOUD_FALLBACK_CONSENT=yes`.
+/// 在开启 `llm.cloud_fallback = true` 之前显示数据出境说明，
+/// 并要求用户交互式输入 yes/no 确认。
+/// JSON / 非 TTY 调用方可以通过设置 `MEMEX_CLOUD_FALLBACK_CONSENT=yes`
+/// 来非交互地表示同意。
 fn cloud_fallback_consent_or_skip(json: bool) -> Result<bool> {
     if std::env::var("MEMEX_CLOUD_FALLBACK_CONSENT").as_deref() == Ok("yes") {
         return Ok(true);
@@ -103,39 +104,39 @@ fn cloud_fallback_consent_or_skip(json: bool) -> Result<bool> {
 
     if json {
         anyhow::bail!(
-            "enabling llm.cloud_fallback requires interactive consent; \
-             set MEMEX_CLOUD_FALLBACK_CONSENT=yes to bypass for scripted use"
+            "开启 llm.cloud_fallback 需要交互式确认；脚本环境可设置 \
+             MEMEX_CLOUD_FALLBACK_CONSENT=yes 跳过提示"
         );
     }
 
     let stderr = io::stderr();
     let mut stderr = stderr.lock();
-    writeln!(stderr, "\n⚠️  Cloud fallback is about to be enabled.")?;
-    writeln!(stderr, "   What this means:")?;
+    writeln!(stderr, "\n⚠️  即将开启云端兜底（cloud fallback）。")?;
+    writeln!(stderr, "   含义如下：")?;
     writeln!(
         stderr,
-        "     • When local Ollama is unavailable, Memex will send REDACTED"
+        "     • 本地 Ollama 不可用时，Memex 会把【已脱敏】的会话内容"
     )?;
     writeln!(
         stderr,
-        "       session content (built-in PII rules + your custom redactions.yaml"
+        "       （内置 PII 规则 + 你自己的 redactions.yaml 都会先应用一遍）"
     )?;
     writeln!(
         stderr,
-        "       applied) to https://api.anthropic.com for L2 session summaries."
+        "       发送到 https://api.anthropic.com 用于生成 L2 会话摘要。"
     )?;
     writeln!(
         stderr,
-        "     • Search results, your raw Markdown, and private sessions never leave the box."
+        "     • 搜索结果、原始 Markdown、private 会话永远不会离开本机。"
     )?;
     writeln!(
         stderr,
-        "     • API key is read from ~/.memex/credentials.toml (chmod 0600) or"
+        "     • API key 从 ~/.memex/credentials.toml（chmod 0600）或"
     )?;
-    writeln!(stderr, "       the ANTHROPIC_API_KEY environment variable.")?;
-    writeln!(stderr, "     • You can revert any time with:")?;
+    writeln!(stderr, "       ANTHROPIC_API_KEY 环境变量读取。")?;
+    writeln!(stderr, "     • 随时可以关闭：")?;
     writeln!(stderr, "         memex config set llm.cloud_fallback false\n")?;
-    write!(stderr, "Type `yes` to confirm, anything else to abort: ")?;
+    write!(stderr, "输入 `yes` 表示确认，其它任何输入都会取消：")?;
     stderr.flush()?;
 
     let stdin = io::stdin();

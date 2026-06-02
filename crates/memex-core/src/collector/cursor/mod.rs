@@ -14,7 +14,7 @@ use crate::storage::models::{RawMessage, SessionMeta};
 pub use jsonl::CursorJsonlAdapter;
 pub use sqlite::{CursorSqliteAdapter, CursorSqliteProbe};
 
-/// Read backend for the Cursor adapter.
+/// Cursor adapter 的读取后端。
 enum Backend {
     Sqlite(CursorSqliteAdapter),
     Jsonl(CursorJsonlAdapter),
@@ -31,22 +31,22 @@ impl Default for CursorAdapter {
 }
 
 impl CursorAdapter {
-    /// Default: read Cursor sessions directly from its globalStorage SQLite KV.
+    /// 默认实现：直接从 Cursor 的 globalStorage SQLite KV 里读会话。
     pub fn new() -> Self {
         Self {
             backend: Backend::Sqlite(CursorSqliteAdapter::new()),
         }
     }
 
-    /// Legacy JSONL mode (agent-transcripts directory). Kept for tests and
-    /// for users who export Cursor sessions to disk.
+    /// 旧版 JSONL 模式（agent-transcripts 目录）。保留是为了测试以及那些
+    /// 把 Cursor 会话导出到本地文件的用户。
     pub fn with_base_dir(base_dir: PathBuf) -> Self {
         Self {
             backend: Backend::Jsonl(CursorJsonlAdapter::with_base_dir(base_dir)),
         }
     }
 
-    /// Explicit SQLite mode pointing at a custom `state.vscdb` (used by tests).
+    /// 显式 SQLite 模式，指向自定义的 `state.vscdb`（测试用）。
     pub fn with_db_path(db_path: PathBuf) -> Self {
         Self {
             backend: Backend::Sqlite(CursorSqliteAdapter::with_db_path(db_path)),
@@ -74,8 +74,8 @@ impl Adapter for CursorAdapter {
     }
 }
 
-/// Strip common Cursor workspace path prefixes (Users-<name>-Documents-, etc.).
-/// Kept module-public so the JSONL backend can share it.
+/// 去掉 Cursor workspace 路径里的公共前缀（Users-<name>-Documents- 等）。
+/// 保留 module-public，方便 JSONL 后端共用。
 pub(crate) fn normalize_workspace_name(raw: &str) -> String {
     let mut name = raw.to_string();
     if let Some(idx) = name.find("-Documents-") {

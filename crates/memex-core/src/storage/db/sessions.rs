@@ -1,6 +1,6 @@
-//! Session-level reads/writes plus the `SessionRow` / `SessionDetail` /
-//! `MessageRow` shapes that the menubar IPC, MCP server, daemon HTTP API,
-//! and `memex session show` CLI all depend on.
+//! 会话级别（session）的读写，以及 menubar IPC、MCP server、daemon HTTP API
+//! 和 `memex session show` CLI 共同依赖的 `SessionRow` / `SessionDetail` /
+//! `MessageRow` 数据结构。
 
 use anyhow::Result;
 use rusqlite::params;
@@ -17,12 +17,12 @@ pub struct SessionRow {
     pub message_count: i64,
     pub created_at: String,
     pub updated_at: String,
-    /// L2 summary title (already mirrored into `sessions.title`, but kept
-    /// explicit so the UI can distinguish "human/source title" vs "LLM-derived
-    /// title"). Currently same value as `title`; reserved for future split.
+    /// L2 摘要的标题（已经镜像写到了 `sessions.title`，但单独保留一份方便
+    /// UI 区分"原始来源标题"和"LLM 生成的标题"）。当前与 `title` 同值，
+    /// 预留供后续拆分使用。
     pub summary_title: Option<String>,
-    /// First user message preview (~120 chars), used as fallback when no
-    /// summary exists yet so the popup list isn't empty.
+    /// 第一条 user 消息的预览（约 120 字），尚未生成摘要时作为 fallback，
+    /// 避免 popup 列表里整条目为空。
     pub first_user_message: Option<String>,
 }
 
@@ -81,9 +81,8 @@ impl Db {
         let has_real_created = session_created_secs > 0;
         let has_real_mtime = session_mtime_secs > 0;
 
-        // Heal both timestamps on subsequent ingests when the adapter has real
-        // values; otherwise leave the existing values alone so we never drift
-        // forward on every scan.
+        // 当 adapter 提供了真实时间时，在后续 ingest 时一并修正这两个时间戳；
+        // 否则保留现有值不动，避免每次扫描都把时间往前推。
         let sql = match (has_real_created, has_real_mtime) {
             (true, true) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -178,9 +177,9 @@ impl Db {
             return Ok(None);
         };
 
-        // Pull L2 session summary inline so the UI can render summary, topics
-        // and decisions without a second round-trip. Using the same locked
-        // connection avoids re-acquiring the mutex.
+        // 顺手把 L2 会话摘要一起取出来，UI 就能直接渲染 summary、topics、
+        // decisions，不需要再绕一次 IPC。复用同一个已锁定的连接，
+        // 避免再次抢锁。
         if let Ok((title, summary, topics_json, decisions_json)) = conn.query_row::<(Option<String>, String, String, String), _, _>(
             "SELECT title, summary, topics_json, decisions_json
              FROM summaries WHERE session_id = ?1 AND level = ?2",

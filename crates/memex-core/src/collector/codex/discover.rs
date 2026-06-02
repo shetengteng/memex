@@ -1,5 +1,5 @@
-//! Session discovery: walk `~/.codex/session_index.jsonl` and resolve each
-//! entry to its date-prefixed rollout JSONL under `~/.codex/sessions/`.
+//! 会话发现：扫一遍 `~/.codex/session_index.jsonl`，把每一条
+//! 解析到 `~/.codex/sessions/` 下按日期前缀组织的 rollout JSONL 文件。
 
 use std::fs;
 use std::path::{Path, PathBuf};

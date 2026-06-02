@@ -1,13 +1,13 @@
-//! SQLite handle for Memex. The single `Db` value owns the `Mutex<Connection>`
-//! and is shared across collector / processor / retriever / daemon paths.
+//! Memex 的 SQLite 句柄。单一的 `Db` 值持有 `Mutex<Connection>`，
+//! collector / processor / retriever / daemon 各路径都共用它。
 //!
-//! Logic is split across siblings to keep every file under the 300-line cap:
-//!   * `schema`   — DDL (`SCHEMA_SQL`) and the version constant.
-//!   * `sources`  — adapter file offsets / mtimes (incremental scan state).
-//!   * `sessions` — session CRUD + the `SessionRow` / `SessionDetail` shapes.
-//!   * `messages` — dedup-aware insert with per-session counters.
-//!   * `chunks`   — chunk inserts and FTS5 search.
-//!   * `kv`       — generic config KV and the redaction audit log.
+//! 逻辑拆到平级模块里，保证每个文件不超过 300 行：
+//!   * `schema`   —— DDL（`SCHEMA_SQL`）和版本号常量。
+//!   * `sources`  —— adapter 的文件 offset / mtime（增量扫描状态）。
+//!   * `sessions` —— 会话的 CRUD，以及 `SessionRow` / `SessionDetail` 数据结构。
+//!   * `messages` —— 带去重逻辑的插入，附带按会话维度的计数。
+//!   * `chunks`   —— chunk 写入和 FTS5 搜索。
+//!   * `kv`       —— 通用配置 KV 和脱敏审计日志。
 
 mod chunks;
 mod kv;
@@ -112,9 +112,9 @@ impl Db {
             )?;
         }
         if from < 3 {
-            // v3: add indexes for popup list_sessions_paged hot path
-            // (the SCHEMA_SQL block above re-runs CREATE INDEX IF NOT EXISTS,
-            // so this just bumps the version for existing DBs.)
+            // v3：为 popup 的 list_sessions_paged 热路径加索引
+            //（上面的 SCHEMA_SQL 也会跑 CREATE INDEX IF NOT EXISTS，
+            //  这里只是给老库升一下版本号。）
             conn.execute_batch(
                 "CREATE INDEX IF NOT EXISTS idx_messages_session_role_offset
                     ON messages(session_id, role, source_offset);

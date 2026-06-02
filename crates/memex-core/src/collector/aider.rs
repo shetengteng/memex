@@ -63,8 +63,8 @@ impl AiderAdapter {
     }
 }
 
-/// Split a history file into individual sessions.
-/// Sessions are delimited by lines matching `# aider chat started at <timestamp>`.
+/// 把 history 文件按会话切分。
+/// 会话之间以匹配 `# aider chat started at <timestamp>` 的行为分隔符。
 fn split_sessions(content: &str) -> Vec<(String, String)> {
     let mut sessions = Vec::new();
     let mut start_ts = String::new();
@@ -97,7 +97,7 @@ fn split_sessions(content: &str) -> Vec<(String, String)> {
     sessions
 }
 
-/// Parse messages from a single session block.
+/// 从单个会话块里解析出消息列表。
 fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMessage> {
     let mut messages = Vec::new();
     let mut current_role: Option<Role> = None;

@@ -1,5 +1,5 @@
-//! Generic key/value config bag (`kv`) and the redaction audit log
-//! (`redactions`) — both write-ahead, no schema beyond what `schema.rs` sets.
+//! 通用 key/value 配置仓库（`kv`）与脱敏审计日志（`redactions`）——
+//! 两张表都是 write-ahead，结构完全由 `schema.rs` 定义，这里不另起 schema。
 
 use anyhow::Result;
 use rusqlite::params;

@@ -9,11 +9,11 @@ pub mod storage;
 
 use std::path::PathBuf;
 
-/// Resolve the Memex working directory.
+/// 解析 Memex 的工作目录。
 ///
-/// Honors the `MEMEX_HOME` environment variable when set (useful for tests,
-/// CI, multi-user setups, or running multiple Memex instances side-by-side).
-/// Falls back to `~/.memex` otherwise.
+/// 如果设置了 `MEMEX_HOME` 环境变量，优先使用它（方便测试、CI、多用户场景，
+/// 或者在同一台机器上并排跑多个 Memex 实例）。
+/// 否则回退到 `~/.memex`。
 pub fn memex_dir() -> PathBuf {
     if let Ok(custom) = std::env::var("MEMEX_HOME") {
         if !custom.trim().is_empty() {
@@ -21,6 +21,6 @@ pub fn memex_dir() -> PathBuf {
         }
     }
     dirs::home_dir()
-        .expect("cannot determine home directory")
+        .expect("无法确定 home 目录")
         .join(".memex")
 }

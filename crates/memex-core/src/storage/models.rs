@@ -9,10 +9,10 @@ pub struct SessionMeta {
     pub file_path: String,
     pub last_offset: u64,
     pub mtime: u64,
-    /// Unix seconds of the session's true creation/start time, when the
-    /// adapter can recover it (cursor composer.created_at, opencode
-    /// time_created, file metadata.created()). 0 means unknown; the DB
-    /// layer falls back to `now()` only on first insert in that case.
+    /// 会话真正创建 / 开始的时间（Unix 秒），来源是 adapter 能从原始数据中恢复出来的字段
+    /// （cursor 的 composer.created_at、opencode 的 time_created、
+    /// 文件 metadata.created() 等）。0 表示未知；DB 层只在这种情况下、
+    /// 而且只在首次插入时，才回退到 `now()`。
     #[serde(default)]
     pub created_secs: u64,
 }

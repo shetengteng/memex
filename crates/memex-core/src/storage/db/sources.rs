@@ -1,5 +1,5 @@
-//! `sources` table I/O — registration of every adapter file we have scanned
-//! and the byte offset / mtime we last consumed.
+//! `sources` 表 I/O —— 登记每一个被扫过的 adapter 文件，
+//! 以及我们上一次消费到的 byte offset / mtime。
 
 use anyhow::Result;
 use rusqlite::params;

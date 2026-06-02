@@ -74,9 +74,8 @@ impl AnthropicProvider {
             .map(|k| Self::new(&k))
     }
 
-    /// Resolve the API key from `~/.memex/credentials.toml` first, then fall
-    /// back to the `ANTHROPIC_API_KEY` environment variable. Returns `None`
-    /// when neither source yields a usable key.
+    /// 优先从 `~/.memex/credentials.toml` 解析 API key，找不到则回退到
+    /// `ANTHROPIC_API_KEY` 环境变量。两边都拿不到可用 key 时返回 `None`。
     pub fn from_credentials_or_env(memex_dir: &std::path::Path) -> Option<Self> {
         let creds = super::credentials::Credentials::load(memex_dir).ok()?;
         let key = creds.resolve_anthropic_key()?;

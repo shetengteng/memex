@@ -1,19 +1,18 @@
-//! End-to-end rebuild test:
+//! 端到端 rebuild 测试：
 //!
-//!     1. Seed a fake memex working directory with `sessions/<source>/<id>.md`
-//!        Markdown files (the canonical source of truth).
-//!     2. Open a fresh on-disk SQLite (simulating the post-`memex backup` /
-//!        post-DB-loss state).
-//!     3. Run `rebuild_from_markdown` to repopulate `sessions` / `messages` /
-//!        `chunks` / `chunks_fts`.
-//!     4. Assert `Retriever::search` returns the seeded content with the
-//!        adapter / project / snippet metadata intact.
+//!     1. 在一个假的 memex 工作目录里铺一份 `sessions/<source>/<id>.md`
+//!        Markdown 文件作为"权威数据源"。
+//!     2. 打开一个全新的 on-disk SQLite（模拟 `memex backup` 后 / DB 丢失后
+//!        的状态）。
+//!     3. 跑 `rebuild_from_markdown`，把 `sessions` / `messages` /
+//!        `chunks` / `chunks_fts` 全部重建出来。
+//!     4. 断言 `Retriever::search` 能搜到之前的内容，并且 adapter / project /
+//!        snippet 元数据都还在。
 //!
-//! This is the Sprint 4 "backup → delete DB → rebuild → search consistent"
-//! acceptance test. We deliberately exercise the Markdown layer rather than
-//! the tar.gz wrapper — the tarball is a transport artifact, not a semantic
-//! one; what matters is that the canonical Markdown set fully reconstitutes
-//! the searchable index.
+//! 这是 Sprint 4 的"backup → 删除 DB → rebuild → 搜索结果一致"验收用例。
+//! 我们故意走 Markdown 这一层，而不是 tar.gz 那层 —— tarball 只是个传输
+//! 载体，没有语义；真正要保证的是这一份"权威 Markdown" 能完整重建出
+//! 可搜索的索引。
 
 use std::fs;
 

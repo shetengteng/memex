@@ -1,5 +1,5 @@
-//! CLI JSON contract snapshot tests — verify serialized field presence.
-//! If a field is removed or renamed, these tests will catch the regression.
+//! CLI JSON 契约的快照测试 —— 检查序列化字段是否齐全。
+//! 一旦字段被删除或重命名，这些测试会立刻把回归捞出来。
 
 use crate::storage::db::{Db, SessionRow, SessionDetail, MessageRow};
 use crate::storage::models::{SearchResult, Chunk, ChunkType, ChunkMetadata};
