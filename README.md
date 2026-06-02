@@ -37,20 +37,11 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 
 ## 快速开始
 
-### 方式 1：Homebrew Cask（macOS，最简单）
+> **当前状态**：v0.2.0 release pipeline 已就绪，但首次 GitHub Release + Homebrew tap repo
+> 尚未上线。在 GitHub Release 上传 DMG 之前，推荐使用「方式 1：DMG 下载」或「方式 2：从源码构建」。
+> Homebrew Cask 方式将在首次正式 release 之后启用。
 
-```bash
-# 一次性 tap
-brew tap shetengteng/memex
-brew install --cask memex
-
-# 之后升级
-brew upgrade --cask memex
-```
-
-> Cask 安装会自动跑 `xattr -cr`（postflight 钩子），无需手动清除 quarantine。
-
-### 方式 2：DMG 下载
+### 方式 1：DMG 下载（最简单，等 v1.0 GitHub Release 上线后可用）
 
 ```bash
 # 1. 从 Releases 页下载 Memex_x.y.z_aarch64.dmg（M 系列）或 Memex_x.y.z_x64.dmg（Intel）
@@ -73,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/inst
 > open /Applications/Memex.app
 > ```
 
-### 方式 3：从源码构建
+### 方式 2：从源码构建（当前推荐）
 
 ```bash
 git clone https://github.com/shetengteng/memex.git
@@ -84,10 +75,23 @@ cargo build --release
 
 # 构建 Tauri Menubar App（需要 Node.js）
 cd tauri-app && npm install && npx tauri build --bundles app
+cd ..
 
-# 拷贝到 /Applications
-cp -R target/release/bundle/macos/Memex.app /Applications/
+# 一键部署到 /Applications + 清 quarantine + 启动
+bash scripts/upgrade-local.sh --skip-backup
 ```
+
+### 方式 3：Homebrew Cask（v1.0 正式发布后启用）
+
+> 当前 `Casks/memex.rb` 在主 repo 内作为模板，但还未推送到独立 tap repo
+> `homebrew-memex`，SHA256 也是占位符。完整 brew 流程需要：
+>
+> 1. 用 `git tag v0.2.0 && git push --tags` 触发 GHA `release.yml`，构建并上传 DMG
+> 2. 跑 `bash scripts/update-cask-sha.sh` 自动下载 DMG 并填入真实 SHA256
+> 3. 创建 `shetengteng/homebrew-memex` repo，把 `Casks/memex.rb` 复制过去
+> 4. `brew tap shetengteng/memex && brew install --cask memex`
+>
+> 步骤完成后，本节会替换为标准 brew 命令。
 
 ### 首次运行
 
