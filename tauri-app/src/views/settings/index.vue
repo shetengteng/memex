@@ -4,11 +4,23 @@ import { invoke } from '@tauri-apps/api/core'
 import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
+import { ExternalLink } from 'lucide-vue-next'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 
 const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
 const APP_VERSION = __APP_VERSION__
+const RELEASES_URL = 'https://github.com/shetengteng/memex/releases/latest'
+
+async function openReleasesPage() {
+  try {
+    await openUrl(RELEASES_URL)
+  } catch (e) {
+    console.error('open releases page failed:', e)
+  }
+}
 
 async function changeLocale(next: Locale) {
   if (next === locale.value) return
@@ -375,12 +387,18 @@ async function toggleSkill(row: IdeRow, next: boolean) {
 
     <!-- 关于 -->
     <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.about') }}</p>
-    <div class="flex items-center justify-between py-2.5">
-      <span class="flex flex-col gap-0.5">
+    <div class="flex items-center justify-between py-2.5 gap-4">
+      <span class="flex flex-col gap-0.5 min-w-0">
         <span class="text-base">{{ t('settings.about.version') }}</span>
         <span class="text-xs text-muted-foreground">{{ t('settings.about.upgrade_hint') }}</span>
       </span>
-      <span class="text-xs text-muted-foreground font-mono">v{{ APP_VERSION }}</span>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="text-xs text-muted-foreground font-mono">v{{ APP_VERSION }}</span>
+        <Button variant="outline" size="sm" class="gap-1.5" @click="openReleasesPage">
+          <ExternalLink class="h-3.5 w-3.5" />
+          {{ t('settings.about.check_update') }}
+        </Button>
+      </div>
     </div>
   </div>
 </template>

@@ -70,7 +70,8 @@ const zh: Messages = {
 
   'settings.section.about': '关于',
   'settings.about.version': '当前版本',
-  'settings.about.upgrade_hint': '通过 brew upgrade --cask memex 或重跑 install-macos.sh 升级',
+  'settings.about.upgrade_hint': '点击右侧按钮访问 GitHub Releases 页面下载最新版本',
+  'settings.about.check_update': '检查更新',
 
   // 状态页
   'status.title': '系统状态',
@@ -270,7 +271,8 @@ const en: Messages = {
 
   'settings.section.about': 'About',
   'settings.about.version': 'Version',
-  'settings.about.upgrade_hint': 'Upgrade via brew upgrade --cask memex or re-run install-macos.sh',
+  'settings.about.upgrade_hint': 'Click the button to visit GitHub Releases and download the latest version',
+  'settings.about.check_update': 'Check for updates',
 
   // status
   'status.title': 'Health',
