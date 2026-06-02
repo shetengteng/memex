@@ -70,8 +70,14 @@ const zh: Messages = {
 
   'settings.section.about': '关于',
   'settings.about.version': '当前版本',
-  'settings.about.upgrade_hint': '点击右侧按钮访问 GitHub Releases 页面下载最新版本',
+  'settings.about.upgrade_hint': '点击右侧按钮联网检查最新版本',
   'settings.about.check_update': '检查更新',
+  'settings.about.checking': '检查中…',
+  'settings.about.up_to_date': '你已是最新版本，无需更新',
+  'settings.about.new_version_available': '发现新版本 v{v}',
+  'settings.about.view_release': '查看 Release →',
+  'settings.about.check_failed': '检查失败：{err}',
+  'settings.about.open_in_browser': '打开页面',
 
   // 状态页
   'status.title': '系统状态',
@@ -271,8 +277,14 @@ const en: Messages = {
 
   'settings.section.about': 'About',
   'settings.about.version': 'Version',
-  'settings.about.upgrade_hint': 'Click the button to visit GitHub Releases and download the latest version',
+  'settings.about.upgrade_hint': 'Click the button to check the latest version online',
   'settings.about.check_update': 'Check for updates',
+  'settings.about.checking': 'Checking…',
+  'settings.about.up_to_date': "You're on the latest version",
+  'settings.about.new_version_available': 'New version v{v} available',
+  'settings.about.view_release': 'View release →',
+  'settings.about.check_failed': 'Check failed: {err}',
+  'settings.about.open_in_browser': 'Open page',
 
   // status
   'status.title': 'Health',

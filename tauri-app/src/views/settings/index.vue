@@ -5,20 +5,67 @@ import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { ExternalLink } from 'lucide-vue-next'
+import { RefreshCw, CheckCircle2, AlertCircle, Download } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 
 const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
 const APP_VERSION = __APP_VERSION__
-const RELEASES_URL = 'https://github.com/shetengteng/memex/releases/latest'
+const GITHUB_RELEASES_API = 'https://api.github.com/repos/shetengteng/memex/releases/latest'
 
-async function openReleasesPage() {
+type UpdateStatus = 'idle' | 'checking' | 'latest' | 'outdated' | 'error'
+
+const updateStatus = ref<UpdateStatus>('idle')
+const remoteVersion = ref<string>('')
+const remoteUrl = ref<string>('')
+const errorMessage = ref<string>('')
+
+function compareVersion(remote: string, local: string): number {
+  const r = remote.replace(/^v/, '').split('.').map(Number)
+  const l = local.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const a = r[i] ?? 0
+    const b = l[i] ?? 0
+    if (a > b) return 1
+    if (a < b) return -1
+  }
+  return 0
+}
+
+async function checkForUpdates() {
+  if (updateStatus.value === 'checking') return
+  updateStatus.value = 'checking'
+  remoteVersion.value = ''
+  remoteUrl.value = ''
+  errorMessage.value = ''
   try {
-    await openUrl(RELEASES_URL)
+    const resp = await fetch(GITHUB_RELEASES_API, {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`)
+    }
+    const data = await resp.json() as { tag_name?: string; html_url?: string }
+    const tag = (data.tag_name || '').trim()
+    if (!tag) {
+      throw new Error('no tag_name in response')
+    }
+    remoteVersion.value = tag.replace(/^v/, '')
+    remoteUrl.value = data.html_url || 'https://github.com/shetengteng/memex/releases/latest'
+    updateStatus.value = compareVersion(remoteVersion.value, APP_VERSION) > 0 ? 'outdated' : 'latest'
   } catch (e) {
-    console.error('open releases page failed:', e)
+    console.error('check for updates failed:', e)
+    errorMessage.value = e instanceof Error ? e.message : String(e)
+    updateStatus.value = 'error'
+  }
+}
+
+async function openReleasePage() {
+  try {
+    await openUrl(remoteUrl.value || 'https://github.com/shetengteng/memex/releases/latest')
+  } catch (e) {
+    console.error('open release page failed:', e)
   }
 }
 
@@ -387,16 +434,59 @@ async function toggleSkill(row: IdeRow, next: boolean) {
 
     <!-- 关于 -->
     <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.about') }}</p>
-    <div class="flex items-center justify-between py-2.5 gap-4">
-      <span class="flex flex-col gap-0.5 min-w-0">
-        <span class="text-base">{{ t('settings.about.version') }}</span>
-        <span class="text-xs text-muted-foreground">{{ t('settings.about.upgrade_hint') }}</span>
-      </span>
-      <div class="flex items-center gap-3 shrink-0">
-        <span class="text-xs text-muted-foreground font-mono">v{{ APP_VERSION }}</span>
-        <Button variant="outline" size="sm" class="gap-1.5" @click="openReleasesPage">
-          <ExternalLink class="h-3.5 w-3.5" />
-          {{ t('settings.about.check_update') }}
+    <div class="flex flex-col gap-2 py-2.5">
+      <div class="flex items-center justify-between gap-4">
+        <span class="flex flex-col gap-0.5 min-w-0">
+          <span class="text-base">{{ t('settings.about.version') }}</span>
+          <span class="text-xs text-muted-foreground">{{ t('settings.about.upgrade_hint') }}</span>
+        </span>
+        <div class="flex items-center gap-3 shrink-0">
+          <span class="text-xs text-muted-foreground font-mono">v{{ APP_VERSION }}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            :disabled="updateStatus === 'checking'"
+            @click="checkForUpdates"
+          >
+            <RefreshCw class="h-3.5 w-3.5" :class="updateStatus === 'checking' ? 'animate-spin' : ''" />
+            {{ updateStatus === 'checking' ? t('settings.about.checking') : t('settings.about.check_update') }}
+          </Button>
+        </div>
+      </div>
+
+      <!-- 检查结果显示区 -->
+      <div
+        v-if="updateStatus === 'latest'"
+        class="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400"
+      >
+        <CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+        <span>{{ t('settings.about.up_to_date') }}</span>
+      </div>
+
+      <div
+        v-else-if="updateStatus === 'outdated'"
+        class="flex items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs"
+      >
+        <span class="flex items-center gap-2 text-amber-700 dark:text-amber-400 min-w-0">
+          <Download class="h-3.5 w-3.5 shrink-0" />
+          <span class="truncate">{{ t('settings.about.new_version_available', { v: remoteVersion }) }}</span>
+        </span>
+        <Button variant="link" size="sm" class="h-auto p-0 text-xs text-amber-700 dark:text-amber-400 shrink-0" @click="openReleasePage">
+          {{ t('settings.about.view_release') }}
+        </Button>
+      </div>
+
+      <div
+        v-else-if="updateStatus === 'error'"
+        class="flex items-center justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-600 dark:text-red-400"
+      >
+        <span class="flex items-center gap-2 min-w-0">
+          <AlertCircle class="h-3.5 w-3.5 shrink-0" />
+          <span class="truncate">{{ t('settings.about.check_failed', { err: errorMessage }) }}</span>
+        </span>
+        <Button variant="link" size="sm" class="h-auto p-0 text-xs text-red-600 dark:text-red-400 shrink-0" @click="openReleasePage">
+          {{ t('settings.about.open_in_browser') }}
         </Button>
       </div>
     </div>
