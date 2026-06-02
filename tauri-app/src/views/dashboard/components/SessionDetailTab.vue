@@ -132,7 +132,7 @@ function loadMore() {
     <section class="mb-6 rounded-lg border border-border bg-card/50 p-4">
       <div class="mb-2 flex items-baseline justify-between gap-3">
         <h3 class="text-sm font-semibold">{{ t('session.summary') }}</h3>
-        <Button variant="outline" size="sm" class="h-7 gap-1.5 text-xs" :disabled="summarizing" @click="handleRetrySummary">
+        <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs" :disabled="summarizing" @click="handleRetrySummary">
           <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': summarizing }" />
           {{ summarizing ? t('session.summary.generating') : session.title ? t('session.summary.regenerate') : t('session.summary.generate') }}
         </Button>
@@ -188,7 +188,7 @@ function loadMore() {
       </div>
 
       <div v-if="session.messages.length > visibleMessages.length" class="mt-6 flex flex-col items-center gap-2">
-        <Button variant="outline" size="sm" @click="loadMore">
+        <Button variant="ghost" size="sm" @click="loadMore">
           {{ t('session.load_more', { count: session.messages.length - visibleMessages.length }) }}
         </Button>
       </div>

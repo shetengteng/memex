@@ -216,7 +216,7 @@ const valueClass: Record<Tone, string> = {
             <span class="text-sm font-medium" :class="valueClass[s.tone]">{{ s.value }}</span>
             <Button
               v-if="i === 0 && (s.tone === 'error' || s.tone === 'warning')"
-              variant="outline"
+              variant="ghost"
               size="sm"
               class="h-6 gap-1 px-2 text-xs"
               :disabled="restarting"

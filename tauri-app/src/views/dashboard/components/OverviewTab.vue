@@ -293,7 +293,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
       </div>
       <Button
         v-if="stats.llm_provider && stats.summaries < stats.sessions"
-        variant="outline"
+        variant="ghost"
         size="sm"
         class="h-7 text-xs"
         :disabled="batchRunning"

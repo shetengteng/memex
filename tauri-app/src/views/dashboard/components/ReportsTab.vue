@@ -88,7 +88,7 @@ function formatCreatedAt(iso: string): string {
       </div>
       <div class="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           class="h-8 gap-1.5 text-xs"
           :disabled="regenerating"
