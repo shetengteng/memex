@@ -1,3 +1,29 @@
+# Memex Release 流水线
+#
+# 触发方式（二选一）：
+#   1. push tag → 正式发版，自动创建 GitHub Release 草稿（永久产物）
+#      git tag -a v0.2.1 -m "Release v0.2.1" && git push origin v0.2.1
+#   2. workflow_dispatch → 日常调试，只产 Artifact（30 天保留，不创建 Release）
+#      GitHub → Actions → "Release" → "Run workflow"
+#
+# 产物去向：
+#   - tag 触发  → GitHub Releases 页（草稿，需手动 Publish）
+#   - 手动触发 → 只有 Artifact（在对应 run 的 Summary 页下载）
+#
+# 平台矩阵：
+#   - macOS Apple Silicon (.dmg)   ← 仅此一个，2026-06-02 决策
+#
+# 为什么不支持 macOS Intel：
+#   - 个人项目，没人在 Intel Mac 上跑过，没有真实用户反馈渠道
+#   - Apple 已停售 Intel Mac 多年，新用户基本是 M-series
+#   - 维护 Intel runner 会让 GHA 跑两倍时长 + 多一份 sidecar 编译
+#   - 如未来真有 Intel 用户请反馈，恢复成本约 10 行 yaml
+#
+# 已知限制（首版未做）：
+#   - 未做 Apple Developer ID 签名 + Notarization → 首次打开需 xattr 解除 quarantine
+#   - 未集成 tauri-plugin-updater（2026-06-02 永久决策）→ 用户自行在 Releases 页下载
+#     App 内 Settings → 关于 → 检查更新 会拉 GitHub API 比对版本
+
 name: Release
 
 on:
@@ -5,11 +31,7 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to release (e.g. v0.1.0)"
-        required: true
-        type: string
+    # 手动触发不需要输入版本号；产物按 commit sha 区分
 
 permissions:
   contents: write
@@ -20,17 +42,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            os: macos-14 # M1 runner
-            arch: aarch64
-          - target: x86_64-apple-darwin
-            os: macos-13 # Intel runner
-            arch: x64
+          - platform: macos-14 # M1 runner，唯一目标平台
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+            label: aarch64
+            rust_target: aarch64-apple-darwin
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -40,151 +60,120 @@ jobs:
           cache: "npm"
           cache-dependency-path: tauri-app/package-lock.json
 
-      - name: Setup Rust
+      - name: Install Rust stable with target
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_target }}
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          key: ${{ matrix.target }}
+          key: ${{ matrix.rust_target }}
 
-      - name: Install frontend deps
+      - name: Install frontend dependencies
         working-directory: tauri-app
         run: npm ci
 
-      - name: Build Tauri bundle (.app + .dmg)
-        working-directory: tauri-app
-        env:
-          # 让 prepare-sidecars.mjs 走 cross target 编译 memex / memex-daemon
-          # 与 tauri build --target 保持一致，避免在 x86_64 runner 上误打入 host arm64 sidecar
-          MEMEX_BUILD_TARGET: ${{ matrix.target }}
-        run: npx tauri build --target ${{ matrix.target }} --bundles app,dmg
-        # signingIdentity="-" 走 ad-hoc 签名，不需要 Apple Developer 证书
-        # 不使用 Tauri Updater，所以也不需要 TAURI_SIGNING_PRIVATE_KEY secret
-
-      - name: Rename DMG with arch suffix
+      # 仅 tag 触发时同步版本号 — 把 v0.2.1 写入 Cargo.toml / package.json / tauri.conf.json / Casks/memex.rb
+      # 这样 tauri-action 后续生成的 bundle 文件名会带上正确版本号
+      # workflow_dispatch 跳过：保留 manifest 里的现有版本号，用 commit sha 区分产物
+      - name: Sync version across all manifest files (tag trigger only)
+        if: github.event_name == 'push'
+        shell: bash
         run: |
-          DMG_SRC=$(ls target/${{ matrix.target }}/release/bundle/dmg/Memex_*.dmg | head -1)
-          DMG_DST="target/${{ matrix.target }}/release/bundle/dmg/Memex_${{ github.ref_name }}_${{ matrix.arch }}.dmg"
-          if [ "$DMG_SRC" != "$DMG_DST" ]; then
-            mv "$DMG_SRC" "$DMG_DST"
-          fi
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          node scripts/sync-version.js "$VERSION"
+          echo "synced version: $VERSION"
 
-      - name: Upload bundle artifacts
+      # tag 触发分支：tauri-action 自带 Release 草稿创建逻辑
+      - name: Build & publish to GitHub Release (tag trigger)
+        if: github.event_name == 'push'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 告诉 prepare-sidecars.mjs 用哪个 target triple 作为 binary 后缀名
+          # （memex-aarch64-apple-darwin / memex-daemon-aarch64-apple-darwin）
+          # Tauri externalBin 通过这个 suffix 在 bundle 时找对应 sidecar
+          MEMEX_BUILD_TARGET: ${{ matrix.rust_target }}
+        with:
+          projectPath: tauri-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Memex ${{ github.ref_name }}"
+          releaseBody: |
+            ## Memex — Local-first AI Session Memory
+
+            > 本地优先的跨 LLM 会话记忆中心 — macOS Apple Silicon (M1/M2/M3/M4)
+
+            ### 平台支持
+
+            - macOS Apple Silicon (`Memex_*_aarch64.dmg`)
+
+            > 当前不提供 Intel Mac 构建。Intel 用户如有需要请提 Issue。
+
+            ### 首次安装
+
+            1. 下载 `.dmg`
+            2. 打开 DMG，拖 **Memex** 到 **Applications**
+            3. 本版本**未做 Apple Developer ID 签名 + Notarization**，首次启动会被 Gatekeeper 拦截。在终端执行一次即可：
+
+               ```bash
+               sudo xattr -cr /Applications/Memex.app
+               ```
+
+               或右键点 `.app` → "打开" → 在警告框中再点"打开"。
+            4. 启动后菜单栏右上角会出现 **M** 图标
+
+            ### 不集成自动更新
+
+            Memex v1 系列**不集成 in-app 自动更新**（2026-06-02 永久决策，理由：维护 signing key + GitHub Secret 与价值不匹配）。新版本发布时，**App 内 Settings → 关于 → 检查更新**会跳转到本 Releases 页面，请手动下载新 DMG 重装即可（用户数据保留在 `~/.memex/`，不会丢失）。
+
+            或者通过 Homebrew Cask（即将上线）：
+
+            ```bash
+            brew tap shetengteng/memex
+            brew install --cask memex
+            # 后续升级
+            brew upgrade --cask memex
+            ```
+
+            ### SHA256 校验
+
+            下载后本地校验：
+
+            ```bash
+            shasum -a 256 Memex_*_*.dmg
+            ```
+
+            完整 hash 在 [Casks/memex.rb](https://github.com/shetengteng/memex/blob/main/Casks/memex.rb) 里。
+
+            ### 完整变更日志
+
+            参见仓库 [设计文档目录](https://github.com/shetengteng/memex/tree/main/design)。
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # 手动触发分支：只构建不创建 Release
+      - name: Build only (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MEMEX_BUILD_TARGET: ${{ matrix.rust_target }}
+        with:
+          projectPath: tauri-app
+          args: ${{ matrix.args }}
+
+      # 手动触发时把产物上传成 Artifact
+      - name: Upload artifacts (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: memex-${{ matrix.arch }}
-          path: target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Collect release assets + compute SHA256
-        id: assets
-        run: |
-          mkdir -p release-assets
-          find artifacts -name "*.dmg" -exec cp {} release-assets/ \;
-          ls -la release-assets/
-
-          ARM_DMG=$(ls release-assets/Memex_*_aarch64.dmg 2>/dev/null | head -1 || true)
-          X64_DMG=$(ls release-assets/Memex_*_x64.dmg 2>/dev/null | head -1 || true)
-
-          ARM_SHA=""
-          X64_SHA=""
-          [ -n "$ARM_DMG" ] && ARM_SHA=$(shasum -a 256 "$ARM_DMG" | awk '{print $1}')
-          [ -n "$X64_DMG" ] && X64_SHA=$(shasum -a 256 "$X64_DMG" | awk '{print $1}')
-
-          echo "arm_dmg=$(basename "$ARM_DMG")" >> "$GITHUB_OUTPUT"
-          echo "x64_dmg=$(basename "$X64_DMG")" >> "$GITHUB_OUTPUT"
-          echo "arm_sha=$ARM_SHA" >> "$GITHUB_OUTPUT"
-          echo "x64_sha=$X64_SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Compose release body
-        id: body
-        env:
-          ARM_DMG: ${{ steps.assets.outputs.arm_dmg }}
-          X64_DMG: ${{ steps.assets.outputs.x64_dmg }}
-          ARM_SHA: ${{ steps.assets.outputs.arm_sha }}
-          X64_SHA: ${{ steps.assets.outputs.x64_sha }}
-          TAG: ${{ github.ref_name || inputs.tag }}
-        run: |
-          VERSION=${TAG#v}
-          cat > release-body.md <<EOF
-          ## 📦 安装方式 / Install
-
-          ### 方式 1：下载 DMG（推荐）
-
-          | 架构 / Arch | 文件 / File |
-          |---|---|
-          | Apple Silicon (M1/M2/M3/M4) | \`${ARM_DMG}\` |
-          | Intel Mac | \`${X64_DMG}\` |
-
-          1. 在下方 Assets 区下载对应 DMG
-          2. 打开 DMG，把 **Memex** 拖到 **Applications**
-          3. 首次启动如提示「已损坏」或「无法验证开发者」，在终端运行：
-
-             \`\`\`bash
-             sudo xattr -cr /Applications/Memex.app
-             \`\`\`
-
-          4. 启动后菜单栏右上角会出现 Memex 图标
-
-          ### 方式 2：Homebrew Cask（即将上线）
-
-          \`\`\`bash
-          brew tap shetengteng/memex
-          brew install --cask memex
-          \`\`\`
-
-          > Cask repo 尚未发布，先用方式 1。
-
-          ### 方式 3：源码构建
-
-          \`\`\`bash
-          git clone https://github.com/shetengteng/memex
-          cd memex
-          bash scripts/upgrade-local.sh    # 编译 + 安装到 /Applications，自动备份 ~/.memex
-          \`\`\`
-
-          ## 🔐 SHA256 校验
-
-          \`\`\`
-          ${ARM_SHA}  ${ARM_DMG}
-          ${X64_SHA}  ${X64_DMG}
-          \`\`\`
-
-          下载后本地校验：
-
-          \`\`\`bash
-          shasum -a 256 Memex_${VERSION}_*.dmg
-          \`\`\`
-
-          ## 🆙 检查更新
-
-          App 内 **Settings → 关于 → 检查更新** 会跳转到本页面。
-
-          ---
-          EOF
-          echo "---- release body ----"
-          cat release-body.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: ${{ github.ref_name || inputs.tag }}
-          body_path: release-body.md
-          append_body: true
-          generate_release_notes: true
-          files: release-assets/*
-          fail_on_unmatched_files: true
+          name: memex-${{ matrix.label }}-${{ github.sha }}
+          path: |
+            target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz
+          if-no-files-found: warn
+          retention-days: 30
