@@ -16,7 +16,6 @@
     "core:webview:allow-create-webview-window",
     "core:webview:allow-webview-close",
     "core:window:allow-create",
-    "deep-link:default",
-    "updater:default"
+    "deep-link:default"
   ]
 }
