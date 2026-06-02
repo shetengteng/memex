@@ -87,6 +87,19 @@ enum Commands {
     },
     /// 显示所有 IDE 当前 MCP 集成状态
     SetupStatus,
+    /// 安装 / 卸载 / 查询 SKILL.md 到 4 个 IDE 的 skills 目录
+    Skill {
+        /// 目标工具（cursor、claude-code、codex、opencode）
+        target: String,
+        /// 卸载（删除文件）而非安装
+        #[arg(long)]
+        uninstall: bool,
+        /// 只输出状态，不动文件
+        #[arg(long)]
+        status: bool,
+    },
+    /// 显示所有 IDE 当前 SKILL.md 安装状态
+    SkillStatus,
     /// 管理后台 daemon
     Daemon {
         #[command(subcommand)]
@@ -215,6 +228,52 @@ fn main() -> Result<()> {
                             "no config"
                         },
                         s.config_path
+                    );
+                }
+            }
+            Ok(())
+        }
+        Commands::Skill {
+            target,
+            uninstall,
+            status,
+        } => {
+            let ide = commands::setup::Ide::parse(&target).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Unknown IDE: {}. Supported: cursor, claude-code, codex, opencode",
+                    target
+                )
+            })?;
+            if status {
+                let s = commands::skill::status(ide)?;
+                if cli.json {
+                    println!("{}", serde_json::to_string_pretty(&s)?);
+                } else {
+                    println!(
+                        "{}: installed={}, path={}, size={:?}",
+                        s.ide, s.installed, s.dest_path, s.size
+                    );
+                }
+                Ok(())
+            } else if uninstall {
+                commands::skill::uninstall(ide).map(|_| ())
+            } else {
+                commands::skill::install(ide).map(|_| ())
+            }
+        }
+        Commands::SkillStatus => {
+            let all = commands::skill::list_status();
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&all)?);
+            } else {
+                for s in &all {
+                    let mark = if s.installed { "[✓]" } else { "[ ]" };
+                    println!(
+                        "{} {:<14} {} ({} bytes)",
+                        mark,
+                        s.ide,
+                        s.dest_path,
+                        s.size.unwrap_or(0)
                     );
                 }
             }

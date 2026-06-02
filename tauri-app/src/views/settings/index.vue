@@ -183,47 +183,79 @@ interface IdeStatus {
   command: string | null
 }
 
+interface SkillStatus {
+  ide: string
+  dest_path: string
+  installed: boolean
+  size: number | null
+}
+
 interface IdeRow {
   ide: string
   label: string
-  status: IdeStatus | null
-  loading: boolean
-  error: string
+  mcpStatus: IdeStatus | null
+  skillStatus: SkillStatus | null
+  mcpLoading: boolean
+  skillLoading: boolean
+  mcpError: string
+  skillError: string
 }
 
 const ideRows = ref<IdeRow[]>([
-  { ide: 'cursor', label: 'Cursor', status: null, loading: false, error: '' },
-  { ide: 'claude-code', label: 'Claude Code', status: null, loading: false, error: '' },
-  { ide: 'codex', label: 'Codex', status: null, loading: false, error: '' },
-  { ide: 'opencode', label: 'OpenCode', status: null, loading: false, error: '' },
+  { ide: 'cursor', label: 'Cursor', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
+  { ide: 'claude-code', label: 'Claude Code', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
+  { ide: 'codex', label: 'Codex', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
+  { ide: 'opencode', label: 'OpenCode', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
 ])
 
 async function refreshIdeStatuses() {
   try {
-    const list = await invoke<IdeStatus[]>('ide_list_status')
-    for (const s of list) {
+    const [mcps, skills] = await Promise.all([
+      invoke<IdeStatus[]>('ide_list_status'),
+      invoke<SkillStatus[]>('skill_list_status'),
+    ])
+    for (const s of mcps) {
       const row = ideRows.value.find((r) => r.ide === s.ide)
-      if (row) row.status = s
+      if (row) row.mcpStatus = s
+    }
+    for (const s of skills) {
+      const row = ideRows.value.find((r) => r.ide === s.ide)
+      if (row) row.skillStatus = s
     }
   } catch (e) {
-    // CLI 找不到时 4 个 row 都保持 null，UI 会显示「未配置」
-    console.warn('ide_list_status failed', e)
+    console.warn('ide/skill list_status failed', e)
   }
 }
 
-async function toggleIde(row: IdeRow, next: boolean) {
-  if (row.loading) return
-  const prevStatus = row.status
-  row.loading = true
-  row.error = ''
+async function toggleMcp(row: IdeRow, next: boolean) {
+  if (row.mcpLoading) return
+  const prev = row.mcpStatus
+  row.mcpLoading = true
+  row.mcpError = ''
   try {
     const cmd = next ? 'ide_install' : 'ide_uninstall'
-    row.status = await invoke<IdeStatus>(cmd, { ide: row.ide })
+    row.mcpStatus = await invoke<IdeStatus>(cmd, { ide: row.ide })
   } catch (e) {
-    row.status = prevStatus
-    row.error = e instanceof Error ? e.message : String(e)
+    row.mcpStatus = prev
+    row.mcpError = e instanceof Error ? e.message : String(e)
   } finally {
-    row.loading = false
+    row.mcpLoading = false
+  }
+}
+
+async function toggleSkill(row: IdeRow, next: boolean) {
+  if (row.skillLoading) return
+  const prev = row.skillStatus
+  row.skillLoading = true
+  row.skillError = ''
+  try {
+    const cmd = next ? 'skill_install' : 'skill_uninstall'
+    row.skillStatus = await invoke<SkillStatus>(cmd, { ide: row.ide })
+  } catch (e) {
+    row.skillStatus = prev
+    row.skillError = e instanceof Error ? e.message : String(e)
+  } finally {
+    row.skillLoading = false
   }
 }
 </script>
@@ -338,41 +370,54 @@ async function toggleIde(row: IdeRow, next: boolean) {
     <div
       v-for="(row, i) in ideRows"
       :key="row.ide"
-      class="flex items-center justify-between py-2.5"
+      class="flex items-center justify-between gap-3 py-2.5"
       :class="{ 'border-t border-border/40': i > 0 }"
     >
-      <span class="flex items-center gap-2.5 text-base">
+      <span class="flex flex-1 items-center gap-2.5 text-base">
         <span
           class="inline-block h-2.5 w-2.5 rounded-full"
-          :class="row.status?.installed ? 'bg-success' : 'bg-muted-foreground'"
+          :class="(row.mcpStatus?.installed && row.skillStatus?.installed) ? 'bg-success'
+            : (row.mcpStatus?.installed || row.skillStatus?.installed) ? 'bg-warning'
+            : 'bg-muted-foreground'"
         />
         <span class="flex flex-col">
           <span>{{ row.label }}</span>
           <span class="text-xs text-muted-foreground">
-            <template v-if="row.loading">
-              {{ row.status?.installed ? t('settings.integrations.uninstalling') : t('settings.integrations.installing') }}
+            <template v-if="row.mcpError || row.skillError">
+              <span class="text-destructive">{{ t('settings.integrations.error_prefix') }}{{ row.mcpError || row.skillError }}</span>
             </template>
-            <template v-else-if="row.error">
-              <span class="text-destructive">{{ t('settings.integrations.error_prefix') }}{{ row.error }}</span>
-            </template>
-            <template v-else-if="!row.status?.config_exists">
+            <template v-else-if="!row.mcpStatus?.config_exists">
               {{ t('settings.integrations.status.no_config') }}
-            </template>
-            <template v-else-if="row.status?.installed">
-              {{ t('settings.integrations.status.installed') }}
-            </template>
-            <template v-else>
-              {{ t('settings.integrations.status.not_installed') }}
             </template>
           </span>
         </span>
       </span>
-      <Switch
-        :model-value="row.status?.installed ?? false"
-        :disabled="row.loading"
-        class="h-7 w-12 [&_>span]:h-6 [&_>span]:w-6 [&[data-state=checked]_>span]:translate-x-5"
-        @update:model-value="(v: boolean) => toggleIde(row, v)"
-      />
+
+      <!-- MCP switch -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs font-medium text-muted-foreground" :class="{ 'opacity-50': row.mcpLoading }">
+          {{ t('settings.integrations.mcp_label') }}
+        </span>
+        <Switch
+          :model-value="row.mcpStatus?.installed ?? false"
+          :disabled="row.mcpLoading"
+          class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
+          @update:model-value="(v: boolean) => toggleMcp(row, v)"
+        />
+      </div>
+
+      <!-- SKILL switch -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs font-medium text-muted-foreground" :class="{ 'opacity-50': row.skillLoading }">
+          {{ t('settings.integrations.skill_label') }}
+        </span>
+        <Switch
+          :model-value="row.skillStatus?.installed ?? false"
+          :disabled="row.skillLoading"
+          class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
+          @update:model-value="(v: boolean) => toggleSkill(row, v)"
+        />
+      </div>
     </div>
     <p class="text-xs text-muted-foreground italic">{{ t('settings.integrations.restart_hint') }}</p>
 

@@ -20,11 +20,11 @@ client: claude-code
 ## 一次性启用（已通过 setup 自动完成则跳过）
 
 ```bash
-memex setup claude-code     # 写入 ~/.claude/claude_desktop_config.json
+memex setup claude-code     # 写入 ~/.claude.json
 memex ingest                # 拉一遍历史
 ```
 
-`setup claude-code` 会向 `~/.claude/claude_desktop_config.json` 注入：
+`setup claude-code` 会向 `~/.claude.json`（Claude Code CLI 实际读取的配置文件）注入：
 
 ```json
 {

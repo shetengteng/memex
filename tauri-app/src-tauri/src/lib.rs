@@ -188,6 +188,9 @@ pub fn run() {
             commands::ide_list_status,
             commands::ide_install,
             commands::ide_uninstall,
+            commands::skill_list_status,
+            commands::skill_install,
+            commands::skill_uninstall,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memex menubar");

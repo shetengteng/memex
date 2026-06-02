@@ -94,3 +94,51 @@ pub async fn ide_uninstall(ide: String) -> Result<IdeStatus, String> {
     }
     run_cli_json::<IdeStatus>(&["--json", "setup", &ide, "--status"])
 }
+
+/// SKILL.md 投递状态（对齐 memex-cli `skill::SkillStatus`）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillStatus {
+    pub ide: String,
+    pub dest_path: String,
+    pub installed: bool,
+    pub size: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn skill_list_status() -> Result<Vec<SkillStatus>, String> {
+    run_cli_json::<Vec<SkillStatus>>(&["--json", "skill-status"])
+}
+
+#[tauri::command]
+pub async fn skill_install(ide: String) -> Result<SkillStatus, String> {
+    let bin = locate_memex_cli().ok_or_else(|| "找不到 memex CLI".to_string())?;
+    let res = Command::new(&bin)
+        .args(["skill", &ide])
+        .output()
+        .map_err(|e| format!("调用 memex skill {} 失败：{}", ide, e))?;
+    if !res.status.success() {
+        return Err(format!(
+            "memex skill {} 失败：{}",
+            ide,
+            String::from_utf8_lossy(&res.stderr)
+        ));
+    }
+    run_cli_json::<SkillStatus>(&["--json", "skill", &ide, "--status"])
+}
+
+#[tauri::command]
+pub async fn skill_uninstall(ide: String) -> Result<SkillStatus, String> {
+    let bin = locate_memex_cli().ok_or_else(|| "找不到 memex CLI".to_string())?;
+    let res = Command::new(&bin)
+        .args(["skill", &ide, "--uninstall"])
+        .output()
+        .map_err(|e| format!("调用 memex skill --uninstall 失败：{}", e))?;
+    if !res.status.success() {
+        return Err(format!(
+            "memex skill {} --uninstall 失败：{}",
+            ide,
+            String::from_utf8_lossy(&res.stderr)
+        ));
+    }
+    run_cli_json::<SkillStatus>(&["--json", "skill", &ide, "--status"])
+}

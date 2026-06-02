@@ -11,6 +11,7 @@ pub mod search;
 pub mod session;
 pub mod sessions;
 pub mod setup;
+pub mod skill;
 pub mod stats;
 
 use std::path::Path;
