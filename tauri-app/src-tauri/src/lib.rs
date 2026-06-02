@@ -95,6 +95,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -120,6 +121,30 @@ pub fn run() {
             if let Err(e) = tray::install(app.handle()) {
                 tracing::error!("failed to install tray icon: {e:?}");
             }
+
+            tauri::async_runtime::spawn(async {
+                match commands::daemon_status().await {
+                    Ok(status) if status.running && status.http_ok => {
+                        tracing::info!(
+                            "daemon already running pid={:?} port={:?}, skip auto-start",
+                            status.pid,
+                            status.port
+                        );
+                    }
+                    _ => {
+                        tracing::info!("daemon not running, auto-starting…");
+                        match commands::daemon_restart().await {
+                            Ok(status) => tracing::info!(
+                                "auto-start daemon ok pid={:?} port={:?} http_ok={}",
+                                status.pid,
+                                status.port,
+                                status.http_ok
+                            ),
+                            Err(e) => tracing::error!("auto-start daemon failed: {e}"),
+                        }
+                    }
+                }
+            });
 
             app.global_shortcut().register(Shortcut::new(
                 Some(Modifiers::SUPER | Modifiers::SHIFT),
@@ -158,6 +183,8 @@ pub fn run() {
             commands::regenerate_report,
             commands::daemon_status,
             commands::daemon_restart,
+            commands::check_for_updates,
+            commands::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memex menubar");

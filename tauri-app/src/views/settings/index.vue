@@ -1,12 +1,64 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, Download } from 'lucide-vue-next'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 
 const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
+
+interface UpdateInfo {
+  available: boolean
+  current_version: string
+  latest_version: string | null
+  notes: string | null
+}
+
+const update = ref<{
+  checking: boolean
+  installing: boolean
+  info: UpdateInfo | null
+  error: string
+  message: string
+}>({
+  checking: false,
+  installing: false,
+  info: null,
+  error: '',
+  message: '',
+})
+
+async function checkForUpdates() {
+  update.value.checking = true
+  update.value.error = ''
+  update.value.message = ''
+  try {
+    update.value.info = await invoke<UpdateInfo>('check_for_updates')
+    if (!update.value.info.available) {
+      update.value.message = t('settings.update.already_latest', { version: update.value.info.current_version })
+    }
+  } catch (e: unknown) {
+    update.value.error = e instanceof Error ? e.message : String(e)
+  } finally {
+    update.value.checking = false
+  }
+}
+
+async function installUpdate() {
+  update.value.installing = true
+  update.value.error = ''
+  try {
+    await invoke('install_update')
+  } catch (e: unknown) {
+    update.value.error = e instanceof Error ? e.message : String(e)
+  } finally {
+    update.value.installing = false
+  }
+}
 
 async function changeLocale(next: Locale) {
   if (next === locale.value) return
@@ -221,5 +273,38 @@ async function setCloudFallback(value: boolean) {
         @update:model-value="(v: boolean) => setPrivacy('privateFromMcp', v)"
       />
     </div>
+
+    <Separator class="my-2" />
+
+    <!-- 关于 / 更新 -->
+    <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.about') }}</p>
+    <div class="flex items-center justify-between py-2.5">
+      <span class="flex flex-col gap-0.5">
+        <span class="text-base">{{ t('settings.about.version') }}</span>
+        <span class="text-xs text-muted-foreground">{{ update.info?.current_version ?? '0.1.0' }}</span>
+      </span>
+      <Button variant="ghost" size="sm" :disabled="update.checking || update.installing" class="h-8 gap-1.5" @click="checkForUpdates">
+        <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': update.checking }" />
+        {{ update.checking ? t('settings.update.checking') : t('settings.update.check') }}
+      </Button>
+    </div>
+
+    <div v-if="update.info?.available" class="rounded-md border border-primary/30 bg-primary/5 p-3">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-sm font-medium text-primary">
+          {{ t('settings.update.available', { version: update.info.latest_version ?? '' }) }}
+        </span>
+        <Button variant="ghost" size="sm" :disabled="update.installing" class="h-7 gap-1.5 text-xs" @click="installUpdate">
+          <Download class="h-3 w-3" :class="{ 'animate-pulse': update.installing }" />
+          {{ update.installing ? t('settings.update.installing') : t('settings.update.install') }}
+        </Button>
+      </div>
+      <div v-if="update.info.notes" class="mt-2 text-xs text-muted-foreground">
+        <div class="mb-1 font-medium">{{ t('settings.update.notes') }}</div>
+        <pre class="whitespace-pre-wrap font-sans">{{ update.info.notes }}</pre>
+      </div>
+    </div>
+    <p v-else-if="update.message" class="text-xs text-muted-foreground">{{ update.message }}</p>
+    <p v-if="update.error" class="text-xs text-destructive">{{ update.error }}</p>
   </div>
 </template>

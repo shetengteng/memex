@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 允许 WebView 加载本地资源 -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!-- 允许执行 JIT 编译代码 (WebView V8 需要) -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- 允许加载未签名的动态库 (memex-daemon 是 sidecar) -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- 允许 dyld 环境变量 (Cargo build artifacts 需要) -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+
+    <!-- 禁用 library 验证，允许加载非 Apple 签名的 dylib -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- 允许调用其他可执行文件 (CLI / daemon) -->
+    <key>com.apple.security.cs.disable-executable-page-protection</key>
+    <true/>
+</dict>
+</plist>

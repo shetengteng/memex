@@ -56,6 +56,15 @@ const zh: Messages = {
   'settings.privacy.hide_private': 'Private session 隐藏',
   'settings.general.language': '界面语言',
   'settings.general.language_hint': '切换 popup 与 dashboard 内的语言',
+  'settings.section.about': '关于',
+  'settings.about.version': '当前版本',
+  'settings.update.check': '检查更新',
+  'settings.update.checking': '检查中…',
+  'settings.update.available': '发现新版本 {version}',
+  'settings.update.already_latest': '已是最新版本 ({version})',
+  'settings.update.install': '下载并安装',
+  'settings.update.installing': '下载安装中…',
+  'settings.update.notes': '更新说明',
 
   // 状态页
   'status.title': '系统状态',
@@ -241,6 +250,15 @@ const en: Messages = {
   'settings.privacy.hide_private': 'Hide private sessions',
   'settings.general.language': 'Language',
   'settings.general.language_hint': 'Switch the popup and dashboard language',
+  'settings.section.about': 'About',
+  'settings.about.version': 'Version',
+  'settings.update.check': 'Check for updates',
+  'settings.update.checking': 'Checking…',
+  'settings.update.available': 'New version {version} available',
+  'settings.update.already_latest': 'Up to date (v{version})',
+  'settings.update.install': 'Download & install',
+  'settings.update.installing': 'Installing…',
+  'settings.update.notes': 'Release notes',
 
   // status
   'status.title': 'Health',

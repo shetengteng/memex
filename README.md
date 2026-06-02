@@ -37,18 +37,56 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 
 ## 快速开始
 
-### 安装
+### 方式 1：Homebrew Cask（macOS，最简单）
 
 ```bash
-# 从源码构建
-git clone https://github.com/user/memex.git
+# 一次性 tap
+brew tap shetengteng/memex
+brew install --cask memex
+
+# 之后升级
+brew upgrade --cask memex
+```
+
+> Cask 安装会自动跑 `xattr -cr`（postflight 钩子），无需手动清除 quarantine。
+
+### 方式 2：DMG 下载
+
+```bash
+# 1. 从 Releases 页下载 Memex_x.y.z_aarch64.dmg（M 系列）或 Memex_x.y.z_x64.dmg（Intel）
+#    https://github.com/shetengteng/memex/releases
+
+# 2. 双击 DMG 拖入 /Applications
+
+# 3. 跑一键安装脚本（清除 quarantine、刷新 LaunchServices、启动）
+curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/install-macos.sh | bash
+```
+
+> **为什么需要这个脚本？** 当前版本使用 ad-hoc 签名（无 Apple Developer 账号），
+> macOS Gatekeeper 会把从浏览器下载的 App 标记成 quarantine，
+> 双击启动时弹出 "已损坏" / "未识别开发者" 错误。
+> `xattr -cr Memex.app` 一次性清除 quarantine 标记即可正常使用。
+>
+> 也可以**手动执行**（与脚本等价）：
+> ```bash
+> xattr -cr /Applications/Memex.app
+> open /Applications/Memex.app
+> ```
+
+### 方式 3：从源码构建
+
+```bash
+git clone https://github.com/shetengteng/memex.git
 cd memex
 
 # 构建 CLI + Daemon
 cargo build --release
 
 # 构建 Tauri Menubar App（需要 Node.js）
-cd tauri-app && npm install && npx tauri build
+cd tauri-app && npm install && npx tauri build --bundles app
+
+# 拷贝到 /Applications
+cp -R target/release/bundle/macos/Memex.app /Applications/
 ```
 
 ### 首次运行

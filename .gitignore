@@ -25,5 +25,7 @@ tauri-app/node_modules/
 tauri-app/dist/
 tauri-app/tsconfig.tsbuildinfo
 tauri-app/src-tauri/binaries/
-.github/
 image.png
+
+# Workflow files held locally until PAT has 'workflow' scope; see scripts/install-macos.sh
+.github/
