@@ -5,8 +5,11 @@ import { listen } from '@tauri-apps/api/event'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SummaryProgress } from '@/types'
 import { formatNumber, adapterLabel, timeAgo } from '@/lib/utils'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   stats: Stats | null
@@ -45,7 +48,7 @@ async function handleBatchSummarize() {
   try {
     const total = await batchSummarize()
     if (total === 0) {
-      batchError.value = 'All sessions already have summaries'
+      batchError.value = t('overview.summary.all_done')
       batchRunning.value = false
     }
   } catch (e: unknown) {
@@ -140,22 +143,22 @@ const topProjects = computed<Array<[string, number]>>(() => {
 <template>
   <header class="mb-6 flex items-end justify-between">
     <div>
-      <h2 class="text-2xl font-bold tracking-tight">Dashboard</h2>
-      <p class="mt-1 text-xs text-muted-foreground">Local AI session memory across {{ projectCount }} projects</p>
+      <h2 class="text-2xl font-bold tracking-tight">{{ t('dashboard.title') }}</h2>
+      <p class="mt-1 text-xs text-muted-foreground">{{ t('dashboard.subtitle', { count: projectCount }) }}</p>
     </div>
     <Button variant="ghost" size="sm" @click="emit('refresh')" :disabled="refreshing" class="h-8">
       <RefreshCw class="mr-1.5 h-3.5 w-3.5" :class="{ 'animate-spin': refreshing }" />
-      Refresh
+      {{ t('common.refresh') }}
     </Button>
   </header>
 
   <!-- KPI strip -->
   <section class="grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-x-8 gap-y-1 border-y border-border py-5">
     <div>
-      <div class="text-xs font-medium text-muted-foreground">Total sessions</div>
+      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.total_sessions') }}</div>
       <div class="mt-1 flex items-baseline gap-2">
         <span class="text-3xl font-bold tabular-nums">{{ formatNumber(stats?.sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(stats?.messages ?? 0) }} messages</span>
+        <span class="text-xs text-muted-foreground">{{ formatNumber(stats?.messages ?? 0) }} {{ t('overview.kpi.messages_suffix') }}</span>
       </div>
     </div>
     <Button
@@ -164,25 +167,25 @@ const topProjects = computed<Array<[string, number]>>(() => {
       @click="emit('navigateProjects')"
     >
       <div class="w-full">
-        <div class="text-xs font-medium text-muted-foreground">Projects</div>
+        <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.projects') }}</div>
         <div class="mt-1 flex items-baseline gap-2">
           <span class="text-3xl font-bold tabular-nums text-primary group-hover:underline">{{ projectCount }}</span>
-          <span class="text-xs text-muted-foreground">view all →</span>
+          <span class="text-xs text-muted-foreground">{{ t('overview.kpi.view_all') }}</span>
         </div>
       </div>
     </Button>
     <div>
-      <div class="text-xs font-medium text-muted-foreground">Last 7 days</div>
+      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_7d') }}</div>
       <div class="mt-1 flex items-baseline gap-2">
         <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_7d_sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_7d_messages ?? 0) }} msg</span>
+        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_7d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
       </div>
     </div>
     <div>
-      <div class="text-xs font-medium text-muted-foreground">Last 30 days</div>
+      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_30d') }}</div>
       <div class="mt-1 flex items-baseline gap-2">
         <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_30d_sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_30d_messages ?? 0) }} msg</span>
+        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_30d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
       </div>
     </div>
   </section>
@@ -190,13 +193,11 @@ const topProjects = computed<Array<[string, number]>>(() => {
   <!-- Timeline -->
   <section class="mt-8">
     <div class="mb-3 flex items-baseline justify-between">
-      <h3 class="text-sm font-semibold">Daily activity</h3>
+      <h3 class="text-sm font-semibold">{{ t('overview.timeline.title') }}</h3>
       <span class="text-xs text-muted-foreground">
-        last {{ TIMELINE_DAYS }} days · log scale ·
-        {{ formatNumber(timelineTotal) }} sessions across
-        {{ timelineActiveDays }} active day{{ timelineActiveDays === 1 ? '' : 's' }}
+        {{ t('overview.timeline.meta', { days: TIMELINE_DAYS, total: formatNumber(timelineTotal), days_active: timelineActiveDays }) }}
         <template v-if="timelinePeakDay.sessions > 0">
-          · peak {{ formatNumber(timelinePeakDay.sessions) }} on {{ timelinePeakDay.date }}
+          {{ t('overview.timeline.peak', { count: formatNumber(timelinePeakDay.sessions), date: timelinePeakDay.date }) }}
         </template>
       </span>
     </div>
@@ -209,8 +210,8 @@ const topProjects = computed<Array<[string, number]>>(() => {
         />
         <div class="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md group-hover:block">
           <div class="font-semibold tabular-nums">{{ d.date }}</div>
-          <div v-if="d.sessions > 0" class="mt-0.5 text-muted-foreground">{{ d.sessions }} sessions · {{ d.messages }} msg</div>
-          <div v-else class="mt-0.5 text-muted-foreground">no activity</div>
+          <div v-if="d.sessions > 0" class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.tooltip_sessions', { sessions: d.sessions, messages: d.messages }) }}</div>
+          <div v-else class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.no_activity') }}</div>
         </div>
       </div>
     </div>
@@ -223,7 +224,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
 
   <!-- By IDE / Tool -->
   <section v-if="breakdown" class="mt-6">
-    <h4 class="mb-3 text-sm font-semibold">By IDE / Tool</h4>
+    <h4 class="mb-3 text-sm font-semibold">{{ t('overview.adapters.title') }}</h4>
     <div class="space-y-2">
       <div v-for="[name, count] in adapterEntries" :key="name" class="flex items-center gap-3 text-sm">
         <span class="h-2.5 w-2.5 shrink-0 rounded-sm" :style="{ background: adapterColors[name] ?? '#71717a' }" />
@@ -240,7 +241,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
 
   <!-- Top Projects -->
   <section v-if="breakdown" class="mt-8">
-    <h4 class="mb-3 text-sm font-semibold">Top projects</h4>
+    <h4 class="mb-3 text-sm font-semibold">{{ t('overview.projects.title') }}</h4>
     <div class="space-y-2">
       <div v-for="[name, count] in topProjects" :key="name" class="flex items-center gap-3 text-sm">
         <Tooltip>
@@ -261,21 +262,22 @@ const topProjects = computed<Array<[string, number]>>(() => {
 
   <!-- Recent Sessions -->
   <section v-if="recentSessions.length" class="mt-8">
-    <h4 class="mb-3 text-sm font-semibold">Recent sessions</h4>
+    <h4 class="mb-3 text-sm font-semibold">{{ t('overview.recent.title') }}</h4>
     <div class="divide-y divide-border/60">
-      <button
+      <Button
         v-for="s in recentSessions"
         :key="s.id"
-        class="grid w-full grid-cols-[110px_1fr_auto] items-center gap-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+        variant="ghost"
+        class="grid h-auto w-full grid-cols-[110px_1fr_auto] items-center gap-3 rounded-none px-0 py-2.5 text-left hover:bg-accent/40"
         @click="emit('openSession', s.id)"
       >
         <span class="flex items-center gap-2 text-xs">
           <span class="h-2 w-2 shrink-0 rounded-full" :style="{ background: adapterColors[s.source] ?? '#71717a' }" />
           <span class="truncate font-medium">{{ projectName(s.project_path ?? '—') }}</span>
         </span>
-        <span class="truncate text-xs text-muted-foreground">{{ summaryLine(s) }}</span>
-        <span class="mono shrink-0 text-xs text-muted-foreground">{{ timeAgo(s.updated_at) }}</span>
-      </button>
+        <span class="truncate text-xs font-normal text-muted-foreground">{{ summaryLine(s) }}</span>
+        <span class="mono shrink-0 text-xs font-normal text-muted-foreground">{{ timeAgo(s.updated_at) }}</span>
+      </Button>
     </div>
   </section>
 
@@ -283,10 +285,10 @@ const topProjects = computed<Array<[string, number]>>(() => {
   <section v-if="stats" class="mt-8">
     <div class="mb-3 flex items-center justify-between">
       <div class="flex items-baseline gap-3">
-        <h4 class="text-sm font-semibold">LLM summaries</h4>
+        <h4 class="text-sm font-semibold">{{ t('overview.summary.title') }}</h4>
         <span class="mono text-xs text-muted-foreground">
           {{ stats.summaries }} / {{ stats.sessions }} ·
-          <span :class="stats.llm_provider ? 'text-primary' : 'text-warning'">{{ stats.llm_provider ?? 'disabled' }}</span>
+          <span :class="stats.llm_provider ? 'text-primary' : 'text-warning'">{{ stats.llm_provider ?? t('overview.summary.provider_none') }}</span>
         </span>
       </div>
       <Button
@@ -299,7 +301,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
       >
         <Sparkles v-if="!batchRunning" class="mr-1 h-3 w-3" />
         <RefreshCw v-else class="mr-1 h-3 w-3 animate-spin" />
-        {{ batchRunning ? 'Generating...' : `Generate ${stats.sessions - stats.summaries} missing` }}
+        {{ batchRunning ? t('overview.summary.generating') : t('overview.summary.generate_missing', { count: stats.sessions - stats.summaries }) }}
       </Button>
     </div>
     <div v-if="stats.llm_provider" class="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -307,7 +309,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
     </div>
     <div v-if="batchProgress" class="mt-2">
       <div class="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{{ batchProgress.current }}/{{ batchProgress.total }} processed</span>
+        <span>{{ t('overview.summary.processed', { current: batchProgress.current, total: batchProgress.total }) }}</span>
         <span>{{ Math.round(batchProgress.current / batchProgress.total * 100) }}%</span>
       </div>
       <div class="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -316,7 +318,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
           :style="{ width: (batchProgress.current / batchProgress.total * 100) + '%' }"
         />
       </div>
-      <p v-if="batchProgress.done" class="mt-1 text-xs text-success">All done</p>
+      <p v-if="batchProgress.done" class="mt-1 text-xs text-success">{{ t('overview.summary.done') }}</p>
     </div>
     <p v-if="batchError" class="mt-2 text-xs text-destructive">{{ batchError }}</p>
   </section>

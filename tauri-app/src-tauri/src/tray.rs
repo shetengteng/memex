@@ -44,13 +44,18 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .icon_as_template(true)
         .title("")
         .on_tray_icon_event(|tray, event| {
+            // 打印所有 tray 事件，方便排查"点击没反应"
+            tracing::debug!(target: "memex_tray", "tray event: {:?}", event);
+            // tauri 2.x 在 macOS 上 Click 事件会在 Down 和 Up 各触发一次。
+            // 只响应 Down，避免一次点击 toggle 两次（先 show 再 hide）。
             if let tauri::tray::TrayIconEvent::Click {
                 button: tauri::tray::MouseButton::Left,
-                button_state: tauri::tray::MouseButtonState::Up,
+                button_state: tauri::tray::MouseButtonState::Down,
                 rect,
                 ..
             } = event
             {
+                tracing::info!(target: "memex_tray", "left click @ Down — toggling main popup");
                 if let Some(win) = tray.app_handle().get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
                         let _ = win.hide();
@@ -64,7 +69,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
                         tauri::Size::Physical(s) => (s.width as f64, s.height as f64),
                         tauri::Size::Logical(s) => (s.width, s.height),
                     };
-                    let win_w = 420.0_f64;
+                    // 跟 tauri.conf.json 里 main window 的 width 保持一致，
+                    // 否则在小屏上会偏出菜单栏图标的中心几十像素。
+                    let win_w = 480.0_f64;
                     let x = ix - win_w / 2.0 + iw / 2.0;
                     let y = iy + ih;
                     let _ = win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));

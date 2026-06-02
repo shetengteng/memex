@@ -23,7 +23,7 @@ const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: s
   <div class="flex w-52 shrink-0 flex-col border-r border-border bg-card">
     <div class="px-4 py-5">
       <h1 class="text-lg font-extrabold tracking-widest"><span class="text-primary">M</span>EMEX</h1>
-      <p class="mt-0.5 text-xs text-muted-foreground">AI Session Memory</p>
+      <p class="mt-0.5 text-xs text-muted-foreground">{{ t('dashboard.sidebar.tagline') }}</p>
     </div>
     <nav class="flex-1 space-y-0.5 p-2">
       <button
@@ -39,6 +39,6 @@ const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: s
         {{ item.label }}
       </button>
     </nav>
-    <div class="px-4 py-3 text-xs text-muted-foreground">Memex v0.1.0 · local only</div>
+    <div class="px-4 py-3 text-xs text-muted-foreground">{{ t('dashboard.sidebar.footer') }}</div>
   </div>
 </template>

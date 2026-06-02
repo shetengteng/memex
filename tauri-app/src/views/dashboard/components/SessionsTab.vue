@@ -3,9 +3,12 @@ import { ref, computed, watch } from 'vue'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { SessionRow } from '@/types'
 import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   sessions: SessionRow[]
@@ -81,34 +84,34 @@ function summaryLine(s: SessionRow): string {
 
 <template>
   <div class="mb-5 flex items-center justify-between">
-    <h2 class="text-xl font-bold tracking-tight">Sessions</h2>
+    <h2 class="text-xl font-bold tracking-tight">{{ t('sessions.title') }}</h2>
   </div>
 
   <div class="mb-4 flex flex-wrap items-center gap-2">
     <Input
       v-model="searchQuery"
-      placeholder="Search sessions..."
+      :placeholder="t('sessions.filter.search_placeholder')"
       class="min-w-[200px] flex-1 text-xs"
     />
     <Select v-model="filterAdapter">
       <SelectTrigger class="w-[140px] text-xs">
-        <SelectValue placeholder="All Tools" />
+        <SelectValue :placeholder="t('sessions.filter.all_tools')" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All Tools</SelectItem>
+        <SelectItem value="all">{{ t('sessions.filter.all_tools') }}</SelectItem>
         <SelectItem v-for="a in adapterOptions" :key="a" :value="a">{{ adapterLabel(a) }}</SelectItem>
       </SelectContent>
     </Select>
     <Select v-model="filterDays">
       <SelectTrigger class="w-[140px] text-xs">
-        <SelectValue placeholder="All Time" />
+        <SelectValue :placeholder="t('sessions.filter.all_time')" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All Time</SelectItem>
-        <SelectItem value="1">Today</SelectItem>
-        <SelectItem value="7">Last 7 days</SelectItem>
-        <SelectItem value="30">Last 30 days</SelectItem>
-        <SelectItem value="90">Last 90 days</SelectItem>
+        <SelectItem value="all">{{ t('sessions.filter.all_time') }}</SelectItem>
+        <SelectItem value="1">{{ t('sessions.filter.today') }}</SelectItem>
+        <SelectItem value="7">{{ t('sessions.filter.last_7d') }}</SelectItem>
+        <SelectItem value="30">{{ t('sessions.filter.last_30d') }}</SelectItem>
+        <SelectItem value="90">{{ t('sessions.filter.last_90d') }}</SelectItem>
       </SelectContent>
     </Select>
   </div>
@@ -120,17 +123,17 @@ function summaryLine(s: SessionRow): string {
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-border bg-muted/50">
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tool</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Messages</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Created</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Updated</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.project') }}</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.tool') }}</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.summary') }}</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.messages') }}</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.created') }}</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.updated') }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="pagedSessions.length === 0">
-          <td colspan="6" class="px-4 py-10 text-center text-xs text-muted-foreground">No sessions found</td>
+          <td colspan="6" class="px-4 py-10 text-center text-xs text-muted-foreground">{{ t('sessions.empty') }}</td>
         </tr>
         <tr
           v-for="s in pagedSessions"
@@ -154,10 +157,12 @@ function summaryLine(s: SessionRow): string {
   </div>
 
   <div class="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-    <span>
-      Showing {{ (page - 1) * pageSize + 1 }}-{{ Math.min(page * pageSize, filteredSessions.length) }}
-      of {{ filteredSessions.length }}{{ filterAdapter !== 'all' || (filterDays && filterDays !== 'all') || searchQuery.trim() ? ' (filtered)' : '' }}
-    </span>
+    <span>{{ t('sessions.pagination.range', {
+      start: (page - 1) * pageSize + 1,
+      end: Math.min(page * pageSize, filteredSessions.length),
+      total: filteredSessions.length,
+      filtered: (filterAdapter !== 'all' || (filterDays && filterDays !== 'all') || searchQuery.trim()) ? t('sessions.pagination.filtered') : ''
+    }) }}</span>
     <div v-if="totalPages > 1" class="flex items-center gap-1">
       <Button variant="ghost" size="sm" :disabled="page <= 1" @click="page--">
         <ChevronLeft class="h-4 w-4" />

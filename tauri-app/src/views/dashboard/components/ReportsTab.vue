@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { RefreshCw, Sparkles } from 'lucide-vue-next'
 import type { AggregateSummary } from '@/types'
 
@@ -103,15 +104,17 @@ function formatCreatedAt(iso: string): string {
       </div>
     </header>
 
-    <div class="mb-5 inline-flex rounded-md border border-border p-0.5">
-      <button
-        v-for="s in (['daily', 'weekly'] as const)"
-        :key="s"
-        class="px-3 py-1 text-xs font-medium transition-colors"
-        :class="scope === s ? 'rounded bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
-        @click="scope = s"
-      >{{ s === 'daily' ? t('reports.tab.daily') : t('reports.tab.weekly') }}</button>
-    </div>
+    <ToggleGroup
+      :model-value="scope"
+      type="single"
+      variant="outline"
+      size="sm"
+      class="mb-5"
+      @update:model-value="(v) => { if (v === 'daily' || v === 'weekly') scope = v }"
+    >
+      <ToggleGroupItem value="daily" class="text-xs">{{ t('reports.tab.daily') }}</ToggleGroupItem>
+      <ToggleGroupItem value="weekly" class="text-xs">{{ t('reports.tab.weekly') }}</ToggleGroupItem>
+    </ToggleGroup>
 
     <div v-if="regenError" class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
       {{ regenError }}
@@ -131,14 +134,15 @@ function formatCreatedAt(iso: string): string {
       <aside>
         <ul class="space-y-0.5">
           <li v-for="r in items" :key="r.scope_key">
-            <button
-              class="flex w-full items-baseline justify-between rounded-md px-3 py-2 text-left transition-colors"
-              :class="r.scope_key === selectedKey ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+            <Button
+              variant="ghost"
+              class="flex h-auto w-full items-baseline justify-between rounded-md px-3 py-2 text-left transition-colors"
+              :class="r.scope_key === selectedKey ? 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary' : 'text-muted-foreground hover:text-foreground'"
               @click="selectedKey = r.scope_key"
             >
               <span class="text-sm font-medium tabular-nums">{{ formatLabel(r) }}</span>
-              <span class="text-xs text-muted-foreground">{{ r.session_count }}</span>
-            </button>
+              <span class="text-xs font-normal text-muted-foreground">{{ r.session_count }}</span>
+            </Button>
           </li>
         </ul>
       </aside>
