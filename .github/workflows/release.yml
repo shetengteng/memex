@@ -55,107 +55,136 @@ jobs:
         working-directory: tauri-app
         run: npm ci
 
-      - name: Build Tauri bundle (signed + DMG)
+      - name: Build Tauri bundle (.app + .dmg)
         working-directory: tauri-app
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # 让 prepare-sidecars.mjs 走 cross target 编译 memex / memex-daemon
           # 与 tauri build --target 保持一致，避免在 x86_64 runner 上误打入 host arm64 sidecar
           MEMEX_BUILD_TARGET: ${{ matrix.target }}
         run: npx tauri build --target ${{ matrix.target }} --bundles app,dmg
-        # 没有 Apple Developer 证书时跳过 notarization；signingIdentity="-" 走 ad-hoc
+        # signingIdentity="-" 走 ad-hoc 签名，不需要 Apple Developer 证书
+        # 不使用 Tauri Updater，所以也不需要 TAURI_SIGNING_PRIVATE_KEY secret
 
       - name: Rename DMG with arch suffix
         run: |
           DMG_SRC=$(ls target/${{ matrix.target }}/release/bundle/dmg/Memex_*.dmg | head -1)
           DMG_DST="target/${{ matrix.target }}/release/bundle/dmg/Memex_${{ github.ref_name }}_${{ matrix.arch }}.dmg"
           if [ "$DMG_SRC" != "$DMG_DST" ]; then
-            mv "$DMG_SRC" "$DMG_DST" || true
+            mv "$DMG_SRC" "$DMG_DST"
           fi
-          echo "DMG_PATH=$DMG_DST" >> $GITHUB_ENV
-
-      - name: Sign updater artifact (.app.tar.gz)
-        run: |
-          # tauri build 会在 createUpdaterArtifacts=true 时自动生成 .sig
-          # 这里只做产物路径输出
-          SIG_PATH=$(ls target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig | head -1 || true)
-          TARGZ_PATH=$(ls target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz | head -1 || true)
-          echo "SIG_PATH=$SIG_PATH" >> $GITHUB_ENV
-          echo "TARGZ_PATH=$TARGZ_PATH" >> $GITHUB_ENV
 
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
         with:
           name: memex-${{ matrix.arch }}
-          path: |
-            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+          path: target/${{ matrix.target }}/release/bundle/dmg/*.dmg
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Layout files
-        id: layout
+      - name: Collect release assets + compute SHA256
+        id: assets
         run: |
           mkdir -p release-assets
-          # DMG（两个架构）
           find artifacts -name "*.dmg" -exec cp {} release-assets/ \;
-          # updater 产物（两个架构）
-          find artifacts -name "*.app.tar.gz" -exec cp {} release-assets/ \;
-          find artifacts -name "*.app.tar.gz.sig" -exec cp {} release-assets/ \;
           ls -la release-assets/
-          # 把 tag 取出来供 latest.json 生成使用
-          TAG="${{ github.ref_name }}"
-          if [ -z "$TAG" ]; then TAG="${{ inputs.tag }}"; fi
-          VERSION="${TAG#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Generate latest.json for Tauri updater
+          ARM_DMG=$(ls release-assets/Memex_*_aarch64.dmg 2>/dev/null | head -1 || true)
+          X64_DMG=$(ls release-assets/Memex_*_x64.dmg 2>/dev/null | head -1 || true)
+
+          ARM_SHA=""
+          X64_SHA=""
+          [ -n "$ARM_DMG" ] && ARM_SHA=$(shasum -a 256 "$ARM_DMG" | awk '{print $1}')
+          [ -n "$X64_DMG" ] && X64_SHA=$(shasum -a 256 "$X64_DMG" | awk '{print $1}')
+
+          echo "arm_dmg=$(basename "$ARM_DMG")" >> "$GITHUB_OUTPUT"
+          echo "x64_dmg=$(basename "$X64_DMG")" >> "$GITHUB_OUTPUT"
+          echo "arm_sha=$ARM_SHA" >> "$GITHUB_OUTPUT"
+          echo "x64_sha=$X64_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Compose release body
+        id: body
+        env:
+          ARM_DMG: ${{ steps.assets.outputs.arm_dmg }}
+          X64_DMG: ${{ steps.assets.outputs.x64_dmg }}
+          ARM_SHA: ${{ steps.assets.outputs.arm_sha }}
+          X64_SHA: ${{ steps.assets.outputs.x64_sha }}
+          TAG: ${{ github.ref_name || inputs.tag }}
         run: |
-          VERSION="${{ steps.layout.outputs.version }}"
-          TAG="${{ steps.layout.outputs.tag }}"
-          ARM_SIG=$(cat release-assets/*aarch64*.app.tar.gz.sig 2>/dev/null | head -c -1 || echo "")
-          X64_SIG=$(cat release-assets/*x64*.app.tar.gz.sig 2>/dev/null | head -c -1 || echo "")
-          ARM_TGZ_NAME=$(ls release-assets/*aarch64*.app.tar.gz 2>/dev/null | head -1 | xargs basename)
-          X64_TGZ_NAME=$(ls release-assets/*x64*.app.tar.gz 2>/dev/null | head -1 | xargs basename)
+          VERSION=${TAG#v}
+          cat > release-body.md <<EOF
+          ## 📦 安装方式 / Install
 
-          cat > release-assets/latest.json <<EOF
-          {
-            "version": "$VERSION",
-            "notes": "See https://github.com/${{ github.repository }}/releases/tag/$TAG for details.",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "$ARM_SIG",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/$ARM_TGZ_NAME"
-              },
-              "darwin-x86_64": {
-                "signature": "$X64_SIG",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/$X64_TGZ_NAME"
-              }
-            }
-          }
+          ### 方式 1：下载 DMG（推荐）
+
+          | 架构 / Arch | 文件 / File |
+          |---|---|
+          | Apple Silicon (M1/M2/M3/M4) | \`${ARM_DMG}\` |
+          | Intel Mac | \`${X64_DMG}\` |
+
+          1. 在下方 Assets 区下载对应 DMG
+          2. 打开 DMG，把 **Memex** 拖到 **Applications**
+          3. 首次启动如提示「已损坏」或「无法验证开发者」，在终端运行：
+
+             \`\`\`bash
+             sudo xattr -cr /Applications/Memex.app
+             \`\`\`
+
+          4. 启动后菜单栏右上角会出现 Memex 图标
+
+          ### 方式 2：Homebrew Cask（即将上线）
+
+          \`\`\`bash
+          brew tap shetengteng/memex
+          brew install --cask memex
+          \`\`\`
+
+          > Cask repo 尚未发布，先用方式 1。
+
+          ### 方式 3：源码构建
+
+          \`\`\`bash
+          git clone https://github.com/shetengteng/memex
+          cd memex
+          bash scripts/upgrade-local.sh    # 编译 + 安装到 /Applications，自动备份 ~/.memex
+          \`\`\`
+
+          ## 🔐 SHA256 校验
+
+          \`\`\`
+          ${ARM_SHA}  ${ARM_DMG}
+          ${X64_SHA}  ${X64_DMG}
+          \`\`\`
+
+          下载后本地校验：
+
+          \`\`\`bash
+          shasum -a 256 Memex_${VERSION}_*.dmg
+          \`\`\`
+
+          ## 🆙 检查更新
+
+          App 内 **Settings → 关于 → 检查更新** 会跳转到本页面。
+
+          ---
           EOF
-          cat release-assets/latest.json
+          echo "---- release body ----"
+          cat release-body.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.layout.outputs.tag }}
-          name: ${{ steps.layout.outputs.tag }}
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: ${{ github.ref_name || inputs.tag }}
+          body_path: release-body.md
+          append_body: true
           generate_release_notes: true
           files: release-assets/*
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
