@@ -1,6 +1,6 @@
 ---
 name: memex
-description: Local-first cross-LLM session memory hub — search, retrieve, and browse Codex / Cursor / Claude Code / OpenCode conversation history indexed locally with FTS5.
+description: 本地优先的跨 LLM 会话记忆中枢——搜索、检索、浏览 Codex / Cursor / Claude Code / OpenCode 等 IDE 的历史对话，本地 FTS5 全文索引。
 client: codex
 ---
 
