@@ -59,7 +59,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/memex-daemon"],
+    "externalBin": ["binaries/memex-daemon", "binaries/memex"],
     "macOS": {
       "minimumSystemVersion": "10.15",
       "signingIdentity": "-",

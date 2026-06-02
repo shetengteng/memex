@@ -1,0 +1,96 @@
+use std::path::PathBuf;
+use std::process::Command;
+
+use serde::{Deserialize, Serialize};
+
+/// 与 memex-cli `setup::IdeStatus` 字段对齐——通过 spawn CLI + `--json` 解析得到。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IdeStatus {
+    pub ide: String,
+    pub config_path: String,
+    pub config_exists: bool,
+    pub installed: bool,
+    pub command: Option<String>,
+}
+
+fn locate_memex_cli() -> Option<PathBuf> {
+    // bundle 里跟 menubar 同目录的 memex。
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let p = parent.join("memex");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    // PATH 兜底，方便 dev 模式直接跑。
+    if let Ok(out) = Command::new("which").arg("memex").output() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !s.is_empty() {
+            return Some(PathBuf::from(s));
+        }
+    }
+    None
+}
+
+fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> Result<T, String> {
+    let bin = locate_memex_cli()
+        .ok_or_else(|| "找不到 memex CLI（既不在 app 同目录，也不在 PATH）".to_string())?;
+
+    let output = Command::new(&bin)
+        .args(args)
+        .output()
+        .map_err(|e| format!("调用 {} 失败：{}", bin.display(), e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "memex {:?} 返回非零（{}）：{}",
+            args, output.status, stderr
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str(stdout.trim())
+        .map_err(|e| format!("无法解析 CLI 输出（{}）：{}", e, stdout))
+}
+
+#[tauri::command]
+pub async fn ide_list_status() -> Result<Vec<IdeStatus>, String> {
+    run_cli_json::<Vec<IdeStatus>>(&["--json", "setup-status"])
+}
+
+#[tauri::command]
+pub async fn ide_install(ide: String) -> Result<IdeStatus, String> {
+    // 先 install（普通输出），再读 status（--json）。
+    let bin = locate_memex_cli().ok_or_else(|| "找不到 memex CLI".to_string())?;
+    let install = Command::new(&bin)
+        .args(["setup", &ide])
+        .output()
+        .map_err(|e| format!("调用 memex setup 失败：{}", e))?;
+    if !install.status.success() {
+        return Err(format!(
+            "memex setup {} 失败：{}",
+            ide,
+            String::from_utf8_lossy(&install.stderr)
+        ));
+    }
+    run_cli_json::<IdeStatus>(&["--json", "setup", &ide, "--status"])
+}
+
+#[tauri::command]
+pub async fn ide_uninstall(ide: String) -> Result<IdeStatus, String> {
+    let bin = locate_memex_cli().ok_or_else(|| "找不到 memex CLI".to_string())?;
+    let res = Command::new(&bin)
+        .args(["setup", &ide, "--uninstall"])
+        .output()
+        .map_err(|e| format!("调用 memex setup --uninstall 失败：{}", e))?;
+    if !res.status.success() {
+        return Err(format!(
+            "memex setup {} --uninstall 失败：{}",
+            ide,
+            String::from_utf8_lossy(&res.stderr)
+        ));
+    }
+    run_cli_json::<IdeStatus>(&["--json", "setup", &ide, "--status"])
+}

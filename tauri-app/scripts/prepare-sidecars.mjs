@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Build memex-daemon and copy it into src-tauri/binaries/memex-daemon-<target>
-// so the Tauri externalBin sidecar mechanism picks it up.
+// Build all Memex side binaries (daemon + cli) and copy them into
+// src-tauri/binaries/<name>-<target> so the Tauri externalBin
+// sidecar mechanism picks them up and bundles them into Memex.app/Contents/MacOS.
 
 import { execSync } from 'node:child_process'
 import { existsSync, mkdirSync, copyFileSync, chmodSync } from 'node:fs'
@@ -19,21 +20,31 @@ const target = execSync('rustc -vV', { encoding: 'utf8' })
 
 console.log(`[sidecars] target triple: ${target}`)
 
-console.log('[sidecars] building memex-daemon (release)…')
-execSync('cargo build --release -p memex-daemon', {
-  cwd: repoRoot,
-  stdio: 'inherit',
-})
-
-const src = resolve(repoRoot, 'target/release/memex-daemon')
-if (!existsSync(src)) {
-  console.error(`[sidecars] ERROR: ${src} not produced`)
-  process.exit(1)
-}
+const sidecars = [
+  { crate: 'memex-daemon', binary: 'memex-daemon', destName: 'memex-daemon' },
+  // memex CLI 也带进 .app，让 setup cursor/claude-code 配置出来的命令路径稳定指向
+  // /Applications/Memex.app/Contents/MacOS/memex
+  { crate: 'memex-cli', binary: 'memex', destName: 'memex' },
+]
 
 const binDir = resolve(tauriRoot, 'src-tauri/binaries')
 mkdirSync(binDir, { recursive: true })
-const dest = resolve(binDir, `memex-daemon-${target}`)
-copyFileSync(src, dest)
-chmodSync(dest, 0o755)
-console.log(`[sidecars] copied → ${dest}`)
+
+for (const { crate, binary, destName } of sidecars) {
+  console.log(`[sidecars] building ${crate} (release)…`)
+  execSync(`cargo build --release -p ${crate}`, {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+
+  const src = resolve(repoRoot, `target/release/${binary}`)
+  if (!existsSync(src)) {
+    console.error(`[sidecars] ERROR: ${src} not produced`)
+    process.exit(1)
+  }
+
+  const dest = resolve(binDir, `${destName}-${target}`)
+  copyFileSync(src, dest)
+  chmodSync(dest, 0o755)
+  console.log(`[sidecars] copied → ${dest}`)
+}

@@ -118,6 +118,8 @@ onMounted(async () => {
 
   llm.value.ollamaAvailable = await checkOllamaAvailability()
   configLoaded.value = true
+
+  await refreshIdeStatuses()
 })
 
 async function setAdapter(key: string, value: boolean) {
@@ -170,6 +172,58 @@ async function setCloudFallback(value: boolean) {
     await setConfig('llm.cloud_fallback', String(value))
   } catch {
     llm.value.claudeFallback = prev
+  }
+}
+
+interface IdeStatus {
+  ide: string
+  config_path: string
+  config_exists: boolean
+  installed: boolean
+  command: string | null
+}
+
+interface IdeRow {
+  ide: string
+  label: string
+  status: IdeStatus | null
+  loading: boolean
+  error: string
+}
+
+const ideRows = ref<IdeRow[]>([
+  { ide: 'cursor', label: 'Cursor', status: null, loading: false, error: '' },
+  { ide: 'claude-code', label: 'Claude Code', status: null, loading: false, error: '' },
+  { ide: 'codex', label: 'Codex', status: null, loading: false, error: '' },
+  { ide: 'opencode', label: 'OpenCode', status: null, loading: false, error: '' },
+])
+
+async function refreshIdeStatuses() {
+  try {
+    const list = await invoke<IdeStatus[]>('ide_list_status')
+    for (const s of list) {
+      const row = ideRows.value.find((r) => r.ide === s.ide)
+      if (row) row.status = s
+    }
+  } catch (e) {
+    // CLI 找不到时 4 个 row 都保持 null，UI 会显示「未配置」
+    console.warn('ide_list_status failed', e)
+  }
+}
+
+async function toggleIde(row: IdeRow, next: boolean) {
+  if (row.loading) return
+  const prevStatus = row.status
+  row.loading = true
+  row.error = ''
+  try {
+    const cmd = next ? 'ide_install' : 'ide_uninstall'
+    row.status = await invoke<IdeStatus>(cmd, { ide: row.ide })
+  } catch (e) {
+    row.status = prevStatus
+    row.error = e instanceof Error ? e.message : String(e)
+  } finally {
+    row.loading = false
   }
 }
 </script>
@@ -273,6 +327,54 @@ async function setCloudFallback(value: boolean) {
         @update:model-value="(v: boolean) => setPrivacy('privateFromMcp', v)"
       />
     </div>
+
+    <Separator class="my-2" />
+
+    <!-- IDE 集成（一键安装/卸载 MCP 到目标 IDE 配置） -->
+    <div class="flex items-baseline justify-between">
+      <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.integrations') }}</p>
+      <span class="text-xs text-muted-foreground">{{ t('settings.integrations.hint') }}</span>
+    </div>
+    <div
+      v-for="(row, i) in ideRows"
+      :key="row.ide"
+      class="flex items-center justify-between py-2.5"
+      :class="{ 'border-t border-border/40': i > 0 }"
+    >
+      <span class="flex items-center gap-2.5 text-base">
+        <span
+          class="inline-block h-2.5 w-2.5 rounded-full"
+          :class="row.status?.installed ? 'bg-success' : 'bg-muted-foreground'"
+        />
+        <span class="flex flex-col">
+          <span>{{ row.label }}</span>
+          <span class="text-xs text-muted-foreground">
+            <template v-if="row.loading">
+              {{ row.status?.installed ? t('settings.integrations.uninstalling') : t('settings.integrations.installing') }}
+            </template>
+            <template v-else-if="row.error">
+              <span class="text-destructive">{{ t('settings.integrations.error_prefix') }}{{ row.error }}</span>
+            </template>
+            <template v-else-if="!row.status?.config_exists">
+              {{ t('settings.integrations.status.no_config') }}
+            </template>
+            <template v-else-if="row.status?.installed">
+              {{ t('settings.integrations.status.installed') }}
+            </template>
+            <template v-else>
+              {{ t('settings.integrations.status.not_installed') }}
+            </template>
+          </span>
+        </span>
+      </span>
+      <Switch
+        :model-value="row.status?.installed ?? false"
+        :disabled="row.loading"
+        class="h-7 w-12 [&_>span]:h-6 [&_>span]:w-6 [&[data-state=checked]_>span]:translate-x-5"
+        @update:model-value="(v: boolean) => toggleIde(row, v)"
+      />
+    </div>
+    <p class="text-xs text-muted-foreground italic">{{ t('settings.integrations.restart_hint') }}</p>
 
     <Separator class="my-2" />
 

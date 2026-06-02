@@ -76,9 +76,17 @@ enum Commands {
     Mcp,
     /// 为指定 AI 工具配置 MCP
     Setup {
-        /// 目标工具（cursor、claude-code）
+        /// 目标工具（cursor、claude-code、codex、opencode）
         target: String,
+        /// 卸载（移除条目）而非安装
+        #[arg(long)]
+        uninstall: bool,
+        /// 只输出状态，不修改任何文件
+        #[arg(long)]
+        status: bool,
     },
+    /// 显示所有 IDE 当前 MCP 集成状态
+    SetupStatus,
     /// 管理后台 daemon
     Daemon {
         #[command(subcommand)]
@@ -162,7 +170,56 @@ fn main() -> Result<()> {
         Commands::Backup { path } => commands::backup::run(&path, cli.json),
         Commands::RebuildIndex => commands::rebuild::run(cli.json),
         Commands::Mcp => commands::mcp::run(),
-        Commands::Setup { target } => commands::setup::run(&target),
+        Commands::Setup {
+            target,
+            uninstall,
+            status,
+        } => {
+            let ide = commands::setup::Ide::parse(&target).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Unknown IDE: {}. Supported: cursor, claude-code, codex, opencode",
+                    target
+                )
+            })?;
+            if status {
+                let s = commands::setup::status(ide)?;
+                if cli.json {
+                    println!("{}", serde_json::to_string_pretty(&s)?);
+                } else {
+                    println!(
+                        "{}: installed={}, exists={}, path={}",
+                        s.ide, s.installed, s.config_exists, s.config_path
+                    );
+                }
+                Ok(())
+            } else if uninstall {
+                commands::setup::uninstall(ide).map(|_| ())
+            } else {
+                commands::setup::run(&target)
+            }
+        }
+        Commands::SetupStatus => {
+            let all = commands::setup::list_status();
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&all)?);
+            } else {
+                for s in &all {
+                    let mark = if s.installed { "[✓]" } else { "[ ]" };
+                    println!(
+                        "{} {:<14} {} (config: {})",
+                        mark,
+                        s.ide,
+                        if s.config_exists {
+                            "config present"
+                        } else {
+                            "no config"
+                        },
+                        s.config_path
+                    );
+                }
+            }
+            Ok(())
+        }
         Commands::Daemon { action } => match action {
             DaemonAction::Start => commands::daemon::start(cli.json),
             DaemonAction::Stop => commands::daemon::stop(cli.json),
