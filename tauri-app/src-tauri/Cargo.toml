@@ -1,6 +1,6 @@
 [package]
 name = "memex-menubar"
-version = "0.1.0"
+version.workspace = true
 description = "Memex menubar — local-first cross-LLM session memory"
 authors = ["Terrell She"]
 edition = "2024"

@@ -72,30 +72,48 @@ function onNav(v: unknown) {
 }
 
 async function openDashboard() {
-  const existing = await WebviewWindow.getByLabel('dashboard')
-  if (existing) {
-    await existing.setFocus()
-    return
+  try {
+    const existing = await WebviewWindow.getByLabel('dashboard')
+    if (existing) {
+      try {
+        await existing.show()
+        await existing.unminimize()
+        await existing.setFocus()
+        return
+      } catch (e) {
+        console.warn('reuse dashboard failed, recreating:', e)
+        try { await existing.close() } catch {}
+      }
+    }
+    const url = import.meta.env.DEV
+      ? 'http://localhost:1420/#/dashboard'
+      : 'index.html#/dashboard'
+    const wv = new WebviewWindow('dashboard', {
+      title: 'Memex Dashboard',
+      url,
+      width: 1100,
+      height: 720,
+      minWidth: 800,
+      minHeight: 500,
+      center: true,
+      decorations: true,
+      resizable: true,
+      transparent: false,
+      visible: true,
+      focus: true,
+    })
+    wv.once('tauri://created', () => {
+      wv.show().catch(() => {})
+      wv.setFocus().catch(() => {})
+    })
+    wv.once('tauri://error', (e) => {
+      console.error('Dashboard window creation failed:', e)
+    })
+  } catch (e) {
+    console.error('openDashboard error:', e)
+  } finally {
+    try { await hidePopup() } catch {}
   }
-  const url = import.meta.env.DEV
-    ? 'http://localhost:1420/#/dashboard'
-    : 'index.html#/dashboard'
-  const wv = new WebviewWindow('dashboard', {
-    title: 'Memex Dashboard',
-    url,
-    width: 1100,
-    height: 720,
-    minWidth: 800,
-    minHeight: 500,
-    center: true,
-    decorations: true,
-    resizable: true,
-    transparent: false,
-  })
-  wv.once('tauri://error', (e) => {
-    console.error('Dashboard window creation failed:', e)
-  })
-  await hidePopup()
 }
 
 provide('navigate', navigate)

@@ -183,15 +183,24 @@ memex mcp                            # 进入 MCP 模式
 
 ## 设计文档
 
-在 [`design/`](design/) 目录：
+在线浏览：**https://shetengteng.github.io/memex/**（GitHub Pages 自动发布）
+
+本地源文件在 [`design/`](design/) 目录：
 
 | 文档 | 内容 |
 |---|---|
 | `20260531-03-*最终设计文档.md` | v4 架构、模块边界、数据模型 |
 | `20260531-12-*技术栈.md` | 技术选型 + 代码复用来源 |
-| `20260531-01-*功能点开发清单.md` | 功能模块视角的全集 checklist |
-| `20260531-13-*执行计划.md` | Sprint 1~11 详细排期 |
+| `20260602-01-*功能点开发清单-100%.md` | 功能模块视角的全集 checklist（v1.0 已 100%） |
 | `20260531-09-*交互原型-v3.html` | 单 popup 聚焦版原型 |
+
+本地预览 docs site：
+
+```bash
+pip install markdown pygments
+python3 scripts/build-docs.py
+open site/index.html
+```
 
 ---
 
@@ -200,6 +209,10 @@ memex mcp                            # 进入 MCP 模式
 - [`SKILL.md`](SKILL.md) — 通用 SKILL（4 个 MCP 工具 + CLI 速查）
 - [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) — Cursor 专属
 - [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) — Claude Code 专属
+- [`skills/codex/SKILL.md`](skills/codex/SKILL.md) — Codex 专属
+- [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) — OpenCode 专属
+
+> 用法：在 Memex popup → Settings → IDE Integrations 一键安装/卸载 MCP + SKILL 到 4 个 IDE。
 
 ---
 
