@@ -12,9 +12,14 @@ import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
 const APP_VERSION = __APP_VERSION__
-const GITHUB_RELEASES_API = 'https://api.github.com/repos/shetengteng/memex/releases/latest'
+const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
 type UpdateStatus = 'idle' | 'checking' | 'latest' | 'outdated' | 'error'
+
+interface UpdateInfo {
+  latest_tag: string
+  html_url: string
+}
 
 const updateStatus = ref<UpdateStatus>('idle')
 const remoteVersion = ref<string>('')
@@ -40,19 +45,13 @@ async function checkForUpdates() {
   remoteUrl.value = ''
   errorMessage.value = ''
   try {
-    const resp = await fetch(GITHUB_RELEASES_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    })
-    if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}`)
-    }
-    const data = await resp.json() as { tag_name?: string; html_url?: string }
-    const tag = (data.tag_name || '').trim()
+    const info = await invoke<UpdateInfo>('check_for_updates')
+    const tag = (info.latest_tag || '').trim()
     if (!tag) {
-      throw new Error('no tag_name in response')
+      throw new Error('no tag in response')
     }
     remoteVersion.value = tag.replace(/^v/, '')
-    remoteUrl.value = data.html_url || 'https://github.com/shetengteng/memex/releases/latest'
+    remoteUrl.value = info.html_url || RELEASES_LATEST_PAGE
     updateStatus.value = compareVersion(remoteVersion.value, APP_VERSION) > 0 ? 'outdated' : 'latest'
   } catch (e) {
     console.error('check for updates failed:', e)
@@ -63,7 +62,7 @@ async function checkForUpdates() {
 
 async function openReleasePage() {
   try {
-    await openUrl(remoteUrl.value || 'https://github.com/shetengteng/memex/releases/latest')
+    await openUrl(remoteUrl.value || RELEASES_LATEST_PAGE)
   } catch (e) {
     console.error('open release page failed:', e)
   }
