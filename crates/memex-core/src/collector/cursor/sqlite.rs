@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use rusqlite::params;
+use rusqlite::types::ValueRef;
 use serde::Deserialize;
 use tracing::{debug, warn};
 
@@ -122,6 +123,25 @@ impl Default for CursorSqliteAdapter {
     }
 }
 
+/// Cursor 的 `cursorDiskKV.value` 列声明类型是 BLOB，
+/// 但实际写入既可能是 TEXT JSON（新版 Cursor，绝大多数 row）
+/// 也可能是 BLOB 字节（老 fixture / 二进制 cache）。
+/// 用 ValueRef 手动区分，避免 rusqlite 的严格类型检查报
+/// "Invalid column type Text/Blob at index ... name: value"。
+fn value_ref_to_string(value: ValueRef<'_>) -> Option<String> {
+    match value {
+        ValueRef::Text(bytes) | ValueRef::Blob(bytes) => {
+            if bytes.is_empty() {
+                None
+            } else {
+                std::str::from_utf8(bytes).ok().map(|s| s.to_string())
+            }
+        }
+        ValueRef::Null => None,
+        _ => None,
+    }
+}
+
 /// 给 `memex doctor` 和 menubar 设置页用的轻量健康探测。
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case", tag = "status")]
@@ -201,18 +221,18 @@ impl Adapter for CursorSqliteAdapter {
         let rows = stmt
             .query_map(params![pattern], |row| {
                 let key: String = row.get(0)?;
-                let value: Option<Vec<u8>> = row.get(1)?;
+                let value = value_ref_to_string(row.get_ref(1)?);
                 Ok((key, value))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         let mut sessions = Vec::with_capacity(rows.len());
         for (key, value) in rows {
-            let bytes = match value {
-                Some(b) if !b.is_empty() => b,
-                _ => continue,
+            let text = match value {
+                Some(s) => s,
+                None => continue,
             };
-            let composer: ComposerData = match serde_json::from_slice(&bytes) {
+            let composer: ComposerData = match serde_json::from_str(&text) {
                 Ok(c) => c,
                 Err(e) => {
                     debug!("cursor[sqlite]: skip malformed composer {}: {}", key, e);
@@ -265,17 +285,18 @@ impl Adapter for CursorSqliteAdapter {
         };
 
         let composer_key = format!("{}{}", COMPOSER_KEY_PREFIX, composer_id);
-        let composer_bytes: Option<Vec<u8>> = conn
+        let composer_text: Option<String> = conn
             .query_row(
                 "SELECT value FROM cursorDiskKV WHERE key = ?1",
                 params![composer_key],
-                |row| row.get(0),
+                |row| Ok(value_ref_to_string(row.get_ref(0)?)),
             )
-            .ok();
-        let Some(composer_bytes) = composer_bytes else {
+            .ok()
+            .flatten();
+        let Some(composer_text) = composer_text else {
             return Ok(Vec::new());
         };
-        let composer: ComposerData = serde_json::from_slice(&composer_bytes)
+        let composer: ComposerData = serde_json::from_str(&composer_text)
             .with_context(|| format!("cursor[sqlite]: parse composer {composer_id}"))?;
 
         let headers = composer.headers.unwrap_or_default();
@@ -287,17 +308,18 @@ impl Adapter for CursorSqliteAdapter {
         let mut messages = Vec::with_capacity(headers.len() - start);
         for (idx, header) in headers.iter().enumerate().skip(start) {
             let key = format!("{}{}:{}", BUBBLE_KEY_PREFIX, composer_id, header.bubble_id);
-            let bubble_bytes: Option<Vec<u8>> = conn
+            let bubble_text: Option<String> = conn
                 .query_row(
                     "SELECT value FROM cursorDiskKV WHERE key = ?1",
                     params![&key],
-                    |row| row.get(0),
+                    |row| Ok(value_ref_to_string(row.get_ref(0)?)),
                 )
-                .ok();
-            let Some(bubble_bytes) = bubble_bytes else {
+                .ok()
+                .flatten();
+            let Some(bubble_text) = bubble_text else {
                 continue;
             };
-            let bubble: Bubble = match serde_json::from_slice(&bubble_bytes) {
+            let bubble: Bubble = match serde_json::from_str(&bubble_text) {
                 Ok(b) => b,
                 Err(e) => {
                     debug!("cursor[sqlite]: skip malformed bubble {}: {}", key, e);
