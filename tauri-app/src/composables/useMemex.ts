@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -66,9 +66,26 @@ export function useMemex() {
     return invoke<DaemonStatus>('daemon_restart')
   }
 
+  async function triggerIngest(): Promise<{ messages_ingested: number; chunks_created: number }> {
+    return invoke<{ messages_ingested: number; chunks_created: number }>('trigger_ingest')
+  }
+
+  async function cliStatus(): Promise<CliStatus> {
+    return invoke<CliStatus>('cli_status')
+  }
+
+  async function cliInstall(): Promise<CliStatus> {
+    return invoke<CliStatus>('cli_install')
+  }
+
+  async function cliUninstall(): Promise<CliStatus> {
+    return invoke<CliStatus>('cli_uninstall')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
+    triggerIngest, cliStatus, cliInstall, cliUninstall,
   }
 }

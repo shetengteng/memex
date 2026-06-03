@@ -4,6 +4,7 @@ export interface Stats {
   chunks: number
   db_exists: boolean
   summaries: number
+  sessions_eligible_for_summary: number
   chunks_summarized: number
   llm_provider: string | null
 }
@@ -108,6 +109,14 @@ export interface DaemonStatus {
   port: number | null
   http_ok: boolean
   started_at: string | null
+}
+
+export interface CliStatus {
+  path_contains_target_dir: boolean
+  path: string
+  target_dir: string
+  installed: boolean
+  path_export_hint: string
 }
 
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

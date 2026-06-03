@@ -5,12 +5,13 @@ import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, CheckCircle2, AlertCircle, Download } from 'lucide-vue-next'
+import { RefreshCw, CheckCircle2, AlertCircle, Download, Terminal, Copy } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
+import type { CliStatus } from '@/types'
 
 const { t, locale } = useI18n()
-const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig } = useMemex()
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
@@ -128,6 +129,7 @@ onMounted(async () => {
   configLoaded.value = true
 
   await refreshIdeStatuses()
+  await refreshCliStatus()
 })
 
 async function setAdapter(key: string, value: boolean) {
@@ -266,6 +268,86 @@ async function toggleSkill(row: IdeRow, next: boolean) {
     row.skillLoading = false
   }
 }
+
+// ----- CLI 安装到 PATH（仿 VS Code 的 "Install 'code' command in PATH"）-----
+const cli = ref<CliStatus | null>(null)
+const cliLoading = ref(false)
+const cliError = ref('')
+const cliCopied = ref(false)
+
+async function refreshCliStatus() {
+  try {
+    cli.value = await ipcCliStatus()
+  } catch (e) {
+    console.warn('cli_status failed', e)
+  }
+}
+
+async function installCli() {
+  if (cliLoading.value) return
+  cliLoading.value = true
+  cliError.value = ''
+  try {
+    cli.value = await ipcCliInstall()
+  } catch (e) {
+    cliError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    cliLoading.value = false
+  }
+}
+
+async function uninstallCli() {
+  if (cliLoading.value) return
+  cliLoading.value = true
+  cliError.value = ''
+  try {
+    cli.value = await ipcCliUninstall()
+  } catch (e) {
+    cliError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    cliLoading.value = false
+  }
+}
+
+async function copyExportHint() {
+  if (!cli.value) return
+  try {
+    await navigator.clipboard.writeText(cli.value.path_export_hint)
+    cliCopied.value = true
+    setTimeout(() => { cliCopied.value = false }, 1500)
+  } catch (e) {
+    console.warn('clipboard write failed', e)
+  }
+}
+
+// ----- Ollama 引导 (未装时显示下载卡片) -----
+const OLLAMA_DOWNLOAD_URL = 'https://ollama.com/download'
+const OLLAMA_BREW_CMD = 'brew install ollama'
+const ollamaBrewCopied = ref(false)
+
+async function openOllamaDownload() {
+  try {
+    await openUrl(OLLAMA_DOWNLOAD_URL)
+  } catch (e) {
+    console.warn('open ollama download failed', e)
+  }
+}
+
+async function copyBrewCmd() {
+  try {
+    await navigator.clipboard.writeText(OLLAMA_BREW_CMD)
+    ollamaBrewCopied.value = true
+    setTimeout(() => { ollamaBrewCopied.value = false }, 1500)
+  } catch (e) {
+    console.warn('clipboard write failed', e)
+  }
+}
+
+async function recheckOllama() {
+  llm.value.ollamaChecking = true
+  llm.value.ollamaAvailable = await checkOllamaAvailability()
+  llm.value.ollamaChecking = false
+}
 </script>
 
 <template>
@@ -335,6 +417,75 @@ async function toggleSkill(row: IdeRow, next: boolean) {
         />
       </div>
     </div>
+
+    <!-- Ollama 未装引导：本地 LLM 离线时给安装路径 + 功能影响清单 -->
+    <div
+      v-if="configLoaded && !llm.ollamaAvailable && !llm.ollamaChecking"
+      class="flex flex-col gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-3 text-xs"
+    >
+      <div class="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+        <AlertCircle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span class="flex-1">
+          <strong>{{ t('settings.llm.ollama_missing.title') }}</strong>
+          <span class="ml-1">{{ t('settings.llm.ollama_missing.intro') }}</span>
+        </span>
+      </div>
+
+      <!-- 安装方案：官网下载 + brew 命令 -->
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Button variant="default" size="sm" class="shrink-0 gap-1.5" @click="openOllamaDownload">
+          <Download class="h-3.5 w-3.5" />
+          {{ t('settings.llm.ollama_missing.download') }}
+        </Button>
+        <span class="text-xs text-muted-foreground">{{ t('settings.llm.ollama_missing.or') }}</span>
+        <div class="flex flex-1 items-center gap-1.5">
+          <code class="mono flex-1 truncate rounded bg-muted px-2 py-1 text-[11px]">$ {{ OLLAMA_BREW_CMD }}</code>
+          <Button variant="ghost" size="sm" class="h-7 shrink-0 px-2" @click="copyBrewCmd">
+            <Copy class="mr-1 h-3 w-3" />
+            {{ ollamaBrewCopied ? t('common.copied') : t('common.copy') }}
+          </Button>
+        </div>
+      </div>
+
+      <!-- 装完后给用户一个一键复查的按钮，省得让他切来切去 -->
+      <div class="flex items-center justify-between border-t border-amber-500/20 pt-2">
+        <p class="text-xs text-muted-foreground">{{ t('settings.llm.ollama_missing.after_install_hint') }}</p>
+        <Button variant="ghost" size="sm" class="h-7 px-2" :disabled="llm.ollamaChecking" @click="recheckOllama">
+          <RefreshCw class="mr-1 h-3 w-3" :class="llm.ollamaChecking ? 'animate-spin' : ''" />
+          {{ t('settings.llm.ollama_missing.recheck') }}
+        </Button>
+      </div>
+
+      <!-- 功能影响清单 -->
+      <div class="border-t border-amber-500/20 pt-2">
+        <p class="mb-1.5 font-medium text-amber-700 dark:text-amber-400">{{ t('settings.llm.ollama_missing.impact_title') }}</p>
+        <ul class="space-y-1 text-muted-foreground">
+          <li class="flex items-baseline gap-1.5">
+            <span class="text-success">✓</span>
+            <span>{{ t('settings.llm.ollama_missing.unaffected') }}</span>
+          </li>
+          <li class="flex items-baseline gap-1.5">
+            <span class="text-destructive">✗</span>
+            <span>{{ t('settings.llm.ollama_missing.affected_summaries') }}</span>
+          </li>
+          <li class="flex items-baseline gap-1.5">
+            <span class="text-destructive">✗</span>
+            <span>{{ t('settings.llm.ollama_missing.affected_projects') }}</span>
+          </li>
+          <li class="flex items-baseline gap-1.5">
+            <span class="text-destructive">✗</span>
+            <span>{{ t('settings.llm.ollama_missing.affected_reports') }}</span>
+          </li>
+        </ul>
+        <p v-if="llm.claudeFallback" class="mt-2 text-emerald-600 dark:text-emerald-400">
+          {{ t('settings.llm.ollama_missing.claude_fallback_hint') }}
+        </p>
+        <p v-else class="mt-2 text-muted-foreground italic">
+          {{ t('settings.llm.ollama_missing.claude_fallback_suggest') }}
+        </p>
+      </div>
+    </div>
+
     <div class="flex items-center justify-between border-t border-border/40 py-2.5">
       <span class="flex items-center gap-2.5 text-base">
         <span class="inline-block h-2.5 w-2.5 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
@@ -428,6 +579,83 @@ async function toggleSkill(row: IdeRow, next: boolean) {
       </div>
     </div>
     <p class="text-xs text-muted-foreground italic">{{ t('settings.integrations.restart_hint') }}</p>
+
+    <Separator class="my-2" />
+
+    <!-- CLI: 仿 VS Code "Install 'code' command in PATH" -->
+    <div class="flex items-baseline justify-between">
+      <p class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{{ t('settings.section.cli') }}</p>
+      <span class="text-xs text-muted-foreground">{{ t('settings.cli.hint') }}</span>
+    </div>
+    <div class="flex flex-col gap-2 py-2.5">
+      <div class="flex items-center justify-between gap-3">
+        <span class="flex flex-1 items-center gap-2.5 text-base min-w-0">
+          <Terminal class="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span class="flex flex-col min-w-0">
+            <span>{{ t('settings.cli.title') }}</span>
+            <span v-if="cli" class="mono truncate text-xs text-muted-foreground">
+              {{ cli.target_dir }}/memex
+            </span>
+          </span>
+        </span>
+        <Button
+          v-if="!cli?.installed"
+          variant="default"
+          size="sm"
+          :disabled="cliLoading"
+          @click="installCli"
+        >
+          <RefreshCw v-if="cliLoading" class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          {{ cliLoading ? t('settings.cli.installing') : t('settings.cli.install') }}
+        </Button>
+        <Button
+          v-else
+          variant="outline"
+          size="sm"
+          :disabled="cliLoading"
+          @click="uninstallCli"
+        >
+          <RefreshCw v-if="cliLoading" class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          {{ cliLoading ? t('settings.cli.uninstalling') : t('settings.cli.uninstall') }}
+        </Button>
+      </div>
+
+      <!-- 安装成功且 PATH 已包含目标目录 -->
+      <div
+        v-if="cli?.installed && cli.path_contains_target_dir"
+        class="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400"
+      >
+        <CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+        <span>{{ t('settings.cli.ready') }}</span>
+      </div>
+
+      <!-- 安装了但 PATH 里没目标目录 -->
+      <div
+        v-else-if="cli?.installed && !cli.path_contains_target_dir"
+        class="flex flex-col gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+      >
+        <span class="flex items-start gap-2">
+          <AlertCircle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{{ t('settings.cli.path_missing') }}</span>
+        </span>
+        <div class="flex items-center gap-2">
+          <code class="mono flex-1 truncate rounded bg-amber-500/10 px-2 py-1 text-[11px]">{{ cli.path_export_hint }}</code>
+          <Button variant="ghost" size="sm" class="h-7 shrink-0 px-2" @click="copyExportHint">
+            <Copy class="mr-1 h-3 w-3" />
+            {{ cliCopied ? t('common.copied') : t('common.copy') }}
+          </Button>
+        </div>
+      </div>
+
+      <!-- 错误 -->
+      <div
+        v-else-if="cliError"
+        class="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-600 dark:text-red-400"
+      >
+        <AlertCircle class="h-3.5 w-3.5 shrink-0" />
+        <span class="truncate">{{ cliError }}</span>
+      </div>
+    </div>
 
     <Separator class="my-2" />
 

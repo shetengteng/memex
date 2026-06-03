@@ -287,12 +287,12 @@ const topProjects = computed<Array<[string, number]>>(() => {
       <div class="flex items-baseline gap-3">
         <h4 class="text-sm font-semibold">{{ t('overview.summary.title') }}</h4>
         <span class="mono text-xs text-muted-foreground">
-          {{ stats.summaries }} / {{ stats.sessions }} ·
+          {{ stats.summaries }} / {{ stats.sessions_eligible_for_summary }} ·
           <span :class="stats.llm_provider ? 'text-primary' : 'text-warning'">{{ stats.llm_provider ?? t('overview.summary.provider_none') }}</span>
         </span>
       </div>
       <Button
-        v-if="stats.llm_provider && stats.summaries < stats.sessions"
+        v-if="stats.llm_provider && stats.summaries < stats.sessions_eligible_for_summary"
         variant="ghost"
         size="sm"
         class="h-7 text-xs"
@@ -301,11 +301,11 @@ const topProjects = computed<Array<[string, number]>>(() => {
       >
         <Sparkles v-if="!batchRunning" class="mr-1 h-3 w-3" />
         <RefreshCw v-else class="mr-1 h-3 w-3 animate-spin" />
-        {{ batchRunning ? t('overview.summary.generating') : t('overview.summary.generate_missing', { count: stats.sessions - stats.summaries }) }}
+        {{ batchRunning ? t('overview.summary.generating') : t('overview.summary.generate_missing', { count: stats.sessions_eligible_for_summary - stats.summaries }) }}
       </Button>
     </div>
     <div v-if="stats.llm_provider" class="h-1.5 overflow-hidden rounded-full bg-muted">
-      <div class="h-full rounded-full bg-primary transition-all" :style="{ width: (stats.sessions > 0 ? stats.summaries / stats.sessions * 100 : 0) + '%' }" />
+      <div class="h-full rounded-full bg-primary transition-all" :style="{ width: (stats.sessions_eligible_for_summary > 0 ? stats.summaries / stats.sessions_eligible_for_summary * 100 : 0) + '%' }" />
     </div>
     <div v-if="batchProgress" class="mt-2">
       <div class="mb-1 flex items-center justify-between text-xs text-muted-foreground">

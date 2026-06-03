@@ -11,6 +11,9 @@ pub struct Stats {
     pub chunks: u64,
     pub db_exists: bool,
     pub summaries: u64,
+    /// 实际可以生成 L2 摘要的会话数（即 messages >= 2 的会话）。
+    /// UI 用它当摘要进度条的分母，否则永远卡在 < 100%。
+    pub sessions_eligible_for_summary: u64,
     pub chunks_summarized: u64,
     pub llm_provider: Option<String>,
 }
@@ -26,6 +29,7 @@ pub async fn get_stats() -> Result<Stats, String> {
             chunks: 0,
             db_exists: false,
             summaries: 0,
+            sessions_eligible_for_summary: 0,
             chunks_summarized: 0,
             llm_provider: None,
         });
@@ -42,6 +46,7 @@ pub async fn get_stats() -> Result<Stats, String> {
         chunks: db.chunk_count().unwrap_or(0),
         db_exists: true,
         summaries: db.summary_count().unwrap_or(0),
+        sessions_eligible_for_summary: db.sessions_eligible_for_summary_count().unwrap_or(0),
         chunks_summarized: db.chunks_with_summary_count().unwrap_or(0),
         llm_provider: provider_name,
     })

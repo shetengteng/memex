@@ -139,6 +139,19 @@ impl Db {
         Ok(conn.query_row("SELECT COUNT(*) FROM summaries", [], |row| row.get(0))?)
     }
 
+    /// 有资格生成 L2 摘要的会话数。
+    /// 阈值跟 `summarize_session_by_id` 里的 `messages.len() >= 2` 严格一致 —
+    /// 只有 0 / 1 条消息的会话客观上拿不到摘要，不应计入「待生成」进度的分母，
+    /// 否则会卡在永远凑不齐 100% 的尴尬数字（例如 919 个会话里有 19 个只有 1 条 → 上限 97.93%）。
+    pub fn sessions_eligible_for_summary_count(&self) -> Result<u64> {
+        let conn = self.conn.lock().unwrap();
+        Ok(conn.query_row(
+            "SELECT COUNT(*) FROM sessions WHERE message_count >= 2",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn chunks_with_summary_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
         Ok(conn.query_row("SELECT COUNT(*) FROM chunks WHERE summary IS NOT NULL", [], |row| row.get(0))?)

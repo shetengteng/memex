@@ -20,6 +20,7 @@ const stats = ref<Stats>({
   chunks: 0,
   db_exists: false,
   summaries: 0,
+  sessions_eligible_for_summary: 0,
   chunks_summarized: 0,
   llm_provider: null,
 })

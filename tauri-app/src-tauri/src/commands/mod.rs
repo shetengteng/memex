@@ -1,15 +1,19 @@
+mod cli_path;
 mod config;
 mod daemon;
 mod ide_integration;
+mod ingest;
 mod reports;
 mod search;
 mod sessions;
 mod stats;
 mod update;
 
+pub use cli_path::*;
 pub use config::*;
 pub use daemon::*;
 pub use ide_integration::*;
+pub use ingest::*;
 pub use reports::*;
 pub use search::*;
 pub use sessions::*;

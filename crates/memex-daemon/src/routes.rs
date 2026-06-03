@@ -205,6 +205,7 @@ pub async fn summary_stats(State(db): State<AppState>) -> impl IntoResponse {
     let session_summaries = db.summary_count().unwrap_or(0);
     let chunk_summaries = db.chunks_with_summary_count().unwrap_or(0);
     let sessions_total = db.session_count().unwrap_or(0);
+    let sessions_eligible_for_summary = db.sessions_eligible_for_summary_count().unwrap_or(0);
     let chunks_total = db.chunk_count().unwrap_or(0);
 
     let memex_dir = memex_core::memex_dir();
@@ -216,6 +217,7 @@ pub async fn summary_stats(State(db): State<AppState>) -> impl IntoResponse {
         "session_summaries": session_summaries,
         "chunk_summaries": chunk_summaries,
         "sessions_total": sessions_total,
+        "sessions_eligible_for_summary": sessions_eligible_for_summary,
         "chunks_total": chunks_total,
         "llm_provider": provider,
         "ollama_enabled": config.llm.ollama_enabled,

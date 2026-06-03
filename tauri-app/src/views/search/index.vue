@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { ref, inject, watch, onMounted } from 'vue'
-import { Loader2 } from 'lucide-vue-next'
+import { Loader2, Sparkles } from 'lucide-vue-next'
 import type { SearchResult, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { adapterAbbr, adapterColor, adapterBg, timeAgo } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
 
 const PAGE_SIZE = 20
 
 const props = defineProps<{ query: string }>()
 const navigate = inject<(view: ViewName, id?: string) => void>('navigate')!
-const { searchMemex, listRecent } = useMemex()
+const { searchMemex, listRecent, triggerIngest } = useMemex()
+const { t } = useI18n()
 
 const results = ref<SearchResult[]>([])
 const recentSessions = ref<SessionRow[]>([])
@@ -20,6 +23,9 @@ const hasSearched = ref(false)
 const noMoreRecent = ref(false)
 const noMoreSearch = ref(false)
 const scrollEl = ref<HTMLElement | null>(null)
+const ingesting = ref(false)
+const ingestError = ref<string | null>(null)
+const ingestMessage = ref<string | null>(null)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -30,6 +36,28 @@ onMounted(async () => {
     noMoreRecent.value = batch.length < PAGE_SIZE
   } catch { /* ignore */ }
 })
+
+async function startIngest() {
+  if (ingesting.value) return
+  ingesting.value = true
+  ingestError.value = null
+  ingestMessage.value = null
+  try {
+    const result = await triggerIngest()
+    if (result.messages_ingested > 0) {
+      ingestMessage.value = t('search.empty.ingest_done', { msgs: result.messages_ingested })
+    } else {
+      ingestMessage.value = t('search.empty.ingest_none')
+    }
+    const batch = await listRecent(PAGE_SIZE, 0)
+    recentSessions.value = batch
+    noMoreRecent.value = batch.length < PAGE_SIZE
+  } catch (e) {
+    ingestError.value = String(e)
+  } finally {
+    ingesting.value = false
+  }
+}
 
 watch(() => props.query, (val) => {
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -182,8 +210,24 @@ function sessionLine2(s: SessionRow): string {
       <div v-if="noMoreRecent && recentSessions.length > 0" class="py-3 text-center text-[10px] text-muted-foreground">
         已加载全部 {{ recentSessions.length }} 个 session
       </div>
-      <div v-if="recentSessions.length === 0 && !loadingMore" class="py-10 text-center text-xs text-muted-foreground">
-        暂无 session，运行 <code class="mono rounded bg-muted px-1 py-0.5 text-[11px]">memex ingest</code> 开始采集
+      <div
+        v-if="recentSessions.length === 0 && !loadingMore"
+        class="flex h-full flex-col items-center justify-center gap-3 px-6 py-12 text-center"
+      >
+        <div class="grid h-12 w-12 place-items-center rounded-full bg-primary/10">
+          <Sparkles class="h-6 w-6 text-primary" />
+        </div>
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-foreground">{{ t('search.empty.title') }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('search.empty.hint') }}</p>
+        </div>
+        <Button size="sm" :disabled="ingesting" @click="startIngest">
+          <Loader2 v-if="ingesting" class="mr-2 h-3.5 w-3.5 animate-spin" />
+          {{ ingesting ? t('search.empty.scanning') : t('search.empty.scan_now') }}
+        </Button>
+        <p v-if="ingestMessage" class="text-[11px] text-success">{{ ingestMessage }}</p>
+        <p v-else-if="ingestError" class="text-[11px] text-destructive">{{ t('search.empty.scan_failed', { err: ingestError }) }}</p>
+        <p v-else class="text-[11px] text-muted-foreground">{{ t('search.empty.subhint') }}</p>
       </div>
     </template>
   </div>

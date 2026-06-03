@@ -24,7 +24,7 @@ const searchInputRef = ref<HTMLInputElement | null>(null)
 const appWindow = getCurrentWindow()
 const { t } = useI18n()
 const { getStats } = useMemex()
-const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, chunks_summarized: 0, llm_provider: null })
+const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, sessions_eligible_for_summary: 0, chunks_summarized: 0, llm_provider: null })
 
 function navigate(view: ViewName, sessionId?: string) {
   currentView.value = view
@@ -143,7 +143,10 @@ async function refreshStats() {
 
 const summaryProgress = computed(() => {
   if (!stats.value.llm_provider) return null
-  const total = stats.value.sessions
+  // 分母用「够资格生成摘要的 session 数」而不是全量 sessions —
+  // 只有 1 条消息（甚至 0 条）的会话客观上无法生成摘要，
+  // 算进分母只会让 UI 永远卡在 < 100%（实测会停在 98%）
+  const total = stats.value.sessions_eligible_for_summary
   const done = stats.value.summaries
   if (total === 0) return null
   return { done, total, pct: Math.round((done / total) * 100) }
