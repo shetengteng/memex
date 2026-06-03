@@ -149,6 +149,10 @@ onMounted(async () => {
     const v = await getConfig('llm.cloud_fallback')
     if (v !== null) llm.value.claudeFallback = v === 'true'
   } catch { /* default */ }
+  try {
+    const m = await getConfig('llm.ollama_model')
+    if (m) llm.value.ollamaModel = m
+  } catch { /* default */ }
 
   llm.value.ollamaAvailable = await checkOllamaAvailability()
   configLoaded.value = true

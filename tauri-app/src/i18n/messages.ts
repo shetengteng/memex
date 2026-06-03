@@ -276,6 +276,20 @@ const zh: Messages = {
   'dashboard.search.results_count': '"{query}" 共 {count} 条结果',
   'dashboard.search.empty_hint': '输入关键词并按回车，在所有会话中检索',
   'dashboard.search.session_id': '会话：{id}…',
+
+  // 启动时 Ollama 检测弹框
+  'ollama_setup.title_not_installed': '未检测到 Ollama',
+  'ollama_setup.title_no_model': '未检测到 LLM 模型',
+  'ollama_setup.desc_not_installed': 'Memex 依赖 Ollama 运行本地 LLM 来生成会话摘要、主题和报告。请先安装 Ollama。',
+  'ollama_setup.desc_no_model': 'Ollama 已运行，但还没有安装可用的模型。请拉取一个模型后再启用 LLM 功能。',
+  'ollama_setup.recommended_model': '推荐模型',
+  'ollama_setup.install_cmd': '安装命令',
+  'ollama_setup.install_ollama': '前往 Ollama 官网',
+  'ollama_setup.brew_hint': '或使用 Homebrew:',
+  'ollama_setup.other_models': '也可使用其他模型（如 llama3.2、mistral、gemma2 等），安装后在设置中修改模型名称即可。',
+  'ollama_setup.dismiss': '稍后再说',
+  'ollama_setup.go_settings': '前往设置',
+  'ollama_setup.dont_show': '不再提示',
 }
 
 const en: Messages = {
@@ -541,6 +555,20 @@ const en: Messages = {
   'dashboard.search.results_count': '{count} results for "{query}"',
   'dashboard.search.empty_hint': 'Enter a query and press Enter to search across all sessions',
   'dashboard.search.session_id': 'Session: {id}…',
+
+  // Ollama setup dialog on startup
+  'ollama_setup.title_not_installed': 'Ollama Not Detected',
+  'ollama_setup.title_no_model': 'No LLM Model Found',
+  'ollama_setup.desc_not_installed': 'Memex uses Ollama to run a local LLM for generating session summaries, topics, and reports. Please install Ollama first.',
+  'ollama_setup.desc_no_model': 'Ollama is running but no model is installed yet. Please pull a model to enable LLM features.',
+  'ollama_setup.recommended_model': 'Recommended model',
+  'ollama_setup.install_cmd': 'Install command',
+  'ollama_setup.install_ollama': 'Go to Ollama website',
+  'ollama_setup.brew_hint': 'Or use Homebrew:',
+  'ollama_setup.other_models': 'You can also use other models (e.g. llama3.2, mistral, gemma2). After pulling, update the model name in Settings.',
+  'ollama_setup.dismiss': 'Later',
+  'ollama_setup.go_settings': 'Go to Settings',
+  'ollama_setup.dont_show': "Don't show again",
 }
 
 export const MESSAGES: Record<Locale, Messages> = { zh, en }
