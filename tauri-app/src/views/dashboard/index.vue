@@ -26,6 +26,7 @@ const detailSession = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
 const refreshing = ref(false)
 const sessionFilter = ref('')
+const sessionMessagesFilter = ref<'all' | 'invalid' | 'valid'>('all')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadDashboard() {
@@ -61,13 +62,25 @@ async function manualRefresh() {
 }
 
 function switchTab(t: DashTab) {
-  if (t !== 'sessions') sessionFilter.value = ''
+  if (t !== 'sessions') {
+    sessionFilter.value = ''
+    sessionMessagesFilter.value = 'all'
+  }
   tab.value = t
   if (t === 'sessions' && sessions.value.length === 0) loadSessions()
 }
 
 function filterByProject(projectName: string) {
   sessionFilter.value = projectName
+  sessionMessagesFilter.value = 'all'
+  tab.value = 'sessions'
+  if (sessions.value.length === 0) loadSessions()
+}
+
+// OverviewTab 的「X 个无效会话」徽章点进来 —— 切到 Sessions tab 并把过滤器锁到 invalid
+function showInvalidSessions() {
+  sessionFilter.value = ''
+  sessionMessagesFilter.value = 'invalid'
   tab.value = 'sessions'
   if (sessions.value.length === 0) loadSessions()
 }
@@ -129,8 +142,16 @@ onUnmounted(() => {
           @refresh="manualRefresh"
           @navigate-projects="switchTab('projects')"
           @open-session="openSessionDetail"
+          @show-invalid-sessions="showInvalidSessions"
         />
-        <SessionsTab v-else-if="tab === 'sessions'" :sessions="sessions" :loading="sessionsLoading" :initial-filter="sessionFilter" @open-session="openSessionDetail" />
+        <SessionsTab
+          v-else-if="tab === 'sessions'"
+          :sessions="sessions"
+          :loading="sessionsLoading"
+          :initial-filter="sessionFilter"
+          :initial-messages-filter="sessionMessagesFilter"
+          @open-session="openSessionDetail"
+        />
         <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
         <ReportsTab v-else-if="tab === 'reports'" />
         <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />

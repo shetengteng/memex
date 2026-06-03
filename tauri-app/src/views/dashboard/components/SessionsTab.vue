@@ -14,6 +14,7 @@ const props = defineProps<{
   sessions: SessionRow[]
   loading: boolean
   initialFilter?: string
+  initialMessagesFilter?: 'all' | 'invalid' | 'valid'
 }>()
 
 const emit = defineEmits<{
@@ -23,10 +24,14 @@ const emit = defineEmits<{
 const searchQuery = ref(props.initialFilter ?? '')
 const filterAdapter = ref<string>('all')
 const filterDays = ref<string>('all')
+// 这个 filter 主要给「LLM 摘要进度条旁的 X 个无效会话徽章」当跳转目标用：
+// invalid = message_count < 2 (拿不到 L2 摘要)，valid = >= 2，all 不过滤
+const filterMessages = ref<'all' | 'invalid' | 'valid'>(props.initialMessagesFilter ?? 'all')
 const page = ref(1)
 const pageSize = 20
 
 watch(() => props.initialFilter, (v) => { if (v) searchQuery.value = v })
+watch(() => props.initialMessagesFilter, (v) => { if (v) filterMessages.value = v })
 
 const adapterOptions = computed(() => {
   const set = new Set(props.sessions.map(s => s.source))
@@ -38,6 +43,12 @@ const filteredSessions = computed(() => {
 
   if (filterAdapter.value !== 'all') {
     list = list.filter(s => s.source === filterAdapter.value)
+  }
+
+  if (filterMessages.value === 'invalid') {
+    list = list.filter(s => (s.message_count ?? 0) < 2)
+  } else if (filterMessages.value === 'valid') {
+    list = list.filter(s => (s.message_count ?? 0) >= 2)
   }
 
   if (filterDays.value && filterDays.value !== 'all') {
@@ -66,7 +77,7 @@ const pagedSessions = computed(() => {
   return filteredSessions.value.slice(start, start + pageSize)
 })
 
-watch([searchQuery, filterAdapter, filterDays], () => { page.value = 1 })
+watch([searchQuery, filterAdapter, filterDays, filterMessages], () => { page.value = 1 })
 
 function formatDate(dateStr: string): string {
   try {
@@ -112,6 +123,16 @@ function summaryLine(s: SessionRow): string {
         <SelectItem value="7">{{ t('sessions.filter.last_7d') }}</SelectItem>
         <SelectItem value="30">{{ t('sessions.filter.last_30d') }}</SelectItem>
         <SelectItem value="90">{{ t('sessions.filter.last_90d') }}</SelectItem>
+      </SelectContent>
+    </Select>
+    <Select v-model="filterMessages">
+      <SelectTrigger class="w-[160px] text-xs">
+        <SelectValue :placeholder="t('sessions.filter.all_messages')" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{{ t('sessions.filter.all_messages') }}</SelectItem>
+        <SelectItem value="invalid">{{ t('sessions.filter.invalid_only') }}</SelectItem>
+        <SelectItem value="valid">{{ t('sessions.filter.valid_only') }}</SelectItem>
       </SelectContent>
     </Select>
   </div>
@@ -161,7 +182,7 @@ function summaryLine(s: SessionRow): string {
       start: (page - 1) * pageSize + 1,
       end: Math.min(page * pageSize, filteredSessions.length),
       total: filteredSessions.length,
-      filtered: (filterAdapter !== 'all' || (filterDays && filterDays !== 'all') || searchQuery.trim()) ? t('sessions.pagination.filtered') : ''
+      filtered: (filterAdapter !== 'all' || (filterDays && filterDays !== 'all') || filterMessages !== 'all' || searchQuery.trim()) ? t('sessions.pagination.filtered') : ''
     }) }}</span>
     <div v-if="totalPages > 1" class="flex items-center gap-1">
       <Button variant="ghost" size="sm" :disabled="page <= 1" @click="page--">

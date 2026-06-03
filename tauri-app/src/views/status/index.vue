@@ -1,18 +1,30 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
-import { formatNumber } from '@/lib/utils'
-import { Separator } from '@/components/ui/separator'
+import { formatNumber, timeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { RefreshCw, Power } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import {
+  RefreshCw,
+  Power,
+  ChevronDown,
+  Database,
+  Plug,
+  Brain,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  CircleDot,
+} from 'lucide-vue-next'
 import type { Stats, DaemonStatus } from '@/types'
 
 const { t } = useI18n()
 const { getStats, getConfig, daemonStatus, daemonRestart } = useMemex()
 
 type Tone = 'success' | 'warning' | 'error' | 'muted'
-interface Signal { label: string; value: string; hint?: string; tone: Tone }
 
 const stats = ref<Stats>({
   sessions: 0,
@@ -39,6 +51,12 @@ const adapterDefs: { key: string; label: string }[] = [
 const adapterEnabled = ref<Record<string, boolean>>({})
 const llmOllama = ref<boolean>(false)
 const llmCloud = ref<boolean>(false)
+
+// 折叠状态：Database/Adapters/LLM 默认全展开，让用户一打开 Status 就看到全部数据；
+// 不需要时手动折，保留状态。Daemon Card 不可折叠（永远是 hero）
+const openDatabase = ref(true)
+const openAdapters = ref(true)
+const openLlm = ref(true)
 
 async function probeDaemon() {
   try {
@@ -91,93 +109,60 @@ function refresh() {
   })
 }
 
-function daemonSignal(): Signal {
-  if (!daemon.value) return { label: t('status.daemon.label'), value: t('status.daemon.checking'), tone: 'muted' }
-  if (daemon.value.running && daemon.value.http_ok) {
+// Daemon 主状态判定（hero card 用）
+interface DaemonView {
+  tone: Tone
+  primaryLabel: string
+  secondaryLabel?: string
+  meta?: string
+  showRestart: boolean
+}
+
+const daemonView = computed<DaemonView>(() => {
+  const d = daemon.value
+  if (!d) {
+    return { tone: 'muted', primaryLabel: t('status.daemon.checking'), showRestart: false }
+  }
+  if (d.running && d.http_ok) {
     return {
-      label: t('status.daemon.label'),
-      value: t('common.running'),
-      hint: daemon.value.port ? `127.0.0.1:${daemon.value.port} · PID ${daemon.value.pid}` : undefined,
       tone: 'success',
+      primaryLabel: t('common.running'),
+      secondaryLabel: d.port ? t('status.daemon.health_endpoint', { port: d.port }) : undefined,
+      meta: d.pid && d.started_at
+        ? `PID ${d.pid} · ${t('status.daemon.started_at', { time: timeAgo(d.started_at) })}`
+        : d.pid ? `PID ${d.pid}` : undefined,
+      showRestart: false,  // success 时不诱导操作，悬浮在 Card 右上角的 ghost 按钮已经够用
     }
   }
-  if (daemon.value.running && !daemon.value.http_ok) {
+  if (d.running && !d.http_ok) {
     return {
-      label: t('status.daemon.label'),
-      value: t('common.starting'),
-      hint: t('status.daemon.starting_hint', { pid: daemon.value.pid ?? '?' }),
       tone: 'warning',
+      primaryLabel: t('status.daemon.starting_short'),
+      secondaryLabel: t('status.daemon.starting_hint', { pid: d.pid ?? '?' }),
+      showRestart: true,
     }
   }
   return {
-    label: t('status.daemon.label'),
-    value: t('common.offline'),
-    hint: t('status.daemon.offline_hint'),
     tone: 'error',
+    primaryLabel: t('status.daemon.offline_short'),
+    secondaryLabel: t('status.daemon.offline_hint'),
+    showRestart: true,
   }
-}
+})
 
-const systemSignals = (): Signal[] => {
-  const out: Signal[] = []
-  out.push(daemonSignal())
-  out.push(
-    stats.value.db_exists
-      ? {
-          label: t('status.db.label'),
-          value: t('common.ready'),
-          hint: t('status.db.hint_summary', {
-            sessions: formatNumber(stats.value.sessions),
-            messages: formatNumber(stats.value.messages),
-          }),
-          tone: 'success',
-        }
-      : { label: t('status.db.label'), value: t('status.db.not_initialized'), hint: 'memex ingest', tone: 'error' },
-  )
-  out.push({
-    label: t('status.index.label'),
-    value: t('status.index.value', { count: formatNumber(stats.value.chunks) }),
-    hint: stats.value.chunks > 0 ? t('status.index.fts_ready') : t('status.index.empty'),
-    tone: stats.value.chunks > 0 ? 'success' : 'muted',
-  })
-  return out
-}
+const activeAdapterCount = computed(
+  () => adapterDefs.filter((a) => adapterEnabled.value[a.key]).length,
+)
 
-const adapterSignals = (): Signal[] =>
-  adapterDefs.map((a) => ({
-    label: a.label,
-    value: adapterEnabled.value[a.key] ? t('common.enabled') : t('common.disabled'),
-    tone: adapterEnabled.value[a.key] ? 'success' : 'muted',
-  }))
+const llmProviderLabel = computed(() =>
+  stats.value.llm_provider ?? t('status.card.llm_provider_none'),
+)
 
-const llmSignals = (): Signal[] => {
-  const active = stats.value.llm_provider
-  const out: Signal[] = []
-  out.push(
-    active
-      ? {
-          label: t('status.llm.active'),
-          value: active,
-          hint: t('status.llm.active_hint', {
-            sessions: formatNumber(stats.value.summaries),
-            chunks: formatNumber(stats.value.chunks_summarized),
-          }),
-          tone: 'success',
-        }
-      : { label: t('status.llm.active'), value: t('status.llm.active_none'), hint: t('status.llm.paused'), tone: 'muted' },
-  )
-  out.push({
-    label: 'Ollama',
-    value: llmOllama.value ? t('common.enabled') : t('common.disabled'),
-    tone: llmOllama.value ? 'success' : 'muted',
-  })
-  out.push({
-    label: t('status.llm.cloud'),
-    value: llmCloud.value ? t('status.llm.cloud_on') : t('status.llm.cloud_off'),
-    hint: llmCloud.value ? t('status.llm.cloud_hint') : undefined,
-    tone: llmCloud.value ? 'warning' : 'muted',
-  })
-  return out
-}
+const llmProviderTone = computed<Tone>(() => {
+  if (stats.value.llm_provider) return 'success'
+  if (llmOllama.value || llmCloud.value) return 'warning'
+  return 'muted'
+})
 
 const dotClass: Record<Tone, string> = {
   success: 'bg-success',
@@ -186,107 +171,247 @@ const dotClass: Record<Tone, string> = {
   muted: 'bg-muted-foreground/40',
 }
 
-const valueClass: Record<Tone, string> = {
+const toneTextClass: Record<Tone, string> = {
   success: 'text-success',
   warning: 'text-warning',
   error: 'text-destructive',
   muted: 'text-muted-foreground',
 }
+
+const toneIconClass: Record<Tone, string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-destructive',
+  muted: 'text-muted-foreground',
+}
+
+const heroBgClass: Record<Tone, string> = {
+  success: 'border-success/30 bg-success/5',
+  warning: 'border-warning/30 bg-warning/5',
+  error: 'border-destructive/30 bg-destructive/5',
+  muted: 'border-border bg-muted/30',
+}
+
+const heroIcon = computed(() => {
+  switch (daemonView.value.tone) {
+    case 'success': return CheckCircle2
+    case 'warning': return AlertTriangle
+    case 'error': return XCircle
+    default: return CircleDot
+  }
+})
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto px-4 py-4">
-    <header class="mb-4 flex items-baseline justify-between">
+  <div class="h-full overflow-y-auto px-3 py-3">
+    <header class="mb-3 flex items-baseline justify-between px-1">
       <h2 class="text-base font-semibold">{{ t('status.title') }}</h2>
-      <Button variant="ghost" size="sm" :disabled="loading" class="gap-1.5" @click="refresh">
-        <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
+      <Button variant="ghost" size="sm" :disabled="loading" class="h-7 gap-1.5 text-xs" @click="refresh">
+        <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': loading }" />
         {{ loading ? t('common.refreshing') : t('common.refresh') }}
       </Button>
     </header>
 
-    <div v-if="loading && daemon === null" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
+    <div v-if="loading && daemon === null" class="px-1 text-sm text-muted-foreground">{{ t('common.loading') }}</div>
 
-    <template v-else>
-      <!-- 系统 -->
-      <section>
-        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.system') }}</div>
-        <ul class="space-y-2">
-          <li v-for="(s, i) in systemSignals()" :key="s.label" class="flex items-center gap-2.5">
-            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-sm text-foreground">{{ s.label }}</span>
-            <span class="text-sm font-medium" :class="valueClass[s.tone]">{{ s.value }}</span>
-            <Button
-              v-if="i === 0 && (s.tone === 'error' || s.tone === 'warning')"
-              variant="ghost"
-              size="sm"
-              class="h-6 gap-1 px-2 text-xs"
-              :disabled="restarting"
-              @click="handleRestart"
-            >
-              <Power class="h-3 w-3" :class="{ 'animate-pulse': restarting }" />
-              {{ restarting ? t('status.restart.in_progress') : t('status.restart.button') }}
-            </Button>
-            <Button
-              v-else-if="i === 0 && s.tone === 'success'"
-              variant="ghost"
-              size="sm"
-              class="h-6 gap-1 px-2 text-xs text-muted-foreground"
-              :disabled="restarting"
-              @click="handleRestart"
-              :title="t('status.restart.button')"
-            >
-              <Power class="h-3 w-3" :class="{ 'animate-pulse': restarting }" />
-              {{ restarting ? t('status.restart.in_progress') : t('status.restart.button') }}
-            </Button>
-          </li>
-        </ul>
-        <ul class="mt-1.5 space-y-1 pl-4">
-          <li
-            v-for="s in systemSignals().filter((x) => x.hint)"
-            :key="s.label + '-hint'"
-            class="text-xs text-muted-foreground"
-          >{{ s.label }}: {{ s.hint }}</li>
-          <li v-if="restartError" class="text-xs text-destructive">{{ t('status.restart.fail') }}: {{ restartError }}</li>
-        </ul>
-      </section>
+    <div v-else class="space-y-3">
+      <!-- Card 1: Daemon Hero — 永远展开，主状态最显眼 -->
+      <Card :class="`transition-colors ${heroBgClass[daemonView.tone]}`">
+        <CardContent class="flex items-start gap-3 py-3">
+          <component
+            :is="heroIcon"
+            class="mt-0.5 h-6 w-6 shrink-0"
+            :class="toneIconClass[daemonView.tone]"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="flex items-baseline gap-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {{ t('status.card.daemon') }}
+              </span>
+            </div>
+            <div class="mt-0.5 flex items-baseline gap-2">
+              <span class="text-lg font-semibold" :class="toneTextClass[daemonView.tone]">
+                {{ daemonView.primaryLabel }}
+              </span>
+              <span v-if="daemonView.secondaryLabel" class="mono text-xs text-muted-foreground">
+                {{ daemonView.secondaryLabel }}
+              </span>
+            </div>
+            <p v-if="daemonView.meta" class="mt-0.5 text-[11px] text-muted-foreground">{{ daemonView.meta }}</p>
+            <p v-if="restartError" class="mt-1 text-xs text-destructive">
+              {{ t('status.restart.fail') }}: {{ restartError }}
+            </p>
+          </div>
+          <!-- 重启按钮：success 时低调（ghost）、warning/error 时主动（outline）-->
+          <Button
+            :variant="daemonView.showRestart ? 'outline' : 'ghost'"
+            size="sm"
+            class="h-7 shrink-0 gap-1 text-xs"
+            :disabled="restarting"
+            @click="handleRestart"
+          >
+            <Power class="h-3 w-3" :class="{ 'animate-pulse': restarting }" />
+            {{ restarting ? t('status.restart.in_progress') : t('status.restart.button') }}
+          </Button>
+        </CardContent>
+      </Card>
 
-      <Separator class="my-4" />
+      <!-- Card 2: Database KPI（可折叠） -->
+      <Collapsible v-model:open="openDatabase">
+        <Card>
+          <CollapsibleTrigger
+            class="group flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
+          >
+            <span class="flex items-center gap-1.5">
+              <Database class="h-3 w-3 text-muted-foreground" />
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {{ t('status.card.database') }}
+              </span>
+              <Badge v-if="!stats.db_exists" variant="destructive" class="ml-1 text-[10px]">
+                {{ t('status.db.not_initialized') }}
+              </Badge>
+              <Badge v-else variant="secondary" class="ml-1 text-[10px]">
+                {{ formatNumber(stats.sessions) }} {{ t('status.kpi.sessions') }}
+              </Badge>
+            </span>
+            <ChevronDown
+              class="h-4 w-4 text-muted-foreground transition-transform duration-200"
+              :class="openDatabase ? 'rotate-180' : ''"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent class="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+            <div class="grid grid-cols-4 gap-2 px-4 pb-3 pt-1">
+              <div class="rounded-md border border-border bg-muted/20 p-2">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.sessions') }}</div>
+                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.sessions) }}</div>
+              </div>
+              <div class="rounded-md border border-border bg-muted/20 p-2">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.messages') }}</div>
+                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.messages) }}</div>
+              </div>
+              <div class="rounded-md border border-border bg-muted/20 p-2">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.chunks') }}</div>
+                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.chunks) }}</div>
+              </div>
+              <div class="rounded-md border border-border bg-muted/20 p-2">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.summaries') }}</div>
+                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.summaries) }}</div>
+              </div>
+            </div>
+            <p v-if="stats.chunks > 0" class="px-4 pb-2 text-[10px] text-muted-foreground">
+              {{ t('status.index.fts_ready') }}
+            </p>
+            <p v-else-if="stats.db_exists" class="px-4 pb-2 text-[10px] text-muted-foreground">
+              {{ t('status.index.empty') }}
+            </p>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <!-- 适配器 -->
-      <section>
-        <div class="mb-2 flex items-baseline justify-between">
-          <div class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.adapters') }}</div>
-          <div class="text-xs text-muted-foreground">{{ adapterSignals().filter((s) => s.tone === 'success').length }} / {{ adapterDefs.length }}</div>
-        </div>
-        <ul class="space-y-2">
-          <li v-for="s in adapterSignals()" :key="s.label" class="flex items-center gap-2.5">
-            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-sm">{{ s.label }}</span>
-            <span class="text-sm" :class="valueClass[s.tone]">{{ s.value }}</span>
-          </li>
-        </ul>
-      </section>
+      <!-- Card 3: Adapters 2x2 grid（可折叠） -->
+      <Collapsible v-model:open="openAdapters">
+        <Card>
+          <CollapsibleTrigger
+            class="group flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
+          >
+            <span class="flex items-center gap-1.5">
+              <Plug class="h-3 w-3 text-muted-foreground" />
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {{ t('status.adapters') }}
+              </span>
+              <Badge variant="secondary" class="ml-1 text-[10px]">
+                {{ t('status.card.adapters_summary', { active: activeAdapterCount, total: adapterDefs.length }) }}
+              </Badge>
+            </span>
+            <ChevronDown
+              class="h-4 w-4 text-muted-foreground transition-transform duration-200"
+              :class="openAdapters ? 'rotate-180' : ''"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent class="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+            <div class="grid grid-cols-2 gap-2 px-4 pb-3 pt-1">
+              <div
+                v-for="a in adapterDefs"
+                :key="a.key"
+                class="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-2.5 py-1.5"
+              >
+                <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="adapterEnabled[a.key] ? dotClass.success : dotClass.muted" />
+                <span class="flex-1 truncate text-xs">{{ a.label }}</span>
+                <span class="text-[10px]" :class="adapterEnabled[a.key] ? toneTextClass.success : toneTextClass.muted">
+                  {{ adapterEnabled[a.key] ? t('common.enabled') : t('common.disabled') }}
+                </span>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <Separator class="my-4" />
+      <!-- Card 4: LLM 信号（可折叠） -->
+      <Collapsible v-model:open="openLlm">
+        <Card>
+          <CollapsibleTrigger
+            class="group flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
+          >
+            <span class="flex items-center gap-1.5">
+              <Brain class="h-3 w-3 text-muted-foreground" />
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {{ t('status.llm') }}
+              </span>
+              <Badge :variant="llmProviderTone === 'success' ? 'default' : 'secondary'" class="ml-1 text-[10px]">
+                {{ llmProviderLabel }}
+              </Badge>
+            </span>
+            <ChevronDown
+              class="h-4 w-4 text-muted-foreground transition-transform duration-200"
+              :class="openLlm ? 'rotate-180' : ''"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent class="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+            <div class="flex flex-col gap-1 px-4 pb-3 pt-1">
+              <!-- 当前 provider -->
+              <div class="flex items-center justify-between rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
+                <span class="flex items-center gap-2 text-xs">
+                  <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="dotClass[llmProviderTone]" />
+                  {{ t('status.llm.active') }}
+                </span>
+                <span class="text-xs" :class="toneTextClass[llmProviderTone]">
+                  {{ llmProviderLabel }}
+                </span>
+              </div>
+              <!-- Ollama 开关 -->
+              <div class="flex items-center justify-between rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
+                <span class="flex items-center gap-2 text-xs">
+                  <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="llmOllama ? dotClass.success : dotClass.muted" />
+                  Ollama
+                </span>
+                <span class="text-xs" :class="llmOllama ? toneTextClass.success : toneTextClass.muted">
+                  {{ llmOllama ? t('common.enabled') : t('common.disabled') }}
+                </span>
+              </div>
+              <!-- Cloud fallback -->
+              <div class="flex items-center justify-between rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
+                <span class="flex items-center gap-2 text-xs">
+                  <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="llmCloud ? dotClass.warning : dotClass.muted" />
+                  {{ t('status.llm.cloud') }}
+                </span>
+                <span class="text-xs" :class="llmCloud ? toneTextClass.warning : toneTextClass.muted">
+                  {{ llmCloud ? t('status.llm.cloud_on') : t('status.llm.cloud_off') }}
+                </span>
+              </div>
 
-      <!-- LLM -->
-      <section>
-        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ t('status.llm') }}</div>
-        <ul class="space-y-2">
-          <li v-for="s in llmSignals()" :key="s.label" class="flex items-center gap-2.5">
-            <span class="h-2 w-2 shrink-0 rounded-full" :class="dotClass[s.tone]" />
-            <span class="flex-1 text-sm">{{ s.label }}</span>
-            <span class="text-sm" :class="valueClass[s.tone]">{{ s.value }}</span>
-          </li>
-        </ul>
-        <ul class="mt-1.5 space-y-1 pl-4">
-          <li
-            v-for="s in llmSignals().filter((x) => x.hint)"
-            :key="s.label + '-hint'"
-            class="text-xs text-muted-foreground"
-          >{{ s.label }}: {{ s.hint }}</li>
-        </ul>
-      </section>
-    </template>
+              <!-- 摘要计数 -->
+              <p v-if="stats.llm_provider" class="mt-1 px-1 text-[10px] text-muted-foreground">
+                {{ t('status.llm.active_hint', {
+                  sessions: formatNumber(stats.summaries),
+                  chunks: formatNumber(stats.chunks_summarized),
+                }) }}
+              </p>
+              <p v-else class="mt-1 px-1 text-[10px] text-muted-foreground">{{ t('status.llm.paused') }}</p>
+              <p v-if="llmCloud" class="px-1 text-[10px] italic text-muted-foreground">{{ t('status.llm.cloud_hint') }}</p>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+    </div>
   </div>
 </template>

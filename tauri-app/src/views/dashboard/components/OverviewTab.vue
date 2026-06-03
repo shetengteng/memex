@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
-import { RefreshCw, Sparkles } from 'lucide-vue-next'
+import { RefreshCw, Sparkles, AlertCircle } from 'lucide-vue-next'
 import { listen } from '@tauri-apps/api/event'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SummaryProgress } from '@/types'
 import { formatNumber, adapterLabel, timeAgo } from '@/lib/utils'
@@ -23,6 +23,7 @@ const emit = defineEmits<{
   refresh: []
   navigateProjects: []
   openSession: [sessionId: string]
+  showInvalidSessions: []
 }>()
 
 const { batchSummarize } = useMemex()
@@ -121,6 +122,14 @@ const adapterEntries = computed(() => {
 })
 
 const totalSessions = computed(() => props.stats?.sessions ?? 0)
+
+// L2 摘要拿不到的会话 = 总会话数 - 够资格的会话数（message_count < 2）。
+// 这就是为啥进度条到不了 100% — 把这部分会话明确告诉用户并提供跳转入口，
+// 避免「我都生成了为啥还差一点」的疑惑。
+const ineligibleSessions = computed(() => {
+  if (!props.stats) return 0
+  return Math.max(0, props.stats.sessions - props.stats.sessions_eligible_for_summary)
+})
 
 function summaryLine(s: SessionRow): string {
   const c = (s.summary_title ?? s.title ?? s.first_user_message ?? '').trim()
@@ -290,6 +299,22 @@ const topProjects = computed<Array<[string, number]>>(() => {
           {{ stats.summaries }} / {{ stats.sessions_eligible_for_summary }} ·
           <span :class="stats.llm_provider ? 'text-primary' : 'text-warning'">{{ stats.llm_provider ?? t('overview.summary.provider_none') }}</span>
         </span>
+        <!-- 无效会话徽章 — 提示用户分母为啥不是 totalSessions，并提供跳转入口 -->
+        <Tooltip v-if="ineligibleSessions > 0">
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="inline-flex cursor-pointer items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+              @click="emit('showInvalidSessions')"
+            >
+              <AlertCircle class="h-3 w-3" />
+              <span>{{ t('overview.summary.ineligible_badge', { count: ineligibleSessions }) }}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" class="max-w-[260px] text-xs">
+            {{ t('overview.summary.ineligible_tooltip') }}
+          </TooltipContent>
+        </Tooltip>
       </div>
       <Button
         v-if="stats.llm_provider && stats.summaries < stats.sessions_eligible_for_summary"
