@@ -6,7 +6,6 @@ const i18n = {
     btnGetStarted: "Get Started",
     navFeatures: "Features",
     navHow: "How it Works",
-    navStart: "Quick Start",
     featuresTitle: "Features",
     featuresSub: "Collect, index, summarize, and recall. Across every editor you use.",
     feat1Title: "Universal Collection",
@@ -29,19 +28,6 @@ const i18n = {
     step2Desc: "Chunk, redact sensitive data, extract metadata, generate 4-layer summaries via local Ollama LLM.",
     step3Title: "Recall",
     step3Desc: "MCP protocol exposes 4 tools. Any editor can search your history, retrieve sessions, and see stats. Cross-editor context.",
-    codeTitle: "Quick Start",
-    codeSub: "Up and running in 3 commands.",
-    codeContent: `<span class="comment"># Build from source</span>
-<span class="cmd">cargo build --release</span>
-
-<span class="comment"># Start the daemon</span>
-<span class="cmd">./target/release/memex-daemon</span>
-
-<span class="comment"># Search your AI history</span>
-<span class="cmd">./target/release/memex search "database optimization"</span>
-
-<span class="comment"># Install MCP for Cursor</span>
-<span class="cmd">./target/release/memex setup cursor</span>`,
     techTitle: "Tech Stack",
     ctaTitle: "Start building your AI memory.",
     ctaSub: "Every conversation has value. Stop losing them.",
@@ -55,7 +41,6 @@ const i18n = {
     btnGetStarted: "\u5FEB\u901F\u5F00\u59CB",
     navFeatures: "\u7279\u6027",
     navHow: "\u5DE5\u4F5C\u6D41\u7A0B",
-    navStart: "\u5FEB\u901F\u5F00\u59CB",
     featuresTitle: "\u6838\u5FC3\u7279\u6027",
     featuresSub: "\u91C7\u96C6\u3001\u7D22\u5F15\u3001\u6458\u8981\u3001\u53EC\u56DE\u3002\u8DE8\u8D8A\u4F60\u7528\u7684\u6BCF\u4E00\u4E2A\u7F16\u8F91\u5668\u3002",
     feat1Title: "\u5168\u5E73\u53F0\u91C7\u96C6",
@@ -78,19 +63,6 @@ const i18n = {
     step2Desc: "\u5206\u5757\u3001\u8131\u654F\u3001\u63D0\u53D6\u5143\u6570\u636E\uFF0COllama \u672C\u5730 LLM \u751F\u6210\u56DB\u7EA7\u6458\u8981\u3002",
     step3Title: "\u53EC\u56DE",
     step3Desc: "MCP \u534F\u8BAE\u66B4\u9732 4 \u4E2A\u5DE5\u5177\u3002\u4EFB\u4F55\u7F16\u8F91\u5668\u90FD\u80FD\u641C\u7D22\u5386\u53F2\u3001\u8BFB\u53D6 session\u3001\u67E5\u770B\u7EDF\u8BA1\u3002",
-    codeTitle: "\u5FEB\u901F\u5F00\u59CB",
-    codeSub: "3 \u6761\u547D\u4EE4\u5373\u53EF\u8FD0\u884C\u3002",
-    codeContent: `<span class="comment"># \u4ECE\u6E90\u7801\u6784\u5EFA</span>
-<span class="cmd">cargo build --release</span>
-
-<span class="comment"># \u542F\u52A8 daemon</span>
-<span class="cmd">./target/release/memex-daemon</span>
-
-<span class="comment"># \u641C\u7D22\u4F60\u7684 AI \u5386\u53F2</span>
-<span class="cmd">./target/release/memex search "\u6570\u636E\u5E93\u4F18\u5316"</span>
-
-<span class="comment"># \u4E3A Cursor \u914D\u7F6E MCP</span>
-<span class="cmd">./target/release/memex setup cursor</span>`,
     techTitle: "\u6280\u672F\u6808",
     ctaTitle: "\u5F00\u59CB\u6784\u5EFA\u4F60\u7684 AI \u8BB0\u5FC6\u3002",
     ctaSub: "\u6BCF\u4E00\u6B21\u5BF9\u8BDD\u90FD\u6709\u4EF7\u503C\u3002\u522B\u518D\u4E22\u5931\u4E86\u3002",
