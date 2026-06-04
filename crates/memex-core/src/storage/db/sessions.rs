@@ -301,6 +301,25 @@ impl Db {
         Ok(rows)
     }
 
+    /// 同 `distinct_projects`，但带每个 project_path 下的会话数。
+    ///
+    /// 用于 `context::matcher` 过滤掉单条孤儿会话（如 `/Users/me` 下偶然
+    /// 写入的一条测试会话），避免它在 Tier 1 starts_with 阶段抢断真实
+    /// 子项目命中。
+    pub fn distinct_projects_with_counts(&self) -> Result<Vec<(String, i64)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT project_path, COUNT(*) AS n FROM sessions
+             WHERE project_path IS NOT NULL
+             GROUP BY project_path
+             ORDER BY project_path",
+        )?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     pub fn list_sessions_in_range(
         &self,
         after: &str,
