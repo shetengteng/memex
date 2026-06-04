@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 4;
+pub(super) const SCHEMA_VERSION: u32 = 5;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS summaries (
     topics_json TEXT NOT NULL DEFAULT '[]',
     decisions_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
+    -- v5: 摘要生成时该 session 的 message_count 快照。
+    -- 用于「过期检测」：如果 sessions.message_count > 此值，说明
+    -- 摘要生成后又有新消息写入，需要重新生成。
+    -- 老库迁移时回填为当前 session 的 message_count（视为未过期）。
+    message_count_at_creation INTEGER NOT NULL DEFAULT 0,
     UNIQUE(session_id, level)
 );
 

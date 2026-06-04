@@ -66,20 +66,8 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
         None => return,
     };
 
-    if provider.name() == "anthropic" {
-        let shown = db
-            .kv_get(crate::llm::CLOUD_NOTICE_KV_KEY)
-            .ok()
-            .flatten()
-            .is_some();
-        if !shown {
-            warn!("{}", crate::llm::cloud_upload_scope());
-            let _ = db.kv_set(crate::llm::CLOUD_NOTICE_KV_KEY, "true");
-        }
-    }
-
     try_l1_chunk_summaries(db, provider.as_ref());
-    try_l2_session_summaries(db, provider.as_ref());
+    try_l2_session_summaries(db, provider.as_ref(), config.llm.summary_cooldown_secs);
     try_l3_project_summaries(db, provider.as_ref());
     try_l4_periodic_summaries(db, provider.as_ref());
     try_l4_weekly_summaries(db, provider.as_ref());
@@ -312,8 +300,17 @@ fn regenerate_daily_report_inner(
     Ok(db.get_aggregate_summary("daily", &scope_key)?)
 }
 
-fn try_l2_session_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
-    let session_ids = match db.sessions_without_summary(20) {
+fn try_l2_session_summaries(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    cool_down_secs: u64,
+) {
+    // 同时使用方案 A（过期检测）+ 方案 B（会话冷却）：
+    //   - 没有 L2 摘要的会话 → 新建；
+    //   - session.message_count > 上次摘要时的快照 → 重生成；
+    //   - 同时要求 sessions.updated_at 距今 ≥ cool_down_secs（默认 10 分钟），
+    //     避免 ingest 高频抖动导致频繁重摘要。
+    let session_ids = match db.sessions_needing_summary(20, cool_down_secs) {
         Ok(ids) => ids,
         Err(_) => return,
     };
@@ -333,6 +330,11 @@ pub fn summarize_session_by_id(
         _ => return false,
     };
 
+    // 关键：把「这次摘要覆盖了多少消息」记下来。下次 ingest 会比较
+    // sessions.message_count（实际入库消息数）和这个快照：如果 session
+    // 又涨了，就视为过期、重新摘要（方案 A）。
+    let message_count_at_creation = detail.messages.len() as i64;
+
     let msgs: Vec<(String, String)> = detail
         .messages
         .iter()
@@ -348,6 +350,7 @@ pub fn summarize_session_by_id(
                 &summary.summary,
                 &summary.topics,
                 &summary.decisions,
+                message_count_at_creation,
             );
             true
         }

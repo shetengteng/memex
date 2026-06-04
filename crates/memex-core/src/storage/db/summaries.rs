@@ -20,6 +20,13 @@ pub struct SummaryRow {
 }
 
 impl Db {
+    /// 写入 / 更新一条会话摘要。
+    ///
+    /// `message_count_at_creation` 用于「过期检测」（方案 A）—— 写入时把当时
+    /// `sessions.message_count` 一同存进来；下次 ingest 时若 `sessions.message_count`
+    /// 已经超过此值，说明摘要生成后又有新消息写入，需要重新生成摘要。
+    ///
+    /// 非 L2_session 层级（L1/L3/L4）由其他写入路径管理，本字段记 0 即可。
     pub fn upsert_summary(
         &self,
         session_id: &str,
@@ -28,21 +35,23 @@ impl Db {
         summary: &str,
         topics: &[String],
         decisions: &[String],
+        message_count_at_creation: i64,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
-            "INSERT INTO summaries (session_id, level, title, summary, topics_json, decisions_json, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO summaries (session_id, level, title, summary, topics_json, decisions_json, created_at, message_count_at_creation)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(session_id, level) DO UPDATE SET
                 title = excluded.title,
                 summary = excluded.summary,
                 topics_json = excluded.topics_json,
                 decisions_json = excluded.decisions_json,
-                created_at = excluded.created_at",
-            params![session_id, level, title, summary, topics_json, decisions_json, now],
+                created_at = excluded.created_at,
+                message_count_at_creation = excluded.message_count_at_creation",
+            params![session_id, level, title, summary, topics_json, decisions_json, now, message_count_at_creation],
         )?;
         if level == "L2_session" {
             if let Some(t) = title {
@@ -119,19 +128,58 @@ impl Db {
         Ok(deleted > 0)
     }
 
-    pub fn sessions_without_summary(&self, limit: usize) -> Result<Vec<String>> {
+    /// 列出所有「需要生成 / 重新生成 L2 摘要」的 session id。
+    ///
+    /// 触发条件（任一满足即列入）：
+    ///   1. 该 session 还没有 L2 摘要（`sm.id IS NULL`） — 老逻辑；
+    ///   2. session.message_count > 摘要生成时的 message_count_at_creation
+    ///      — 方案 A「过期检测」：摘要生成后又有新消息写入；
+    ///
+    /// 并附加冷却条件（方案 B）：仅当 `sessions.updated_at` 距离现在
+    /// ≥ `cool_down_secs` 时才纳入候选。这样能避免「2 秒去抖刚触发摘要、
+    /// 5 秒后又来新消息又触发摘要」的高频抖动 —— 对于 Claude Code 这种
+    /// 「用完就关」的会话，冷却期一过摘要就一次生成完整内容。
+    ///
+    /// 如果 `cool_down_secs == 0`，则跳过冷却检查（兼容旧行为 / 测试）。
+    pub fn sessions_needing_summary(
+        &self,
+        limit: usize,
+        cool_down_secs: u64,
+    ) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
+        // SQLite 接受 ISO 8601 字符串比较（按字典序等价于时间序）。
+        // 用 cutoff = now - cool_down_secs，selector 选 updated_at <= cutoff 的会话。
+        let cutoff = if cool_down_secs == 0 {
+            // 远未来 cutoff 让条件恒成立 —— 即不施加冷却约束。
+            "9999-12-31T23:59:59Z".to_string()
+        } else {
+            let cd = chrono::Duration::seconds(cool_down_secs as i64);
+            (chrono::Utc::now() - cd).to_rfc3339()
+        };
+
         let mut stmt = conn.prepare(
             "SELECT s.id FROM sessions s
-             LEFT JOIN summaries sm ON s.id = sm.session_id AND sm.level = 'L2_session'
-             WHERE sm.id IS NULL AND s.message_count >= 2
+             LEFT JOIN summaries sm
+               ON s.id = sm.session_id AND sm.level = 'L2_session'
+             WHERE s.message_count >= 2
+               AND s.updated_at <= ?1
+               AND (
+                 sm.id IS NULL
+                 OR s.message_count > sm.message_count_at_creation
+               )
              ORDER BY s.updated_at DESC
-             LIMIT ?1",
+             LIMIT ?2",
         )?;
         let rows = stmt
-            .query_map(params![limit as i64], |row| row.get(0))?
+            .query_map(params![cutoff, limit as i64], |row| row.get(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    /// 旧名：兼容老调用方（测试 / CLI）。委托给 `sessions_needing_summary`，
+    /// `cool_down_secs = 0`（不施加冷却约束，保持原语义）。
+    pub fn sessions_without_summary(&self, limit: usize) -> Result<Vec<String>> {
+        self.sessions_needing_summary(limit, 0)
     }
 
     pub fn summary_count(&self) -> Result<u64> {

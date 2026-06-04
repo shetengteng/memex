@@ -151,6 +151,35 @@ impl Db {
                 params![4u32],
             )?;
         }
+        if from < 5 {
+            // v5: 给 summaries 加 message_count_at_creation 字段，
+            // 用于「摘要过期检测」（方案 A）。
+            // 存量摘要把该字段回填为「当前 session 的 message_count」，
+            // 视为「与当前一致 / 未过期」，避免迁移直接触发全量重摘要。
+            let has_col: bool = conn
+                .prepare("PRAGMA table_info(summaries)")?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .any(|name| name.as_deref() == Ok("message_count_at_creation"));
+            if !has_col {
+                conn.execute_batch(
+                    "ALTER TABLE summaries
+                     ADD COLUMN message_count_at_creation INTEGER NOT NULL DEFAULT 0;",
+                )?;
+                // 回填：从 sessions.message_count 拷贝过来。
+                conn.execute(
+                    "UPDATE summaries
+                     SET message_count_at_creation = (
+                         SELECT message_count FROM sessions WHERE sessions.id = summaries.session_id
+                     )
+                     WHERE message_count_at_creation = 0",
+                    [],
+                )?;
+            }
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![5u32],
+            )?;
+        }
         Ok(())
     }
 }

@@ -79,6 +79,7 @@ fn test_summary_upsert_and_get() {
     db.upsert_summary(
         "s1", "L2_session", Some("Fix auth bug"),
         "Fixed JWT parsing issue.", &["auth".into()], &["use RS256".into()],
+        10,
     ).unwrap();
 
     let summary = db.get_summary("s1", "L2_session").unwrap().unwrap();
@@ -89,6 +90,7 @@ fn test_summary_upsert_and_get() {
     db.upsert_summary(
         "s1", "L2_session", Some("Updated title"),
         "Updated summary.", &["auth".into(), "jwt".into()], &[],
+        20,
     ).unwrap();
     let updated = db.get_summary("s1", "L2_session").unwrap().unwrap();
     assert_eq!(updated.title.as_deref(), Some("Updated title"));
@@ -180,4 +182,128 @@ fn test_aggregate_summary_upsert_and_get() {
 fn test_aggregate_summary_not_found() {
     let db = Db::open_in_memory().unwrap();
     assert!(db.get_aggregate_summary("project", "nonexist").unwrap().is_none());
+}
+
+/// 方案 A —— 过期检测：摘要生成后，session 又涨了新消息，应被重新纳入候选。
+///
+/// 这是我们要修复的核心 bug：原查询是 `WHERE sm.id IS NULL`，
+/// 一旦摘要存在就永远不再列出，导致 t=5s 后到来的新消息永远进不了 L2 摘要。
+#[test]
+fn test_sessions_needing_summary_detects_stale_summary() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
+
+    db.upsert_summary(
+        "s1", "L2_session", Some("title"), "summary",
+        &[], &[], /* message_count_at_creation = */ 2,
+    ).unwrap();
+
+    // 此刻 message_count(=2) == message_count_at_creation(=2)：未过期。
+    assert!(
+        db.sessions_needing_summary(10, 0).unwrap().is_empty(),
+        "刚摘要完的 session 不应再次被纳入候选"
+    );
+
+    // 模拟 t=5s 又来了新消息。
+    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3")).unwrap();
+
+    let needing = db.sessions_needing_summary(10, 0).unwrap();
+    assert_eq!(
+        needing,
+        vec!["s1".to_string()],
+        "新消息写入后，旧摘要应被视为过期、重新进入候选（方案 A 过期检测）"
+    );
+}
+
+/// 方案 B —— 会话冷却：updated_at 距今不到冷却时间的会话不应被纳入候选。
+/// 用 cool_down_secs = 1 hour 确保确定性，避免依赖测试机时钟。
+#[test]
+fn test_sessions_needing_summary_respects_cooldown() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
+    // 此时 sessions.updated_at = now()，距今 < 1 小时。
+
+    // cool_down_secs = 3600（1 小时）：session 还在冷却中，应被排除。
+    assert!(
+        db.sessions_needing_summary(10, 3600).unwrap().is_empty(),
+        "updated_at 在冷却窗口内的 session 不应被列出（方案 B 冷却）"
+    );
+
+    // cool_down_secs = 0：跳过冷却，立刻可见。
+    assert_eq!(
+        db.sessions_needing_summary(10, 0).unwrap(),
+        vec!["s1".to_string()],
+        "cool_down_secs=0 时应等价于「无冷却」"
+    );
+
+    // 把 updated_at 拨回 2 小时前 → 通过冷却（方案 B 命中）。
+    let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+    {
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
+            rusqlite::params![old],
+        ).unwrap();
+    }
+    assert_eq!(
+        db.sessions_needing_summary(10, 3600).unwrap(),
+        vec!["s1".to_string()],
+        "updated_at 老于 cool_down_secs 的 session 应通过冷却闸门"
+    );
+}
+
+/// 综合：冷却 + 过期检测都要满足。
+/// session 已有摘要、且最近又有新消息 → 一边过期（应进）一边在冷却窗口（不该进）→ 不进；
+/// 等会话冷却下来后再进。
+#[test]
+fn test_sessions_needing_summary_cooldown_gates_stale_too() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
+    db.upsert_summary("s1", "L2_session", Some("t"), "s", &[], &[], 2).unwrap();
+
+    // 新消息进来 → 过期；同时 updated_at = now() → 在冷却窗口。
+    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3")).unwrap();
+
+    assert!(
+        db.sessions_needing_summary(10, 3600).unwrap().is_empty(),
+        "即便摘要已过期，冷却中也不应立刻重摘要 —— 避免高频抖动"
+    );
+
+    // 把 updated_at 拨老 → 同时通过冷却 + 过期检测。
+    let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+    {
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
+            rusqlite::params![old],
+        ).unwrap();
+    }
+    assert_eq!(
+        db.sessions_needing_summary(10, 3600).unwrap(),
+        vec!["s1".to_string()],
+        "冷却 + 过期同时满足时，应纳入候选 —— 方案 A+B 组合命中"
+    );
+}
+
+/// 只有 1 条消息的 session 永远不应被列出（与 summarize_session_by_id 的
+/// `messages.len() >= 2` 守门保持一致）。
+#[test]
+fn test_sessions_needing_summary_skips_short_sessions() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    let h = blake3::hash(b"x").to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "x", None, 0, &h).unwrap();
+    assert!(
+        db.sessions_needing_summary(10, 0).unwrap().is_empty(),
+        "message_count < 2 的 session 不该被摘要候选列出"
+    );
 }

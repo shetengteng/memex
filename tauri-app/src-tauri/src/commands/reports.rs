@@ -1,6 +1,6 @@
 use memex_core::config::MemexConfig;
 use memex_core::ingest::{regenerate_daily_report, regenerate_weekly_report};
-use memex_core::llm::select_provider;
+use memex_core::llm::select_provider_unified;
 use memex_core::memex_dir;
 use memex_core::storage::db::{AggregateSummaryRow, Db};
 
@@ -24,8 +24,8 @@ pub async fn regenerate_report(scope: String) -> Result<Option<AggregateSummaryR
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
-    let provider = select_provider(&cfg.llm, &memex)
-        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或 Claude".to_string())?;
+    let provider = select_provider_unified(&db, &cfg.llm, &memex)
+        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string())?;
 
     match scope.as_str() {
         "daily" => regenerate_daily_report(&db, provider.as_ref()).map_err(|e| e.to_string()),

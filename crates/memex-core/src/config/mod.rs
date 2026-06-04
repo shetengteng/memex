@@ -56,6 +56,9 @@ impl Default for AdaptersConfig {
 /// 同上：不能 `#[derive(Default)]`，否则 String 字段会变成 `""`，
 /// 导致 OOB config.toml 写出 `ollama_url = ""` / `ollama_model = ""`，
 /// Ollama provider 永远无法被 `select_provider` 选中。
+///
+/// 仅保留 Ollama 老配置作为「快捷开关」入口；其他云端 provider
+/// （OpenAI 兼容 / Anthropic）一律走 DB 中的 llm_providers。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
     #[serde(default)]
@@ -64,12 +67,13 @@ pub struct LlmConfig {
     pub ollama_url: String,
     #[serde(default = "default_ollama_model")]
     pub ollama_model: String,
-    #[serde(default)]
-    pub deepseek_enabled: bool,
-    #[serde(default = "default_deepseek_model")]
-    pub deepseek_model: String,
-    #[serde(default)]
-    pub cloud_fallback: bool,
+
+    /// 会话「冷却」秒数：sessions.updated_at 必须距离现在至少这么久，
+    /// 才会被纳入 L2 摘要候选。配合方案 A「过期检测」一起防止 L2 摘要
+    /// 过早固化以及高频抖动。默认 600 秒（10 分钟）。
+    /// 设为 0 可禁用冷却（每次 ingest 立刻摘要 / 重摘要）。
+    #[serde(default = "default_summary_cooldown_secs")]
+    pub summary_cooldown_secs: u64,
 }
 
 impl Default for LlmConfig {
@@ -78,9 +82,7 @@ impl Default for LlmConfig {
             ollama_enabled: false,
             ollama_url: default_ollama_url(),
             ollama_model: default_ollama_model(),
-            deepseek_enabled: false,
-            deepseek_model: default_deepseek_model(),
-            cloud_fallback: false,
+            summary_cooldown_secs: default_summary_cooldown_secs(),
         }
     }
 }
@@ -119,8 +121,12 @@ fn default_ollama_model() -> String {
     "llama3.2".to_string()
 }
 
-fn default_deepseek_model() -> String {
-    "deepseek-chat".to_string()
+/// L2 摘要冷却时间默认值（秒）。
+/// 选 10 分钟：足以让 Claude Code / Cursor 等「短会话用完就关」的场景在关闭后
+/// 一次性拿到全量内容摘要；同时短于绝大多数后台 ingest 频率，长会话也能在
+/// 适度延迟内拿到「最新」摘要，而不至于每次 ingest 都重摘要。
+fn default_summary_cooldown_secs() -> u64 {
+    600
 }
 
 impl Default for MemexConfig {
@@ -226,7 +232,10 @@ mod tests {
         );
         assert_eq!(c.llm.ollama_model, "llama3.2");
         assert!(!c.llm.ollama_enabled);
-        assert!(!c.llm.cloud_fallback);
+        assert_eq!(
+            c.llm.summary_cooldown_secs, 600,
+            "默认 L2 摘要冷却时间应为 10 分钟（600 秒），与方案 B 的设计一致"
+        );
     }
 
     #[test]
@@ -273,7 +282,6 @@ cline = true
 ollama_enabled = true
 ollama_url = ""
 ollama_model = ""
-cloud_fallback = false
 
 [privacy]
 redaction_enabled = true
