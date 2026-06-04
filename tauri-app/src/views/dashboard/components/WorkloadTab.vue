@@ -111,6 +111,9 @@ interface CalendarCell {
   messages: number
 }
 
+// 固定列数：覆盖 90d 所需的最大周数，短时间段在左侧留白，避免不同 range 块数视觉不一致
+const CALENDAR_COLUMNS = 14
+
 // 返回 { columns: CalendarCell[7][], monthLabels: { col, label }[] }
 const calendarData = computed(() => {
   if (!report.value) return { columns: [] as CalendarCell[][], monthLabels: [] as { col: number; label: string }[] }
@@ -123,18 +126,19 @@ const calendarData = computed(() => {
   const rangeStart = new Date(today)
   rangeStart.setDate(today.getDate() - (days - 1))
 
-  // 把 grid 起点拉到 rangeStart 所在的周一，让每列都是完整的 7 天
-  const gridStart = new Date(rangeStart)
-  gridStart.setDate(gridStart.getDate() - toIsoWeekday(gridStart))
+  // 以 today 所在周为最后一列，向前固定推 CALENDAR_COLUMNS 周
+  const gridEnd = new Date(today)
+  gridEnd.setDate(gridEnd.getDate() + (6 - toIsoWeekday(gridEnd)))
+  const gridStart = new Date(gridEnd)
+  gridStart.setDate(gridStart.getDate() - (CALENDAR_COLUMNS * 7 - 1))
 
   const columns: CalendarCell[][] = []
   const monthLabels: { col: number; label: string }[] = []
   const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short' })
 
   const cursor = new Date(gridStart)
-  let col = 0
   let lastMonth = -1
-  while (cursor <= today) {
+  for (let col = 0; col < CALENDAR_COLUMNS; col++) {
     const week: CalendarCell[] = []
     for (let w = 0; w < 7; w++) {
       const key = localDateKey(cursor)
@@ -148,7 +152,6 @@ const calendarData = computed(() => {
       })
       cursor.setDate(cursor.getDate() + 1)
     }
-    // 这一周第一天的月份，若变化则放一个月份标签
     const colStart = new Date(gridStart)
     colStart.setDate(gridStart.getDate() + col * 7)
     if (colStart.getMonth() !== lastMonth) {
@@ -156,7 +159,6 @@ const calendarData = computed(() => {
       lastMonth = colStart.getMonth()
     }
     columns.push(week)
-    col++
   }
   return { columns, monthLabels }
 })
@@ -332,53 +334,55 @@ function onRangeUpdate(val: unknown) {
             {{ t('workload.calendar.empty') }}
           </div>
           <div v-else class="space-y-1.5">
-            <div class="overflow-x-auto">
-              <table class="text-xs" style="border-collapse: separate; border-spacing: 3px">
-                <thead>
-                  <tr>
-                    <th class="w-8"></th>
-                    <th
-                      v-for="(_, ci) in calendarData.columns"
-                      :key="ci"
-                      style="width: 14px; min-width: 14px"
-                      class="text-left font-normal text-muted-foreground"
-                    >
-                      <span v-if="calendarData.monthLabels.find((m) => m.col === ci)">
-                        {{ calendarData.monthLabels.find((m) => m.col === ci)!.label }}
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="wi in 7" :key="wi - 1">
-                    <td class="pr-1.5 text-right text-muted-foreground">
-                      <span v-if="(wi - 1) % 2 === 0">{{ weekdayLabel(wi - 1) }}</span>
-                    </td>
-                    <td
-                      v-for="(col, ci) in calendarData.columns"
-                      :key="ci"
-                      style="width: 14px; min-width: 14px; height: 14px"
-                    >
-                      <Tooltip v-if="col[wi - 1].inRange">
-                        <TooltipTrigger as-child>
-                          <div
-                            class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
-                            :style="{ backgroundColor: calendarColor(col[wi - 1]) }"
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div class="text-xs">
-                            <div class="font-semibold">{{ col[wi - 1].date }}</div>
-                            <div>{{ formatNumber(col[wi - 1].sessions) }} sessions · {{ formatNumber(col[wi - 1].messages) }} msgs</div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                      <div v-else class="h-full w-full" />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <table class="w-full text-xs" style="border-collapse: separate; border-spacing: 3px; table-layout: fixed">
+              <colgroup>
+                <col style="width: 2rem" />
+                <col v-for="(_, ci) in calendarData.columns" :key="ci" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th
+                    v-for="(_, ci) in calendarData.columns"
+                    :key="ci"
+                    class="text-left font-normal text-muted-foreground"
+                  >
+                    <span v-if="calendarData.monthLabels.find((m) => m.col === ci)">
+                      {{ calendarData.monthLabels.find((m) => m.col === ci)!.label }}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="wi in 7" :key="wi - 1">
+                  <td class="pr-1.5 text-right text-muted-foreground">
+                    <span v-if="(wi - 1) % 2 === 0">{{ weekdayLabel(wi - 1) }}</span>
+                  </td>
+                  <td
+                    v-for="(col, ci) in calendarData.columns"
+                    :key="ci"
+                    class="p-0"
+                    style="height: 16px"
+                  >
+                    <Tooltip v-if="col[wi - 1].inRange">
+                      <TooltipTrigger as-child>
+                        <div
+                          class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
+                          :style="{ backgroundColor: calendarColor(col[wi - 1]) }"
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div class="text-xs">
+                          <div class="font-semibold">{{ col[wi - 1].date }}</div>
+                          <div>{{ formatNumber(col[wi - 1].sessions) }} sessions · {{ formatNumber(col[wi - 1].messages) }} msgs</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                    <div v-else class="h-full w-full" />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
             <!-- legend -->
             <div class="flex items-center justify-end gap-1.5 pt-1 text-[10px] text-muted-foreground">
               <span>{{ t('workload.calendar.less') }}</span>
@@ -403,44 +407,45 @@ function onRangeUpdate(val: unknown) {
           <div v-if="heatmapMax === 0" class="py-6 text-center text-sm text-muted-foreground">
             {{ t('workload.heatmap.empty') }}
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="text-xs" style="border-collapse: separate; border-spacing: 2px">
-              <thead>
-                <tr>
-                  <th class="w-10"></th>
-                  <th
-                    v-for="h in 24"
-                    :key="h - 1"
-                    class="text-center font-normal text-muted-foreground"
-                    style="width: 18px; min-width: 18px"
-                  >
-                    <span v-if="(h - 1) % 3 === 0">{{ hourLabel(h - 1) }}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, wi) in heatmapGrid" :key="wi">
-                  <td class="pr-2 text-right text-muted-foreground">{{ weekdayLabel(wi) }}</td>
-                  <td v-for="cell in row" :key="cell.hour" style="width: 18px; min-width: 18px; height: 18px">
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <div
-                          class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
-                          :style="{ backgroundColor: heatColor(cell.sessions) }"
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <div class="text-xs">
-                          <div class="font-semibold">{{ weekdayLabel(wi) }} · {{ hourLabel(cell.hour) }}:00</div>
-                          <div>{{ formatNumber(cell.sessions) }} sessions · {{ formatNumber(cell.messages) }} msgs</div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <table v-else class="w-full text-xs" style="border-collapse: separate; border-spacing: 2px; table-layout: fixed">
+            <colgroup>
+              <col style="width: 2.5rem" />
+              <col v-for="h in 24" :key="h - 1" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th></th>
+                <th
+                  v-for="h in 24"
+                  :key="h - 1"
+                  class="text-center font-normal text-muted-foreground"
+                >
+                  <span v-if="(h - 1) % 3 === 0">{{ hourLabel(h - 1) }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, wi) in heatmapGrid" :key="wi">
+                <td class="pr-2 text-right text-muted-foreground">{{ weekdayLabel(wi) }}</td>
+                <td v-for="cell in row" :key="cell.hour" class="p-0" style="height: 18px">
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <div
+                        class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
+                        :style="{ backgroundColor: heatColor(cell.sessions) }"
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div class="text-xs">
+                        <div class="font-semibold">{{ weekdayLabel(wi) }} · {{ hourLabel(cell.hour) }}:00</div>
+                        <div>{{ formatNumber(cell.sessions) }} sessions · {{ formatNumber(cell.messages) }} msgs</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
 
