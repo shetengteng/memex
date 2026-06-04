@@ -1,9 +1,11 @@
 pub mod collector;
 pub mod config;
+pub mod context;
 pub mod ingest;
 pub mod llm;
 pub mod mcp;
 pub mod processor;
+pub mod reflect;
 pub mod retriever;
 pub mod storage;
 

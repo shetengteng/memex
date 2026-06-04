@@ -10,6 +10,7 @@ import OverviewTab from './components/OverviewTab.vue'
 import SessionsTab from './components/SessionsTab.vue'
 import ProjectsTab from './components/ProjectsTab.vue'
 import ReportsTab from './components/ReportsTab.vue'
+import ReflectTab from './components/ReflectTab.vue'
 import SearchTab from './components/SearchTab.vue'
 import SessionDetailTab from './components/SessionDetailTab.vue'
 import type { DashTab } from './components/DashSidebar.vue'
@@ -131,7 +132,7 @@ onUnmounted(() => {
     <DashSidebar :active-tab="tab" @switch-tab="switchTab" />
 
     <div class="flex-1 overflow-y-auto p-6">
-      <div class="mx-auto max-w-5xl">
+      <div class="mx-auto w-full max-w-7xl">
         <OverviewTab
           v-if="tab === 'overview'"
           :stats="stats"
@@ -154,6 +155,7 @@ onUnmounted(() => {
         />
         <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
         <ReportsTab v-else-if="tab === 'reports'" />
+        <ReflectTab v-else-if="tab === 'reflect'" />
         <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
         <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" @refresh-session="openSessionDetail" />
       </div>

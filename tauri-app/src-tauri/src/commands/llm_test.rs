@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use memex_core::config::MemexConfig;
-use memex_core::llm::ollama::OllamaProvider;
+use memex_core::llm::ollama::{ollama_model_base, OllamaProvider};
 use memex_core::llm::provider::{LlmProvider, LlmRequest};
 use memex_core::memex_dir;
 use serde::Serialize;
@@ -49,14 +49,26 @@ pub async fn llm_test_ollama() -> Result<LlmTestResult, String> {
                 if names.is_empty() {
                     ("Ollama is running but has no models installed".into(), Some(names))
                 } else {
-                    (
-                        format!(
-                            "Model '{}' not found. Available: {}",
-                            config.llm.ollama_model,
+                    let configured = &config.llm.ollama_model;
+                    let configured_base = ollama_model_base(configured);
+                    let suggestion = names
+                        .iter()
+                        .find(|n| ollama_model_base(n) == configured_base)
+                        .cloned();
+                    let msg = match suggestion {
+                        Some(s) => format!(
+                            "Model '{}' not found. Did you mean '{}'? Available: {}",
+                            configured,
+                            s,
                             names.join(", ")
                         ),
-                        Some(names),
-                    )
+                        None => format!(
+                            "Model '{}' not found. Available: {}",
+                            configured,
+                            names.join(", ")
+                        ),
+                    };
+                    (msg, Some(names))
                 }
             }
             Err(e) => (format!("Cannot reach Ollama at {}: {}", config.llm.ollama_url, e), None),

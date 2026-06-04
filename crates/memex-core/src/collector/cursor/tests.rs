@@ -24,6 +24,7 @@ fn test_parse_cursor_jsonl() {
         last_offset: 0,
         mtime: 0,
         created_secs: 0,
+        title: None,
     };
 
     let messages = adapter.collect(&session).unwrap();
@@ -99,10 +100,21 @@ mod sqlite_backend {
     use super::*;
     use rusqlite::Connection;
 
+    /// 在 fixture DB 上插入一个 composer，可选附加 composerHeaders 用于
+    /// 测试新版 Cursor 的 workspaceIdentifier enrichment。
     fn build_fixture_db(path: &std::path::Path) {
+        build_fixture_db_with_headers(path, None);
+    }
+
+    fn build_fixture_db_with_headers(path: &std::path::Path, headers_json: Option<&str>) {
         let conn = Connection::open(path).unwrap();
         conn.execute(
             "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
             [],
         )
         .unwrap();
@@ -127,6 +139,14 @@ mod sqlite_backend {
             ],
         )
         .unwrap();
+
+        if let Some(hdr) = headers_json {
+            conn.execute(
+                "INSERT INTO ItemTable (key, value) VALUES (?1, ?2)",
+                rusqlite::params!["composer.composerHeaders", hdr.as_bytes()],
+            )
+            .unwrap();
+        }
 
         let bubbles = [
             (
@@ -165,6 +185,9 @@ mod sqlite_backend {
 
     #[test]
     fn test_sqlite_scan_lists_composer_sessions() {
+        // 旧版 fixture：composerData 里有 name="fix-bug-tab"，但没有 composerHeaders。
+        // 新行为：name 应被识别为"对话标题"写到 title，而不是 project_path。
+        // project_path 没有可信来源，应为 None。
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().join("state.vscdb");
         build_fixture_db(&db_path);
@@ -175,8 +198,67 @@ mod sqlite_backend {
         let s = &sessions[0];
         assert_eq!(s.source, "cursor");
         assert!(s.id.starts_with("cursor-"));
-        assert_eq!(s.project_path.as_deref(), Some("fix-bug-tab"));
+        assert_eq!(s.project_path, None);
+        assert_eq!(s.title.as_deref(), Some("fix-bug-tab"));
         assert!(s.mtime > 0);
+    }
+
+    #[test]
+    fn test_sqlite_scan_uses_composer_headers_for_project_and_title() {
+        // 新版 Cursor：name + workspaceIdentifier 都在 composerHeaders。
+        // enrichment 应填好 project_path（来自 workspaceIdentifier.uri.path）
+        // 和 title（来自 header.name，优先级高于 composerData.name）。
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("state.vscdb");
+        let headers = serde_json::json!({
+            "allComposers": [{
+                "composerId": "11111111-2222-3333-4444-555555555555",
+                "name": "审 dashboard 项目列",
+                "workspaceIdentifier": {
+                    "id": "wsid",
+                    "uri": {
+                        "fsPath": "/Users/me/Documents/tt-projects/memex",
+                        "path": "/Users/me/Documents/tt-projects/memex",
+                        "scheme": "file"
+                    }
+                }
+            }]
+        }).to_string();
+        build_fixture_db_with_headers(&db_path, Some(&headers));
+
+        let adapter = CursorAdapter::with_db_path(db_path);
+        let sessions = adapter.scan().unwrap();
+        assert_eq!(sessions.len(), 1);
+        let s = &sessions[0];
+        assert_eq!(
+            s.project_path.as_deref(),
+            Some("/Users/me/Documents/tt-projects/memex")
+        );
+        assert_eq!(s.title.as_deref(), Some("审 dashboard 项目列"));
+    }
+
+    #[test]
+    fn test_sqlite_scan_multifolder_workspace_yields_no_project_path() {
+        // workspaceIdentifier 只带 configPath（.code-workspace 多文件夹）时，
+        // 无法还原唯一 cwd —— project_path 必须留空，避免把 configPath 当 cwd。
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("state.vscdb");
+        let headers = serde_json::json!({
+            "allComposers": [{
+                "composerId": "11111111-2222-3333-4444-555555555555",
+                "name": "multi-folder chat",
+                "workspaceIdentifier": {
+                    "id": "wsid",
+                    "configPath": {"path": "/Users/me/my.code-workspace"}
+                }
+            }]
+        }).to_string();
+        build_fixture_db_with_headers(&db_path, Some(&headers));
+
+        let adapter = CursorAdapter::with_db_path(db_path);
+        let sessions = adapter.scan().unwrap();
+        assert_eq!(sessions[0].project_path, None);
+        assert_eq!(sessions[0].title.as_deref(), Some("multi-folder chat"));
     }
 
     #[test]

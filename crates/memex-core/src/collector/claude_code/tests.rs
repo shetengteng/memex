@@ -25,6 +25,7 @@ fn make_session(file_path: &Path, id: &str, last_offset: u64) -> SessionMeta {
         last_offset,
         mtime: 0,
         created_secs: 0,
+        title: None,
     }
 }
 

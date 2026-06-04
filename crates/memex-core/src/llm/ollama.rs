@@ -55,6 +55,24 @@ impl OllamaProvider {
     }
 }
 
+pub fn normalize_ollama_model(name: &str) -> String {
+    if name.contains(':') {
+        name.to_string()
+    } else {
+        format!("{}:latest", name)
+    }
+}
+
+pub fn ollama_model_matches(installed: &str, configured: &str) -> bool {
+    normalize_ollama_model(installed) == normalize_ollama_model(configured)
+}
+
+/// Base name = part before ':' (e.g. "qwen2.5:7b" -> "qwen2.5").
+/// Used to suggest "did you mean ..." when only the tag differs.
+pub fn ollama_model_base(name: &str) -> &str {
+    name.split(':').next().unwrap_or(name)
+}
+
 impl LlmProvider for OllamaProvider {
     fn name(&self) -> &str {
         "ollama"
@@ -66,7 +84,11 @@ impl LlmProvider for OllamaProvider {
             Ok(mut resp) => resp
                 .body_mut()
                 .read_json::<TagsResp>()
-                .map(|t| t.models.iter().any(|m| m.name.starts_with(&self.model)))
+                .map(|t| {
+                    t.models
+                        .iter()
+                        .any(|m| ollama_model_matches(&m.name, &self.model))
+                })
                 .unwrap_or(false),
             Err(_) => false,
         }
@@ -123,5 +145,33 @@ mod tests {
         let p = OllamaProvider::from_config(&config);
         assert_eq!(p.model, "qwen2.5");
         assert_eq!(p.base_url, "http://localhost:11434");
+    }
+
+    #[test]
+    fn normalize_adds_latest_when_tag_missing() {
+        assert_eq!(normalize_ollama_model("qwen2.5"), "qwen2.5:latest");
+        assert_eq!(normalize_ollama_model("qwen2.5:7b"), "qwen2.5:7b");
+        assert_eq!(normalize_ollama_model("qwen2.5:latest"), "qwen2.5:latest");
+    }
+
+    #[test]
+    fn match_accepts_implicit_latest() {
+        assert!(ollama_model_matches("qwen2.5:latest", "qwen2.5"));
+        assert!(ollama_model_matches("qwen2.5", "qwen2.5:latest"));
+        assert!(ollama_model_matches("qwen2.5:7b", "qwen2.5:7b"));
+    }
+
+    #[test]
+    fn match_rejects_different_tags() {
+        assert!(!ollama_model_matches("qwen2.5:latest", "qwen2.5:7b"));
+        assert!(!ollama_model_matches("qwen2.5:7b", "qwen2.5:14b"));
+        assert!(!ollama_model_matches("llama3.2:latest", "qwen2.5:latest"));
+    }
+
+    #[test]
+    fn base_strips_tag() {
+        assert_eq!(ollama_model_base("qwen2.5:7b"), "qwen2.5");
+        assert_eq!(ollama_model_base("qwen2.5"), "qwen2.5");
+        assert_eq!(ollama_model_base("registry/llama3.2:latest"), "registry/llama3.2");
     }
 }

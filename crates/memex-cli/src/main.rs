@@ -74,6 +74,18 @@ enum Commands {
     RebuildIndex,
     /// 启动 MCP server（stdio JSON-RPC）
     Mcp,
+    /// 输出当前项目的「工作记忆」上下文，供 IDE hook 注入到 AI 会话
+    Context {
+        /// 显式指定项目目录；默认用当前工作目录
+        #[arg(long)]
+        project: Option<String>,
+        /// 最多列多少个最近会话
+        #[arg(long, default_value = "3")]
+        top: usize,
+        /// 是否脱敏；不传则按 config.privacy.redaction_enabled
+        #[arg(long)]
+        redact: Option<bool>,
+    },
     /// 为指定 AI 工具配置 MCP
     Setup {
         /// 目标工具（cursor、claude-code、codex、opencode）
@@ -105,6 +117,41 @@ enum Commands {
         #[command(subcommand)]
         action: DaemonAction,
     },
+    /// 管理 IDE SessionStart hook（自动在 AI 会话启动时注入项目工作记忆）
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
+    /// 基于 daily 摘要做反思级别回顾（shipped / patterns / open loops）
+    Reflect {
+        #[command(subcommand)]
+        action: Option<ReflectAction>,
+        /// 直接调用 run 的快捷写法：`memex reflect --period week`
+        /// 与 `Run` 子命令互斥；如果同时给了 action，以 action 为准。
+        #[arg(long, default_value = "week")]
+        period: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ReflectAction {
+    /// 生成一份新的 reflect（如果同期已存在则覆盖）
+    Run {
+        /// 回顾周期：week / month / Nd（如 7d、14d、30d）
+        #[arg(long, default_value = "week")]
+        period: String,
+    },
+    /// 列出已经生成过的 reflect 历史，按 scope_key 倒序
+    List {
+        /// 最多列多少条，默认 20
+        #[arg(long, default_value = "20")]
+        limit: u32,
+    },
+    /// 显示某条 reflect 的完整 markdown
+    Show {
+        /// scope_key（如 `week:2026-W23` / `days7:2026-06-04`）
+        key: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -123,6 +170,25 @@ enum DaemonAction {
     Stop,
     /// 显示 daemon 状态
     Status,
+}
+
+#[derive(Subcommand)]
+enum HooksAction {
+    /// 安装 SessionStart hook 到指定 IDE（cursor / claude-code / codex）
+    Install {
+        /// IDE 名称
+        target: String,
+    },
+    /// 移除 SessionStart hook 但保留 wrapper 脚本
+    Uninstall {
+        target: String,
+    },
+    /// 显示某个 IDE 的 hook 状态
+    Status {
+        target: String,
+    },
+    /// 显示所有 IDE 的 hook 状态
+    All,
 }
 
 fn main() -> Result<()> {
@@ -154,9 +220,25 @@ fn main() -> Result<()> {
             ConfigAction::Set { key, value } => commands::config::set(&key, &value, cli.json),
         },
         Commands::Doctor => commands::doctor::run(cli.json),
+        Commands::Reflect { action, period } => match action {
+            None => commands::reflect::run(&period, cli.json),
+            Some(ReflectAction::Run { period }) => commands::reflect::run(&period, cli.json),
+            Some(ReflectAction::List { limit }) => commands::reflect::list(limit, cli.json),
+            Some(ReflectAction::Show { key }) => commands::reflect::show(&key, cli.json),
+        },
         Commands::Backup { path } => commands::backup::run(&path, cli.json),
         Commands::RebuildIndex => commands::rebuild::run(cli.json),
         Commands::Mcp => commands::mcp::run(),
+        Commands::Context {
+            project,
+            top,
+            redact,
+        } => commands::context::run(commands::context::ContextArgs {
+            project,
+            top,
+            redact,
+            json: cli.json,
+        }),
         Commands::Setup {
             target,
             uninstall,
@@ -258,5 +340,78 @@ fn main() -> Result<()> {
             DaemonAction::Stop => commands::daemon::stop(cli.json),
             DaemonAction::Status => commands::daemon::status(cli.json),
         },
+        Commands::Hooks { action } => run_hooks(action, cli.json),
     }
+}
+
+fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
+    use commands::hooks;
+    let memex_home = memex_core::memex_dir();
+    // 用「current_exe」让 wrapper 指向正在跑的这份 memex —— 自定义安装
+    // 路径、CLI 用户 PATH 不一致时也不会拼错。
+    let memex_bin = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("memex"));
+
+    let parse_ide = |t: &str| -> Result<commands::setup::Ide> {
+        commands::setup::Ide::parse(t).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Unknown IDE: {}. Supported: cursor, claude-code, codex (opencode 暂不支持自动 hook)",
+                t
+            )
+        })
+    };
+
+    let report = |st: &hooks::HookStatus| {
+        if json {
+            if let Ok(s) = serde_json::to_string_pretty(st) {
+                println!("{}", s);
+            }
+        } else {
+            let mark = if !st.supported {
+                "[—]"
+            } else if st.installed {
+                "[✓]"
+            } else {
+                "[ ]"
+            };
+            println!(
+                "{} {:<14} {}{}",
+                mark,
+                st.ide,
+                if st.supported { "" } else { "(unsupported) " },
+                st.config_path,
+            );
+            if let Some(w) = &st.wrapper_path {
+                println!("    wrapper: {}", w);
+            }
+        }
+    };
+
+    match action {
+        HooksAction::Install { target } => {
+            let ide = parse_ide(&target)?;
+            let st = hooks::install(ide, &memex_bin, &memex_home)?;
+            report(&st);
+        }
+        HooksAction::Uninstall { target } => {
+            let ide = parse_ide(&target)?;
+            let st = hooks::uninstall(ide)?;
+            report(&st);
+        }
+        HooksAction::Status { target } => {
+            let ide = parse_ide(&target)?;
+            let st = hooks::status(ide)?;
+            report(&st);
+        }
+        HooksAction::All => {
+            let all = hooks::list_status();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&all)?);
+            } else {
+                for st in &all {
+                    report(st);
+                }
+            }
+        }
+    }
+    Ok(())
 }

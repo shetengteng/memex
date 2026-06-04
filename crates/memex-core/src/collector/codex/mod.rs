@@ -30,6 +30,47 @@ use crate::storage::models::{RawMessage, SessionMeta};
 use discover::{IndexEntry, find_session_file};
 use parser::{SessionEntry, build_message_from_event, build_message_from_response};
 
+/// 扫 codex rollout 文件前 8 行，从 `session_meta.payload.cwd` 取真实
+/// 工作目录绝对路径。这是 tars-ai-butler 时代就在用的字段，比 index 里的
+/// `thread_name`（实为对话标题）更适合当 `project_path`。
+fn probe_session_meta_cwd(file_path: &Path) -> Option<String> {
+    let file = fs::File::open(file_path).ok()?;
+    let reader = BufReader::new(file);
+    for line in reader.lines().take(8).map_while(Result::ok) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let entry: SessionEntry = match serde_json::from_str(trimmed) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if entry.entry_type.as_deref() != Some("session_meta") {
+            continue;
+        }
+        let payload = entry.payload.as_ref()?;
+        // 真实样本里 cwd 就在 payload 根；保留 `/payload/cwd` 兜底以防
+        // 某些版本把它再嵌一层。
+        if let Some(cwd) = payload
+            .get("cwd")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
+            return Some(cwd.to_string());
+        }
+        if let Some(cwd) = payload
+            .pointer("/payload/cwd")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
+            return Some(cwd.to_string());
+        }
+        // 已经看到 session_meta 但没 cwd，无需继续扫后面的消息行。
+        return None;
+    }
+    None
+}
+
 pub struct CodexAdapter {
     base_dir: PathBuf,
 }
@@ -107,14 +148,20 @@ impl Adapter for CodexAdapter {
             let mtime = mtime_secs(&session_file).unwrap_or(0);
             let created_secs = created_secs(&session_file).unwrap_or(0);
 
+            // 真正的工作目录在 session_meta.payload.cwd；
+            // index 里的 thread_name 是对话标题，应当放到 title。
+            let project_path = probe_session_meta_cwd(&session_file);
+            let title = entry.thread_name.clone();
+
             sessions.push(SessionMeta {
                 id: session_id,
                 source: "codex".to_string(),
-                project_path: entry.thread_name,
+                project_path,
                 file_path: session_file.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
                 created_secs,
+                title,
             });
         }
 

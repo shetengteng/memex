@@ -43,7 +43,9 @@ fn write_session(base: &Path, ts: &str, session_id: &str, body: &str) -> PathBuf
 }
 
 #[test]
-fn test_scan_uses_session_index() {
+fn test_scan_uses_session_index_with_thread_name_as_title() {
+    // 空 body：拿不到 session_meta.cwd，project_path 应为 None；
+    // 而 index.thread_name = "demo thread" 应被识别为对话标题写到 title。
     let tmp = TempDir::new().unwrap();
     write_index(
         tmp.path(),
@@ -55,7 +57,26 @@ fn test_scan_uses_session_index() {
     let sessions = adapter.scan().unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].id, "sess-1");
-    assert_eq!(sessions[0].project_path.as_deref(), Some("demo thread"));
+    assert_eq!(sessions[0].project_path, None);
+    assert_eq!(sessions[0].title.as_deref(), Some("demo thread"));
+}
+
+#[test]
+fn test_scan_uses_session_meta_cwd_for_project_path() {
+    // session_meta.payload.cwd 是真实工作目录，必须 win over index 字段。
+    let tmp = TempDir::new().unwrap();
+    let body = r#"{"type":"session_meta","timestamp":"2026-03-01T10:00:00Z","payload":{"cwd":"/Users/x/proj"}}
+"#;
+    write_index(
+        tmp.path(),
+        &[("sess-cwd", "2026-03-01T10:00:00Z", "thread-label")],
+    );
+    write_session(tmp.path(), "2026-03-01T10:00:00Z", "sess-cwd", body);
+
+    let adapter = CodexAdapter::with_base_dir(tmp.path().to_path_buf());
+    let sessions = adapter.scan().unwrap();
+    assert_eq!(sessions[0].project_path.as_deref(), Some("/Users/x/proj"));
+    assert_eq!(sessions[0].title.as_deref(), Some("thread-label"));
 }
 
 #[test]

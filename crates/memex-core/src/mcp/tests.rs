@@ -55,12 +55,13 @@ fn test_tools_list() {
     assert!(resp.error.is_none());
     let tools = resp.result.unwrap();
     let tool_list = tools["tools"].as_array().unwrap();
-    assert_eq!(tool_list.len(), 4);
+    assert_eq!(tool_list.len(), 5);
     let names: Vec<&str> = tool_list.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"search_memory"));
     assert!(names.contains(&"get_session"));
     assert!(names.contains(&"list_recent"));
     assert!(names.contains(&"stats"));
+    assert!(names.contains(&"get_project_context"));
 }
 
 #[test]
@@ -152,4 +153,77 @@ fn test_unknown_method() {
     let resp = handle_request_for_test(&req, &db);
     assert!(resp.error.is_some());
     assert_eq!(resp.error.unwrap().code, -32601);
+}
+
+#[test]
+fn test_tool_get_project_context_with_explicit_project() {
+    let db = setup_db(); // 已经 seed 了 /proj 项目下一条 session
+    // 给 session 补一条 user 消息确保 message_count >= 2，再上一条 L2 摘要
+    let hash = blake3::hash(b"ack").to_hex().to_string();
+    db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash).unwrap();
+    db.upsert_summary(
+        "sess-001", "L2_session",
+        Some("Redis pipeline talk"),
+        "Discussion of using redis pipeline for batching",
+        &["redis".into()], &["batch writes via pipeline".into()],
+        2,
+    ).unwrap();
+
+    let req = make_request(
+        "tools/call",
+        serde_json::json!({
+            "name": "get_project_context",
+            "arguments": { "project": "/proj", "top": 3 }
+        }),
+    );
+    let resp = handle_request_for_test(&req, &db);
+    assert!(resp.error.is_none(), "tool error: {:?}", resp.error);
+    let result = resp.result.unwrap();
+    let content = result["content"][0]["text"].as_str().unwrap();
+    assert!(content.contains("**Memex 工作记忆**"), "missing banner:\n{}", content);
+    assert!(content.contains("**proj**"), "missing project name:\n{}", content);
+    assert!(content.contains("Redis pipeline talk"), "missing L2 title:\n{}", content);
+    assert!(content.contains("batch writes via pipeline"), "missing decision:\n{}", content);
+}
+
+#[test]
+fn test_tool_get_project_context_returns_banner_when_no_match() {
+    let db = Db::open_in_memory().unwrap();
+    let req = make_request(
+        "tools/call",
+        serde_json::json!({
+            "name": "get_project_context",
+            "arguments": { "cwd": "/nonexistent/path" }
+        }),
+    );
+    let resp = handle_request_for_test(&req, &db);
+    assert!(resp.error.is_none(), "MCP tool 不该报 error，应返回 banner");
+    let content = resp.result.unwrap()["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(content.contains("**Memex 工作记忆**"));
+    assert!(
+        content.contains("/nonexistent/path"),
+        "banner 应展示出用户传入的 cwd:\n{}",
+        content,
+    );
+}
+
+#[test]
+fn test_tools_list_includes_get_project_context() {
+    let db = setup_db();
+    let req = make_request("tools/list", serde_json::json!({}));
+    let resp = handle_request_for_test(&req, &db);
+    let names: Vec<String> = resp.result.unwrap()["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        names.contains(&"get_project_context".to_string()),
+        "工具列表应包含 get_project_context，实际：{:?}",
+        names
+    );
 }

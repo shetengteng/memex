@@ -140,6 +140,7 @@ impl Adapter for ContinueAdapter {
                 last_offset: 0,
                 mtime,
                 created_secs,
+                title: None,
             });
         }
 

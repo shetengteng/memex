@@ -15,6 +15,12 @@ pub struct SessionMeta {
     /// 而且只在首次插入时，才回退到 `now()`。
     #[serde(default)]
     pub created_secs: u64,
+    /// 来自 adapter 原始数据的"对话标题"（cursor composer.name、codex thread_name、
+    /// cline task_metadata.task 等）。仅作为 fallback 写入 `sessions.title`：
+    /// 当 L2 摘要尚未生成时给 UI 一个有意义的会话名。
+    /// L2 摘要生成后会覆盖这一值。
+    #[serde(default)]
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

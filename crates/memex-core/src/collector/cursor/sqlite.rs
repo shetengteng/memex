@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -11,6 +12,12 @@ use crate::storage::models::{RawMessage, Role, SessionMeta};
 
 const COMPOSER_KEY_PREFIX: &str = "composerData:";
 const BUBBLE_KEY_PREFIX: &str = "bubbleId:";
+/// 全局 K-V 表里存对话标题 + 工作区信息的 key（Cursor 新版引入）。
+/// 这条记录里是一个 JSON 对象 `{ allComposers: [...] }`，每个 composer 元素
+/// 带 `name`（对话标题）和 `workspaceIdentifier.uri.path`（真实 cwd）。
+/// 注：composerData 总数 >> composerHeaders.allComposers，
+/// 所以 scan 主源仍走 composerData，headers 只做 enrich。
+const HEADERS_KEY: &str = "composer.composerHeaders";
 
 pub struct CursorSqliteAdapter {
     db_path: PathBuf,
@@ -58,6 +65,52 @@ struct ToolFormerData {
     raw_args: Option<String>,
 }
 
+/// `ItemTable.composer.composerHeaders` 的 JSON 顶层 schema。
+#[derive(Debug, Deserialize)]
+struct ComposerHeadersEnvelope {
+    #[serde(rename = "allComposers", default)]
+    all_composers: Vec<ComposerHeader>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ComposerHeader {
+    #[serde(rename = "composerId")]
+    composer_id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default, rename = "workspaceIdentifier")]
+    workspace_identifier: Option<WorkspaceIdentifier>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceIdentifier {
+    /// 单文件夹 workspace。`uri.fsPath` / `uri.path` 都是真实绝对路径。
+    #[serde(default)]
+    uri: Option<WorkspaceUri>,
+    /// 多文件夹 workspace（保存为 `.code-workspace` 文件）。这种情况下没有
+    /// 单一 cwd —— 当前刻意不还原成 project_path，保留字段是为了：
+    /// 1. 后续若要把 `.code-workspace` 文件名当作"项目名"，可以直接用；
+    /// 2. 反序列化时显式声明字段，便于诊断。
+    #[allow(dead_code)]
+    #[serde(default, rename = "configPath")]
+    config_path: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceUri {
+    #[serde(default, rename = "fsPath")]
+    fs_path: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+/// 单条 composer 的 enrichment 结果。`project_path` / `title` 都是 Option。
+#[derive(Debug, Default, Clone)]
+struct ComposerEnrichment {
+    project_path: Option<String>,
+    title: Option<String>,
+}
+
 impl CursorSqliteAdapter {
     pub fn new() -> Self {
         let db_path = dirs::home_dir()
@@ -72,6 +125,59 @@ impl CursorSqliteAdapter {
 
     pub fn db_path(&self) -> &PathBuf {
         &self.db_path
+    }
+
+    /// 从 `ItemTable.composer.composerHeaders` 一次性加载 `composerId -> 元数据` 映射。
+    /// 不存在 / 解析失败一律返回空 Map，让 scan 走纯 composerData 路径，
+    /// 此时 project_path / title 全部为 None（这是用户的 469 条无 project_path
+    /// 会话此前的退化形态，至少不会更差）。
+    fn load_header_enrichments(
+        &self,
+        conn: &rusqlite::Connection,
+    ) -> HashMap<String, ComposerEnrichment> {
+        let raw: Option<String> = conn
+            .query_row(
+                "SELECT value FROM ItemTable WHERE key = ?1",
+                params![HEADERS_KEY],
+                |row| Ok(value_ref_to_string(row.get_ref(0)?)),
+            )
+            .ok()
+            .flatten();
+        let Some(raw) = raw else {
+            debug!("cursor[sqlite]: composerHeaders absent; enrichment disabled");
+            return HashMap::new();
+        };
+        let envelope: ComposerHeadersEnvelope = match serde_json::from_str(&raw) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!(
+                    "cursor[sqlite]: failed to parse composerHeaders ({}); enrichment disabled",
+                    e
+                );
+                return HashMap::new();
+            }
+        };
+
+        let mut out = HashMap::with_capacity(envelope.all_composers.len());
+        for header in envelope.all_composers {
+            let project_path = match header.workspace_identifier {
+                Some(WorkspaceIdentifier { uri: Some(u), .. }) => {
+                    u.fs_path.or(u.path).filter(|s| !s.is_empty())
+                }
+                // multi-folder workspace（configPath）此处不还原成 cwd，
+                // 让 project_path 保持 None。如果以后想用 .code-workspace 文件名
+                // 当作"项目名"，可以在这里加一条 fallback。
+                _ => None,
+            };
+            out.insert(
+                header.composer_id,
+                ComposerEnrichment {
+                    project_path,
+                    title: header.name.filter(|s| !s.is_empty()),
+                },
+            );
+        }
+        out
     }
 
     fn open_readonly(&self) -> Result<Option<rusqlite::Connection>> {
@@ -214,6 +320,8 @@ impl Adapter for CursorSqliteAdapter {
             return Ok(Vec::new());
         };
 
+        let enrichments = self.load_header_enrichments(&conn);
+
         let mut stmt = conn
             .prepare("SELECT key, value FROM cursorDiskKV WHERE key LIKE ?1")
             .context("cursor[sqlite]: prepare composerData query failed")?;
@@ -260,14 +368,28 @@ impl Adapter for CursorSqliteAdapter {
             let created_ms = composer.created_at.unwrap_or(0);
             let created_secs = if created_ms > 0 { (created_ms / 1000) as u64 } else { 0 };
 
+            // composer.name 历来被错放进 project_path —— 实际是对话标题。
+            // 新版 Cursor 把它和 workspaceIdentifier 都搬去了 composerHeaders，
+            // 所以这里以 enrichment 为准；enrichment 缺失时退回 composer.name
+            // 当 title（至少给 UI 留下可读字符串），project_path 留空。
+            let enrichment = enrichments.get(&composer_id).cloned().unwrap_or_default();
+            let title = enrichment.title.or_else(|| {
+                composer
+                    .name
+                    .clone()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            });
+
             sessions.push(SessionMeta {
                 id: format!("cursor-{}", composer_id),
                 source: "cursor".to_string(),
-                project_path: composer.name.clone().filter(|s| !s.is_empty()),
+                project_path: enrichment.project_path,
                 file_path: self.db_path.to_string_lossy().to_string(),
                 last_offset: 0,
                 mtime,
                 created_secs,
+                title,
             });
         }
         Ok(sessions)

@@ -391,13 +391,14 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
         // 永远先 upsert session 行，这样即便会话没有新消息，updated_at
         // 也能跟 adapter 的 mtime 同步刷新。
         // 这是后续 ingest 把历史时间戳逐步修正回真实活动时间的关键。
-        db.insert_session(
+        db.insert_session_with_title(
             &session.id,
             adapter.name(),
             session.project_path.as_deref(),
             &session.file_path,
             session.created_secs,
             session.mtime,
+            session.title.as_deref(),
         )?;
 
         if messages.is_empty() {

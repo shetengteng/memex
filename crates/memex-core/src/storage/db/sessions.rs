@@ -60,6 +60,30 @@ impl Db {
         session_created_secs: u64,
         session_mtime_secs: u64,
     ) -> Result<()> {
+        self.insert_session_with_title(
+            id,
+            source,
+            project_path,
+            file_path,
+            session_created_secs,
+            session_mtime_secs,
+            None,
+        )
+    }
+
+    /// `title` 是 adapter 提供的"原始对话标题"（如 cursor composer.name、
+    /// codex thread_name）。**仅在 sessions.title 当前为 NULL 时写入**：
+    /// L2 摘要后续生成的更优 title 不会被这里覆盖。
+    pub fn insert_session_with_title(
+        &self,
+        id: &str,
+        source: &str,
+        project_path: Option<&str>,
+        file_path: &str,
+        session_created_secs: u64,
+        session_mtime_secs: u64,
+        title: Option<&str>,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now();
         let now_str = now.to_rfc3339();
@@ -105,6 +129,13 @@ impl Db {
             sql,
             params![id, source, project_path, file_path, created_str, updated_str],
         )?;
+
+        if let Some(t) = title.map(str::trim).filter(|s| !s.is_empty()) {
+            conn.execute(
+                "UPDATE sessions SET title = ?1 WHERE id = ?2 AND title IS NULL",
+                params![t, id],
+            )?;
+        }
         Ok(())
     }
 
@@ -223,11 +254,22 @@ impl Db {
     }
 
     pub fn list_sessions_by_project(&self, project_path: &str) -> Result<Vec<SessionRow>> {
+        // 跟 list_sessions_paged 保持同一形态：JOIN L2 摘要 + 取第一条 user
+        // 消息预览。context 注入用到这两个字段做"概览行"，否则只能拿 raw title。
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, title, message_count, created_at, updated_at
-             FROM sessions WHERE project_path = ?1
-             ORDER BY updated_at DESC",
+            "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
+                    s.created_at, s.updated_at,
+                    sm.title AS summary_title,
+                    (SELECT substr(m.content, 1, 120)
+                     FROM messages m
+                     WHERE m.session_id = s.id AND m.role = 'user'
+                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message
+             FROM sessions s
+             LEFT JOIN summaries sm
+                ON sm.session_id = s.id AND sm.level = 'L2_session'
+             WHERE s.project_path = ?1
+             ORDER BY s.updated_at DESC",
         )?;
         let rows = stmt
             .query_map(params![project_path], |row| {
@@ -239,8 +281,8 @@ impl Db {
                     message_count: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
-                    summary_title: None,
-                    first_user_message: None,
+                    summary_title: row.get(7)?,
+                    first_user_message: row.get(8)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

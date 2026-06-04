@@ -219,6 +219,7 @@ impl Adapter for AiderAdapter {
                     last_offset: i as u64,
                     mtime: mtime + i as u64,
                     created_secs: 0,
+                    title: None,
                 });
                 let _ = ts;
             }

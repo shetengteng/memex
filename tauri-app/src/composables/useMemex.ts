@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -66,8 +66,12 @@ export function useMemex() {
     return invoke<DaemonStatus>('daemon_restart')
   }
 
-  async function triggerIngest(): Promise<{ messages_ingested: number; chunks_created: number }> {
-    return invoke<{ messages_ingested: number; chunks_created: number }>('trigger_ingest')
+  async function triggerIngest(adapter?: string): Promise<{ messages_ingested: number; chunks_created: number }> {
+    return invoke<{ messages_ingested: number; chunks_created: number }>('trigger_ingest', { adapter })
+  }
+
+  async function runDoctor(): Promise<DoctorRunResult> {
+    return invoke<DoctorRunResult>('doctor_run')
   }
 
   async function cliStatus(): Promise<CliStatus> {
@@ -110,13 +114,26 @@ export function useMemex() {
     return invoke<string[]>('llm_list_models', { kind, baseUrl, apiKey })
   }
 
+  async function reflectList(): Promise<ReflectEntry[]> {
+    return invoke<ReflectEntry[]>('reflect_list')
+  }
+
+  async function reflectGet(scopeKey: string): Promise<ReflectDetail | null> {
+    return invoke<ReflectDetail | null>('reflect_get', { scopeKey })
+  }
+
+  async function reflectRun(period: string): Promise<ReflectRunResult> {
+    return invoke<ReflectRunResult>('reflect_run', { period })
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
-    triggerIngest, cliStatus, cliInstall, cliUninstall,
+    triggerIngest, runDoctor, cliStatus, cliInstall, cliUninstall,
     llmTestOllama,
     llmProviderList, llmProviderUpsert, llmProviderDelete,
     llmProviderTest, llmProviderTestDraft, llmListModels,
+    reflectList, reflectGet, reflectRun,
   }
 }

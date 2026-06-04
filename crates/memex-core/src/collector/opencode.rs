@@ -76,7 +76,7 @@ impl Adapter for OpenCodeAdapter {
         let sessions = stmt
             .query_map([], |row| {
                 let id: String = row.get(0)?;
-                let _title: String = row.get(1)?;
+                let title: String = row.get(1)?;
                 let directory: String = row.get(2)?;
                 let time_created: i64 = row.get(3)?;
                 let time_updated: i64 = row.get(4)?;
@@ -91,6 +91,7 @@ impl Adapter for OpenCodeAdapter {
                     last_offset: 0,
                     mtime: mtime_secs,
                     created_secs,
+                    title: Some(title).filter(|s| !s.is_empty()),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

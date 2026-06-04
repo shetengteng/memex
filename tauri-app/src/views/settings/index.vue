@@ -24,14 +24,15 @@ import {
   Shield,
   Info,
   FlaskConical,
+  Stethoscope,
 } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
-import type { CliStatus, LlmTestResult } from '@/types'
+import type { CliStatus, LlmTestResult, DoctorRunResult } from '@/types'
 import LlmProviders from './LlmProviders.vue'
 
 const { t, locale } = useI18n()
-const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama } = useMemex()
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
@@ -94,16 +95,24 @@ async function changeLocale(next: Locale) {
   await setLocale(next)
 }
 
-interface AdapterRow { key: string; label: string; enabled: boolean }
+type AdapterScanState = 'idle' | 'running' | 'done' | 'empty' | 'error'
+interface AdapterRow {
+  key: string
+  label: string
+  enabled: boolean
+  scanState: AdapterScanState
+  scanMsgs: number
+  scanError: string
+}
 
 const adapters = ref<AdapterRow[]>([
-  { key: 'claude_code', label: 'Claude Code', enabled: true },
-  { key: 'cursor', label: 'Cursor', enabled: true },
-  { key: 'codex', label: 'Codex', enabled: true },
-  { key: 'opencode', label: 'OpenCode', enabled: true },
-  { key: 'aider', label: 'Aider', enabled: true },
-  { key: 'continue_dev', label: 'Continue', enabled: true },
-  { key: 'cline', label: 'Cline', enabled: true },
+  { key: 'claude_code', label: 'Claude Code', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'cursor', label: 'Cursor', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'codex', label: 'Codex', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'opencode', label: 'OpenCode', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'aider', label: 'Aider', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'continue_dev', label: 'Continue', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
+  { key: 'cline', label: 'Cline', enabled: true, scanState: 'idle', scanMsgs: 0, scanError: '' },
 ])
 
 const activeAdapterCount = computed(() => adapters.value.filter((a) => a.enabled).length)
@@ -173,6 +182,86 @@ async function setAdapter(key: string, value: boolean) {
   }
 }
 
+const rescanState = ref<{ state: 'idle' | 'running' | 'done' | 'empty' | 'error'; msgs: number; error: string }>({
+  state: 'idle',
+  msgs: 0,
+  error: '',
+})
+
+async function startRescan() {
+  if (rescanState.value.state === 'running') return
+  rescanState.value = { state: 'running', msgs: 0, error: '' }
+  try {
+    const result = await triggerIngest()
+    if (result.messages_ingested > 0) {
+      rescanState.value = { state: 'done', msgs: result.messages_ingested, error: '' }
+    } else {
+      rescanState.value = { state: 'empty', msgs: 0, error: '' }
+    }
+  } catch (e) {
+    rescanState.value = { state: 'error', msgs: 0, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+async function rescanAdapter(row: AdapterRow) {
+  if (row.scanState === 'running') return
+  row.scanState = 'running'
+  row.scanMsgs = 0
+  row.scanError = ''
+  try {
+    const result = await triggerIngest(row.key)
+    if (result.messages_ingested > 0) {
+      row.scanState = 'done'
+      row.scanMsgs = result.messages_ingested
+    } else {
+      row.scanState = 'empty'
+    }
+  } catch (e) {
+    row.scanState = 'error'
+    row.scanError = e instanceof Error ? e.message : String(e)
+  }
+}
+
+const doctorRunning = ref(false)
+const doctorResult = ref<DoctorRunResult | null>(null)
+const doctorError = ref<string>('')
+
+async function startDoctor() {
+  if (doctorRunning.value) return
+  doctorRunning.value = true
+  doctorError.value = ''
+  try {
+    doctorResult.value = await runDoctor()
+  } catch (e) {
+    doctorError.value = e instanceof Error ? e.message : String(e)
+    doctorResult.value = null
+  } finally {
+    doctorRunning.value = false
+  }
+}
+
+function doctorCursorMessage(probe: DoctorRunResult['cursor_probe']): string {
+  switch (probe.status) {
+    case 'ok':
+      return t('settings.doctor.cursor_ok', { count: probe.composer_count })
+    case 'not_found':
+      return t('settings.doctor.cursor_not_found')
+    case 'permission_denied':
+      return t('settings.doctor.cursor_permission')
+    case 'error':
+      return t('settings.doctor.cursor_error', { msg: probe.message })
+  }
+}
+
+function doctorCursorTone(probe: DoctorRunResult['cursor_probe']): 'ok' | 'warn' | 'error' | 'muted' {
+  switch (probe.status) {
+    case 'ok': return 'ok'
+    case 'not_found': return 'muted'
+    case 'permission_denied': return 'error'
+    case 'error': return 'error'
+  }
+}
+
 async function setOllama(value: boolean) {
   if (llm.value.ollamaEnabled === value) return
   llm.value.ollamaEnabled = value
@@ -233,22 +322,33 @@ interface SkillStatus {
   size: number | null
 }
 
+interface HookStatus {
+  ide: string
+  supported: boolean
+  installed: boolean
+  config_path: string
+  wrapper_path: string | null
+}
+
 interface IdeRow {
   ide: string
   label: string
   mcpStatus: IdeStatus | null
   skillStatus: SkillStatus | null
+  hookStatus: HookStatus | null
   mcpLoading: boolean
   skillLoading: boolean
+  hookLoading: boolean
   mcpError: string
   skillError: string
+  hookError: string
 }
 
 const ideRows = ref<IdeRow[]>([
-  { ide: 'cursor', label: 'Cursor', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
-  { ide: 'claude-code', label: 'Claude Code', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
-  { ide: 'codex', label: 'Codex', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
-  { ide: 'opencode', label: 'OpenCode', mcpStatus: null, skillStatus: null, mcpLoading: false, skillLoading: false, mcpError: '', skillError: '' },
+  { ide: 'cursor', label: 'Cursor', mcpStatus: null, skillStatus: null, hookStatus: null, mcpLoading: false, skillLoading: false, hookLoading: false, mcpError: '', skillError: '', hookError: '' },
+  { ide: 'claude-code', label: 'Claude Code', mcpStatus: null, skillStatus: null, hookStatus: null, mcpLoading: false, skillLoading: false, hookLoading: false, mcpError: '', skillError: '', hookError: '' },
+  { ide: 'codex', label: 'Codex', mcpStatus: null, skillStatus: null, hookStatus: null, mcpLoading: false, skillLoading: false, hookLoading: false, mcpError: '', skillError: '', hookError: '' },
+  { ide: 'opencode', label: 'OpenCode', mcpStatus: null, skillStatus: null, hookStatus: null, mcpLoading: false, skillLoading: false, hookLoading: false, mcpError: '', skillError: '', hookError: '' },
 ])
 
 // IDE 集成完整度：MCP 和 Skill 都装才算 1 个
@@ -258,9 +358,10 @@ const installedIdeCount = computed(() =>
 
 async function refreshIdeStatuses() {
   try {
-    const [mcps, skills] = await Promise.all([
+    const [mcps, skills, hooks] = await Promise.all([
       invoke<IdeStatus[]>('ide_list_status'),
       invoke<SkillStatus[]>('skill_list_status'),
+      invoke<HookStatus[]>('hook_list_status'),
     ])
     for (const s of mcps) {
       const row = ideRows.value.find((r) => r.ide === s.ide)
@@ -270,8 +371,12 @@ async function refreshIdeStatuses() {
       const row = ideRows.value.find((r) => r.ide === s.ide)
       if (row) row.skillStatus = s
     }
+    for (const h of hooks) {
+      const row = ideRows.value.find((r) => r.ide === h.ide)
+      if (row) row.hookStatus = h
+    }
   } catch (e) {
-    console.warn('ide/skill list_status failed', e)
+    console.warn('ide/skill/hook list_status failed', e)
   }
 }
 
@@ -304,6 +409,23 @@ async function toggleSkill(row: IdeRow, next: boolean) {
     row.skillError = e instanceof Error ? e.message : String(e)
   } finally {
     row.skillLoading = false
+  }
+}
+
+async function toggleHook(row: IdeRow, next: boolean) {
+  if (row.hookLoading) return
+  if (row.hookStatus && !row.hookStatus.supported) return
+  const prev = row.hookStatus
+  row.hookLoading = true
+  row.hookError = ''
+  try {
+    const cmd = next ? 'hook_install' : 'hook_uninstall'
+    row.hookStatus = await invoke<HookStatus>(cmd, { ide: row.ide })
+  } catch (e) {
+    row.hookStatus = prev
+    row.hookError = e instanceof Error ? e.message : String(e)
+  } finally {
+    row.hookLoading = false
   }
 }
 
@@ -553,18 +675,83 @@ async function recheckOllama() {
             <div
               v-for="(a, i) in adapters"
               :key="a.key"
-              class="flex items-center justify-between py-1.5"
+              class="py-1.5"
               :class="{ 'border-t border-border/40': i > 0 }"
             >
-              <span class="flex items-center gap-2 text-sm">
-                <span class="inline-block h-2 w-2 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
-                {{ a.label }}
-              </span>
-              <Switch
-                :model-value="a.enabled"
-                class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
-                @update:model-value="(v: boolean) => setAdapter(a.key, v)"
-              />
+              <div class="flex items-center justify-between gap-2">
+                <span class="flex items-center gap-2 text-sm">
+                  <span class="inline-block h-2 w-2 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
+                  {{ a.label }}
+                </span>
+                <div class="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 w-6 p-0"
+                    :disabled="!a.enabled || a.scanState === 'running'"
+                    :title="t('settings.adapters.rescan_one_tip', { name: a.label })"
+                    @click="rescanAdapter(a)"
+                  >
+                    <RefreshCw class="h-3 w-3" :class="a.scanState === 'running' ? 'animate-spin' : ''" />
+                  </Button>
+                  <Switch
+                    :model-value="a.enabled"
+                    class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
+                    @update:model-value="(v: boolean) => setAdapter(a.key, v)"
+                  />
+                </div>
+              </div>
+              <p
+                v-if="a.scanState === 'done'"
+                class="ml-4 mt-1 text-[11px] text-success"
+              >
+                {{ t('settings.adapters.rescan_one_done', { name: a.label, msgs: a.scanMsgs }) }}
+              </p>
+              <p
+                v-else-if="a.scanState === 'empty'"
+                class="ml-4 mt-1 text-[11px] text-muted-foreground"
+              >
+                {{ t('settings.adapters.rescan_one_empty', { name: a.label }) }}
+              </p>
+              <p
+                v-else-if="a.scanState === 'error'"
+                class="ml-4 mt-1 text-[11px] text-destructive"
+              >
+                {{ t('settings.adapters.rescan_one_failed', { name: a.label, err: a.scanError }) }}
+              </p>
+            </div>
+            <div class="mt-3 border-t border-border/40 pt-3">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-[11px] text-muted-foreground">{{ t('settings.adapters.rescan_hint') }}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  :disabled="rescanState.state === 'running'"
+                  class="shrink-0"
+                  @click="startRescan"
+                >
+                  <RefreshCw class="mr-1.5 h-3 w-3" :class="rescanState.state === 'running' ? 'animate-spin' : ''" />
+                  {{ rescanState.state === 'running' ? t('settings.adapters.rescanning') : t('settings.adapters.rescan') }}
+                </Button>
+              </div>
+              <p
+                v-if="rescanState.state === 'done'"
+                class="mt-2 text-[11px] text-success"
+              >
+                {{ t('settings.adapters.rescan_done', { msgs: rescanState.msgs }) }}
+              </p>
+              <p
+                v-else-if="rescanState.state === 'empty'"
+                class="mt-2 text-[11px] text-muted-foreground"
+              >
+                {{ t('settings.adapters.rescan_empty') }}
+              </p>
+              <p
+                v-else-if="rescanState.state === 'error'"
+                class="mt-2 text-[11px] text-destructive"
+              >
+                {{ t('settings.adapters.rescan_failed', { err: rescanState.error }) }}
+              </p>
             </div>
           </div>
         </CollapsibleContent>
@@ -609,8 +796,8 @@ async function recheckOllama() {
                 />
                 <span class="flex min-w-0 flex-col">
                   <span class="truncate">{{ row.label }}</span>
-                  <span v-if="row.mcpError || row.skillError" class="truncate text-[10px] text-destructive">
-                    {{ t('settings.integrations.error_prefix') }}{{ row.mcpError || row.skillError }}
+                  <span v-if="row.mcpError || row.skillError || row.hookError" class="truncate text-[10px] text-destructive">
+                    {{ t('settings.integrations.error_prefix') }}{{ row.mcpError || row.skillError || row.hookError }}
                   </span>
                   <span v-else-if="!row.mcpStatus?.config_exists" class="text-[10px] text-muted-foreground">
                     {{ t('settings.integrations.status.no_config') }}
@@ -639,6 +826,18 @@ async function recheckOllama() {
                   :disabled="row.skillLoading"
                   class="h-5 w-9 [&_>span]:h-4 [&_>span]:w-4 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => toggleSkill(row, v)"
+                />
+              </div>
+
+              <div class="flex items-center gap-1" :title="row.hookStatus && !row.hookStatus.supported ? t('settings.integrations.hook_unsupported_tip') : t('settings.integrations.hook_tip')">
+                <span class="text-[10px] font-medium text-muted-foreground" :class="{ 'opacity-50': row.hookLoading || (row.hookStatus && !row.hookStatus.supported) }">
+                  {{ t('settings.integrations.hook_label') }}
+                </span>
+                <Switch
+                  :model-value="row.hookStatus?.installed ?? false"
+                  :disabled="row.hookLoading || (row.hookStatus !== null && !row.hookStatus.supported)"
+                  class="h-5 w-9 [&_>span]:h-4 [&_>span]:w-4 [&[data-state=checked]_>span]:translate-x-4"
+                  @update:model-value="(v: boolean) => toggleHook(row, v)"
                 />
               </div>
             </div>
@@ -762,6 +961,103 @@ async function recheckOllama() {
               >
                 <AlertCircle class="h-3 w-3 shrink-0" />
                 <span class="truncate">{{ cliError }}</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            <!-- Diagnostics (Doctor) -->
+            <div>
+              <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <Stethoscope class="h-3 w-3" />
+                {{ t('settings.section.doctor') }}
+              </p>
+              <div class="flex items-center justify-between gap-2 py-1.5">
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="text-sm">{{ t('settings.doctor.hint') }}</span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 shrink-0 gap-1 text-xs"
+                  :disabled="doctorRunning"
+                  @click="startDoctor"
+                >
+                  <RefreshCw class="h-3 w-3" :class="doctorRunning ? 'animate-spin' : ''" />
+                  {{ doctorRunning ? t('settings.doctor.running') : t('settings.doctor.run') }}
+                </Button>
+              </div>
+
+              <div
+                v-if="doctorError"
+                class="mt-1 flex items-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/5 px-2 py-1.5 text-[11px] text-red-600 dark:text-red-400"
+              >
+                <AlertCircle class="h-3 w-3 shrink-0" />
+                <span class="truncate">{{ t('settings.doctor.failed', { err: doctorError }) }}</span>
+              </div>
+
+              <div
+                v-else-if="doctorResult"
+                class="mt-2 flex flex-col gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-muted-foreground">{{ t('settings.doctor.data_dir') }}</span>
+                  <code class="mono truncate text-[10px]">{{ doctorResult.data_dir }}</code>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-muted-foreground">{{ t('settings.doctor.db') }}</span>
+                  <span :class="doctorResult.report.db_exists ? 'text-success' : 'text-amber-600 dark:text-amber-400'">
+                    <template v-if="doctorResult.report.db_exists">
+                      v{{ doctorResult.report.schema_version ?? '?' }}
+                    </template>
+                    <template v-else>{{ t('settings.doctor.db_missing') }}</template>
+                  </span>
+                </div>
+                <div v-if="doctorResult.report.db_exists" class="flex items-center justify-between gap-2">
+                  <span class="text-muted-foreground">{{ t('settings.doctor.fts') }}</span>
+                  <span :class="doctorResult.report.fts_ok ? 'text-success' : 'text-destructive'">
+                    {{ doctorResult.report.fts_ok ? t('settings.doctor.fts_ok') : t('settings.doctor.fts_error') }}
+                  </span>
+                </div>
+                <div v-if="doctorResult.report.db_exists" class="flex items-center justify-between gap-2">
+                  <span class="text-muted-foreground">{{ t('settings.doctor.counts') }}</span>
+                  <span class="mono text-[10px]">
+                    {{ t('settings.doctor.counts_value', {
+                      sessions: doctorResult.report.session_count,
+                      messages: doctorResult.report.message_count,
+                      chunks: doctorResult.report.chunk_count,
+                    }) }}
+                  </span>
+                </div>
+
+                <div v-if="doctorResult.report.adapters.length > 0" class="mt-1 border-t border-border/40 pt-1.5">
+                  <p class="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{{ t('settings.doctor.adapters_title') }}</p>
+                  <div
+                    v-for="a in doctorResult.report.adapters"
+                    :key="a.name"
+                    class="flex items-center justify-between gap-2 py-0.5 text-[10px] text-muted-foreground"
+                  >
+                    <span>{{ t('settings.doctor.adapter_line', {
+                      name: a.name,
+                      files: a.file_count,
+                      scan: a.last_scan ?? t('settings.doctor.adapter_never'),
+                    }) }}</span>
+                  </div>
+                </div>
+
+                <div class="mt-1 border-t border-border/40 pt-1.5">
+                  <p class="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{{ t('settings.doctor.cursor_title') }}</p>
+                  <p
+                    class="text-[11px]"
+                    :class="{
+                      'text-success': doctorCursorTone(doctorResult.cursor_probe) === 'ok',
+                      'text-destructive': doctorCursorTone(doctorResult.cursor_probe) === 'error',
+                      'text-muted-foreground': doctorCursorTone(doctorResult.cursor_probe) === 'muted',
+                    }"
+                  >
+                    {{ doctorCursorMessage(doctorResult.cursor_probe) }}
+                  </p>
+                </div>
               </div>
             </div>
 

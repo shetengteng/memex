@@ -144,12 +144,12 @@ function summaryLine(s: SessionRow): string {
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-border bg-muted/50">
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.project') }}</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.tool') }}</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.summary') }}</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.messages') }}</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.created') }}</th>
-          <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.updated') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.project') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.tool') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.summary') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.messages') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.created') }}</th>
+          <th class="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{{ t('sessions.table.updated') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -168,10 +168,10 @@ function summaryLine(s: SessionRow): string {
               {{ adapterLabel(s.source) }}
             </span>
           </td>
-          <td class="max-w-[320px] truncate px-4 py-2.5 text-xs text-muted-foreground">{{ summaryLine(s) }}</td>
-          <td class="px-4 py-2.5 text-xs">{{ s.message_count }}</td>
-          <td class="px-4 py-2.5 text-xs text-muted-foreground">{{ formatDate(s.created_at) }}</td>
-          <td class="px-4 py-2.5 text-xs text-muted-foreground">{{ timeAgo(s.updated_at) }}</td>
+          <td class="max-w-[480px] truncate px-4 py-2.5 text-xs text-muted-foreground">{{ summaryLine(s) }}</td>
+          <td class="whitespace-nowrap px-4 py-2.5 text-xs">{{ s.message_count }}</td>
+          <td class="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">{{ formatDate(s.created_at) }}</td>
+          <td class="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">{{ timeAgo(s.updated_at) }}</td>
         </tr>
       </tbody>
     </table>

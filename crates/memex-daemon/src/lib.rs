@@ -16,9 +16,10 @@ use axum::routing::get;
 use axum::Router;
 use tokio::net::TcpListener;
 use tokio::signal;
-use tracing::info;
+use tracing::{info, warn};
 
 use memex_core::config::ensure_memex_dir;
+use memex_core::ingest;
 use memex_core::storage::db::Db;
 
 pub const DEFAULT_PORT: u16 = 9999;
@@ -47,6 +48,25 @@ pub async fn run(port: u16) -> Result<()> {
     let watcher_db = Arc::clone(&db);
     let watcher_dir = memex_dir.clone();
     watcher::start_watcher(watcher_db, watcher_dir).await?;
+
+    // 启动时主动跑一次全量 ingest。
+    // file watcher 只能监听 .jsonl/.json 后缀，但 Cursor 走 SQLite KV
+    // (`state.vscdb`)，watcher 永远抓不到它的变化。如果不在这里主动 ingest 一次，
+    // 重装 / 首启 memex 后，用户必须手动 `memex ingest` 才能看到 cursor 数据。
+    //
+    // 用 spawn_blocking 异步跑，不阻塞 daemon 起 HTTP 服务。
+    let bootstrap_db = Arc::clone(&db);
+    let bootstrap_dir = memex_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        info!("daemon: bootstrap ingest starting");
+        match ingest::run_ingest(&bootstrap_db, &bootstrap_dir, None) {
+            Ok(r) => info!(
+                "daemon: bootstrap ingest done ({} messages, {} chunks)",
+                r.messages_ingested, r.chunks_created
+            ),
+            Err(e) => warn!("daemon: bootstrap ingest failed: {}", e),
+        }
+    });
 
     let app = build_router(Arc::clone(&db));
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

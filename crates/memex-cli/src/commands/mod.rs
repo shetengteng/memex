@@ -1,11 +1,14 @@
 pub mod backup;
 pub mod config;
+pub mod context;
 pub mod daemon;
 pub mod daemon_client;
 pub mod doctor;
+pub mod hooks;
 pub mod ingest;
 pub mod mcp;
 pub mod rebuild;
+pub mod reflect;
 pub mod search;
 pub mod session;
 pub mod sessions;

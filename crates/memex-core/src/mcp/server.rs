@@ -118,6 +118,18 @@ fn handle_list_tools(req: &JsonRpcRequest) -> JsonRpcResponse {
                 "name": TOOL_STATS,
                 "description": "Show Memex statistics (sessions, messages, chunks).",
                 "inputSchema": { "type": "object", "properties": {} }
+            },
+            {
+                "name": TOOL_GET_PROJECT_CONTEXT,
+                "description": "Get a TARS-style 'work memory' summary for the current or specified project. Use this at the start of a session to recall what was done before, recent decisions, and likely next steps.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "cwd": { "type": "string", "description": "Current working directory used to resolve which project. Defaults to the matched session's cwd if omitted." },
+                        "project": { "type": "string", "description": "Explicit project_path to look up. Bypasses cwd matching when provided." },
+                        "top": { "type": "integer", "description": "Number of recent sessions to include (default 3)." }
+                    }
+                }
             }
         ]
     });
@@ -143,6 +155,7 @@ fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
         TOOL_GET_SESSION => tool_get_session(db, &args),
         TOOL_LIST_RECENT => tool_list_recent(db, &args),
         TOOL_STATS => tool_stats(db),
+        TOOL_GET_PROJECT_CONTEXT => tool_get_project_context(db, &args),
         _ => Err(format!("unknown tool: {}", tool_name)),
     };
 
@@ -271,4 +284,51 @@ fn tool_stats(db: &Db) -> std::result::Result<String, String> {
         "chunks": db.chunk_count().unwrap_or(0),
     });
     serde_json::to_string_pretty(&stats).map_err(|e| e.to_string())
+}
+
+/// MCP 工具：把项目工作记忆按 TARS-style Markdown 返回给 AI。
+///
+/// 与 `memex context` CLI 同源，只是入口走 MCP；用法：
+/// - 没有 hook 的环境（OpenCode）/ 用户禁用了 hook → 在 system prompt
+///   或 skill 里指引 AI 第一轮主动调一下这个工具
+/// - hook 的 fallback：hook 因任何原因失败，AI 还能手动找回
+fn tool_get_project_context(
+    db: &Db,
+    args: &serde_json::Value,
+) -> std::result::Result<String, String> {
+    use crate::context::{build_context, search_by_project, ContextOptions};
+    use std::path::PathBuf;
+
+    let top = args.get("top").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
+
+    let project_path = if let Some(p) = args.get("project").and_then(|v| v.as_str()) {
+        p.to_string()
+    } else {
+        let cwd = args
+            .get("cwd")
+            .and_then(|v| v.as_str())
+            .map(PathBuf::from)
+            .or_else(|| std::env::current_dir().ok())
+            .ok_or_else(|| "no cwd or project provided".to_string())?;
+        match search_by_project(db, &cwd).map_err(|e| e.to_string())? {
+            Some(m) => m.project_path,
+            None => {
+                // 找不到匹配项目 → 返回一个 banner 而非报 error。
+                // 这样调用方（AI）能正常理解"目前没有相关记忆"，并据此调整后续提问。
+                return Ok(format!(
+                    "**Memex 工作记忆**\n\n当前目录 {} 暂无关联项目会话；新的 AI 会话会被自动采集。",
+                    cwd.display()
+                ));
+            }
+        }
+    };
+
+    // MCP 这条路径默认开启脱敏 —— 走 MCP 的请求来自被注入到云端 LLM 的会话，
+    // 跟 hook 路径相同的安全边界。
+    let md = build_context(
+        db,
+        &project_path,
+        &ContextOptions { top_n: top, redact: true },
+    ).map_err(|e| e.to_string())?;
+    Ok(md)
 }

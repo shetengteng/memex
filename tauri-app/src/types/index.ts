@@ -128,6 +128,36 @@ export interface LlmTestResult {
   key_source?: string
 }
 
+export interface AdapterStatus {
+  name: string
+  file_count: number
+  last_scan: string | null
+}
+
+export interface DoctorReport {
+  db_exists: boolean
+  schema_version: number | null
+  session_count: number
+  message_count: number
+  chunk_count: number
+  source_count: number
+  fts_ok: boolean
+  adapters: AdapterStatus[]
+}
+
+export type CursorProbe =
+  | { status: 'ok'; composer_count: number; db_path: string }
+  | { status: 'not_found'; db_path: string }
+  | { status: 'permission_denied'; db_path: string; message: string }
+  | { status: 'error'; db_path: string; message: string }
+
+export interface DoctorRunResult {
+  data_dir: string
+  config_present: boolean
+  report: DoctorReport
+  cursor_probe: CursorProbe
+}
+
 export interface LlmProvider {
   id: string
   name: string
@@ -150,3 +180,30 @@ export interface ProviderTestResult {
 }
 
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'
+
+export interface ReflectEntry {
+  scope_key: string
+  title: string | null
+  digest_count: number
+  created_at: string
+}
+
+export interface ReflectDetail {
+  scope_key: string
+  title: string | null
+  markdown: string
+  patterns: string[]
+  open_loops: string[]
+  digest_count: number
+  created_at: string
+}
+
+export interface ReflectRunResult {
+  scope_key: string
+  period_label: string
+  digest_count: number
+  markdown: string
+  shipped: string[]
+  patterns: string[]
+  open_loops: string[]
+}

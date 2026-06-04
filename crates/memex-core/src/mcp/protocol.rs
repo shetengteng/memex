@@ -53,3 +53,4 @@ pub const TOOL_SEARCH_MEMORY: &str = "search_memory";
 pub const TOOL_GET_SESSION: &str = "get_session";
 pub const TOOL_LIST_RECENT: &str = "list_recent";
 pub const TOOL_STATS: &str = "stats";
+pub const TOOL_GET_PROJECT_CONTEXT: &str = "get_project_context";

@@ -151,7 +151,10 @@ impl Adapter for ClineAdapter {
                     .map(|d| d.as_secs())
                     .unwrap_or(0);
 
-                let project = Self::read_task_prompt(&task_dir);
+                // task_metadata.task 是用户初始 prompt（任务描述），
+                // 并不是 cwd —— 当对话标题更合适。Cline 当前没有暴露 cwd 字段，
+                // project_path 留空，等真有 cwd 来源再补。
+                let title = Self::read_task_prompt(&task_dir);
 
                 let created_secs = fs::metadata(&conv_file)
                     .ok()
@@ -163,11 +166,12 @@ impl Adapter for ClineAdapter {
                 sessions.push(SessionMeta {
                     id: format!("cline-{}", task_id),
                     source: "cline".to_string(),
-                    project_path: project,
+                    project_path: None,
                     file_path: conv_file.to_string_lossy().to_string(),
                     last_offset: 0,
                     mtime,
                     created_secs,
+                    title,
                 });
             }
         }
@@ -261,7 +265,9 @@ mod tests {
         let adapter = ClineAdapter::with_task_dirs(vec![tmp.path().to_path_buf()]);
         let sessions = adapter.scan().unwrap();
         assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].project_path.as_deref(), Some("Fix auth bug"));
+        // Cline 没有暴露 cwd，project_path 留空；task 描述当对话标题。
+        assert_eq!(sessions[0].project_path, None);
+        assert_eq!(sessions[0].title.as_deref(), Some("Fix auth bug"));
 
         let messages = adapter.collect(&sessions[0]).unwrap();
         assert_eq!(messages.len(), 4);

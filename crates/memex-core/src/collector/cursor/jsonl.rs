@@ -148,6 +148,7 @@ impl Adapter for CursorJsonlAdapter {
                 last_offset: 0,
                 mtime,
                 created_secs,
+                title: None,
             });
         }
 
