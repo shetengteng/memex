@@ -233,6 +233,11 @@ EOF
         }
         Ide::Cursor => {
             // Cursor sessionStart: { env, additional_context } (snake_case)
+            //
+            // 诊断日志：每次执行都向 ~/.memex/hooks/last-run.log 追加一行 JSON。
+            // 这是确认"Cursor 到底有没有调到这个脚本"的唯一靠谱手段——Cursor 文档
+            // 明确说 sessionStart 是 fire-and-forget，注入有竞态，没有日志就盲。
+            // stderr 也写一份，Cursor IDE 的 Output → Hooks 频道能直接看到。
             let body = format!(
                 r#"#!/bin/sh
 {banner}
@@ -240,13 +245,28 @@ EOF
 #   must return JSON {{ "additional_context": "<markdown>" }} on stdout
 
 set -e
+
+LOG="$HOME/.memex/hooks/last-run.log"
+mkdir -p "$(dirname "$LOG")"
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 MD="$('{bin}' context --json 2>/dev/null || printf '%s' '{{"markdown":""}}')"
 # use printf '%s' so /bin/sh does NOT interpret backslash escapes (e.g. \n)
 # inside the JSON payload — otherwise json.loads sees raw newlines and dies
 PY_OUTPUT="$(printf '%s' "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || printf '%s' "")"
-python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"additional_context": md}}))' <<EOF
+OUT="$(python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"additional_context": md}}))' <<EOF
 $PY_OUTPUT
 EOF
+)"
+
+# log: ts / ide / cwd / context_len / output_len
+CTX_LEN="$(printf '%s' "$PY_OUTPUT" | wc -c | tr -d ' ')"
+OUT_LEN="$(printf '%s' "$OUT" | wc -c | tr -d ' ')"
+printf '{{"ts":"%s","ide":"cursor","cwd":"%s","context_len":%s,"output_len":%s}}\n' \
+    "$TS" "$PWD" "$CTX_LEN" "$OUT_LEN" >> "$LOG"
+printf 'memex sessionStart fired ts=%s ctx_len=%s\n' "$TS" "$CTX_LEN" >&2
+
+printf '%s' "$OUT"
 "#,
                 banner = WRAPPER_BANNER,
                 bin = bin
