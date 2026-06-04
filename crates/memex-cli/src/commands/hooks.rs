@@ -205,7 +205,8 @@ fn wrapper_body(ide: Ide, memex_bin: &Path) -> (&'static str, String) {
     match ide {
         Ide::ClaudeCode => {
             // Claude Code 2.1+ 必须用 hookSpecificOutput 信封；2.0 也接受这种。
-            // jq 接管 JSON 装配；机器上必装 jq —— Claude Code 用户通常已有。
+            // 同 Cursor wrapper：把每次执行都落盘到 ~/.memex/hooks/last-run.log。
+            // stderr 给 Claude Code 自己的 hook 输出频道当观察窗口。
             let body = format!(
                 r#"#!/bin/sh
 {banner}
@@ -217,14 +218,28 @@ fn wrapper_body(ide: Ide, memex_bin: &Path) -> (&'static str, String) {
 # still emit a banner so AI knows Memex is wired up.
 
 set -e
+
+LOG="$HOME/.memex/hooks/last-run.log"
+mkdir -p "$(dirname "$LOG")"
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 MD="$('{bin}' context --json 2>/dev/null || printf '%s' '{{"markdown":""}}')"
 # extract markdown safely with python (no jq dependency)
 # use printf '%s' so /bin/sh does NOT interpret backslash escapes (e.g. \n)
 # inside the JSON payload — otherwise json.loads sees raw newlines and dies
 PY_OUTPUT="$(printf '%s' "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || printf '%s' "")"
-python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"hookSpecificOutput":{{"hookEventName":"SessionStart","additionalContext": md}}}}))' <<EOF
+OUT="$(python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"hookSpecificOutput":{{"hookEventName":"SessionStart","additionalContext": md}}}}))' <<EOF
 $PY_OUTPUT
 EOF
+)"
+
+CTX_LEN="$(printf '%s' "$PY_OUTPUT" | wc -c | tr -d ' ')"
+OUT_LEN="$(printf '%s' "$OUT" | wc -c | tr -d ' ')"
+printf '{{"ts":"%s","ide":"claude-code","cwd":"%s","context_len":%s,"output_len":%s}}\n' \
+    "$TS" "$PWD" "$CTX_LEN" "$OUT_LEN" >> "$LOG"
+printf 'memex sessionStart fired ide=claude-code ts=%s ctx_len=%s\n' "$TS" "$CTX_LEN" >&2
+
+printf '%s' "$OUT"
 "#,
                 banner = WRAPPER_BANNER,
                 bin = bin
