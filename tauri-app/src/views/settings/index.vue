@@ -137,12 +137,41 @@ const llm = ref({
   ollamaChecking: false,
 })
 
+const ollamaModels = ref<string[]>([])
+const ollamaModelsLoading = ref(false)
+
+async function fetchOllamaModels() {
+  ollamaModelsLoading.value = true
+  try {
+    const resp = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) })
+    if (!resp.ok) {
+      ollamaModels.value = []
+      return
+    }
+    const data = await resp.json()
+    ollamaModels.value = Array.isArray(data?.models)
+      ? data.models.map((m: { name: string }) => m.name).filter(Boolean)
+      : []
+  } catch {
+    ollamaModels.value = []
+  } finally {
+    ollamaModelsLoading.value = false
+  }
+}
+
+async function setOllamaModel(next: string) {
+  if (!next || next === llm.value.ollamaModel) return
+  const prev = llm.value.ollamaModel
+  llm.value.ollamaModel = next
+  try {
+    await setConfig('llm.ollama_model', next)
+  } catch {
+    llm.value.ollamaModel = prev
+  }
+}
+
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 const ollamaTest = ref<{ state: TestState; latency: number; error: string }>({ state: 'idle', latency: 0, error: '' })
-
-const ollamaLabel = computed(() =>
-  t('settings.llm.ollama_label', { model: llm.value.ollamaModel }),
-)
 
 // 折叠状态：默认 Data Sources / IDE / System 都折起来，保持页面简洁；用户点开后状态保留
 const openDataSources = ref(false)
@@ -175,6 +204,9 @@ onMounted(async () => {
   } catch { /* default */ }
 
   llm.value.ollamaAvailable = await checkOllamaAvailability()
+  if (llm.value.ollamaAvailable) {
+    void fetchOllamaModels()
+  }
   configLoaded.value = true
 
   await refreshIdeStatuses()
@@ -517,6 +549,9 @@ async function copyBrewCmd() {
 async function recheckOllama() {
   llm.value.ollamaChecking = true
   llm.value.ollamaAvailable = await checkOllamaAvailability()
+  if (llm.value.ollamaAvailable) {
+    void fetchOllamaModels()
+  }
   llm.value.ollamaChecking = false
 }
 
@@ -597,12 +632,35 @@ async function performReset() {
         </div>
 
         <!-- LLM: Ollama -->
-        <div class="flex items-center justify-between border-t border-border/40 py-2">
-          <span class="flex items-center gap-2 text-sm">
+        <div class="flex items-center justify-between gap-2 border-t border-border/40 py-2">
+          <span class="flex items-center gap-2 text-sm shrink-0">
             <Cpu class="h-3.5 w-3.5" :class="llm.ollamaEnabled && llm.ollamaAvailable ? 'text-success' : 'text-muted-foreground'" />
-            {{ ollamaLabel }}
+            Ollama
           </span>
-          <div class="flex items-center gap-2">
+          <select
+            v-if="llm.ollamaEnabled && llm.ollamaAvailable"
+            :value="llm.ollamaModel"
+            class="h-7 flex-1 min-w-0 rounded-md border bg-background px-2 font-mono text-[11px]"
+            :disabled="ollamaModelsLoading || ollamaModels.length === 0"
+            @change="(e) => setOllamaModel((e.target as HTMLSelectElement).value)"
+          >
+            <option v-if="ollamaModels.length === 0" :value="llm.ollamaModel" disabled>
+              {{ ollamaModelsLoading ? 'Loading…' : llm.ollamaModel }}
+            </option>
+            <option v-for="m in ollamaModels" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <div class="flex items-center gap-2 shrink-0">
+            <Button
+              v-if="llm.ollamaEnabled && llm.ollamaAvailable"
+              variant="ghost"
+              size="sm"
+              class="h-6 w-6 p-0"
+              :disabled="ollamaModelsLoading"
+              :title="t('settings.providers.fetch_models')"
+              @click="fetchOllamaModels"
+            >
+              <RefreshCw class="h-3 w-3" :class="ollamaModelsLoading ? 'animate-spin' : ''" />
+            </Button>
             <Button
               v-if="llm.ollamaEnabled"
               variant="ghost"

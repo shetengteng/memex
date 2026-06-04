@@ -16,7 +16,6 @@ import {
   Star,
   Check,
   X,
-  Server,
   Pencil,
   Cloud,
   Bot,
@@ -43,7 +42,6 @@ const templates = [
   { name: 'SiliconFlow', kind: 'openai_compat', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-32B-Instruct', icon: Cloud },
   { name: 'Together AI', kind: 'openai_compat', baseUrl: 'https://api.together.xyz/v1', model: 'meta-llama/Llama-3.3-70B', icon: Cloud },
   { name: 'Groq', kind: 'openai_compat', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', icon: Cloud },
-  { name: 'Ollama Local', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: '', icon: Server },
 ]
 
 interface EditingState {
@@ -84,9 +82,6 @@ function pickTemplate(tpl: typeof templates[number]) {
   editing.value.baseUrl = tpl.baseUrl
   editing.value.model = editing.value.model || tpl.model
   models.value = []
-  if (tpl.kind === 'ollama') {
-    void fetchModels()
-  }
 }
 
 const canSave = computed(() => {
@@ -97,7 +92,6 @@ const canSave = computed(() => {
 const canFetchModels = computed(() => {
   const e = editing.value
   if (!e?.baseUrl?.trim()) return false
-  if (e.kind === 'ollama') return true
   return !!e.apiKey?.trim()
 })
 
@@ -352,7 +346,7 @@ function statusColor(status: string) {
         <span class="text-[10px] font-medium text-muted-foreground">{{ t('settings.providers.from_template') }}</span>
         <div class="grid grid-cols-4 gap-1.5">
           <button
-            v-for="tpl in templates.filter(t => t.kind !== 'ollama')"
+            v-for="tpl in templates"
             :key="tpl.name"
             class="flex items-center gap-1 rounded border bg-card px-1.5 py-1 text-[10px] transition-colors hover:border-primary/40 hover:bg-accent truncate"
             @click="pickTemplate(tpl)"
@@ -360,43 +354,6 @@ function statusColor(status: string) {
             <component :is="tpl.icon" class="h-3 w-3 shrink-0 text-primary" />
             <span class="truncate">{{ tpl.name }}</span>
           </button>
-        </div>
-        <div
-          v-for="tpl in templates.filter(t => t.kind === 'ollama')"
-          :key="tpl.name"
-          class="flex items-center gap-1.5"
-        >
-          <button
-            class="flex items-center gap-1 rounded border bg-card px-1.5 py-1 text-[10px] transition-colors hover:border-primary/40 hover:bg-accent shrink-0"
-            :class="{ 'border-primary/40 bg-primary/10': editing.kind === 'ollama' }"
-            @click="pickTemplate(tpl)"
-          >
-            <component :is="tpl.icon" class="h-3 w-3 shrink-0 text-primary" />
-            <span>{{ tpl.name }}</span>
-          </button>
-          <select
-            v-if="editing.kind === 'ollama'"
-            v-model="editing.model"
-            class="h-7 flex-1 min-w-0 rounded-md border bg-background px-2 font-mono text-[10px]"
-            :disabled="modelsLoading || models.length === 0"
-          >
-            <option value="" disabled>
-              {{ modelsLoading
-                ? t('settings.providers.fetch_models') + '…'
-                : (models.length === 0 ? '(no local model)' : 'Select model') }}
-            </option>
-            <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
-          </select>
-          <Button
-            v-if="editing.kind === 'ollama'"
-            variant="ghost"
-            size="sm"
-            class="h-7 w-7 p-0 shrink-0"
-            :disabled="modelsLoading"
-            @click="fetchModels"
-          >
-            <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': modelsLoading }" />
-          </Button>
         </div>
       </div>
 
@@ -411,7 +368,6 @@ function statusColor(status: string) {
           <select v-model="editing.kind" class="h-7 w-full rounded-md border bg-background px-2 text-xs">
             <option value="openai_compat">OpenAI Compatible (OpenAI / DeepSeek / Moonshot / SiliconFlow / Together / Groq / ...)</option>
             <option value="anthropic">Anthropic</option>
-            <option value="ollama">Ollama</option>
           </select>
         </div>
       </div>
