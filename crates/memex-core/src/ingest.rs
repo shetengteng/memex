@@ -61,7 +61,7 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
         Err(_) => return,
     };
 
-    let provider = match crate::llm::select_provider(&config.llm, memex_dir) {
+    let provider = match crate::llm::select_provider_unified(db, &config.llm, memex_dir) {
         Some(p) => p,
         None => return,
     };

@@ -2,7 +2,8 @@
 import { ref, computed, provide, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { Search, Settings, Activity, LayoutDashboard, Home, AlertTriangle, Copy, ExternalLink, Terminal } from 'lucide-vue-next'
+import { listen } from '@tauri-apps/api/event'
+import { Search, Settings, Activity, LayoutDashboard, Home, AlertTriangle, Copy, ExternalLink, Terminal, Sparkles, RefreshCw } from 'lucide-vue-next'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ViewName, Stats } from '@/types'
@@ -25,8 +26,36 @@ const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const appWindow = getCurrentWindow()
 const { t } = useI18n()
-const { getStats, getConfig } = useMemex()
+const { getStats, getConfig, batchSummarize } = useMemex()
 const stats = ref<Stats>({ sessions: 0, messages: 0, chunks: 0, db_exists: false, summaries: 0, sessions_eligible_for_summary: 0, chunks_summarized: 0, llm_provider: null })
+
+interface SummaryProgress { current: number; total: number; done: boolean }
+
+const batchRunning = ref(false)
+const batchProgress = ref<SummaryProgress | null>(null)
+let unlistenSummaryProgress: (() => void) | null = null
+
+async function handleBatchSummarize() {
+  if (batchRunning.value) return
+  batchRunning.value = true
+  batchProgress.value = null
+  try {
+    unlistenSummaryProgress = await listen<SummaryProgress>('summary-progress', (event) => {
+      batchProgress.value = event.payload
+      if (event.payload.done) {
+        batchRunning.value = false
+        refreshStats().catch(() => {})
+      }
+    })
+    const total = await batchSummarize()
+    if (total === 0) {
+      batchRunning.value = false
+    }
+  } catch (e) {
+    console.error('popup batch summarize failed:', e)
+    batchRunning.value = false
+  }
+}
 
 // ----- Ollama startup check -----
 type OllamaSetupKind = 'not_installed' | 'no_model'
@@ -227,6 +256,15 @@ const summaryProgress = computed(() => {
   return { done, total, pct: Math.round((done / total) * 100) }
 })
 
+const pendingSummaryCount = computed(() =>
+  Math.max(stats.value.sessions_eligible_for_summary - stats.value.summaries, 0),
+)
+
+// 仅当：有 LLM provider + 有未生成摘要的可摘要会话 时，「生成」按钮才可点击。
+const canTriggerSummary = computed(
+  () => !!stats.value.llm_provider && pendingSummaryCount.value > 0,
+)
+
 onMounted(async () => {
   appWindow.onFocusChanged(({ payload: focused }) => {
     if (!focused) hidePopup()
@@ -238,6 +276,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (statsTimer) clearInterval(statsTimer)
+  unlistenSummaryProgress?.()
 })
 </script>
 
@@ -350,7 +389,7 @@ onUnmounted(() => {
       <!-- Footer -->
       <Separator />
       <div class="flex items-center justify-between bg-muted/50 px-4 py-2.5">
-        <span class="mono text-xs text-muted-foreground">
+        <span class="mono flex items-center gap-1 text-xs text-muted-foreground">
           {{ formatNumber(stats.sessions) }} · 
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
           {{ stats.db_exists ? t('common.ready') : t('status.db.not_initialized') }}
@@ -359,6 +398,30 @@ onUnmounted(() => {
             <span v-if="summaryProgress" :title="`${summaryProgress.done}/${summaryProgress.total}`">
               {{ summaryProgress.pct }}%
             </span>
+            <Tooltip v-if="canTriggerSummary || batchRunning">
+              <TooltipTrigger as-child>
+                <button
+                  class="ml-0.5 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="batchRunning || !canTriggerSummary"
+                  :aria-label="t('popup.summary.generate_tooltip')"
+                  @click="handleBatchSummarize"
+                >
+                  <RefreshCw v-if="batchRunning" class="h-3 w-3 animate-spin" />
+                  <Sparkles v-else class="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <template v-if="batchRunning && batchProgress">
+                  {{ t('overview.summary.processed', { current: batchProgress.current, total: batchProgress.total }) }}
+                </template>
+                <template v-else-if="batchRunning">
+                  {{ t('overview.summary.generating') }}
+                </template>
+                <template v-else>
+                  {{ t('popup.summary.generate_tooltip_with_count', { count: pendingSummaryCount }) }}
+                </template>
+              </TooltipContent>
+            </Tooltip>
           </template>
         </span>
         <div class="flex items-center gap-2">

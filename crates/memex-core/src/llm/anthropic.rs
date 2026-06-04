@@ -52,7 +52,10 @@ struct ErrorDetail {
 }
 
 const API_URL: &str = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+/// 默认走 Haiku 4.5 —— 跟 tars 对齐。摘要/分类这种低复杂度任务用 Haiku
+/// 比 Sonnet 便宜约 10 倍且足够好；用户可通过 `memex credentials set
+/// anthropic --model <model>` 显式覆盖。
+const DEFAULT_MODEL: &str = "claude-haiku-4-5-20251001";
 
 impl AnthropicProvider {
     pub fn new(api_key: &str) -> Self {
@@ -65,6 +68,17 @@ impl AnthropicProvider {
     pub fn with_model(mut self, model: &str) -> Self {
         self.model = model.to_string();
         self
+    }
+
+    pub fn new_direct(api_key: &str, model: &str) -> Self {
+        Self {
+            api_key: api_key.to_string(),
+            model: if model.is_empty() {
+                DEFAULT_MODEL.to_string()
+            } else {
+                model.to_string()
+            },
+        }
     }
 
     pub fn from_env() -> Option<Self> {

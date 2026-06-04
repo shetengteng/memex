@@ -1,31 +1,86 @@
 pub mod anthropic;
 pub mod credentials;
 pub mod ollama;
+pub mod openai_compat;
 pub mod provider;
 pub mod summarize;
 
 use std::path::Path;
 
 use crate::config::LlmConfig;
+use crate::storage::db::{Db, LlmProviderRow};
 use provider::LlmProvider;
 
 pub const CLOUD_NOTICE_KV_KEY: &str = "cloud_fallback_notice_shown";
 
-/// 根据用户的 `LlmConfig` 和 Memex 工作目录（`credentials.toml` 可能在那里），
-/// 选出当前最合适的 LLM provider。
-///
-/// 优先级：
-///   1. Ollama（本地）—— 当 `ollama_enabled` 为 true 且 daemon 可达时。
-///   2. Anthropic（云端）—— 当 `cloud_fallback` 为 true **且** 有可用的 API key
-///      时；key 来源优先级：`~/.memex/credentials.toml`，再回退到
-///      `ANTHROPIC_API_KEY` 环境变量。
-///   3. `None` —— 调用方把 LLM 能力当作不可用，摘要链路直接跳过，
-///      不中断 ingest。
+/// 从 DB 中已注册的 provider 列表构建 LLM client。
+/// is_default 排在最前面，然后按 name 排序。
+/// 逐个尝试，第一个 `is_available()` 的胜出。
+pub fn select_provider_from_db(db: &Db) -> Option<Box<dyn LlmProvider>> {
+    let rows = db.provider_list().ok()?;
+    for row in rows.iter().filter(|r| r.enabled) {
+        if let Some(p) = build_provider_from_row(row) {
+            if p.is_available() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// 从一行 DB 记录构建具体的 LlmProvider 实例。
+pub fn build_provider_from_row(row: &LlmProviderRow) -> Option<Box<dyn LlmProvider>> {
+    match row.kind.as_str() {
+        "ollama" => {
+            let p = ollama::OllamaProvider::new(&row.base_url, &row.model);
+            Some(Box::new(p))
+        }
+        "openai_compat" => {
+            let p = openai_compat::OpenAiCompatProvider::new(
+                &row.name,
+                &row.base_url,
+                &row.api_key,
+                &row.model,
+            );
+            Some(Box::new(p))
+        }
+        "anthropic" => {
+            let p = anthropic::AnthropicProvider::new_direct(&row.api_key, &row.model);
+            Some(Box::new(p))
+        }
+        _ => None,
+    }
+}
+
+/// 统一选择入口：优先从 DB 取已注册的 provider，DB 为空时回退到旧的
+/// config.toml 逻辑（兼容升级用户）。
+pub fn select_provider_unified(
+    db: &Db,
+    config: &LlmConfig,
+    memex_dir: &Path,
+) -> Option<Box<dyn LlmProvider>> {
+    if let Ok(rows) = db.provider_list() {
+        if !rows.is_empty() {
+            return select_provider_from_db(db);
+        }
+    }
+    select_provider(config, memex_dir)
+}
+
+/// 旧版选择逻辑（config.toml 路径），保留给无 DB 的场景（CLI、测试）。
 pub fn select_provider(config: &LlmConfig, memex_dir: &Path) -> Option<Box<dyn LlmProvider>> {
     if config.ollama_enabled {
         let ollama = ollama::OllamaProvider::from_config(config);
         if ollama.is_available() {
             return Some(Box::new(ollama));
+        }
+    }
+
+    if config.deepseek_enabled {
+        if let Some(provider) = build_deepseek_provider(config, memex_dir) {
+            if provider.is_available() {
+                return Some(Box::new(provider));
+            }
         }
     }
 
@@ -39,6 +94,23 @@ pub fn select_provider(config: &LlmConfig, memex_dir: &Path) -> Option<Box<dyn L
     }
 
     None
+}
+
+pub fn build_deepseek_provider(
+    config: &LlmConfig,
+    memex_dir: &Path,
+) -> Option<openai_compat::OpenAiCompatProvider> {
+    let creds = credentials::Credentials::load(memex_dir).ok()?;
+    let key = creds.resolve_deepseek_key()?;
+    let model = creds
+        .resolve_deepseek_model()
+        .unwrap_or_else(|| config.deepseek_model.clone());
+    Some(openai_compat::OpenAiCompatProvider::new(
+        "deepseek",
+        "https://api.deepseek.com/v1",
+        &key,
+        &model,
+    ))
 }
 
 /// 描述启用云端兜底时会上传到云端的数据范围。
@@ -66,6 +138,8 @@ mod tests {
             ollama_enabled: false,
             ollama_url: "http://127.0.0.1:0".into(),
             ollama_model: "test".into(),
+            deepseek_enabled: false,
+            deepseek_model: "deepseek-chat".into(),
             cloud_fallback: false,
         }
     }
@@ -85,6 +159,7 @@ mod tests {
                 api_key: "sk-ant-test".into(),
                 model: None,
             }),
+            deepseek: None,
         }
         .save(tmp.path())
         .unwrap();
@@ -102,6 +177,7 @@ mod tests {
                 api_key: "sk-ant-test".into(),
                 model: None,
             }),
+            deepseek: None,
         }
         .save(tmp.path())
         .unwrap();

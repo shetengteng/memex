@@ -119,4 +119,34 @@ export interface CliStatus {
   path_export_hint: string
 }
 
+export interface LlmTestResult {
+  ok: boolean
+  latency_ms: number
+  error: string | null
+  response_text: string | null
+  models_available?: string[]
+  key_source?: string
+}
+
+export interface LlmProvider {
+  id: string
+  name: string
+  kind: string
+  baseUrl: string
+  model: string
+  apiKey: string
+  enabled: boolean
+  isDefault: boolean
+  status: string
+  latencyMs: number | null
+  updatedAt: string
+}
+
+export interface ProviderTestResult {
+  ok: boolean
+  latencyMs: number
+  error: string | null
+  responseText: string | null
+}
+
 export type ViewName = 'search' | 'settings' | 'status' | 'session' | 'dashboard'

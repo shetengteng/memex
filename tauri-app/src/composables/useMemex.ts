@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -82,10 +82,49 @@ export function useMemex() {
     return invoke<CliStatus>('cli_uninstall')
   }
 
+  async function llmTestOllama(): Promise<LlmTestResult> {
+    return invoke<LlmTestResult>('llm_test_ollama')
+  }
+
+  async function llmTestAnthropic(): Promise<LlmTestResult> {
+    return invoke<LlmTestResult>('llm_test_anthropic')
+  }
+
+  async function llmTestDeepseek(): Promise<LlmTestResult> {
+    return invoke<LlmTestResult>('llm_test_deepseek')
+  }
+
+  async function llmProviderList(): Promise<LlmProvider[]> {
+    return invoke<LlmProvider[]>('llm_provider_list')
+  }
+
+  async function llmProviderUpsert(provider: Partial<LlmProvider> & { id: string; name: string; kind: string; baseUrl: string }): Promise<LlmProvider> {
+    return invoke<LlmProvider>('llm_provider_upsert', { provider })
+  }
+
+  async function llmProviderDelete(id: string): Promise<number> {
+    return invoke<number>('llm_provider_delete', { id })
+  }
+
+  async function llmProviderTest(id: string): Promise<ProviderTestResult> {
+    return invoke<ProviderTestResult>('llm_provider_test', { id })
+  }
+
+  async function llmProviderTestDraft(name: string, kind: string, baseUrl: string, model: string, apiKey: string): Promise<ProviderTestResult> {
+    return invoke<ProviderTestResult>('llm_provider_test_draft', { name, kind, baseUrl, model, apiKey })
+  }
+
+  async function llmListModels(kind: string, baseUrl: string, apiKey: string): Promise<string[]> {
+    return invoke<string[]>('llm_list_models', { kind, baseUrl, apiKey })
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
     triggerIngest, cliStatus, cliInstall, cliUninstall,
+    llmTestOllama, llmTestAnthropic, llmTestDeepseek,
+    llmProviderList, llmProviderUpsert, llmProviderDelete,
+    llmProviderTest, llmProviderTestDraft, llmListModels,
   }
 }

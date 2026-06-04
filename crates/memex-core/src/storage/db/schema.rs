@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 3;
+pub(super) const SCHEMA_VERSION: u32 = 4;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -146,4 +146,19 @@ CREATE INDEX IF NOT EXISTS idx_summaries_session_level
 
 CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
     ON sessions(updated_at DESC);
+
+-- v4: generic LLM provider registry
+CREATE TABLE IF NOT EXISTS llm_providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,           -- 'openai_compat' | 'anthropic' | 'ollama'
+    base_url TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    api_key TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'untested',  -- 'untested' | 'ok' | 'error'
+    latency_ms INTEGER,
+    updated_at TEXT NOT NULL
+);
 ";

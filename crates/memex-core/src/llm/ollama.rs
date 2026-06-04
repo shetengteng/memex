@@ -118,6 +118,8 @@ mod tests {
             ollama_enabled: true,
             ollama_url: "http://localhost:11434".to_string(),
             ollama_model: "qwen2.5".to_string(),
+            deepseek_enabled: false,
+            deepseek_model: "deepseek-chat".to_string(),
             cloud_fallback: false,
         };
         let p = OllamaProvider::from_config(&config);

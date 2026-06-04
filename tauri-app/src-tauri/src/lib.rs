@@ -193,6 +193,17 @@ pub fn run() {
             commands::skill_install,
             commands::skill_uninstall,
             commands::check_for_updates,
+            commands::llm_test_ollama,
+            commands::llm_test_anthropic,
+            commands::llm_test_deepseek,
+            commands::save_anthropic_key,
+            commands::save_deepseek_key,
+            commands::llm_provider_list,
+            commands::llm_provider_upsert,
+            commands::llm_provider_delete,
+            commands::llm_provider_test,
+            commands::llm_provider_test_draft,
+            commands::llm_list_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memex menubar");

@@ -10,7 +10,7 @@
 //! ```toml
 //! [anthropic]
 //! api_key = "sk-ant-..."
-//! model   = "claude-sonnet-4-20250514"   # 可选
+//! model   = "claude-haiku-4-5-20251001"   # 可选；省略时用 anthropic.rs 中的默认
 //! ```
 
 use std::fs;
@@ -22,15 +22,25 @@ use serde::{Deserialize, Serialize};
 const FILE_NAME: &str = "credentials.toml";
 const ENV_ANTHROPIC_KEY: &str = "ANTHROPIC_API_KEY";
 const ENV_ANTHROPIC_MODEL: &str = "ANTHROPIC_MODEL";
+const ENV_DEEPSEEK_KEY: &str = "DEEPSEEK_API_KEY";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Credentials {
     #[serde(default)]
     pub anthropic: Option<AnthropicCredentials>,
+    #[serde(default)]
+    pub deepseek: Option<DeepSeekCredentials>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AnthropicCredentials {
+    pub api_key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DeepSeekCredentials {
     pub api_key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -94,6 +104,27 @@ impl Credentials {
             .ok()
             .filter(|k| !k.trim().is_empty())
     }
+
+    pub fn resolve_deepseek_key(&self) -> Option<String> {
+        if let Some(c) = &self.deepseek
+            && !c.api_key.trim().is_empty()
+        {
+            return Some(c.api_key.clone());
+        }
+        std::env::var(ENV_DEEPSEEK_KEY)
+            .ok()
+            .filter(|k| !k.trim().is_empty())
+    }
+
+    pub fn resolve_deepseek_model(&self) -> Option<String> {
+        if let Some(c) = &self.deepseek
+            && let Some(m) = &c.model
+            && !m.trim().is_empty()
+        {
+            return Some(m.clone());
+        }
+        None
+    }
 }
 
 #[cfg(unix)]
@@ -132,6 +163,7 @@ mod tests {
                 api_key: "sk-ant-example".into(),
                 model: Some("claude-3-haiku-20240307".into()),
             }),
+            deepseek: None,
         };
         creds.save(tmp.path()).unwrap();
         let loaded = Credentials::load(tmp.path()).unwrap();
@@ -155,6 +187,7 @@ mod tests {
                 api_key: "sk-ant-x".into(),
                 model: None,
             }),
+            deepseek: None,
         };
         creds.save(tmp.path()).unwrap();
         let mode = fs::metadata(credentials_path(tmp.path()))
@@ -171,6 +204,7 @@ mod tests {
                 api_key: "   ".into(),
                 model: None,
             }),
+            deepseek: None,
         };
         assert!(creds.resolve_anthropic_key().is_none());
     }

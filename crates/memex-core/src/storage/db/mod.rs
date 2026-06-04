@@ -12,6 +12,7 @@
 mod chunks;
 mod kv;
 mod messages;
+pub mod providers;
 mod schema;
 mod sessions;
 mod sources;
@@ -25,6 +26,7 @@ use std::sync::Mutex;
 use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 
+pub use providers::LlmProviderRow;
 pub use sessions::{MessageRow, SessionDetail, SessionRow};
 pub use summaries::{AggregateSummaryRow, SummaryRow};
 
@@ -126,6 +128,27 @@ impl Db {
             conn.execute(
                 "UPDATE schema_version SET version = ?1",
                 params![3u32],
+            )?;
+        }
+        if from < 4 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS llm_providers (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    base_url TEXT NOT NULL,
+                    model TEXT NOT NULL DEFAULT '',
+                    api_key TEXT NOT NULL DEFAULT '',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'untested',
+                    latency_ms INTEGER,
+                    updated_at TEXT NOT NULL
+                );",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![4u32],
             )?;
         }
         Ok(())

@@ -43,7 +43,7 @@ pub fn set_anthropic(api_key: &str, model: Option<String>, json: bool) -> Result
         if let Some(m) = creds.anthropic.as_ref().and_then(|a| a.model.as_deref()) {
             println!("  model: {}", m);
         } else {
-            println!("  model: (default — claude-sonnet-4-20250514)");
+            println!("  model: (default — claude-haiku-4-5-20251001)");
         }
         println!("\nEnable cloud fallback with:\n  memex config set llm.cloud_fallback true");
     }
@@ -67,7 +67,7 @@ pub fn show(json: bool) -> Result<()> {
         .as_ref()
         .and_then(|a| a.model.clone())
         .or_else(|| std::env::var("ANTHROPIC_MODEL").ok())
-        .unwrap_or_else(|| "claude-sonnet-4-20250514 (default)".into());
+        .unwrap_or_else(|| "claude-haiku-4-5-20251001 (default)".into());
 
     if json {
         println!(

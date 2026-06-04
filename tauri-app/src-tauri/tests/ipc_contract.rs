@@ -24,6 +24,7 @@ fn stats_contract() {
         chunks: 200,
         db_exists: true,
         summaries: 5,
+        sessions_eligible_for_summary: 8,
         chunks_summarized: 30,
         llm_provider: Some("ollama".to_string()),
     })
@@ -37,6 +38,7 @@ fn stats_contract() {
             "chunks",
             "db_exists",
             "summaries",
+            "sessions_eligible_for_summary",
             "chunks_summarized",
             "llm_provider",
         ],

@@ -68,6 +68,9 @@ const zh: Messages = {
   'settings.adapters.local': '本地',
   'settings.adapters.offline': '离线',
   'settings.llm.ollama_label': 'Ollama（{model}）',
+  'settings.llm.deepseek': 'DeepSeek',
+  'settings.llm.deepseek_api_key': 'API Key',
+  'settings.llm.deepseek_api_key_placeholder': 'sk-...',
   'settings.llm.claude_fallback': 'Claude 兜底',
   'settings.llm.ollama_missing.title': '未检测到 Ollama 服务',
   'settings.llm.ollama_missing.intro': 'Memex 用本地 LLM 给历史会话生成标题、摘要和日报/周报，没装的话相关功能不可用。',
@@ -237,6 +240,32 @@ const zh: Messages = {
   'overview.summary.ineligible_badge': '{count} 个无效会话',
   'overview.summary.ineligible_tooltip': '消息数 < 2 的会话不参与 LLM 摘要（拿不到上下文），点击查看这些会话的列表。',
 
+  // LLM test
+  'settings.llm.test': '测试',
+  'settings.llm.testing': '测试中…',
+  'settings.llm.test_ok': '通过（{ms}ms）',
+  'settings.llm.test_fail': '失败：{err}',
+  'settings.llm.claude_api_key': 'API Key',
+  'settings.llm.claude_api_key_placeholder': 'sk-ant-...',
+  'settings.llm.claude_api_key_saved': '已保存',
+  'settings.llm.claude_key_source': '来源：{source}',
+
+  // Provider 管理
+  'settings.providers.title': '自定义 LLM Providers',
+  'settings.providers.empty': '尚未添加自定义 provider。点击下方按钮从模板快速添加。',
+  'settings.providers.add': '添加 Provider',
+  'settings.providers.from_template': '从模板选择',
+  'settings.providers.name': '名称',
+  'settings.providers.kind': '类型',
+  'settings.providers.model': '模型',
+  'settings.providers.fetch_models': '拉取模型列表',
+  'settings.providers.set_default': '设为默认',
+  'settings.providers.default': '默认',
+
+  // Popup footer 摘要按钮
+  'popup.summary.generate_tooltip': '为剩余会话生成 LLM 摘要',
+  'popup.summary.generate_tooltip_with_count': '为剩余 {count} 个会话生成 LLM 摘要',
+
   // Dashboard - Sessions
   'sessions.title': '会话',
   'sessions.filter.search_placeholder': '搜索会话…',
@@ -347,6 +376,9 @@ const en: Messages = {
   'settings.adapters.local': 'local',
   'settings.adapters.offline': 'offline',
   'settings.llm.ollama_label': 'Ollama ({model})',
+  'settings.llm.deepseek': 'DeepSeek',
+  'settings.llm.deepseek_api_key': 'API Key',
+  'settings.llm.deepseek_api_key_placeholder': 'sk-...',
   'settings.llm.claude_fallback': 'Claude fallback',
   'settings.llm.ollama_missing.title': 'Ollama not detected',
   'settings.llm.ollama_missing.intro': 'Memex uses a local LLM to generate session titles, summaries and daily/weekly reports — these features are unavailable without it.',
@@ -515,6 +547,32 @@ const en: Messages = {
   'overview.summary.provider_none': 'disabled',
   'overview.summary.ineligible_badge': '{count} invalid sessions',
   'overview.summary.ineligible_tooltip': 'Sessions with < 2 messages are skipped by L2 summarization (no usable context). Click to view them.',
+
+  // LLM test
+  'settings.llm.test': 'Test',
+  'settings.llm.testing': 'Testing…',
+  'settings.llm.test_ok': 'OK ({ms}ms)',
+  'settings.llm.test_fail': 'Failed: {err}',
+  'settings.llm.claude_api_key': 'API Key',
+  'settings.llm.claude_api_key_placeholder': 'sk-ant-...',
+  'settings.llm.claude_api_key_saved': 'Saved',
+  'settings.llm.claude_key_source': 'Source: {source}',
+
+  // Provider management
+  'settings.providers.title': 'Custom LLM Providers',
+  'settings.providers.empty': 'No custom providers yet. Click below to add from templates.',
+  'settings.providers.add': 'Add Provider',
+  'settings.providers.from_template': 'From Template',
+  'settings.providers.name': 'Name',
+  'settings.providers.kind': 'Kind',
+  'settings.providers.model': 'Model',
+  'settings.providers.fetch_models': 'Fetch Models',
+  'settings.providers.set_default': 'Set as Default',
+  'settings.providers.default': 'Default',
+
+  // popup footer summary button
+  'popup.summary.generate_tooltip': 'Generate LLM summaries for remaining sessions',
+  'popup.summary.generate_tooltip_with_count': 'Generate LLM summaries for {count} remaining session(s)',
 
   // dashboard sessions
   'sessions.title': 'Sessions',
