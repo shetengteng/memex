@@ -352,7 +352,7 @@ function statusColor(status: string) {
         <span class="text-[10px] font-medium text-muted-foreground">{{ t('settings.providers.from_template') }}</span>
         <div class="grid grid-cols-4 gap-1.5">
           <button
-            v-for="tpl in templates"
+            v-for="tpl in templates.filter(t => t.kind !== 'ollama')"
             :key="tpl.name"
             class="flex items-center gap-1 rounded border bg-card px-1.5 py-1 text-[10px] transition-colors hover:border-primary/40 hover:bg-accent truncate"
             @click="pickTemplate(tpl)"
@@ -361,11 +361,23 @@ function statusColor(status: string) {
             <span class="truncate">{{ tpl.name }}</span>
           </button>
         </div>
-        <div v-if="editing.kind === 'ollama'" class="flex items-center gap-1.5 pt-0.5">
-          <Server class="h-3 w-3 shrink-0 text-primary" />
+        <div
+          v-for="tpl in templates.filter(t => t.kind === 'ollama')"
+          :key="tpl.name"
+          class="flex items-center gap-1.5"
+        >
+          <button
+            class="flex items-center gap-1 rounded border bg-card px-1.5 py-1 text-[10px] transition-colors hover:border-primary/40 hover:bg-accent shrink-0"
+            :class="{ 'border-primary/40 bg-primary/10': editing.kind === 'ollama' }"
+            @click="pickTemplate(tpl)"
+          >
+            <component :is="tpl.icon" class="h-3 w-3 shrink-0 text-primary" />
+            <span>{{ tpl.name }}</span>
+          </button>
           <select
+            v-if="editing.kind === 'ollama'"
             v-model="editing.model"
-            class="h-7 flex-1 rounded-md border bg-background px-2 font-mono text-[10px]"
+            class="h-7 flex-1 min-w-0 rounded-md border bg-background px-2 font-mono text-[10px]"
             :disabled="modelsLoading || models.length === 0"
           >
             <option value="" disabled>
@@ -376,6 +388,7 @@ function statusColor(status: string) {
             <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
           </select>
           <Button
+            v-if="editing.kind === 'ollama'"
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 shrink-0"
