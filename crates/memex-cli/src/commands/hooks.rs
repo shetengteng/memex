@@ -217,9 +217,11 @@ fn wrapper_body(ide: Ide, memex_bin: &Path) -> (&'static str, String) {
 # still emit a banner so AI knows Memex is wired up.
 
 set -e
-MD="$('{bin}' context --json 2>/dev/null || echo '{{"markdown":""}}')"
+MD="$('{bin}' context --json 2>/dev/null || printf '%s' '{{"markdown":""}}')"
 # extract markdown safely with python (no jq dependency)
-PY_OUTPUT="$(echo "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || echo "")"
+# use printf '%s' so /bin/sh does NOT interpret backslash escapes (e.g. \n)
+# inside the JSON payload — otherwise json.loads sees raw newlines and dies
+PY_OUTPUT="$(printf '%s' "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || printf '%s' "")"
 python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"hookSpecificOutput":{{"hookEventName":"SessionStart","additionalContext": md}}}}))' <<EOF
 $PY_OUTPUT
 EOF
@@ -238,8 +240,10 @@ EOF
 #   must return JSON {{ "additional_context": "<markdown>" }} on stdout
 
 set -e
-MD="$('{bin}' context --json 2>/dev/null || echo '{{"markdown":""}}')"
-PY_OUTPUT="$(echo "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || echo "")"
+MD="$('{bin}' context --json 2>/dev/null || printf '%s' '{{"markdown":""}}')"
+# use printf '%s' so /bin/sh does NOT interpret backslash escapes (e.g. \n)
+# inside the JSON payload — otherwise json.loads sees raw newlines and dies
+PY_OUTPUT="$(printf '%s' "$MD" | python3 -c 'import sys,json; d=json.loads(sys.stdin.read() or "{{}}"); print(d.get("markdown",""))' 2>/dev/null || printf '%s' "")"
 python3 -c 'import sys,json; md=sys.stdin.read(); print(json.dumps({{"additional_context": md}}))' <<EOF
 $PY_OUTPUT
 EOF

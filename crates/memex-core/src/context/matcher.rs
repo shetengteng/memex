@@ -46,10 +46,20 @@ pub fn search_by_project_in_candidates(
 
     // Tier 1: exact path  —  cwd 等于 project_path，或 cwd 是它的子目录。
     //   这是最强信号：会话当时的工作目录就在这里 / 它的子级。
-    if let Some(p) = candidates.iter().find(|p| {
-        let cand = normalize(Path::new(p));
-        cwd_norm == cand || cwd_norm.starts_with(&cand)
-    }) {
+    //
+    // 多个候选都满足 starts_with 时（典型场景：候选既有 `/Users/me` 又有
+    // `/Users/me/Documents/foo`），必须选**最长**的那个 —— 否则
+    // 像 `/Users/me` 这种家目录会抢断所有子项目，hook 会把不相关的家目录
+    // 摘要塞给 AI。`candidates` 来自 `ORDER BY project_path` 的字典序，
+    // 不能依赖原始顺序，所以这里显式做最长前缀挑选。
+    if let Some(p) = candidates
+        .iter()
+        .filter(|p| {
+            let cand = normalize(Path::new(p));
+            cwd_norm == cand || cwd_norm.starts_with(&cand)
+        })
+        .max_by_key(|p| normalize(Path::new(p)).as_os_str().len())
+    {
         return Some(ProjectMatch {
             project_path: p.clone(),
             tier: MatchTier::ExactPath,
@@ -181,5 +191,55 @@ mod tests {
         let cands = paths(&["/home/u/foo"]);
         let r = search_by_project_in_candidates(Path::new("/tmp/something-else"), &cands);
         assert!(r.is_none());
+    }
+
+    #[test]
+    fn tier1_prefers_longest_prefix_over_home_dir() {
+        // 回归 bug：候选里同时存在「家目录」和「家目录下的具体项目」时，
+        // 在项目目录内的 cwd 必须命中具体项目，而不是被字典序在前的家目录抢断。
+        let cands = paths(&[
+            "/Users/me",
+            "/Users/me/Documents/personal/foo",
+            "/Users/me/Documents/personal/bar",
+        ]);
+        let m = search_by_project_in_candidates(
+            Path::new("/Users/me/Documents/personal/foo"),
+            &cands,
+        )
+        .unwrap();
+        assert_eq!(m.tier, MatchTier::ExactPath);
+        assert_eq!(
+            m.project_path, "/Users/me/Documents/personal/foo",
+            "应命中最长前缀，而非家目录"
+        );
+    }
+
+    #[test]
+    fn tier1_longest_prefix_extends_to_subdirectory() {
+        // cwd 在项目下的子目录里，候选既有家目录又有具体项目时，仍命中具体项目。
+        let cands = paths(&[
+            "/Users/me",
+            "/Users/me/work/proj",
+        ]);
+        let m = search_by_project_in_candidates(
+            Path::new("/Users/me/work/proj/src/utils"),
+            &cands,
+        )
+        .unwrap();
+        assert_eq!(m.tier, MatchTier::ExactPath);
+        assert_eq!(m.project_path, "/Users/me/work/proj");
+    }
+
+    #[test]
+    fn tier1_home_dir_still_matches_when_no_subproject_does() {
+        // 当 cwd 不在任何具体项目内时，家目录仍然是合法的 fallback 命中。
+        let cands = paths(&["/Users/me", "/Users/me/work/proj"]);
+        let m = search_by_project_in_candidates(
+            Path::new("/Users/me/Downloads/random"),
+            &cands,
+        )
+        .unwrap();
+        assert_eq!(m.tier, MatchTier::ExactPath);
+        assert_eq!(m.project_path, "/Users/me");
     }
 }
