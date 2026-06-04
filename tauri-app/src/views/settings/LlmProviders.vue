@@ -84,6 +84,9 @@ function pickTemplate(tpl: typeof templates[number]) {
   editing.value.baseUrl = tpl.baseUrl
   editing.value.model = editing.value.model || tpl.model
   models.value = []
+  if (tpl.kind === 'ollama') {
+    void fetchModels()
+  }
 }
 
 const canSave = computed(() => {
@@ -357,6 +360,30 @@ function statusColor(status: string) {
             <component :is="tpl.icon" class="h-3 w-3 shrink-0 text-primary" />
             <span class="truncate">{{ tpl.name }}</span>
           </button>
+        </div>
+        <div v-if="editing.kind === 'ollama'" class="flex items-center gap-1.5 pt-0.5">
+          <Server class="h-3 w-3 shrink-0 text-primary" />
+          <select
+            v-model="editing.model"
+            class="h-7 flex-1 rounded-md border bg-background px-2 font-mono text-[10px]"
+            :disabled="modelsLoading || models.length === 0"
+          >
+            <option value="" disabled>
+              {{ modelsLoading
+                ? t('settings.providers.fetch_models') + '…'
+                : (models.length === 0 ? '(no local model)' : 'Select model') }}
+            </option>
+            <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 w-7 p-0 shrink-0"
+            :disabled="modelsLoading"
+            @click="fetchModels"
+          >
+            <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': modelsLoading }" />
+          </Button>
         </div>
       </div>
 
