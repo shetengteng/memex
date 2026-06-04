@@ -4,9 +4,10 @@ import { ArrowLeft, Copy, Check, User, Bot } from 'lucide-vue-next'
 import type { SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
-import { adapterAbbr, adapterColor, adapterBg, timeAgo, formatTime } from '@/lib/utils'
+import { timeAgo, formatTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import MarkdownContent from '@/components/MarkdownContent.vue'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const props = defineProps<{ sessionId: string }>()
 const back = inject<() => void>('back')!
@@ -42,8 +43,8 @@ async function copyContent() {
         {{ t('common.back') }}
       </Button>
       <template v-if="detail">
-        <span class="grid h-7 w-7 shrink-0 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(detail.source), adapterColor(detail.source)]">
-          {{ adapterAbbr(detail.source) }}
+        <span class="grid h-7 w-7 shrink-0 place-items-center">
+          <IdeIcon :source="detail.source" class="h-5 w-5" />
         </span>
         <span class="truncate text-sm font-semibold">{{ detail.project_path?.split('/').pop() ?? detail.id.slice(0, 12) }}</span>
         <span class="shrink-0 text-xs text-muted-foreground">{{ detail.message_count }} · {{ timeAgo(detail.updated_at) }}</span>

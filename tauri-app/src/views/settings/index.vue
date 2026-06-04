@@ -32,11 +32,20 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
 import type { CliStatus, LlmTestResult, DoctorRunResult } from '@/types'
 import LlmProviders from './LlmProviders.vue'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t, locale } = useI18n()
 const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor, systemResetIndex, systemResetAll } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
+
+// IDE 集成那栏的 key 用连字符（cursor / claude-code / codex / opencode），
+// 而 adapter 那栏的 key 用下划线（claude_code / continue_dev）。IdeIcon 内部
+// 字典只用下划线版本（因为大多数地方都是这个 source），这里做一次映射。
+function normalizeIdeKey(ide: string): string {
+  if (ide === 'claude-code') return 'claude_code'
+  return ide
+}
 
 type UpdateStatus = 'idle' | 'checking' | 'latest' | 'outdated' | 'error'
 
@@ -607,7 +616,6 @@ async function performReset() {
             </Button>
             <Switch
               :model-value="llm.ollamaEnabled"
-              class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
               @update:model-value="(v: boolean) => setOllama(v)"
             />
           </div>
@@ -729,7 +737,7 @@ async function performReset() {
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="flex items-center gap-2 text-sm">
-                  <span class="inline-block h-2 w-2 rounded-full" :class="a.enabled ? 'bg-success' : 'bg-muted-foreground'" />
+                  <IdeIcon :source="a.key" class="h-4 w-4 shrink-0" :class="a.enabled ? '' : 'opacity-40 grayscale'" />
                   {{ a.label }}
                 </span>
                 <div class="flex items-center gap-1.5">
@@ -745,7 +753,6 @@ async function performReset() {
                   </Button>
                   <Switch
                     :model-value="a.enabled"
-                    class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
                     @update:model-value="(v: boolean) => setAdapter(a.key, v)"
                   />
                 </div>
@@ -837,11 +844,10 @@ async function performReset() {
               :class="{ 'border-t border-border/40': i > 0 }"
             >
               <span class="flex flex-1 items-center gap-2 text-sm min-w-0">
-                <span
-                  class="inline-block h-2 w-2 shrink-0 rounded-full"
-                  :class="(row.mcpStatus?.installed && row.skillStatus?.installed) ? 'bg-success'
-                    : (row.mcpStatus?.installed || row.skillStatus?.installed) ? 'bg-warning'
-                    : 'bg-muted-foreground'"
+                <IdeIcon
+                  :source="normalizeIdeKey(row.ide)"
+                  class="h-5 w-5 shrink-0"
+                  :class="(row.mcpStatus?.installed || row.skillStatus?.installed) ? '' : 'opacity-40 grayscale'"
                 />
                 <span class="flex min-w-0 flex-col">
                   <span class="truncate">{{ row.label }}</span>
@@ -861,7 +867,6 @@ async function performReset() {
                 <Switch
                   :model-value="row.mcpStatus?.installed ?? false"
                   :disabled="row.mcpLoading"
-                  class="h-5 w-9 [&_>span]:h-4 [&_>span]:w-4 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => toggleMcp(row, v)"
                 />
               </div>
@@ -873,7 +878,6 @@ async function performReset() {
                 <Switch
                   :model-value="row.skillStatus?.installed ?? false"
                   :disabled="row.skillLoading"
-                  class="h-5 w-9 [&_>span]:h-4 [&_>span]:w-4 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => toggleSkill(row, v)"
                 />
               </div>
@@ -885,7 +889,6 @@ async function performReset() {
                 <Switch
                   :model-value="row.hookStatus?.installed ?? false"
                   :disabled="row.hookLoading || (row.hookStatus !== null && !row.hookStatus.supported)"
-                  class="h-5 w-9 [&_>span]:h-4 [&_>span]:w-4 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => toggleHook(row, v)"
                 />
               </div>
@@ -926,7 +929,6 @@ async function performReset() {
                 <span class="text-sm">{{ t('settings.privacy.auto_redact') }}</span>
                 <Switch
                   :model-value="privacy.autoRedact"
-                  class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => setPrivacy('autoRedact', v)"
                 />
               </div>
@@ -934,7 +936,6 @@ async function performReset() {
                 <span class="text-sm">{{ t('settings.privacy.hide_private') }}</span>
                 <Switch
                   :model-value="privacy.privateFromMcp"
-                  class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
                   @update:model-value="(v: boolean) => setPrivacy('privateFromMcp', v)"
                 />
               </div>

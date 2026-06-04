@@ -4,10 +4,11 @@ import { Loader2, FolderOpen } from 'lucide-vue-next'
 import type { ProjectSummary } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
-import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { timeAgo, adapterLabel } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t } = useI18n()
 
@@ -108,9 +109,9 @@ onMounted(loadProjects)
           <span
             v-for="[name, count] in Object.entries(p.by_adapter).sort((a, b) => b[1] - a[1])"
             :key="name"
-            class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold"
-            :class="[adapterBg(name), adapterColor(name)]"
+            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium"
           >
+            <IdeIcon :source="name" class="h-3.5 w-3.5 shrink-0" />
             {{ adapterLabel(name) }} {{ count }}
           </span>
         </div>

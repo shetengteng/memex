@@ -2,11 +2,12 @@
 import { ref, computed, watch } from 'vue'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { SessionRow } from '@/types'
-import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { timeAgo, adapterLabel } from '@/lib/utils'
 import { useI18n } from '@/i18n'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t } = useI18n()
 
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 
 const searchQuery = ref(props.initialFilter ?? '')
 const filterAdapter = ref<string>('all')
+const filterProject = ref<string>('all')
 const filterDays = ref<string>('all')
 // 这个 filter 主要给「LLM 摘要进度条旁的 X 个无效会话徽章」当跳转目标用：
 // invalid = message_count < 2 (拿不到 L2 摘要)，valid = >= 2，all 不过滤
@@ -38,11 +40,56 @@ const adapterOptions = computed(() => {
   return Array.from(set).sort()
 })
 
+// project 过滤选项：value 用完整 project_path（保证唯一），label 用 basename。
+// 同 basename 的不同路径会冲突，此时给后出现的加 `(/parent/dir)` 后缀区分，
+// 让用户在下拉里能一眼分辨。null/空 path 归到 `(no project)` 桶。
+interface ProjectOption {
+  value: string
+  label: string
+  tooltip: string
+}
+const projectOptions = computed<ProjectOption[]>(() => {
+  const NO_PROJECT = '__no_project__'
+  const paths = new Set<string>()
+  for (const s of props.sessions) {
+    paths.add(s.project_path && s.project_path.trim() ? s.project_path : NO_PROJECT)
+  }
+  const sorted = Array.from(paths).sort()
+  const baseCounts = new Map<string, number>()
+  for (const p of sorted) {
+    const base = p === NO_PROJECT ? '' : (p.split('/').filter(Boolean).pop() ?? p)
+    baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1)
+  }
+  return sorted.map(p => {
+    if (p === NO_PROJECT) {
+      return { value: p, label: t('sessions.filter.no_project'), tooltip: '' }
+    }
+    const parts = p.split('/').filter(Boolean)
+    const base = parts[parts.length - 1] ?? p
+    const dupe = (baseCounts.get(base) ?? 0) > 1
+    const parent = parts.length > 1 ? `/${parts.slice(0, -1).join('/')}` : ''
+    return {
+      value: p,
+      label: dupe && parent ? `${base} (${parent})` : base,
+      tooltip: p,
+    }
+  })
+})
+
 const filteredSessions = computed(() => {
   let list = props.sessions
 
   if (filterAdapter.value !== 'all') {
     list = list.filter(s => s.source === filterAdapter.value)
+  }
+
+  if (filterProject.value !== 'all') {
+    const target = filterProject.value
+    if (target === '__no_project__') {
+      list = list.filter(s => !s.project_path || !s.project_path.trim())
+    } else {
+      list = list.filter(s => s.project_path === target)
+    }
   }
 
   if (filterMessages.value === 'invalid') {
@@ -77,7 +124,7 @@ const pagedSessions = computed(() => {
   return filteredSessions.value.slice(start, start + pageSize)
 })
 
-watch([searchQuery, filterAdapter, filterDays, filterMessages], () => { page.value = 1 })
+watch([searchQuery, filterAdapter, filterProject, filterDays, filterMessages], () => { page.value = 1 })
 
 function formatDate(dateStr: string): string {
   try {
@@ -110,7 +157,28 @@ function summaryLine(s: SessionRow): string {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">{{ t('sessions.filter.all_tools') }}</SelectItem>
-        <SelectItem v-for="a in adapterOptions" :key="a" :value="a">{{ adapterLabel(a) }}</SelectItem>
+        <SelectItem v-for="a in adapterOptions" :key="a" :value="a">
+          <span class="inline-flex items-center gap-1.5">
+            <IdeIcon :source="a" class="h-3.5 w-3.5 shrink-0" />
+            {{ adapterLabel(a) }}
+          </span>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+    <Select v-model="filterProject">
+      <SelectTrigger class="w-[180px] text-xs">
+        <SelectValue :placeholder="t('sessions.filter.all_projects')" />
+      </SelectTrigger>
+      <SelectContent class="max-h-[320px]">
+        <SelectItem value="all">{{ t('sessions.filter.all_projects') }}</SelectItem>
+        <SelectItem
+          v-for="p in projectOptions"
+          :key="p.value"
+          :value="p.value"
+          :title="p.tooltip"
+        >
+          {{ p.label }}
+        </SelectItem>
       </SelectContent>
     </Select>
     <Select v-model="filterDays">
@@ -164,7 +232,8 @@ function summaryLine(s: SessionRow): string {
         >
           <td class="px-4 py-2.5 text-xs font-semibold">{{ s.project_path?.split('/').pop() ?? '-' }}</td>
           <td class="whitespace-nowrap px-4 py-2.5">
-            <span class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
+            <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium">
+              <IdeIcon :source="s.source" class="h-4 w-4 shrink-0" />
               {{ adapterLabel(s.source) }}
             </span>
           </td>
@@ -182,7 +251,7 @@ function summaryLine(s: SessionRow): string {
       start: (page - 1) * pageSize + 1,
       end: Math.min(page * pageSize, filteredSessions.length),
       total: filteredSessions.length,
-      filtered: (filterAdapter !== 'all' || (filterDays && filterDays !== 'all') || filterMessages !== 'all' || searchQuery.trim()) ? t('sessions.pagination.filtered') : ''
+      filtered: (filterAdapter !== 'all' || filterProject !== 'all' || (filterDays && filterDays !== 'all') || filterMessages !== 'all' || searchQuery.trim()) ? t('sessions.pagination.filtered') : ''
     }) }}</span>
     <div v-if="totalPages > 1" class="flex items-center gap-1">
       <Button variant="ghost" size="sm" :disabled="page <= 1" @click="page--">

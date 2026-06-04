@@ -2,10 +2,11 @@
 import { ref, computed } from 'vue'
 import { ArrowLeft, Loader2, RefreshCw, Copy, Check, Bot, User as UserIcon } from 'lucide-vue-next'
 import type { SessionDetail } from '@/types'
-import { timeAgo, adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { timeAgo, adapterLabel } from '@/lib/utils'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
 import MarkdownContent from '@/components/MarkdownContent.vue'
+import IdeIcon from '@/components/IdeIcon.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
@@ -100,7 +101,8 @@ function loadMore() {
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline" :class="[adapterBg(session.source), adapterColor(session.source)]" class="border-transparent">
+            <Badge variant="outline" class="gap-1.5 border-border/60 bg-muted/40 font-medium">
+              <IdeIcon :source="session.source" class="h-3.5 w-3.5 shrink-0" />
               {{ adapterLabel(session.source) }}
             </Badge>
             <span class="truncate font-mono text-[11px]">{{ session.id }}</span>

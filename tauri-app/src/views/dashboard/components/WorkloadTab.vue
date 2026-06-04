@@ -4,6 +4,7 @@ import { RefreshCw, Activity } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
 import { adapterLabel, formatNumber } from '@/lib/utils'
+import IdeIcon from '@/components/IdeIcon.vue'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -464,7 +465,7 @@ function onRangeUpdate(val: unknown) {
               <li v-for="b in report.by_adapter" :key="b.key" class="space-y-1">
                 <div class="flex items-baseline justify-between gap-2 text-xs">
                   <span class="flex items-center gap-1.5 font-medium">
-                    <span class="inline-block h-2.5 w-2.5 rounded-sm" :style="{ backgroundColor: adapterColor(b.key) }"></span>
+                    <IdeIcon :source="b.key" class="h-3.5 w-3.5 shrink-0" />
                     {{ adapterLabel(b.key) }}
                   </span>
                   <div class="flex items-center gap-1.5">

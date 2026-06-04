@@ -367,7 +367,7 @@ function statusColor(status: string) {
         <div class="space-y-1">
           <label class="text-[10px] font-medium">{{ t('settings.providers.kind') }}</label>
           <select v-model="editing.kind" class="h-7 w-full rounded-md border bg-background px-2 text-xs">
-            <option value="openai_compat">OpenAI Compatible</option>
+            <option value="openai_compat">OpenAI Compatible (OpenAI / DeepSeek / Moonshot / SiliconFlow / Together / Groq / ...)</option>
             <option value="anthropic">Anthropic</option>
             <option value="ollama">Ollama</option>
           </select>

@@ -20,6 +20,7 @@ import {
   CircleDot,
 } from 'lucide-vue-next'
 import type { Stats, DaemonStatus } from '@/types'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t } = useI18n()
 const { getStats, getConfig, daemonStatus, daemonRestart } = useMemex()
@@ -330,7 +331,7 @@ const heroIcon = computed(() => {
                 :key="a.key"
                 class="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-2.5 py-1.5"
               >
-                <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="adapterEnabled[a.key] ? dotClass.success : dotClass.muted" />
+                <IdeIcon :source="a.key" class="h-4 w-4 shrink-0" :class="adapterEnabled[a.key] ? '' : 'opacity-40 grayscale'" />
                 <span class="flex-1 truncate text-xs">{{ a.label }}</span>
                 <span class="text-[10px]" :class="adapterEnabled[a.key] ? toneTextClass.success : toneTextClass.muted">
                   {{ adapterEnabled[a.key] ? t('common.enabled') : t('common.disabled') }}

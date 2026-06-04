@@ -3,7 +3,8 @@ import { ref, inject, watch, onMounted } from 'vue'
 import { Loader2, Sparkles } from 'lucide-vue-next'
 import type { SearchResult, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
-import { adapterAbbr, adapterColor, adapterBg, timeAgo } from '@/lib/utils'
+import { timeAgo } from '@/lib/utils'
+import IdeIcon from '@/components/IdeIcon.vue'
 import { useI18n } from '@/i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -166,8 +167,8 @@ function sessionLine2(s: SessionRow): string {
         >
           <Tooltip>
             <TooltipTrigger as-child>
-              <span class="mono grid h-6 w-7 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
-                {{ adapterAbbr(r.adapter ?? '') }}
+              <span class="grid h-7 w-7 place-items-center">
+                <IdeIcon :source="r.adapter ?? ''" class="h-5 w-5" />
               </span>
             </TooltipTrigger>
             <TooltipContent side="right">{{ r.adapter }}</TooltipContent>
@@ -195,8 +196,8 @@ function sessionLine2(s: SessionRow): string {
         class="grid w-full grid-cols-[32px_1fr_auto] items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent"
         @click="openSession(s.id)"
       >
-        <span class="mono grid h-6 w-7 place-items-center rounded text-[10px] font-semibold" :class="[adapterBg(s.source), adapterColor(s.source)]">
-          {{ adapterAbbr(s.source) }}
+        <span class="grid h-7 w-7 place-items-center">
+          <IdeIcon :source="s.source" class="h-5 w-5" />
         </span>
         <span class="min-w-0">
           <strong class="block truncate text-sm font-semibold">{{ sessionLine1(s) }}</strong>

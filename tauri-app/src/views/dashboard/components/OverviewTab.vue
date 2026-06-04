@@ -4,6 +4,7 @@ import { RefreshCw, Sparkles, AlertCircle } from 'lucide-vue-next'
 import { listen } from '@tauri-apps/api/event'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SummaryProgress } from '@/types'
 import { formatNumber, adapterLabel, timeAgo } from '@/lib/utils'
+import IdeIcon from '@/components/IdeIcon.vue'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
 import { Button } from '@/components/ui/button'
@@ -242,7 +243,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
     <h4 class="mb-3 text-sm font-semibold">{{ t('overview.adapters.title') }}</h4>
     <div class="space-y-2">
       <div v-for="[name, count] in adapterEntries" :key="name" class="flex items-center gap-3 text-sm">
-        <span class="h-2.5 w-2.5 shrink-0 rounded-sm" :style="{ background: adapterColors[name] ?? '#71717a' }" />
+        <IdeIcon :source="name" class="h-4 w-4 shrink-0" />
         <span class="w-28 shrink-0 truncate text-xs font-medium">{{ adapterLabel(name) }}</span>
         <div class="flex-1">
           <div class="h-2 overflow-hidden rounded-full bg-muted">
@@ -287,7 +288,7 @@ const topProjects = computed<Array<[string, number]>>(() => {
         @click="emit('openSession', s.id)"
       >
         <span class="flex items-center gap-2 text-xs">
-          <span class="h-2 w-2 shrink-0 rounded-full" :style="{ background: adapterColors[s.source] ?? '#71717a' }" />
+          <IdeIcon :source="s.source" class="h-3.5 w-3.5 shrink-0" />
           <span class="truncate font-medium">{{ projectName(s.project_path ?? '—') }}</span>
         </span>
         <span class="truncate text-xs font-normal text-muted-foreground">{{ summaryLine(s) }}</span>

@@ -4,9 +4,10 @@ import { Search, Loader2 } from 'lucide-vue-next'
 import type { SearchResult } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
-import { adapterColor, adapterBg, adapterLabel } from '@/lib/utils'
+import { adapterLabel } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t } = useI18n()
 
@@ -63,7 +64,8 @@ async function doSearch() {
           @click="emit('openSession', r.session_id)"
         >
           <div class="mb-2 flex items-center gap-2 text-xs">
-            <span class="inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="[adapterBg(r.adapter ?? ''), adapterColor(r.adapter ?? '')]">
+            <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium">
+              <IdeIcon :source="r.adapter ?? ''" class="h-3.5 w-3.5 shrink-0" />
               {{ adapterLabel(r.adapter ?? '') }}
             </span>
             <span class="truncate font-medium">{{ r.project?.split('/').pop() ?? '-' }}</span>
