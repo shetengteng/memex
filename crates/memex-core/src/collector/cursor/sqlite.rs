@@ -385,7 +385,19 @@ impl Adapter for CursorSqliteAdapter {
                 id: format!("cursor-{}", composer_id),
                 source: "cursor".to_string(),
                 project_path: enrichment.project_path,
-                file_path: self.db_path.to_string_lossy().to_string(),
+                // 关键：每个 composer 必须有独一无二的 file_path。
+                // 否则 ingest 会把所有 cursor session 的 collect 进度
+                // 共享到 `sources` 表的同一行（key = file_path），
+                // 一条大会话把 last_offset 推到 N 后，所有 headers 长度
+                // < N 的会话都会被 `collect()` 里的 `start >= headers.len()`
+                // 判 0 直接吞掉。这里的 fragment 不是真路径，但 cursor
+                // 的 collect() 不会读它（只用 db_path + session.id），
+                // 只参与 sources 表的 key 隔离 + 调试可见。
+                file_path: format!(
+                    "{}#composer={}",
+                    self.db_path.to_string_lossy(),
+                    composer_id
+                ),
                 last_offset: 0,
                 mtime,
                 created_secs,

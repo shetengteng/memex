@@ -302,4 +302,72 @@ mod sqlite_backend {
         let sessions = adapter.scan().unwrap();
         assert!(sessions.is_empty());
     }
+
+    /// 回归测试：每个 composer 必须有独一无二的 `file_path`。
+    /// 如果两个 session 共享同一个 file_path，ingest 会把它们的 collect 进度
+    /// 共享到 `sources` 表的同一行，进而导致小会话被大会话「淹没」。
+    /// 这条曾经在生产数据上吞掉了 2431 / 2448 条 cursor 会话。
+    #[test]
+    fn test_sqlite_scan_assigns_unique_file_path_per_composer() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("state.vscdb");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "CREATE TABLE cursorDiskKV (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+            [],
+        )
+        .unwrap();
+
+        for i in 0..3 {
+            let composer_id = format!("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee{i}");
+            let composer_value = serde_json::json!({
+                "composerId": composer_id,
+                "createdAt": 1_700_000_000_000_i64 + i as i64,
+                "fullConversationHeadersOnly": [
+                    {"bubbleId": format!("b{i}-1"), "type": 1},
+                    {"bubbleId": format!("b{i}-2"), "type": 2},
+                ],
+            });
+            conn.execute(
+                "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+                rusqlite::params![
+                    format!("composerData:{composer_id}"),
+                    composer_value.to_string().as_bytes()
+                ],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let adapter = CursorAdapter::with_db_path(db_path.clone());
+        let sessions = adapter.scan().unwrap();
+        assert_eq!(sessions.len(), 3, "应当扫到 3 个 composer");
+
+        let unique_paths: std::collections::HashSet<_> =
+            sessions.iter().map(|s| s.file_path.clone()).collect();
+        assert_eq!(
+            unique_paths.len(),
+            sessions.len(),
+            "每个 cursor session 的 file_path 必须互相不同，否则 sources 表会串"
+        );
+
+        let db_str = db_path.to_string_lossy();
+        for s in &sessions {
+            assert!(
+                s.file_path.starts_with(db_str.as_ref()),
+                "file_path 仍应以真实 db_path 开头便于排查（实际：{}）",
+                s.file_path
+            );
+            assert!(
+                s.file_path.contains("#composer="),
+                "file_path 应携带 composer fragment 以保证唯一（实际：{}）",
+                s.file_path
+            );
+        }
+    }
 }
