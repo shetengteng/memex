@@ -152,6 +152,7 @@ onUnmounted(() => {
           :loading="sessionsLoading"
           :initial-filter="sessionFilter"
           :initial-messages-filter="sessionMessagesFilter"
+          :breakdown="breakdown"
           @open-session="openSessionDetail"
         />
         <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />

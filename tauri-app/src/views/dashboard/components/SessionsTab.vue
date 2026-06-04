@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import type { SessionRow } from '@/types'
+import type { SessionRow, StatsBreakdown } from '@/types'
 import { timeAgo, adapterLabel } from '@/lib/utils'
 import { useI18n } from '@/i18n'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,10 @@ const props = defineProps<{
   loading: boolean
   initialFilter?: string
   initialMessagesFilter?: 'all' | 'invalid' | 'valid'
+  // 由父级注入的全局 source 分布；当前端只加载 top 200 session 时，
+  // 「全部工具」下拉框不应被 200 条 sample 限制。breakdown 来自后端 stats，
+  // 反映整个 DB 的真实 source 集合，避免低频 adapter（如 codex）被 200 条 fetch 漏掉。
+  breakdown?: StatsBreakdown | null
 }>()
 
 const emit = defineEmits<{
@@ -35,8 +39,15 @@ const pageSize = 20
 watch(() => props.initialFilter, (v) => { if (v) searchQuery.value = v })
 watch(() => props.initialMessagesFilter, (v) => { if (v) filterMessages.value = v })
 
+// 「全部工具」下拉框选项：
+// 优先从 breakdown.by_adapter 取全集（覆盖整个 DB）；
+// 兜底从当前 props.sessions 去重（保底，避免 breakdown 还没到时下拉框为空）。
 const adapterOptions = computed(() => {
-  const set = new Set(props.sessions.map(s => s.source))
+  const set = new Set<string>()
+  if (props.breakdown?.by_adapter) {
+    for (const k of Object.keys(props.breakdown.by_adapter)) set.add(k)
+  }
+  for (const s of props.sessions) set.add(s.source)
   return Array.from(set).sort()
 })
 
