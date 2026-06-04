@@ -20,6 +20,7 @@ import {
   Pencil,
   Cloud,
   Bot,
+  Sparkles,
 } from 'lucide-vue-next'
 import type { LlmProvider } from '@/types'
 
@@ -37,6 +38,7 @@ const loading = ref(false)
 
 const templates = [
   { name: 'OpenAI', kind: 'openai_compat', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', icon: Bot },
+  { name: 'DeepSeek', kind: 'openai_compat', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', icon: Sparkles },
   { name: 'Moonshot Kimi', kind: 'openai_compat', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', icon: Cloud },
   { name: 'SiliconFlow', kind: 'openai_compat', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-32B-Instruct', icon: Cloud },
   { name: 'Together AI', kind: 'openai_compat', baseUrl: 'https://api.together.xyz/v1', model: 'meta-llama/Llama-3.3-70B', icon: Cloud },
