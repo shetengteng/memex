@@ -86,14 +86,6 @@ export function useMemex() {
     return invoke<LlmTestResult>('llm_test_ollama')
   }
 
-  async function llmTestAnthropic(): Promise<LlmTestResult> {
-    return invoke<LlmTestResult>('llm_test_anthropic')
-  }
-
-  async function llmTestDeepseek(): Promise<LlmTestResult> {
-    return invoke<LlmTestResult>('llm_test_deepseek')
-  }
-
   async function llmProviderList(): Promise<LlmProvider[]> {
     return invoke<LlmProvider[]>('llm_provider_list')
   }
@@ -123,7 +115,7 @@ export function useMemex() {
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
     triggerIngest, cliStatus, cliInstall, cliUninstall,
-    llmTestOllama, llmTestAnthropic, llmTestDeepseek,
+    llmTestOllama,
     llmProviderList, llmProviderUpsert, llmProviderDelete,
     llmProviderTest, llmProviderTestDraft, llmListModels,
   }

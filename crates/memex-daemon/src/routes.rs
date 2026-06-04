@@ -210,7 +210,10 @@ pub async fn summary_stats(State(db): State<AppState>) -> impl IntoResponse {
 
     let memex_dir = memex_core::memex_dir();
     let config = memex_core::config::MemexConfig::load(&memex_dir).unwrap_or_default();
-    let provider = memex_core::llm::select_provider(&config.llm, &memex_dir)
+    // 用 *_unified 版本以便把 DB 中的自定义 provider（OpenAI/Anthropic/DeepSeek 等）
+    // 也算作「LLM 启用」，否则仅看 Ollama 的老配置会让有 DB provider 的用户
+    // 在 menubar 上看到「LLM 摘要 未配置」。
+    let provider = memex_core::llm::select_provider_unified(&db, &config.llm, &memex_dir)
         .map(|p| p.name().to_string());
 
     Json(serde_json::json!({
@@ -222,7 +225,6 @@ pub async fn summary_stats(State(db): State<AppState>) -> impl IntoResponse {
         "llm_provider": provider,
         "ollama_enabled": config.llm.ollama_enabled,
         "ollama_model": config.llm.ollama_model,
-        "cloud_fallback": config.llm.cloud_fallback,
     }))
 }
 

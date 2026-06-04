@@ -63,10 +63,8 @@ pub fn run(json: bool) -> Result<()> {
             }
             let llm = if config.llm.ollama_enabled {
                 "ollama"
-            } else if config.llm.cloud_fallback {
-                "cloud"
             } else {
-                "none"
+                "none (use Settings → LLM Providers to register one)"
             };
             println!("  llm: {}", llm);
         } else {

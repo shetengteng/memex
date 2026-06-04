@@ -37,7 +37,9 @@ pub async fn get_stats() -> Result<Stats, String> {
 
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     let config = MemexConfig::load(&dir).unwrap_or_default();
-    let provider_name = memex_core::llm::select_provider(&config.llm, &dir)
+    // 用 *_unified 版本，让 DB 中已注册的自定义 provider（DeepSeek/OpenAI/Anthropic 等）
+    // 也能在 dashboard 上显示「已启用」，而不仅看 LlmConfig 的 ollama 老开关。
+    let provider_name = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
         .map(|p| p.name().to_string());
 
     Ok(Stats {

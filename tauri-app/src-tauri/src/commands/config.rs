@@ -24,9 +24,6 @@ pub async fn get_config(key: String) -> Result<Option<String>, String> {
         "llm.ollama_enabled" => Some(config.llm.ollama_enabled.to_string()),
         "llm.ollama_url" => Some(config.llm.ollama_url.clone()),
         "llm.ollama_model" => Some(config.llm.ollama_model.clone()),
-        "llm.deepseek_enabled" => Some(config.llm.deepseek_enabled.to_string()),
-        "llm.deepseek_model" => Some(config.llm.deepseek_model.clone()),
-        "llm.cloud_fallback" => Some(config.llm.cloud_fallback.to_string()),
         "privacy.auto_redact" => Some(config.privacy.redaction_enabled.to_string()),
         "privacy.private_from_mcp" => Some(config.privacy.skip_private_sessions.to_string()),
         k if k.starts_with("adapter.") && k.ends_with(".enabled") => {
@@ -67,11 +64,8 @@ pub async fn set_config(key: String, value: String) -> Result<(), String> {
                 }
             }
         }
-        "llm.cloud_fallback" => config.llm.cloud_fallback = is_true,
         "llm.ollama_url" => config.llm.ollama_url = value.clone(),
         "llm.ollama_model" => config.llm.ollama_model = value.clone(),
-        "llm.deepseek_enabled" => config.llm.deepseek_enabled = is_true,
-        "llm.deepseek_model" => config.llm.deepseek_model = value.clone(),
         "privacy.auto_redact" => config.privacy.redaction_enabled = is_true,
         "privacy.private_from_mcp" => config.privacy.skip_private_sessions = is_true,
         _ => {

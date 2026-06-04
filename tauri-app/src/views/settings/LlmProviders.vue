@@ -16,8 +16,8 @@ import {
   Star,
   Check,
   X,
-  Sparkles,
   Server,
+  Pencil,
   Cloud,
   Bot,
 } from 'lucide-vue-next'
@@ -36,13 +36,11 @@ const providers = ref<LlmProvider[]>([])
 const loading = ref(false)
 
 const templates = [
-  { name: 'DeepSeek', kind: 'openai_compat', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', icon: Sparkles },
   { name: 'OpenAI', kind: 'openai_compat', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', icon: Bot },
   { name: 'Moonshot Kimi', kind: 'openai_compat', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', icon: Cloud },
   { name: 'SiliconFlow', kind: 'openai_compat', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-32B-Instruct', icon: Cloud },
   { name: 'Together AI', kind: 'openai_compat', baseUrl: 'https://api.together.xyz/v1', model: 'meta-llama/Llama-3.3-70B', icon: Cloud },
   { name: 'Groq', kind: 'openai_compat', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', icon: Cloud },
-  { name: 'Anthropic Claude', kind: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-haiku-4-5-20251001', icon: Bot },
   { name: 'Ollama Local', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: '', icon: Server },
 ]
 
@@ -325,7 +323,7 @@ function statusColor(status: string) {
             class="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
             @click="startEdit(p)"
           >
-            <span class="text-[10px]">Edit</span>
+            <Pencil class="h-3 w-3" />
           </Button>
           <Button
             variant="ghost"
@@ -364,7 +362,7 @@ function statusColor(status: string) {
       <div class="grid grid-cols-2 gap-2">
         <div class="space-y-1">
           <label class="text-[10px] font-medium">{{ t('settings.providers.name') }}</label>
-          <Input v-model="editing.name" placeholder="DeepSeek" class="h-7 text-xs" />
+          <Input v-model="editing.name" placeholder="OpenAI" class="h-7 text-xs" />
         </div>
         <div class="space-y-1">
           <label class="text-[10px] font-medium">{{ t('settings.providers.kind') }}</label>
@@ -414,7 +412,7 @@ function statusColor(status: string) {
             {{ t('settings.providers.fetch_models') }}
           </Button>
         </div>
-        <Input v-model="editing.model" placeholder="deepseek-chat / gpt-4o-mini" class="h-7 font-mono text-[10px]" />
+        <Input v-model="editing.model" placeholder="gpt-4o-mini / qwen2.5:7b" class="h-7 font-mono text-[10px]" />
         <div v-if="models.length > 0" class="flex flex-wrap gap-1 pt-0.5">
           <button
             v-for="m in models.slice(0, 12)"

@@ -53,8 +53,8 @@ struct ErrorDetail {
 
 const API_URL: &str = "https://api.anthropic.com/v1/messages";
 /// 默认走 Haiku 4.5 —— 跟 tars 对齐。摘要/分类这种低复杂度任务用 Haiku
-/// 比 Sonnet 便宜约 10 倍且足够好；用户可通过 `memex credentials set
-/// anthropic --model <model>` 显式覆盖。
+/// 比 Sonnet 便宜约 10 倍且足够好；用户在 Settings → LLM Providers
+/// 中创建 anthropic kind 的 provider 时可填写自定义 model 覆盖。
 const DEFAULT_MODEL: &str = "claude-haiku-4-5-20251001";
 
 impl AnthropicProvider {
@@ -79,25 +79,6 @@ impl AnthropicProvider {
                 model.to_string()
             },
         }
-    }
-
-    pub fn from_env() -> Option<Self> {
-        std::env::var("ANTHROPIC_API_KEY")
-            .ok()
-            .filter(|k| !k.is_empty())
-            .map(|k| Self::new(&k))
-    }
-
-    /// 优先从 `~/.memex/credentials.toml` 解析 API key，找不到则回退到
-    /// `ANTHROPIC_API_KEY` 环境变量。两边都拿不到可用 key 时返回 `None`。
-    pub fn from_credentials_or_env(memex_dir: &std::path::Path) -> Option<Self> {
-        let creds = super::credentials::Credentials::load(memex_dir).ok()?;
-        let key = creds.resolve_anthropic_key()?;
-        let mut provider = Self::new(&key);
-        if let Some(model) = creds.resolve_anthropic_model() {
-            provider = provider.with_model(&model);
-        }
-        Some(provider)
     }
 }
 

@@ -50,7 +50,6 @@ const adapterDefs: { key: string; label: string }[] = [
 
 const adapterEnabled = ref<Record<string, boolean>>({})
 const llmOllama = ref<boolean>(false)
-const llmCloud = ref<boolean>(false)
 
 // 折叠状态：Database/Adapters/LLM 默认全展开，让用户一打开 Status 就看到全部数据；
 // 不需要时手动折，保留状态。Daemon Card 不可折叠（永远是 hero）
@@ -92,10 +91,6 @@ onMounted(async () => {
   try {
     const v = await getConfig('llm.ollama_enabled')
     llmOllama.value = v === 'true'
-  } catch { /* default */ }
-  try {
-    const v = await getConfig('llm.cloud_fallback')
-    llmCloud.value = v === 'true'
   } catch { /* default */ }
 
   await probeDaemon()
@@ -160,7 +155,7 @@ const llmProviderLabel = computed(() =>
 
 const llmProviderTone = computed<Tone>(() => {
   if (stats.value.llm_provider) return 'success'
-  if (llmOllama.value || llmCloud.value) return 'warning'
+  if (llmOllama.value) return 'warning'
   return 'muted'
 })
 
@@ -388,16 +383,6 @@ const heroIcon = computed(() => {
                   {{ llmOllama ? t('common.enabled') : t('common.disabled') }}
                 </span>
               </div>
-              <!-- Cloud fallback -->
-              <div class="flex items-center justify-between rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
-                <span class="flex items-center gap-2 text-xs">
-                  <span class="inline-block h-2 w-2 shrink-0 rounded-full" :class="llmCloud ? dotClass.warning : dotClass.muted" />
-                  {{ t('status.llm.cloud') }}
-                </span>
-                <span class="text-xs" :class="llmCloud ? toneTextClass.warning : toneTextClass.muted">
-                  {{ llmCloud ? t('status.llm.cloud_on') : t('status.llm.cloud_off') }}
-                </span>
-              </div>
 
               <!-- 摘要计数 -->
               <p v-if="stats.llm_provider" class="mt-1 px-1 text-[10px] text-muted-foreground">
@@ -407,7 +392,6 @@ const heroIcon = computed(() => {
                 }) }}
               </p>
               <p v-else class="mt-1 px-1 text-[10px] text-muted-foreground">{{ t('status.llm.paused') }}</p>
-              <p v-if="llmCloud" class="px-1 text-[10px] italic text-muted-foreground">{{ t('status.llm.cloud_hint') }}</p>
             </div>
           </CollapsibleContent>
         </Card>

@@ -5,7 +5,6 @@ import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -25,9 +24,6 @@ import {
   Shield,
   Info,
   FlaskConical,
-  Eye,
-  EyeOff,
-  Save,
 } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
@@ -35,7 +31,7 @@ import type { CliStatus, LlmTestResult } from '@/types'
 import LlmProviders from './LlmProviders.vue'
 
 const { t, locale } = useI18n()
-const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, llmTestAnthropic, llmTestDeepseek } = useMemex()
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
@@ -119,23 +115,10 @@ const llm = ref({
   ollamaModel: 'qwen2.5:7b',
   ollamaAvailable: false,
   ollamaChecking: false,
-  deepseekEnabled: false,
-  claudeFallback: false,
 })
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 const ollamaTest = ref<{ state: TestState; latency: number; error: string }>({ state: 'idle', latency: 0, error: '' })
-const claudeTest = ref<{ state: TestState; latency: number; error: string; keySource: string }>({ state: 'idle', latency: 0, error: '', keySource: '' })
-const claudeApiKey = ref('')
-const claudeKeyVisible = ref(false)
-const claudeKeySaving = ref(false)
-const claudeKeySaved = ref(false)
-
-const deepseekTest = ref<{ state: TestState; latency: number; error: string; keySource: string }>({ state: 'idle', latency: 0, error: '', keySource: '' })
-const deepseekApiKey = ref('')
-const deepseekKeyVisible = ref(false)
-const deepseekKeySaving = ref(false)
-const deepseekKeySaved = ref(false)
 
 const ollamaLabel = computed(() =>
   t('settings.llm.ollama_label', { model: llm.value.ollamaModel }),
@@ -165,14 +148,6 @@ onMounted(async () => {
   try {
     const v = await getConfig('llm.ollama_enabled')
     if (v !== null) llm.value.ollamaEnabled = v === 'true'
-  } catch { /* default */ }
-  try {
-    const v = await getConfig('llm.deepseek_enabled')
-    if (v !== null) llm.value.deepseekEnabled = v === 'true'
-  } catch { /* default */ }
-  try {
-    const v = await getConfig('llm.cloud_fallback')
-    if (v !== null) llm.value.claudeFallback = v === 'true'
   } catch { /* default */ }
   try {
     const m = await getConfig('llm.ollama_model')
@@ -231,35 +206,6 @@ async function runOllamaTest() {
   }
 }
 
-async function runClaudeTest() {
-  claudeTest.value = { state: 'testing', latency: 0, error: '', keySource: '' }
-  try {
-    const r: LlmTestResult = await llmTestAnthropic()
-    if (r.ok) {
-      claudeTest.value = { state: 'ok', latency: r.latency_ms, error: '', keySource: r.key_source ?? '' }
-    } else {
-      claudeTest.value = { state: 'fail', latency: r.latency_ms, error: r.error ?? 'unknown', keySource: r.key_source ?? '' }
-    }
-  } catch (e) {
-    claudeTest.value = { state: 'fail', latency: 0, error: e instanceof Error ? e.message : String(e), keySource: '' }
-  }
-}
-
-async function saveClaudeApiKey() {
-  const key = claudeApiKey.value.trim()
-  if (!key) return
-  claudeKeySaving.value = true
-  try {
-    await invoke('save_anthropic_key', { apiKey: key })
-    claudeKeySaved.value = true
-    setTimeout(() => { claudeKeySaved.value = false }, 2000)
-  } catch (e) {
-    console.error('save api key failed:', e)
-  } finally {
-    claudeKeySaving.value = false
-  }
-}
-
 async function setPrivacy(field: 'autoRedact' | 'privateFromMcp', value: boolean) {
   if (privacy.value[field] === value) return
   const keyMap = { autoRedact: 'privacy.auto_redact', privateFromMcp: 'privacy.private_from_mcp' }
@@ -269,67 +215,6 @@ async function setPrivacy(field: 'autoRedact' | 'privateFromMcp', value: boolean
     await setConfig(keyMap[field], String(value))
   } catch {
     privacy.value[field] = prev
-  }
-}
-
-async function setDeepseek(value: boolean) {
-  if (llm.value.deepseekEnabled === value) return
-  llm.value.deepseekEnabled = value
-  try {
-    await setConfig('llm.deepseek_enabled', String(value))
-  } catch {
-    llm.value.deepseekEnabled = !value
-    return
-  }
-  if (value) {
-    await runDeepseekTest()
-  } else {
-    deepseekTest.value = { state: 'idle', latency: 0, error: '', keySource: '' }
-  }
-}
-
-async function runDeepseekTest() {
-  deepseekTest.value = { state: 'testing', latency: 0, error: '', keySource: '' }
-  try {
-    const r: LlmTestResult = await llmTestDeepseek()
-    if (r.ok) {
-      deepseekTest.value = { state: 'ok', latency: r.latency_ms, error: '', keySource: r.key_source ?? '' }
-    } else {
-      deepseekTest.value = { state: 'fail', latency: r.latency_ms, error: r.error ?? 'unknown', keySource: r.key_source ?? '' }
-    }
-  } catch (e) {
-    deepseekTest.value = { state: 'fail', latency: 0, error: e instanceof Error ? e.message : String(e), keySource: '' }
-  }
-}
-
-async function saveDeepseekApiKey() {
-  const key = deepseekApiKey.value.trim()
-  if (!key) return
-  deepseekKeySaving.value = true
-  try {
-    await invoke('save_deepseek_key', { apiKey: key })
-    deepseekKeySaved.value = true
-    setTimeout(() => { deepseekKeySaved.value = false }, 2000)
-  } catch (e) {
-    console.error('save deepseek key failed:', e)
-  } finally {
-    deepseekKeySaving.value = false
-  }
-}
-
-async function setCloudFallback(value: boolean) {
-  if (llm.value.claudeFallback === value) return
-  llm.value.claudeFallback = value
-  try {
-    await setConfig('llm.cloud_fallback', String(value))
-  } catch {
-    llm.value.claudeFallback = !value
-    return
-  }
-  if (value) {
-    await runClaudeTest()
-  } else {
-    claudeTest.value = { state: 'idle', latency: 0, error: '', keySource: '' }
   }
 }
 
@@ -505,7 +390,7 @@ async function recheckOllama() {
 
 <template>
   <div class="h-full space-y-3 overflow-y-auto px-3 py-3">
-    <!-- Card 1: 常用 — 语言 + LLM 状态 + Claude 兜底 -->
+    <!-- Card 1: 常用 — 语言 + Ollama 快捷开关 + 自定义 LLM Providers -->
     <Card>
       <CardHeader>
         <CardTitle class="flex items-center gap-1.5">
@@ -626,157 +511,10 @@ async function recheckOllama() {
                 <span>{{ t('settings.llm.ollama_missing.affected_reports') }}</span>
               </li>
             </ul>
-            <p v-if="llm.claudeFallback" class="mt-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
-              {{ t('settings.llm.ollama_missing.claude_fallback_hint') }}
-            </p>
-            <p v-else class="mt-1.5 text-[11px] italic text-muted-foreground">
-              {{ t('settings.llm.ollama_missing.claude_fallback_suggest') }}
+            <p class="mt-1.5 text-[11px] italic text-muted-foreground">
+              {{ t('settings.llm.ollama_missing.provider_suggest') }}
             </p>
           </div>
-        </div>
-
-        <!-- LLM: DeepSeek -->
-        <div class="flex items-center justify-between border-t border-border/40 py-2">
-          <span class="flex items-center gap-2 text-sm">
-            <span class="inline-block h-2 w-2 rounded-full" :class="llm.deepseekEnabled ? 'bg-success' : 'bg-muted-foreground'" />
-            {{ t('settings.llm.deepseek') }}
-          </span>
-          <div class="flex items-center gap-2">
-            <Button
-              v-if="llm.deepseekEnabled"
-              variant="ghost"
-              size="sm"
-              class="h-6 gap-1 px-2 text-xs"
-              :disabled="deepseekTest.state === 'testing'"
-              @click="runDeepseekTest"
-            >
-              <FlaskConical class="h-3 w-3" :class="deepseekTest.state === 'testing' ? 'animate-pulse' : ''" />
-              {{ deepseekTest.state === 'testing' ? t('settings.llm.testing') : t('settings.llm.test') }}
-            </Button>
-            <Switch
-              :model-value="llm.deepseekEnabled"
-              class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
-              @update:model-value="(v: boolean) => setDeepseek(v)"
-            />
-          </div>
-        </div>
-        <!-- DeepSeek test result -->
-        <div
-          v-if="deepseekTest.state === 'ok'"
-          class="mb-1 flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[11px] text-emerald-600 dark:text-emerald-400"
-        >
-          <CheckCircle2 class="h-3 w-3 shrink-0" />
-          <span>{{ t('settings.llm.test_ok', { ms: deepseekTest.latency }) }}</span>
-          <span v-if="deepseekTest.keySource" class="ml-1 text-muted-foreground">{{ t('settings.llm.claude_key_source', { source: deepseekTest.keySource }) }}</span>
-        </div>
-        <div
-          v-else-if="deepseekTest.state === 'fail'"
-          class="mb-1 flex items-start gap-1.5 rounded-md border border-red-500/30 bg-red-500/5 px-2 py-1.5 text-[11px] text-red-600 dark:text-red-400"
-        >
-          <AlertCircle class="mt-0.5 h-3 w-3 shrink-0" />
-          <span class="break-all leading-snug">{{ t('settings.llm.test_fail', { err: deepseekTest.error }) }}</span>
-        </div>
-        <!-- DeepSeek API key input -->
-        <div v-if="llm.deepseekEnabled" class="mb-1 flex items-center gap-1.5 border-t border-border/40 pt-2">
-          <span class="shrink-0 text-xs text-muted-foreground">{{ t('settings.llm.deepseek_api_key') }}</span>
-          <div class="relative flex-1">
-            <Input
-              v-model="deepseekApiKey"
-              :type="deepseekKeyVisible ? 'text' : 'password'"
-              :placeholder="t('settings.llm.deepseek_api_key_placeholder')"
-              class="h-7 pr-7 text-xs"
-            />
-            <button
-              class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              @click="deepseekKeyVisible = !deepseekKeyVisible"
-            >
-              <Eye v-if="!deepseekKeyVisible" class="h-3.5 w-3.5" />
-              <EyeOff v-else class="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 shrink-0 gap-1 px-2 text-xs"
-            :disabled="!deepseekApiKey.trim() || deepseekKeySaving"
-            @click="saveDeepseekApiKey"
-          >
-            <Save v-if="!deepseekKeySaved" class="h-3 w-3" />
-            <CheckCircle2 v-else class="h-3 w-3 text-success" />
-            {{ deepseekKeySaved ? t('settings.llm.claude_api_key_saved') : t('common.save') }}
-          </Button>
-        </div>
-
-        <!-- LLM: Claude 兜底 -->
-        <div class="flex items-center justify-between border-t border-border/40 py-2">
-          <span class="flex items-center gap-2 text-sm">
-            <span class="inline-block h-2 w-2 rounded-full" :class="llm.claudeFallback ? 'bg-success' : 'bg-muted-foreground'" />
-            {{ t('settings.llm.claude_fallback') }}
-          </span>
-          <div class="flex items-center gap-2">
-            <Button
-              v-if="llm.claudeFallback"
-              variant="ghost"
-              size="sm"
-              class="h-6 gap-1 px-2 text-xs"
-              :disabled="claudeTest.state === 'testing'"
-              @click="runClaudeTest"
-            >
-              <FlaskConical class="h-3 w-3" :class="claudeTest.state === 'testing' ? 'animate-pulse' : ''" />
-              {{ claudeTest.state === 'testing' ? t('settings.llm.testing') : t('settings.llm.test') }}
-            </Button>
-            <Switch
-              :model-value="llm.claudeFallback"
-              class="h-6 w-10 [&_>span]:h-5 [&_>span]:w-5 [&[data-state=checked]_>span]:translate-x-4"
-              @update:model-value="(v: boolean) => setCloudFallback(v)"
-            />
-          </div>
-        </div>
-        <!-- Claude test result -->
-        <div
-          v-if="claudeTest.state === 'ok'"
-          class="mb-1 flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[11px] text-emerald-600 dark:text-emerald-400"
-        >
-          <CheckCircle2 class="h-3 w-3 shrink-0" />
-          <span>{{ t('settings.llm.test_ok', { ms: claudeTest.latency }) }}</span>
-          <span v-if="claudeTest.keySource" class="ml-1 text-muted-foreground">{{ t('settings.llm.claude_key_source', { source: claudeTest.keySource }) }}</span>
-        </div>
-        <div
-          v-else-if="claudeTest.state === 'fail'"
-          class="mb-1 flex items-start gap-1.5 rounded-md border border-red-500/30 bg-red-500/5 px-2 py-1.5 text-[11px] text-red-600 dark:text-red-400"
-        >
-          <AlertCircle class="mt-0.5 h-3 w-3 shrink-0" />
-          <span class="break-all leading-snug">{{ t('settings.llm.test_fail', { err: claudeTest.error }) }}</span>
-        </div>
-        <!-- Claude API key input -->
-        <div v-if="llm.claudeFallback" class="mb-1 flex items-center gap-1.5 border-t border-border/40 pt-2">
-          <span class="shrink-0 text-xs text-muted-foreground">{{ t('settings.llm.claude_api_key') }}</span>
-          <div class="relative flex-1">
-            <Input
-              v-model="claudeApiKey"
-              :type="claudeKeyVisible ? 'text' : 'password'"
-              :placeholder="t('settings.llm.claude_api_key_placeholder')"
-              class="h-7 pr-7 text-xs"
-            />
-            <button
-              class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              @click="claudeKeyVisible = !claudeKeyVisible"
-            >
-              <Eye v-if="!claudeKeyVisible" class="h-3.5 w-3.5" />
-              <EyeOff v-else class="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 shrink-0 gap-1 px-2 text-xs"
-            :disabled="!claudeApiKey.trim() || claudeKeySaving"
-            @click="saveClaudeApiKey"
-          >
-            <Save v-if="!claudeKeySaved" class="h-3 w-3" />
-            <CheckCircle2 v-else class="h-3 w-3 text-success" />
-            {{ claudeKeySaved ? t('settings.llm.claude_api_key_saved') : t('common.save') }}
-          </Button>
         </div>
 
         <!-- Custom LLM Providers -->

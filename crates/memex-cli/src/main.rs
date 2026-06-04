@@ -105,11 +105,6 @@ enum Commands {
         #[command(subcommand)]
         action: DaemonAction,
     },
-    /// 管理云端 LLM 凭证（`~/.memex/credentials.toml`，权限 0600）
-    Credentials {
-        #[command(subcommand)]
-        action: CredentialsAction,
-    },
 }
 
 #[derive(Subcommand)]
@@ -128,27 +123,6 @@ enum DaemonAction {
     Stop,
     /// 显示 daemon 状态
     Status,
-}
-
-#[derive(Subcommand)]
-enum CredentialsAction {
-    /// 为某个云端 LLM 提供方设置 API key（以及可选 model）
-    Set {
-        /// 提供方名称。当前支持：anthropic
-        provider: String,
-        /// API key 值
-        api_key: String,
-        /// 覆盖默认 model
-        #[arg(long)]
-        model: Option<String>,
-    },
-    /// 显示当前已配置的提供方
-    Show,
-    /// 清除某个提供方的凭证
-    Clear {
-        /// 提供方名称。当前支持：anthropic
-        provider: String,
-    },
 }
 
 fn main() -> Result<()> {
@@ -283,23 +257,6 @@ fn main() -> Result<()> {
             DaemonAction::Start => commands::daemon::start(cli.json),
             DaemonAction::Stop => commands::daemon::stop(cli.json),
             DaemonAction::Status => commands::daemon::status(cli.json),
-        },
-        Commands::Credentials { action } => match action {
-            CredentialsAction::Set { provider, api_key, model } => match provider.as_str() {
-                "anthropic" => commands::credentials::set_anthropic(&api_key, model, cli.json),
-                other => {
-                    eprintln!("不支持的凭证提供方：{}（支持的有：anthropic）", other);
-                    Ok(())
-                }
-            },
-            CredentialsAction::Show => commands::credentials::show(cli.json),
-            CredentialsAction::Clear { provider } => match provider.as_str() {
-                "anthropic" => commands::credentials::clear_anthropic(cli.json),
-                other => {
-                    eprintln!("不支持的凭证提供方：{}（支持的有：anthropic）", other);
-                    Ok(())
-                }
-            },
         },
     }
 }
