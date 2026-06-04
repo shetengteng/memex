@@ -207,3 +207,39 @@ export interface ReflectRunResult {
   patterns: string[]
   open_loops: string[]
 }
+
+export interface WorkloadHeatmapCell {
+  weekday: number // 0=Mon, 6=Sun
+  hour: number // 0..23
+  sessions: number
+  messages: number
+}
+
+export interface WorkloadBucket {
+  key: string
+  sessions: number
+  messages: number
+}
+
+export interface WorkloadProjectBucket {
+  project_path: string
+  name: string
+  sessions: number
+  messages: number
+}
+
+export interface WorkloadOverall {
+  sessions: number
+  messages: number
+  active_days: number
+  peak_day: string | null
+  peak_day_sessions: number
+}
+
+export interface WorkloadReport {
+  days: number
+  heatmap: WorkloadHeatmapCell[]
+  by_adapter: WorkloadBucket[]
+  by_project: WorkloadProjectBucket[]
+  overall: WorkloadOverall
+}

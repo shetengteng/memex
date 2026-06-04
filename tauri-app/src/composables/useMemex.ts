@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -126,6 +126,10 @@ export function useMemex() {
     return invoke<ReflectRunResult>('reflect_run', { period })
   }
 
+  async function getWorkload(days = 30): Promise<WorkloadReport> {
+    return invoke<WorkloadReport>('get_workload', { days })
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
@@ -135,5 +139,6 @@ export function useMemex() {
     llmProviderList, llmProviderUpsert, llmProviderDelete,
     llmProviderTest, llmProviderTestDraft, llmListModels,
     reflectList, reflectGet, reflectRun,
+    getWorkload,
   }
 }

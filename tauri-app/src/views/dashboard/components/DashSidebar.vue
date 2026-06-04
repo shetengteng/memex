@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { LayoutDashboard, List, Search, FolderOpen, Newspaper, Lightbulb } from 'lucide-vue-next'
+import { LayoutDashboard, List, Search, FolderOpen, Newspaper, Lightbulb, Activity } from 'lucide-vue-next'
 import { useI18n } from '@/i18n'
 
-export type DashTab = 'overview' | 'sessions' | 'projects' | 'reports' | 'reflect' | 'search' | 'session-detail'
+export type DashTab = 'overview' | 'sessions' | 'projects' | 'reports' | 'reflect' | 'workload' | 'search' | 'session-detail'
 
 defineProps<{ activeTab: DashTab }>()
 const emit = defineEmits<{ switchTab: [tab: DashTab] }>()
@@ -16,6 +16,7 @@ const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: s
   { key: 'projects', icon: FolderOpen, label: t('dashboard.nav.projects') },
   { key: 'reports', icon: Newspaper, label: t('dashboard.nav.reports') },
   { key: 'reflect', icon: Lightbulb, label: t('dashboard.nav.reflect') },
+  { key: 'workload', icon: Activity, label: t('dashboard.nav.workload') },
   { key: 'search', icon: Search, label: t('dashboard.nav.search') },
 ])
 </script>

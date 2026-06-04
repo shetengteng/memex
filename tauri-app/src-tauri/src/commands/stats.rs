@@ -1,7 +1,7 @@
 use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
-use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
+use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry, WorkloadReport};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -89,4 +89,33 @@ pub async fn list_projects() -> Result<Vec<ProjectSummary>, String> {
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     db.list_project_summaries().map_err(|e| e.to_string())
+}
+
+/// 给 Dashboard Workload tab 用：一次性返回热力图 + adapter 饼图 + 项目 top10。
+/// `days` 留空默认 30；前端可传 7 / 14 / 30 / 90。
+#[tauri::command]
+pub async fn get_workload(days: Option<u32>) -> Result<WorkloadReport, String> {
+    let db_path = memex_dir().join("memex.db");
+    let days = days.unwrap_or(30).clamp(1, 365);
+    if !db_path.exists() {
+        return Ok(WorkloadReport {
+            days,
+            heatmap: vec![],
+            by_adapter: vec![],
+            by_project: vec![],
+            overall: memex_core::storage::queries::WorkloadOverall {
+                sessions: 0,
+                messages: 0,
+                active_days: 0,
+                peak_day: None,
+                peak_day_sessions: 0,
+            },
+        });
+    }
+    tokio::task::spawn_blocking(move || {
+        let db = Db::open(&memex_dir().join("memex.db")).map_err(|e| e.to_string())?;
+        db.workload_report(days).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
 }

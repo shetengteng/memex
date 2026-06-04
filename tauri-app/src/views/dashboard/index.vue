@@ -11,6 +11,7 @@ import SessionsTab from './components/SessionsTab.vue'
 import ProjectsTab from './components/ProjectsTab.vue'
 import ReportsTab from './components/ReportsTab.vue'
 import ReflectTab from './components/ReflectTab.vue'
+import WorkloadTab from './components/WorkloadTab.vue'
 import SearchTab from './components/SearchTab.vue'
 import SessionDetailTab from './components/SessionDetailTab.vue'
 import type { DashTab } from './components/DashSidebar.vue'
@@ -156,6 +157,7 @@ onUnmounted(() => {
         <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
         <ReportsTab v-else-if="tab === 'reports'" />
         <ReflectTab v-else-if="tab === 'reflect'" />
+        <WorkloadTab v-else-if="tab === 'workload'" />
         <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
         <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" @refresh-session="openSessionDetail" />
       </div>

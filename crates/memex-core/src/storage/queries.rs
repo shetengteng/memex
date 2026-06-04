@@ -59,6 +59,58 @@ pub struct ProjectSummary {
     pub by_adapter: std::collections::BTreeMap<String, i64>,
 }
 
+/// Workload 分析数据，对应 Dashboard 的 Workload tab。
+/// 所有计数仅覆盖过去 `days` 天（前端选 7/30 等）。
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadReport {
+    /// 整个时间窗的天数
+    pub days: u32,
+    /// 时间窗内每个 (weekday, hour) 桶的 session 数（168 个），
+    /// 用于渲染 24h × 7-weekday 热力图。weekday=0 即周一（ISO 风格）。
+    pub heatmap: Vec<WorkloadHeatmapCell>,
+    /// 按 adapter 聚合的 session 数（饼图）
+    pub by_adapter: Vec<WorkloadBucket>,
+    /// 工作量最大的项目（条形图），top 10
+    pub by_project: Vec<WorkloadProjectBucket>,
+    /// 整体高总览：会话总数、消息总数、活跃天数、peak day 描述
+    pub overall: WorkloadOverall,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadHeatmapCell {
+    pub weekday: u8, // 0=Mon ... 6=Sun
+    pub hour: u8,    // 0..24
+    pub sessions: i64,
+    pub messages: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadBucket {
+    pub key: String,
+    pub sessions: i64,
+    pub messages: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadProjectBucket {
+    /// 完整 project_path，方便点击跳转
+    pub project_path: String,
+    /// path 的最后一段，UI 直接显示
+    pub name: String,
+    pub sessions: i64,
+    pub messages: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadOverall {
+    pub sessions: i64,
+    pub messages: i64,
+    pub active_days: i64,
+    /// 这个时间窗里 sessions 最多的那一天（YYYY-MM-DD），可能为空
+    pub peak_day: Option<String>,
+    pub peak_day_sessions: i64,
+}
+
 impl Db {
     pub fn write_access_log(
         &self,
@@ -291,6 +343,148 @@ impl Db {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    /// 生成 Workload 报告 — 一次性聚合给 Dashboard Workload tab。
+    /// 注意：所有维度都基于 sessions 表的 updated_at（最后活动时间）和
+    /// message_count 字段，避免触碰 messages 表（量大且 timestamp 可能为空）。
+    pub fn workload_report(&self, days: u32) -> Result<WorkloadReport> {
+        let conn = self.conn.lock().unwrap();
+        let offset = format!("-{days} days");
+
+        // 1) 热力图：168 桶（weekday × hour），按 sessions 计数
+        //    SQLite 的 strftime('%w') 返回 0=Sunday..6=Saturday，
+        //    转成 ISO 风格 0=Mon..6=Sun 需要 (w + 6) % 7。
+        let mut heat_stmt = conn.prepare(
+            "SELECT
+                (CAST(strftime('%w', updated_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
+                CAST(strftime('%H', updated_at, 'localtime') AS INTEGER) AS hour,
+                COUNT(*) as sessions,
+                COALESCE(SUM(message_count), 0) as msgs
+             FROM sessions
+             WHERE updated_at >= DATE('now', 'localtime', ?1)
+             GROUP BY weekday, hour",
+        )?;
+        let heat_rows: Vec<WorkloadHeatmapCell> = heat_stmt
+            .query_map(params![offset.clone()], |row| {
+                let w: i64 = row.get(0)?;
+                let h: i64 = row.get(1)?;
+                Ok(WorkloadHeatmapCell {
+                    weekday: w.clamp(0, 6) as u8,
+                    hour: h.clamp(0, 23) as u8,
+                    sessions: row.get(2)?,
+                    messages: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // 2) 按 adapter 聚合
+        let mut adp_stmt = conn.prepare(
+            "SELECT source, COUNT(*) as sessions, COALESCE(SUM(message_count), 0) as msgs
+             FROM sessions
+             WHERE updated_at >= DATE('now', 'localtime', ?1)
+             GROUP BY source
+             ORDER BY sessions DESC",
+        )?;
+        let by_adapter: Vec<WorkloadBucket> = adp_stmt
+            .query_map(params![offset.clone()], |row| {
+                Ok(WorkloadBucket {
+                    key: row.get(0)?,
+                    sessions: row.get(1)?,
+                    messages: row.get(2)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // 3) 按 project 聚合 top 10。project_path NULL/空时归到 (no project) 桶里。
+        let mut proj_stmt = conn.prepare(
+            "SELECT COALESCE(NULLIF(project_path, ''), '(no project)') as project_path,
+                    COUNT(*) as sessions,
+                    COALESCE(SUM(message_count), 0) as msgs
+             FROM sessions
+             WHERE updated_at >= DATE('now', 'localtime', ?1)
+             GROUP BY project_path
+             ORDER BY sessions DESC
+             LIMIT 10",
+        )?;
+        let by_project: Vec<WorkloadProjectBucket> = proj_stmt
+            .query_map(params![offset.clone()], |row| {
+                let path: String = row.get(0)?;
+                let name = path
+                    .rsplit('/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or(path.as_str())
+                    .to_string();
+                Ok(WorkloadProjectBucket {
+                    project_path: path,
+                    name,
+                    sessions: row.get(1)?,
+                    messages: row.get(2)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // 4) 整体汇总
+        let (sessions, messages, active_days, peak_day, peak_day_sessions): (
+            i64,
+            i64,
+            i64,
+            Option<String>,
+            i64,
+        ) = {
+            let total: (i64, i64) = conn
+                .query_row(
+                    "SELECT COUNT(*), COALESCE(SUM(message_count), 0) FROM sessions
+                     WHERE updated_at >= DATE('now', 'localtime', ?1)",
+                    params![offset.clone()],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap_or((0, 0));
+
+            let active_days: i64 = conn
+                .query_row(
+                    "SELECT COUNT(DISTINCT DATE(updated_at, 'localtime')) FROM sessions
+                     WHERE updated_at >= DATE('now', 'localtime', ?1)",
+                    params![offset.clone()],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let peak: Option<(String, i64)> = conn
+                .query_row(
+                    "SELECT DATE(updated_at, 'localtime') as d, COUNT(*) as c
+                     FROM sessions
+                     WHERE updated_at >= DATE('now', 'localtime', ?1)
+                     GROUP BY d
+                     ORDER BY c DESC
+                     LIMIT 1",
+                    params![offset.clone()],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .ok();
+            let (peak_day, peak_day_sessions) = match peak {
+                Some((d, c)) => (Some(d), c),
+                None => (None, 0),
+            };
+            (total.0, total.1, active_days, peak_day, peak_day_sessions)
+        };
+
+        Ok(WorkloadReport {
+            days,
+            heatmap: heat_rows,
+            by_adapter,
+            by_project,
+            overall: WorkloadOverall {
+                sessions,
+                messages,
+                active_days,
+                peak_day,
+                peak_day_sessions,
+            },
+        })
+    }
 }
 
 #[cfg(test)]
@@ -327,5 +521,116 @@ mod tests {
         assert!(db.schema_version().unwrap().is_some());
         assert_eq!(db.source_count().unwrap(), 0);
         assert!(db.adapter_statuses().unwrap().is_empty());
+    }
+
+    /// 直接插入 session 行（绕过 insert_message 的 updated_at 改写），
+    /// 让 workload_report 在固定时间上做断言。
+    fn ws_seed_session(
+        db: &Db,
+        id: &str,
+        source: &str,
+        project_path: Option<&str>,
+        updated_at: &str,
+        message_count: i64,
+    ) {
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)",
+            params![id, source, project_path, format!("/tmp/{id}.jsonl"), updated_at, message_count],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_workload_report_empty() {
+        let db = Db::open_in_memory().unwrap();
+        let r = db.workload_report(7).unwrap();
+        assert_eq!(r.days, 7);
+        assert_eq!(r.overall.sessions, 0);
+        assert_eq!(r.overall.active_days, 0);
+        assert!(r.by_adapter.is_empty());
+        assert!(r.by_project.is_empty());
+        assert!(r.heatmap.is_empty());
+        assert!(r.overall.peak_day.is_none());
+    }
+
+    #[test]
+    fn test_workload_report_aggregations() {
+        let db = Db::open_in_memory().unwrap();
+        // 用今天的本地时间，避免 cutoff (DATE('now','localtime','-N days')) 把数据剪掉。
+        let now = chrono::Local::now();
+        let today = now.format("%Y-%m-%d").to_string();
+        let yesterday = (now - chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
+
+        // 4 个 session：
+        //   2 个 claude_code @ /a (今天)
+        //   1 个 cursor      @ /a (昨天)
+        //   1 个 cursor      @ /b (今天)
+        ws_seed_session(
+            &db,
+            "s1",
+            "claude_code",
+            Some("/a"),
+            &format!("{today}T10:00:00+08:00"),
+            10,
+        );
+        ws_seed_session(
+            &db,
+            "s2",
+            "claude_code",
+            Some("/a"),
+            &format!("{today}T15:00:00+08:00"),
+            20,
+        );
+        ws_seed_session(
+            &db,
+            "s3",
+            "cursor",
+            Some("/a"),
+            &format!("{yesterday}T11:00:00+08:00"),
+            30,
+        );
+        ws_seed_session(
+            &db,
+            "s4",
+            "cursor",
+            Some("/b"),
+            &format!("{today}T09:00:00+08:00"),
+            5,
+        );
+
+        let r = db.workload_report(30).unwrap();
+        assert_eq!(r.overall.sessions, 4);
+        assert_eq!(r.overall.messages, 65);
+        assert!(r.overall.active_days >= 1);
+
+        let cc = r.by_adapter.iter().find(|b| b.key == "claude_code").unwrap();
+        assert_eq!(cc.sessions, 2);
+        assert_eq!(cc.messages, 30);
+
+        let proj_a = r.by_project.iter().find(|p| p.project_path == "/a").unwrap();
+        assert_eq!(proj_a.sessions, 3);
+        assert_eq!(proj_a.name, "a");
+
+        assert!(!r.heatmap.is_empty(), "heatmap should contain at least one cell");
+        for cell in &r.heatmap {
+            assert!(cell.weekday <= 6);
+            assert!(cell.hour <= 23);
+        }
+    }
+
+    #[test]
+    fn test_workload_report_excludes_old_sessions() {
+        let db = Db::open_in_memory().unwrap();
+        // 一个 100 天前的 session 不应该出现在 30 天窗口里
+        let old = (chrono::Local::now() - chrono::Duration::days(100))
+            .format("%Y-%m-%dT%H:%M:%S+08:00")
+            .to_string();
+        ws_seed_session(&db, "old", "cursor", Some("/old"), &old, 1);
+        let r = db.workload_report(30).unwrap();
+        assert_eq!(r.overall.sessions, 0);
     }
 }

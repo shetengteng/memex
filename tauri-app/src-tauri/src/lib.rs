@@ -199,6 +199,7 @@ pub fn run() {
             commands::reflect_list,
             commands::reflect_get,
             commands::reflect_run,
+            commands::get_workload,
             commands::check_for_updates,
             commands::llm_test_ollama,
             commands::llm_provider_list,
