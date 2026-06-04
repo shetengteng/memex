@@ -6,6 +6,14 @@ import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Card, CardContent } from '@/components/ui/card'
 
 const { t } = useI18n()
 const { reflectList, reflectGet, reflectRun } = useMemex()
@@ -153,13 +161,14 @@ onMounted(loadList)
 
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs text-muted-foreground">{{ t('reflect.run.period_label') }}</span>
-        <select
-          v-model="period"
-          class="h-8 rounded-md border border-input bg-background px-2 text-xs"
-          :disabled="running"
-        >
-          <option v-for="opt in periodOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
+        <Select v-model="period" :disabled="running">
+          <SelectTrigger class="h-8 w-[160px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="opt in periodOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="sm" class="h-8 gap-1.5" :disabled="running" @click="runReflect">
           <RefreshCw class="h-3 w-3" :class="running ? 'animate-spin' : ''" />
           {{ running ? t('reflect.run.running') : t('reflect.run.button') }}
@@ -167,10 +176,12 @@ onMounted(loadList)
         <span v-if="running" class="text-[11px] text-muted-foreground italic">{{ t('reflect.run.hint_long_task') }}</span>
       </div>
 
-      <div v-if="runError" class="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-        <AlertCircle class="mr-1 inline h-3 w-3" />
-        {{ runError }}
-      </div>
+      <Card v-if="runError" class="mt-2 border-destructive/30 bg-destructive/5">
+        <CardContent class="px-3 py-2 text-xs text-destructive">
+          <AlertCircle class="mr-1 inline h-3 w-3" />
+          {{ runError }}
+        </CardContent>
+      </Card>
       <div v-else-if="lastRunResult" class="mt-2 text-xs text-success">
         {{ t('reflect.run.done', { label: lastRunResult.period_label }) }}
       </div>
@@ -202,21 +213,27 @@ onMounted(loadList)
         </Button>
       </div>
 
-      <div v-if="loadingList && entries.length === 0" class="flex items-center justify-center rounded-lg border border-border bg-card py-12 text-xs text-muted-foreground">
-        <RefreshCw class="mr-2 h-3 w-3 animate-spin" />
-        {{ t('reflect.list.loading') }}
-      </div>
+      <Card v-if="loadingList && entries.length === 0">
+        <CardContent class="flex items-center justify-center py-12 text-xs text-muted-foreground">
+          <RefreshCw class="mr-2 h-3 w-3 animate-spin" />
+          {{ t('reflect.list.loading') }}
+        </CardContent>
+      </Card>
 
-      <div v-else-if="listError" class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-        <AlertCircle class="mr-1 inline h-3 w-3" />
-        {{ listError }}
-      </div>
+      <Card v-else-if="listError" class="border-destructive/30 bg-destructive/5">
+        <CardContent class="px-3 py-2 text-xs text-destructive">
+          <AlertCircle class="mr-1 inline h-3 w-3" />
+          {{ listError }}
+        </CardContent>
+      </Card>
 
-      <div v-else-if="entries.length === 0" class="rounded-lg border border-dashed border-border px-4 py-12 text-center">
-        <Lightbulb class="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-        <p class="text-sm text-muted-foreground">{{ t('reflect.list.empty') }}</p>
-        <p class="mt-1 text-[11px] text-muted-foreground italic">{{ t('reflect.list.empty_hint') }}</p>
-      </div>
+      <Card v-else-if="entries.length === 0" class="border-dashed">
+        <CardContent class="px-4 py-12 text-center">
+          <Lightbulb class="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+          <p class="text-sm text-muted-foreground">{{ t('reflect.list.empty') }}</p>
+          <p class="mt-1 text-[11px] text-muted-foreground italic">{{ t('reflect.list.empty_hint') }}</p>
+        </CardContent>
+      </Card>
 
       <div v-else class="overflow-hidden rounded-lg border border-border">
         <button

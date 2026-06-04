@@ -236,8 +236,15 @@ export interface WorkloadOverall {
   peak_day_sessions: number
 }
 
+export interface WorkloadDailyEntry {
+  date: string // YYYY-MM-DD
+  sessions: number
+  messages: number
+}
+
 export interface WorkloadReport {
   days: number
+  daily: WorkloadDailyEntry[]
   heatmap: WorkloadHeatmapCell[]
   by_adapter: WorkloadBucket[]
   by_project: WorkloadProjectBucket[]

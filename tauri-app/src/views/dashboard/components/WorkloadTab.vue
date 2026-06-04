@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { WorkloadReport, WorkloadHeatmapCell, WorkloadBucket, WorkloadProjectBucket } from '@/types'
+import type { WorkloadReport, WorkloadHeatmapCell, WorkloadBucket, WorkloadProjectBucket, WorkloadDailyEntry } from '@/types'
 
 const { t } = useI18n()
 const { getWorkload } = useMemex()
@@ -88,6 +88,97 @@ function heatColor(sessions: number): string {
   const opacity = Math.max(0.12, Math.min(1, t))
   return `hsl(217 91% 60% / ${opacity})`
 }
+
+// ---- 日历视图（GitHub 贡献图风格） ----
+// 列 = 周，行 = weekday(Mon..Sun)，每格 = 一天
+
+function localDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function toIsoWeekday(d: Date): number {
+  // JS: 0=Sunday..6=Saturday → ISO 0=Monday..6=Sunday
+  return (d.getDay() + 6) % 7
+}
+
+interface CalendarCell {
+  date: string
+  inRange: boolean
+  sessions: number
+  messages: number
+}
+
+// 返回 { columns: CalendarCell[7][], monthLabels: { col, label }[] }
+const calendarData = computed(() => {
+  if (!report.value) return { columns: [] as CalendarCell[][], monthLabels: [] as { col: number; label: string }[] }
+  const days = report.value.days
+  const map = new Map<string, WorkloadDailyEntry>()
+  for (const d of report.value.daily) map.set(d.date, d)
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const rangeStart = new Date(today)
+  rangeStart.setDate(today.getDate() - (days - 1))
+
+  // 把 grid 起点拉到 rangeStart 所在的周一，让每列都是完整的 7 天
+  const gridStart = new Date(rangeStart)
+  gridStart.setDate(gridStart.getDate() - toIsoWeekday(gridStart))
+
+  const columns: CalendarCell[][] = []
+  const monthLabels: { col: number; label: string }[] = []
+  const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short' })
+
+  const cursor = new Date(gridStart)
+  let col = 0
+  let lastMonth = -1
+  while (cursor <= today) {
+    const week: CalendarCell[] = []
+    for (let w = 0; w < 7; w++) {
+      const key = localDateKey(cursor)
+      const entry = map.get(key)
+      const inRange = cursor >= rangeStart && cursor <= today
+      week.push({
+        date: key,
+        inRange,
+        sessions: inRange ? (entry?.sessions ?? 0) : 0,
+        messages: inRange ? (entry?.messages ?? 0) : 0,
+      })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    // 这一周第一天的月份，若变化则放一个月份标签
+    const colStart = new Date(gridStart)
+    colStart.setDate(gridStart.getDate() + col * 7)
+    if (colStart.getMonth() !== lastMonth) {
+      monthLabels.push({ col, label: monthFmt.format(colStart) })
+      lastMonth = colStart.getMonth()
+    }
+    columns.push(week)
+    col++
+  }
+  return { columns, monthLabels }
+})
+
+const calendarMax = computed(() => {
+  if (!report.value) return 0
+  return report.value.daily.reduce((m, d) => Math.max(m, d.sessions), 0)
+})
+
+function calendarColor(cell: CalendarCell): string {
+  if (!cell.inRange) return 'transparent'
+  if (cell.sessions <= 0) return 'hsl(220 9% 90% / 0.4)' // 空格子：极淡的灰
+  if (calendarMax.value <= 0) return 'transparent'
+  const t = Math.log1p(cell.sessions) / Math.log1p(calendarMax.value)
+  const opacity = Math.max(0.18, Math.min(1, t))
+  return `hsl(217 91% 60% / ${opacity})`
+}
+
+const calendarHasData = computed(() => {
+  if (!report.value) return false
+  return report.value.daily.length > 0
+})
 
 const adapterTotal = computed(() => {
   if (!report.value) return 0
@@ -230,7 +321,79 @@ function onRangeUpdate(val: unknown) {
         </Card>
       </section>
 
-      <!-- Heatmap -->
+      <!-- Calendar (GitHub-style) -->
+      <Card>
+        <CardHeader>
+          <CardTitle>{{ t('workload.calendar.title') }}</CardTitle>
+          <p class="text-xs text-muted-foreground">{{ t('workload.calendar.subtitle', { n: report.days }) }}</p>
+        </CardHeader>
+        <CardContent>
+          <div v-if="!calendarHasData" class="py-6 text-center text-sm text-muted-foreground">
+            {{ t('workload.calendar.empty') }}
+          </div>
+          <div v-else class="space-y-1.5">
+            <div class="overflow-x-auto">
+              <table class="text-xs" style="border-collapse: separate; border-spacing: 3px">
+                <thead>
+                  <tr>
+                    <th class="w-8"></th>
+                    <th
+                      v-for="(_, ci) in calendarData.columns"
+                      :key="ci"
+                      style="width: 14px; min-width: 14px"
+                      class="text-left font-normal text-muted-foreground"
+                    >
+                      <span v-if="calendarData.monthLabels.find((m) => m.col === ci)">
+                        {{ calendarData.monthLabels.find((m) => m.col === ci)!.label }}
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="wi in 7" :key="wi - 1">
+                    <td class="pr-1.5 text-right text-muted-foreground">
+                      <span v-if="(wi - 1) % 2 === 0">{{ weekdayLabel(wi - 1) }}</span>
+                    </td>
+                    <td
+                      v-for="(col, ci) in calendarData.columns"
+                      :key="ci"
+                      style="width: 14px; min-width: 14px; height: 14px"
+                    >
+                      <Tooltip v-if="col[wi - 1].inRange">
+                        <TooltipTrigger as-child>
+                          <div
+                            class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
+                            :style="{ backgroundColor: calendarColor(col[wi - 1]) }"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div class="text-xs">
+                            <div class="font-semibold">{{ col[wi - 1].date }}</div>
+                            <div>{{ formatNumber(col[wi - 1].sessions) }} sessions · {{ formatNumber(col[wi - 1].messages) }} msgs</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                      <div v-else class="h-full w-full" />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- legend -->
+            <div class="flex items-center justify-end gap-1.5 pt-1 text-[10px] text-muted-foreground">
+              <span>{{ t('workload.calendar.less') }}</span>
+              <span class="inline-block h-2.5 w-2.5 rounded-sm border border-border/30" style="background: hsl(220 9% 90% / 0.4)"></span>
+              <span class="inline-block h-2.5 w-2.5 rounded-sm border border-border/30" style="background: hsl(217 91% 60% / 0.3)"></span>
+              <span class="inline-block h-2.5 w-2.5 rounded-sm border border-border/30" style="background: hsl(217 91% 60% / 0.55)"></span>
+              <span class="inline-block h-2.5 w-2.5 rounded-sm border border-border/30" style="background: hsl(217 91% 60% / 0.8)"></span>
+              <span class="inline-block h-2.5 w-2.5 rounded-sm border border-border/30" style="background: hsl(217 91% 60% / 1)"></span>
+              <span>{{ t('workload.calendar.more') }}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Heatmap (weekday × hour habits) -->
       <Card>
         <CardHeader>
           <CardTitle>{{ t('workload.heatmap.title') }}</CardTitle>
@@ -241,11 +404,16 @@ function onRangeUpdate(val: unknown) {
             {{ t('workload.heatmap.empty') }}
           </div>
           <div v-else class="overflow-x-auto">
-            <table class="w-full text-xs">
+            <table class="text-xs" style="border-collapse: separate; border-spacing: 2px">
               <thead>
                 <tr>
                   <th class="w-10"></th>
-                  <th v-for="h in 24" :key="h - 1" class="px-0.5 text-center font-normal text-muted-foreground">
+                  <th
+                    v-for="h in 24"
+                    :key="h - 1"
+                    class="text-center font-normal text-muted-foreground"
+                    style="width: 18px; min-width: 18px"
+                  >
                     <span v-if="(h - 1) % 3 === 0">{{ hourLabel(h - 1) }}</span>
                   </th>
                 </tr>
@@ -253,11 +421,11 @@ function onRangeUpdate(val: unknown) {
               <tbody>
                 <tr v-for="(row, wi) in heatmapGrid" :key="wi">
                   <td class="pr-2 text-right text-muted-foreground">{{ weekdayLabel(wi) }}</td>
-                  <td v-for="cell in row" :key="cell.hour" class="p-0.5">
+                  <td v-for="cell in row" :key="cell.hour" style="width: 18px; min-width: 18px; height: 18px">
                     <Tooltip>
                       <TooltipTrigger as-child>
                         <div
-                          class="h-5 w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
+                          class="h-full w-full rounded-sm border border-border/30 transition-colors hover:ring-2 hover:ring-primary"
                           :style="{ backgroundColor: heatColor(cell.sessions) }"
                         />
                       </TooltipTrigger>

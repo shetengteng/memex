@@ -65,8 +65,11 @@ pub struct ProjectSummary {
 pub struct WorkloadReport {
     /// 整个时间窗的天数
     pub days: u32,
+    /// 每日 session/message 数（GitHub-style 日历视图原料）。
+    /// 仅返回**有活动**的日子；前端按日期补齐空格子。
+    pub daily: Vec<WorkloadDailyEntry>,
     /// 时间窗内每个 (weekday, hour) 桶的 session 数（168 个），
-    /// 用于渲染 24h × 7-weekday 热力图。weekday=0 即周一（ISO 风格）。
+    /// 用于渲染 24h × 7-weekday 时段习惯叠加图。weekday=0 即周一。
     pub heatmap: Vec<WorkloadHeatmapCell>,
     /// 按 adapter 聚合的 session 数（饼图）
     pub by_adapter: Vec<WorkloadBucket>,
@@ -74,6 +77,14 @@ pub struct WorkloadReport {
     pub by_project: Vec<WorkloadProjectBucket>,
     /// 整体高总览：会话总数、消息总数、活跃天数、peak day 描述
     pub overall: WorkloadOverall,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkloadDailyEntry {
+    /// 本地时间的 YYYY-MM-DD
+    pub date: String,
+    pub sessions: i64,
+    pub messages: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -351,6 +362,27 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         let offset = format!("-{days} days");
 
+        // 0) 每日明细 — 日历视图原料
+        let mut daily_stmt = conn.prepare(
+            "SELECT DATE(updated_at, 'localtime') as day,
+                    COUNT(*) as sessions,
+                    COALESCE(SUM(message_count), 0) as msgs
+             FROM sessions
+             WHERE updated_at >= DATE('now', 'localtime', ?1)
+             GROUP BY day
+             ORDER BY day ASC",
+        )?;
+        let daily: Vec<WorkloadDailyEntry> = daily_stmt
+            .query_map(params![offset.clone()], |row| {
+                Ok(WorkloadDailyEntry {
+                    date: row.get(0)?,
+                    sessions: row.get(1)?,
+                    messages: row.get(2)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
         // 1) 热力图：168 桶（weekday × hour），按 sessions 计数
         //    SQLite 的 strftime('%w') 返回 0=Sunday..6=Saturday，
         //    转成 ISO 风格 0=Mon..6=Sun 需要 (w + 6) % 7。
@@ -473,6 +505,7 @@ impl Db {
 
         Ok(WorkloadReport {
             days,
+            daily,
             heatmap: heat_rows,
             by_adapter,
             by_project,
@@ -549,6 +582,7 @@ mod tests {
         assert_eq!(r.days, 7);
         assert_eq!(r.overall.sessions, 0);
         assert_eq!(r.overall.active_days, 0);
+        assert!(r.daily.is_empty());
         assert!(r.by_adapter.is_empty());
         assert!(r.by_project.is_empty());
         assert!(r.heatmap.is_empty());
@@ -620,6 +654,10 @@ mod tests {
             assert!(cell.weekday <= 6);
             assert!(cell.hour <= 23);
         }
+        // 4 个 session 跨两天 → daily 应有 2 个桶
+        assert_eq!(r.daily.len(), 2);
+        let today_total: i64 = r.daily.iter().map(|d| d.sessions).sum();
+        assert_eq!(today_total, 4);
     }
 
     #[test]

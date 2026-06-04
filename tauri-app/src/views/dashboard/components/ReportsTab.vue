@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Card, CardContent } from '@/components/ui/card'
 import { RefreshCw, Sparkles } from 'lucide-vue-next'
 import type { AggregateSummary } from '@/types'
 
@@ -116,19 +117,23 @@ function formatCreatedAt(iso: string): string {
       <ToggleGroupItem value="weekly" class="text-xs">{{ t('reports.tab.weekly') }}</ToggleGroupItem>
     </ToggleGroup>
 
-    <div v-if="regenError" class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-      {{ regenError }}
-    </div>
+    <Card v-if="regenError" class="mb-3 border-destructive/40 bg-destructive/5">
+      <CardContent class="px-3 py-2 text-xs text-destructive">
+        {{ regenError }}
+      </CardContent>
+    </Card>
 
     <div v-if="loading && !items.length" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
 
-    <div v-else-if="!items.length" class="rounded-md border border-dashed border-border px-4 py-8 text-center">
-      <p class="text-sm font-medium">{{ scope === 'daily' ? t('reports.empty.daily') : t('reports.empty.weekly') }}</p>
-      <p
-        class="mx-auto mt-2 max-w-md text-xs text-muted-foreground"
-        v-html="t('reports.empty.hint', { scope: scope === 'daily' ? t('reports.tab.daily') : t('reports.tab.weekly'), min: scope === 'daily' ? 2 : 3 })"
-      />
-    </div>
+    <Card v-else-if="!items.length" class="border-dashed">
+      <CardContent class="px-4 py-8 text-center">
+        <p class="text-sm font-medium">{{ scope === 'daily' ? t('reports.empty.daily') : t('reports.empty.weekly') }}</p>
+        <p
+          class="mx-auto mt-2 max-w-md text-xs text-muted-foreground"
+          v-html="t('reports.empty.hint', { scope: scope === 'daily' ? t('reports.tab.daily') : t('reports.tab.weekly'), min: scope === 'daily' ? 2 : 3 })"
+        />
+      </CardContent>
+    </Card>
 
     <div v-else class="grid grid-cols-[220px_1fr] gap-6">
       <aside>

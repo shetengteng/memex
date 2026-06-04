@@ -211,18 +211,24 @@ const topProjects = computed<Array<[string, number]>>(() => {
       </span>
     </div>
     <div class="flex h-40 items-end gap-[3px]">
-      <div v-for="d in timelineDates" :key="d.date" class="group relative flex h-full flex-1 flex-col items-center justify-end">
-        <div
-          class="w-full rounded-sm transition-colors"
-          :class="d.sessions > 0 ? 'bg-primary/40 group-hover:bg-primary' : 'bg-muted'"
-          :style="{ height: d.sessions > 0 ? barHeightPercent(d.sessions) + '%' : '4px' }"
-        />
-        <div class="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md group-hover:block">
-          <div class="font-semibold tabular-nums">{{ d.date }}</div>
-          <div v-if="d.sessions > 0" class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.tooltip_sessions', { sessions: d.sessions, messages: d.messages }) }}</div>
-          <div v-else class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.no_activity') }}</div>
-        </div>
-      </div>
+      <Tooltip v-for="d in timelineDates" :key="d.date">
+        <TooltipTrigger as-child>
+          <div class="group flex h-full flex-1 flex-col items-center justify-end">
+            <div
+              class="w-full rounded-sm transition-colors"
+              :class="d.sessions > 0 ? 'bg-primary/40 group-hover:bg-primary' : 'bg-muted'"
+              :style="{ height: d.sessions > 0 ? barHeightPercent(d.sessions) + '%' : '4px' }"
+            />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <div class="text-xs">
+            <div class="font-semibold tabular-nums">{{ d.date }}</div>
+            <div v-if="d.sessions > 0" class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.tooltip_sessions', { sessions: d.sessions, messages: d.messages }) }}</div>
+            <div v-else class="mt-0.5 text-muted-foreground">{{ t('overview.timeline.no_activity') }}</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
     </div>
     <div class="mt-1 flex justify-between text-[10px] text-muted-foreground">
       <span>{{ timelineDates[0]?.date }}</span>

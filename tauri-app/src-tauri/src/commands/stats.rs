@@ -100,6 +100,7 @@ pub async fn get_workload(days: Option<u32>) -> Result<WorkloadReport, String> {
     if !db_path.exists() {
         return Ok(WorkloadReport {
             days,
+            daily: vec![],
             heatmap: vec![],
             by_adapter: vec![],
             by_project: vec![],
