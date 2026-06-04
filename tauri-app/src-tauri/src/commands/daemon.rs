@@ -26,6 +26,17 @@ fn read_lock() -> Option<LockInfo> {
     serde_json::from_str(&content).ok()
 }
 
+/// 暴露给 maintenance.rs 复用同样的杀 daemon 流程，避免在两个文件里重复
+/// 实现 / 维护一份 lock 文件解析。仅对同 crate 可见。
+pub(crate) fn read_lock_for_maintenance() -> Option<LockInfo> {
+    read_lock()
+}
+
+/// 同上：暴露 `kill -0` 判活给 maintenance.rs。
+pub(crate) fn is_process_alive_for_maintenance(pid: u32) -> bool {
+    is_process_alive(pid)
+}
+
 fn is_process_alive(pid: u32) -> bool {
     // kill -0 在进程存在且我们有权限给它发信号时返回 0。
     Command::new("kill")

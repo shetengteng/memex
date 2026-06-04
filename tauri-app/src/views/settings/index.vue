@@ -25,6 +25,8 @@ import {
   Info,
   FlaskConical,
   Stethoscope,
+  Trash2,
+  TriangleAlert,
 } from 'lucide-vue-next'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n, setLocale, LOCALE_OPTIONS, type Locale } from '@/i18n'
@@ -32,7 +34,7 @@ import type { CliStatus, LlmTestResult, DoctorRunResult } from '@/types'
 import LlmProviders from './LlmProviders.vue'
 
 const { t, locale } = useI18n()
-const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor } = useMemex()
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor, systemResetIndex, systemResetAll } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
@@ -507,6 +509,53 @@ async function recheckOllama() {
   llm.value.ollamaChecking = true
   llm.value.ollamaAvailable = await checkOllamaAvailability()
   llm.value.ollamaChecking = false
+}
+
+// ----- 重置 / 清空数据 -----
+type ResetMode = 'index' | 'all'
+type ResetState = 'idle' | 'running' | 'done' | 'error'
+
+const resetConfirm = ref<ResetMode | null>(null)
+const resetState = ref<ResetState>('idle')
+const resetMessage = ref<string>('')
+
+function openResetConfirm(mode: ResetMode) {
+  if (resetState.value === 'running') return
+  resetConfirm.value = mode
+  resetState.value = 'idle'
+  resetMessage.value = ''
+}
+
+function closeResetConfirm() {
+  if (resetState.value === 'running') return
+  resetConfirm.value = null
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+async function performReset() {
+  const mode = resetConfirm.value
+  if (!mode || resetState.value === 'running') return
+  resetState.value = 'running'
+  resetMessage.value = ''
+  try {
+    const result = mode === 'index' ? await systemResetIndex() : await systemResetAll()
+    resetState.value = 'done'
+    resetMessage.value = t('settings.reset.done', {
+      files: result.report.removed_files,
+      size: formatBytes(result.report.removed_bytes),
+    })
+  } catch (e) {
+    resetState.value = 'error'
+    resetMessage.value = t('settings.reset.failed', {
+      err: e instanceof Error ? e.message : String(e),
+    })
+  }
 }
 </script>
 
@@ -1063,6 +1112,51 @@ async function recheckOllama() {
 
             <Separator />
 
+            <!-- Reset / 清空数据 -->
+            <div>
+              <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-destructive">
+                <TriangleAlert class="h-3 w-3" />
+                {{ t('settings.section.reset') }}
+              </p>
+              <p class="mb-2 text-[11px] text-muted-foreground">{{ t('settings.reset.intro') }}</p>
+
+              <div class="flex items-center justify-between gap-2 py-1.5">
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="text-sm">{{ t('settings.reset.index.title') }}</span>
+                  <span class="text-[10px] leading-snug text-muted-foreground">{{ t('settings.reset.index.desc') }}</span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 shrink-0 gap-1 border-amber-500/50 text-xs text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                  :disabled="resetState === 'running'"
+                  @click="openResetConfirm('index')"
+                >
+                  <RefreshCw class="h-3 w-3" />
+                  {{ t('settings.reset.index.button') }}
+                </Button>
+              </div>
+
+              <div class="flex items-center justify-between gap-2 border-t border-border/40 py-1.5">
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="text-sm text-destructive">{{ t('settings.reset.all.title') }}</span>
+                  <span class="text-[10px] leading-snug text-muted-foreground">{{ t('settings.reset.all.desc') }}</span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-7 shrink-0 gap-1 border-destructive/60 text-xs text-destructive hover:bg-destructive/10"
+                  :disabled="resetState === 'running'"
+                  @click="openResetConfirm('all')"
+                >
+                  <Trash2 class="h-3 w-3" />
+                  {{ t('settings.reset.all.button') }}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
             <!-- 关于 -->
             <div>
               <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -1128,5 +1222,100 @@ async function recheckOllama() {
         </CollapsibleContent>
       </Card>
     </Collapsible>
+
+    <!-- 重置确认弹框 -->
+    <Teleport to="body">
+      <div
+        v-if="resetConfirm !== null"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        @click.self="closeResetConfirm"
+      >
+        <div class="w-[420px] max-w-[92vw] rounded-lg border border-border bg-background p-4 shadow-xl">
+          <div class="mb-3 flex items-start gap-2">
+            <TriangleAlert
+              class="mt-0.5 h-5 w-5 shrink-0"
+              :class="resetConfirm === 'all' ? 'text-destructive' : 'text-amber-500'"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold">{{ t('settings.reset.confirm.title') }}</p>
+              <p class="mt-0.5 text-xs text-muted-foreground">
+                {{ resetConfirm === 'all'
+                  ? t('settings.reset.confirm.subtitle_all')
+                  : t('settings.reset.confirm.subtitle_index') }}
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-2 rounded-md bg-muted/50 px-3 py-2 text-[11px]">
+            <div>
+              <span class="font-medium text-destructive">{{ t('settings.reset.confirm.removed_label') }}：</span>
+              <span class="ml-1">{{ resetConfirm === 'all'
+                ? t('settings.reset.confirm.removed_all')
+                : t('settings.reset.confirm.removed_index') }}</span>
+            </div>
+            <div>
+              <span class="font-medium text-success">{{ t('settings.reset.confirm.kept_label') }}：</span>
+              <span class="ml-1">{{ resetConfirm === 'all'
+                ? t('settings.reset.confirm.kept_all')
+                : t('settings.reset.confirm.kept_index') }}</span>
+            </div>
+            <div class="border-t border-border/60 pt-1.5">
+              <span class="font-medium text-amber-600 dark:text-amber-400">{{ t('settings.reset.confirm.side_effect_title') }}：</span>
+              <span class="ml-1 text-muted-foreground">{{ resetConfirm === 'all'
+                ? t('settings.reset.confirm.side_effect_all')
+                : t('settings.reset.confirm.side_effect_index') }}</span>
+            </div>
+          </div>
+
+          <p class="mt-2 flex items-start gap-1.5 text-[11px] italic text-muted-foreground">
+            <Info class="mt-0.5 h-3 w-3 shrink-0" />
+            <span>{{ t('settings.reset.confirm.exit_hint') }}</span>
+          </p>
+
+          <div
+            v-if="resetState === 'error' && resetMessage"
+            class="mt-2 flex items-start gap-1.5 rounded-md border border-red-500/30 bg-red-500/5 px-2 py-1.5 text-[11px] text-red-600 dark:text-red-400"
+          >
+            <AlertCircle class="mt-0.5 h-3 w-3 shrink-0" />
+            <span class="break-all leading-snug">{{ resetMessage }}</span>
+          </div>
+
+          <div
+            v-else-if="resetState === 'done' && resetMessage"
+            class="mt-2 flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1.5 text-[11px] text-emerald-600 dark:text-emerald-400"
+          >
+            <CheckCircle2 class="mt-0.5 h-3 w-3 shrink-0" />
+            <span class="leading-snug">{{ resetMessage }}</span>
+          </div>
+
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-8 text-xs"
+              :disabled="resetState === 'running' || resetState === 'done'"
+              @click="closeResetConfirm"
+            >
+              {{ t('settings.reset.confirm.cancel') }}
+            </Button>
+            <Button
+              size="sm"
+              class="h-8 gap-1 text-xs"
+              :class="resetConfirm === 'all'
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                : 'bg-amber-600 text-white hover:bg-amber-600/90'"
+              :disabled="resetState === 'running' || resetState === 'done'"
+              @click="performReset"
+            >
+              <RefreshCw v-if="resetState === 'running'" class="h-3 w-3 animate-spin" />
+              <Trash2 v-else class="h-3 w-3" />
+              {{ resetState === 'running'
+                ? t('settings.reset.running')
+                : t('settings.reset.confirm.proceed') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

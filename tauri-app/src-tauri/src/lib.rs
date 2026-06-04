@@ -208,6 +208,8 @@ pub fn run() {
             commands::llm_provider_test,
             commands::llm_provider_test_draft,
             commands::llm_list_models,
+            commands::system_reset_index,
+            commands::system_reset_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running memex menubar");

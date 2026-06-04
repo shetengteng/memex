@@ -158,6 +158,16 @@ export interface DoctorRunResult {
   cursor_probe: CursorProbe
 }
 
+export interface ResetReport {
+  removed_files: number
+  removed_bytes: number
+}
+
+export interface SystemResetResult {
+  mode: 'index' | 'all'
+  report: ResetReport
+}
+
 export interface LlmProvider {
   id: string
   name: string

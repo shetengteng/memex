@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -130,6 +130,14 @@ export function useMemex() {
     return invoke<WorkloadReport>('get_workload', { days })
   }
 
+  async function systemResetIndex(): Promise<SystemResetResult> {
+    return invoke<SystemResetResult>('system_reset_index')
+  }
+
+  async function systemResetAll(): Promise<SystemResetResult> {
+    return invoke<SystemResetResult>('system_reset_all')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
@@ -140,5 +148,6 @@ export function useMemex() {
     llmProviderTest, llmProviderTestDraft, llmListModels,
     reflectList, reflectGet, reflectRun,
     getWorkload,
+    systemResetIndex, systemResetAll,
   }
 }
