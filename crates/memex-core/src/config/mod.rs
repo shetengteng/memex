@@ -165,7 +165,8 @@ pub fn ensure_memex_dir(memex_dir: &Path) -> Result<()> {
 
     let config_path = memex_dir.join("config.toml");
     if !config_path.exists() {
-        let default_config = MemexConfig::default();
+        let mut default_config = MemexConfig::default();
+        default_config.adapters = detect_installed_adapters();
         let content = toml::to_string_pretty(&default_config)?;
         fs::write(&config_path, content)?;
     }
@@ -190,6 +191,50 @@ pub fn ensure_memex_dir(memex_dir: &Path) -> Result<()> {
 
     fs::create_dir_all(memex_dir.join("sessions"))?;
     Ok(())
+}
+
+/// Auto-detect which IDE tools are installed and return an AdaptersConfig
+/// with the corresponding flags set to true.
+pub fn detect_installed_adapters() -> AdaptersConfig {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return AdaptersConfig::default(),
+    };
+
+    let claude_code = home.join(".claude/projects").exists();
+    let cursor = {
+        #[cfg(target_os = "macos")]
+        { home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb").exists() }
+        #[cfg(not(target_os = "macos"))]
+        { home.join(".config/Cursor/User/globalStorage/state.vscdb").exists() }
+    };
+    let codex = home.join(".codex").exists();
+    let opencode = home.join(".local/share/opencode/opencode.db").exists();
+    let continue_dev = home.join(".continue/sessions").exists();
+    let cline = {
+        #[cfg(target_os = "macos")]
+        {
+            let data = dirs::data_dir().unwrap_or_else(|| home.join("Library/Application Support"));
+            data.join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
+                || data.join("Cursor/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let config = dirs::config_dir().unwrap_or_else(|| home.join(".config"));
+            config.join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
+        }
+    };
+    let aider = home.join(".aider.chat.history.md").exists();
+
+    AdaptersConfig {
+        claude_code,
+        cursor,
+        codex,
+        opencode,
+        aider,
+        continue_dev,
+        cline,
+    }
 }
 
 fn shellexpand(s: &str) -> String {
