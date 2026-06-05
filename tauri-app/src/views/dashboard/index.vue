@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { Loader2 } from 'lucide-vue-next'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -27,6 +28,7 @@ const sessionsLoading = ref(false)
 const detailSession = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
 const refreshing = ref(false)
+const initialLoading = ref(true)
 const sessionFilter = ref('')
 const sessionMessagesFilter = ref<'all' | 'invalid' | 'valid'>('all')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -42,6 +44,7 @@ async function loadDashboard() {
   if (bd) breakdown.value = bd
   timeline.value = tl
   if (ss) sessions.value = ss
+  initialLoading.value = false
 }
 
 async function loadSessions() {
@@ -129,11 +132,18 @@ onUnmounted(() => {
 
 <template>
   <TooltipProvider>
-  <div class="flex h-full w-full">
+  <div class="flex h-full w-full select-text">
     <DashSidebar :active-tab="tab" @switch-tab="switchTab" />
 
     <div class="flex-1 overflow-y-auto p-6">
-      <div class="mx-auto w-full max-w-7xl">
+      <!-- Loading -->
+      <div v-if="initialLoading" class="flex h-full items-center justify-center">
+        <div class="flex flex-col items-center gap-3">
+          <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+          <span class="text-sm text-muted-foreground">Loading...</span>
+        </div>
+      </div>
+      <div v-else class="mx-auto w-full max-w-7xl">
         <OverviewTab
           v-if="tab === 'overview'"
           :stats="stats"

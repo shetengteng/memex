@@ -9,6 +9,7 @@ defineProps<{ activeTab: DashTab }>()
 const emit = defineEmits<{ switchTab: [tab: DashTab] }>()
 
 const { t } = useI18n()
+const APP_VERSION = __APP_VERSION__
 
 const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: string }[]>(() => [
   { key: 'overview', icon: LayoutDashboard, label: t('dashboard.nav.overview') },
@@ -41,6 +42,6 @@ const navItems = computed<{ key: DashTab; icon: typeof LayoutDashboard; label: s
         {{ item.label }}
       </button>
     </nav>
-    <div class="px-4 py-3 text-xs text-muted-foreground">{{ t('dashboard.sidebar.footer') }}</div>
+    <div class="px-4 py-3 text-xs text-muted-foreground">Memex v{{ APP_VERSION }} · local only</div>
   </div>
 </template>

@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { listen } from '@tauri-apps/api/event'
 import { Search, Settings, Activity, LayoutDashboard, Home, AlertTriangle, Copy, ExternalLink, Terminal, Sparkles, RefreshCw } from 'lucide-vue-next'
-import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
@@ -283,77 +283,76 @@ onUnmounted(() => {
 <template>
   <TooltipProvider>
     <!-- Ollama Setup Dialog -->
-    <DialogRoot v-model:open="ollamaDialogOpen">
-      <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <DialogContent class="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 shadow-xl">
+    <Dialog v-model:open="ollamaDialogOpen">
+      <DialogContent class="w-[90vw] max-w-md" :hide-close="true">
+        <DialogHeader>
           <div class="flex items-start gap-3">
-            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
-              <AlertTriangle class="h-4.5 w-4.5 text-amber-500" />
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+              <AlertTriangle class="h-4.5 w-4.5 text-muted-foreground" />
             </div>
-            <div class="flex-1 space-y-3">
+            <div class="flex-1 space-y-1.5">
               <DialogTitle class="text-sm font-semibold leading-snug">
                 {{ ollamaSetupKind === 'not_installed' ? t('ollama_setup.title_not_installed') : t('ollama_setup.title_no_model') }}
               </DialogTitle>
-              <DialogDescription class="text-xs leading-relaxed text-muted-foreground">
+              <DialogDescription class="text-xs leading-relaxed">
                 {{ ollamaSetupKind === 'not_installed' ? t('ollama_setup.desc_not_installed') : t('ollama_setup.desc_no_model') }}
               </DialogDescription>
-
-              <!-- Ollama not installed: show download + brew -->
-              <div v-if="ollamaSetupKind === 'not_installed'" class="space-y-2">
-                <Button variant="default" size="sm" class="h-7 gap-1 text-xs" @click="openOllamaWebsite">
-                  <ExternalLink class="h-3 w-3" />
-                  {{ t('ollama_setup.install_ollama') }}
-                </Button>
-                <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span>{{ t('ollama_setup.brew_hint') }}</span>
-                  <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">brew install ollama</code>
-                  <button class="inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-primary hover:underline" @click="copyBrewCmdStartup">
-                    <Copy class="h-3 w-3" />
-                    {{ ollamaBrewCopied ? t('common.copied') : t('common.copy') }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Model not installed: show pull command -->
-              <div v-else class="space-y-2">
-                <p class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('ollama_setup.recommended_model') }}: <strong class="text-foreground">{{ ollamaConfiguredModel }}</strong>
-                </p>
-                <div class="flex items-center gap-1.5">
-                  <div class="flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1">
-                    <Terminal class="h-3 w-3 text-muted-foreground" />
-                    <code class="font-mono text-[11px]">ollama pull {{ ollamaConfiguredModel }}</code>
-                  </div>
-                  <Button variant="ghost" size="sm" class="h-7 px-2 text-[11px]" @click="copyOllamaCmd">
-                    <Copy class="mr-0.5 h-3 w-3" />
-                    {{ ollamaCmdCopied ? t('common.copied') : t('common.copy') }}
-                  </Button>
-                </div>
-                <p class="text-[11px] leading-relaxed text-muted-foreground">
-                  {{ t('ollama_setup.other_models') }}
-                </p>
-              </div>
             </div>
           </div>
+        </DialogHeader>
 
-          <!-- Actions -->
-          <div class="mt-4 flex items-center justify-between border-t border-border/40 pt-3">
-            <button class="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground hover:underline" @click="dismissOllamaForever">
-              {{ t('ollama_setup.dont_show') }}
+        <!-- Ollama not installed: show download + brew -->
+        <div v-if="ollamaSetupKind === 'not_installed'" class="space-y-2">
+          <Button variant="default" size="sm" class="h-7 gap-1 text-xs" @click="openOllamaWebsite">
+            <ExternalLink class="h-3 w-3" />
+            {{ t('ollama_setup.install_ollama') }}
+          </Button>
+          <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>{{ t('ollama_setup.brew_hint') }}</span>
+            <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">brew install ollama</code>
+            <button class="inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-foreground hover:underline" @click="copyBrewCmdStartup">
+              <Copy class="h-3 w-3" />
+              {{ ollamaBrewCopied ? t('common.copied') : t('common.copy') }}
             </button>
-            <div class="flex items-center gap-2">
-              <Button variant="ghost" size="sm" class="h-7 text-xs" @click="dismissOllamaDialog">
-                {{ t('ollama_setup.dismiss') }}
-              </Button>
-              <Button variant="default" size="sm" class="h-7 text-xs" @click="goToSettingsFromDialog">
-                {{ t('ollama_setup.go_settings') }}
-              </Button>
-            </div>
           </div>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
+        </div>
+
+        <!-- Model not installed: show pull command -->
+        <div v-else class="space-y-2">
+          <p class="text-[11px] font-medium text-muted-foreground">
+            {{ t('ollama_setup.recommended_model') }}: <strong class="text-foreground">{{ ollamaConfiguredModel }}</strong>
+          </p>
+          <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1">
+              <Terminal class="h-3 w-3 text-muted-foreground" />
+              <code class="font-mono text-[11px]">ollama pull {{ ollamaConfiguredModel }}</code>
+            </div>
+            <Button variant="ghost" size="sm" class="h-7 px-2 text-[11px]" @click="copyOllamaCmd">
+              <Copy class="mr-0.5 h-3 w-3" />
+              {{ ollamaCmdCopied ? t('common.copied') : t('common.copy') }}
+            </Button>
+          </div>
+          <p class="text-[11px] leading-relaxed text-muted-foreground">
+            {{ t('ollama_setup.other_models') }}
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-between border-t border-border pt-4">
+          <button class="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground hover:underline" @click="dismissOllamaForever">
+            {{ t('ollama_setup.dont_show') }}
+          </button>
+          <div class="flex items-center gap-2">
+            <Button variant="ghost" size="sm" class="h-7 text-xs" @click="dismissOllamaDialog">
+              {{ t('ollama_setup.dismiss') }}
+            </Button>
+            <Button variant="default" size="sm" class="h-7 text-xs" @click="goToSettingsFromDialog">
+              {{ t('ollama_setup.go_settings') }}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <div class="flex h-screen w-screen flex-col p-[10px]" style="background: transparent;">
     <div

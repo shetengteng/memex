@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Plus,
   Trash2,
@@ -365,10 +366,15 @@ function statusColor(status: string) {
         </div>
         <div class="space-y-1">
           <label class="text-[10px] font-medium">{{ t('settings.providers.kind') }}</label>
-          <select v-model="editing.kind" class="h-7 w-full rounded-md border bg-background px-2 text-xs">
-            <option value="openai_compat">OpenAI Compatible (OpenAI / DeepSeek / Moonshot / SiliconFlow / Together / Groq / ...)</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
+          <Select v-model="editing.kind">
+            <SelectTrigger class="h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai_compat">OpenAI Compatible</SelectItem>
+              <SelectItem value="anthropic">Anthropic</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div class="space-y-1">

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import {
   RefreshCw,
   CheckCircle2,
@@ -637,18 +639,22 @@ async function performReset() {
             <Cpu class="h-3.5 w-3.5" :class="llm.ollamaEnabled && llm.ollamaAvailable ? 'text-success' : 'text-muted-foreground'" />
             Ollama
           </span>
-          <select
+          <Select
             v-if="llm.ollamaEnabled && llm.ollamaAvailable"
-            :value="llm.ollamaModel"
-            class="h-7 flex-1 min-w-0 rounded-md border bg-background px-2 font-mono text-[11px]"
+            :model-value="llm.ollamaModel"
             :disabled="ollamaModelsLoading || ollamaModels.length === 0"
-            @change="(e) => setOllamaModel((e.target as HTMLSelectElement).value)"
+            @update:model-value="(v: string) => setOllamaModel(v)"
           >
-            <option v-if="ollamaModels.length === 0" :value="llm.ollamaModel" disabled>
-              {{ ollamaModelsLoading ? 'Loading…' : llm.ollamaModel }}
-            </option>
-            <option v-for="m in ollamaModels" :key="m" :value="m">{{ m }}</option>
-          </select>
+            <SelectTrigger class="h-7 flex-1 min-w-0 font-mono text-[11px]">
+              <SelectValue :placeholder="ollamaModelsLoading ? 'Loading…' : llm.ollamaModel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-if="ollamaModels.length === 0" :value="llm.ollamaModel" disabled>
+                {{ ollamaModelsLoading ? 'Loading…' : llm.ollamaModel }}
+              </SelectItem>
+              <SelectItem v-for="m in ollamaModels" :key="m" :value="m">{{ m }}</SelectItem>
+            </SelectContent>
+          </Select>
           <div class="flex items-center gap-2 shrink-0">
             <Button
               v-if="llm.ollamaEnabled && llm.ollamaAvailable"
@@ -1283,98 +1289,92 @@ async function performReset() {
     </Collapsible>
 
     <!-- 重置确认弹框 -->
-    <Teleport to="body">
-      <div
-        v-if="resetConfirm !== null"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-        @click.self="closeResetConfirm"
-      >
-        <div class="w-[420px] max-w-[92vw] rounded-lg border border-border bg-background p-4 shadow-xl">
-          <div class="mb-3 flex items-start gap-2">
+    <Dialog :open="resetConfirm !== null" @update:open="(v: boolean) => { if (!v) closeResetConfirm() }">
+      <DialogContent class="w-[420px] max-w-[92vw]" :hide-close="true">
+        <DialogHeader>
+          <div class="flex items-start gap-2">
             <TriangleAlert
               class="mt-0.5 h-5 w-5 shrink-0"
-              :class="resetConfirm === 'all' ? 'text-destructive' : 'text-amber-500'"
+              :class="resetConfirm === 'all' ? 'text-destructive' : 'text-muted-foreground'"
             />
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold">{{ t('settings.reset.confirm.title') }}</p>
-              <p class="mt-0.5 text-xs text-muted-foreground">
+              <DialogTitle class="text-sm font-semibold">{{ t('settings.reset.confirm.title') }}</DialogTitle>
+              <DialogDescription class="mt-0.5 text-xs">
                 {{ resetConfirm === 'all'
                   ? t('settings.reset.confirm.subtitle_all')
                   : t('settings.reset.confirm.subtitle_index') }}
-              </p>
+              </DialogDescription>
             </div>
           </div>
+        </DialogHeader>
 
-          <div class="space-y-2 rounded-md bg-muted/50 px-3 py-2 text-[11px]">
-            <div>
-              <span class="font-medium text-destructive">{{ t('settings.reset.confirm.removed_label') }}：</span>
-              <span class="ml-1">{{ resetConfirm === 'all'
-                ? t('settings.reset.confirm.removed_all')
-                : t('settings.reset.confirm.removed_index') }}</span>
-            </div>
-            <div>
-              <span class="font-medium text-success">{{ t('settings.reset.confirm.kept_label') }}：</span>
-              <span class="ml-1">{{ resetConfirm === 'all'
-                ? t('settings.reset.confirm.kept_all')
-                : t('settings.reset.confirm.kept_index') }}</span>
-            </div>
-            <div class="border-t border-border/60 pt-1.5">
-              <span class="font-medium text-amber-600 dark:text-amber-400">{{ t('settings.reset.confirm.side_effect_title') }}：</span>
-              <span class="ml-1 text-muted-foreground">{{ resetConfirm === 'all'
-                ? t('settings.reset.confirm.side_effect_all')
-                : t('settings.reset.confirm.side_effect_index') }}</span>
-            </div>
+        <div class="space-y-2 rounded-md bg-muted/50 px-3 py-2 text-[11px]">
+          <div>
+            <span class="font-medium text-destructive">{{ t('settings.reset.confirm.removed_label') }}：</span>
+            <span class="ml-1">{{ resetConfirm === 'all'
+              ? t('settings.reset.confirm.removed_all')
+              : t('settings.reset.confirm.removed_index') }}</span>
           </div>
-
-          <p class="mt-2 flex items-start gap-1.5 text-[11px] italic text-muted-foreground">
-            <Info class="mt-0.5 h-3 w-3 shrink-0" />
-            <span>{{ t('settings.reset.confirm.exit_hint') }}</span>
-          </p>
-
-          <div
-            v-if="resetState === 'error' && resetMessage"
-            class="mt-2 flex items-start gap-1.5 rounded-md border border-red-500/30 bg-red-500/5 px-2 py-1.5 text-[11px] text-red-600 dark:text-red-400"
-          >
-            <AlertCircle class="mt-0.5 h-3 w-3 shrink-0" />
-            <span class="break-all leading-snug">{{ resetMessage }}</span>
+          <div>
+            <span class="font-medium text-success">{{ t('settings.reset.confirm.kept_label') }}：</span>
+            <span class="ml-1">{{ resetConfirm === 'all'
+              ? t('settings.reset.confirm.kept_all')
+              : t('settings.reset.confirm.kept_index') }}</span>
           </div>
-
-          <div
-            v-else-if="resetState === 'done' && resetMessage"
-            class="mt-2 flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1.5 text-[11px] text-emerald-600 dark:text-emerald-400"
-          >
-            <CheckCircle2 class="mt-0.5 h-3 w-3 shrink-0" />
-            <span class="leading-snug">{{ resetMessage }}</span>
-          </div>
-
-          <div class="mt-4 flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-8 text-xs"
-              :disabled="resetState === 'running' || resetState === 'done'"
-              @click="closeResetConfirm"
-            >
-              {{ t('settings.reset.confirm.cancel') }}
-            </Button>
-            <Button
-              size="sm"
-              class="h-8 gap-1 text-xs"
-              :class="resetConfirm === 'all'
-                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                : 'bg-amber-600 text-white hover:bg-amber-600/90'"
-              :disabled="resetState === 'running' || resetState === 'done'"
-              @click="performReset"
-            >
-              <RefreshCw v-if="resetState === 'running'" class="h-3 w-3 animate-spin" />
-              <Trash2 v-else class="h-3 w-3" />
-              {{ resetState === 'running'
-                ? t('settings.reset.running')
-                : t('settings.reset.confirm.proceed') }}
-            </Button>
+          <div class="border-t border-border pt-1.5">
+            <span class="font-medium text-warning">{{ t('settings.reset.confirm.side_effect_title') }}：</span>
+            <span class="ml-1 text-muted-foreground">{{ resetConfirm === 'all'
+              ? t('settings.reset.confirm.side_effect_all')
+              : t('settings.reset.confirm.side_effect_index') }}</span>
           </div>
         </div>
-      </div>
-    </Teleport>
+
+        <p class="flex items-start gap-1.5 text-[11px] italic text-muted-foreground">
+          <Info class="mt-0.5 h-3 w-3 shrink-0" />
+          <span>{{ t('settings.reset.confirm.exit_hint') }}</span>
+        </p>
+
+        <div
+          v-if="resetState === 'error' && resetMessage"
+          class="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive"
+        >
+          <AlertCircle class="mt-0.5 h-3 w-3 shrink-0" />
+          <span class="break-all leading-snug">{{ resetMessage }}</span>
+        </div>
+
+        <div
+          v-else-if="resetState === 'done' && resetMessage"
+          class="flex items-start gap-1.5 rounded-md border border-success/30 bg-success/5 px-2 py-1.5 text-[11px] text-success"
+        >
+          <CheckCircle2 class="mt-0.5 h-3 w-3 shrink-0" />
+          <span class="leading-snug">{{ resetMessage }}</span>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-8 text-xs"
+            :disabled="resetState === 'running' || resetState === 'done'"
+            @click="closeResetConfirm"
+          >
+            {{ t('settings.reset.confirm.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            class="h-8 gap-1 text-xs"
+            :disabled="resetState === 'running' || resetState === 'done'"
+            @click="performReset"
+          >
+            <RefreshCw v-if="resetState === 'running'" class="h-3 w-3 animate-spin" />
+            <Trash2 v-else class="h-3 w-3" />
+            {{ resetState === 'running'
+              ? t('settings.reset.running')
+              : t('settings.reset.confirm.proceed') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
