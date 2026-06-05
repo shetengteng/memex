@@ -33,24 +33,31 @@ const PROJECT_SUMMARY_SYSTEM: &str = "\
 只输出合法 JSON，不要带 markdown 代码块标记。";
 
 const PERIODIC_SUMMARY_SYSTEM: &str = "\
-你是一位资深工程师的工作报告撰写助手。输入是某个时间段内多个 AI 辅助编程会话的摘要，\
-请生成一份结构清晰、有洞察力的周期性工作报告。
+你是一位资深工程师的工作报告撰写助手。你的任务是把输入的多个会话摘要合并成一份详细报告。
 
-输出严格合法的 JSON（不带 ```json 标记），包含以下字段：
-- title (string): 如 \"日报 2026-06-01\" 或 \"周报 2026-W22\"
-- summary (string): 详细的工作叙述，要求如下：
-  · 按主题/项目分段，每段用【主题名】开头
-  · 每个主题 2-4 句话，说明做了什么、为什么做、达成了什么效果
-  · 日报至少 150 字，周报至少 400 字
-  · 涉及 bug 修复的要说明根因和方案
-  · 涉及性能优化的要给出前后对比数据（如果输入中有）
-- topics (string[]): 5-10 个覆盖所有工作的主题关键词
-- decisions (string[]): 3-8 个关键技术决策，每条是一句完整的中文描述
+输出要求：一个合法 JSON 对象（不要 ```json 标记），包含 3 个字段：
 
-语言：所有自然语言使用简体中文。技术标识保持原样（文件路径、命令名、函数名、缩写）。";
+{
+  \"summary\": \"【Memex 桌面应用】完成了 popup UI 的 shadcn 风格重构，替换了所有非 shadcn-vue 组件，修复了 searchInputRef 绑定到 Vue 组件实例而非原生 DOM 元素导致的 focus 报错。通过 $el 访问底层 HTMLInputElement 解决了问题。\\n\\n【LLM 集成】将 max_tokens 从 512 提升到 2048/4096，解决了 DeepSeek V4 Flash 因 reasoning chain 耗尽 token 导致 content 为空的问题。添加了空响应检测和 parse_summary 的 fallback 保护。\\n\\n【Bug 修复】排查了 Dashboard 白屏问题，根因是已安装的 Memex.app 与 dev server 端口冲突，通过关闭旧进程解决。\",
+  \"topics\": [\"Memex\", \"LLM\", \"UI重构\", \"Bug修复\"],
+  \"decisions\": [\"选择 $el 方式访问原生 DOM 而非重写组件\", \"max_tokens 按场景分档：默认 2048，报告 4096\"]
+}
+
+summary 字段的硬性要求（非常重要，必须遵守）：
+1. 按【主题名】分段，每段之间用 \\n\\n 分隔
+2. 每个主题写 3-5 句话：做了什么 + 为什么这样做 + 达成什么结果
+3. 日报 summary 最少 200 字，周报 summary 最少 500 字
+4. Bug 修复要写根因和解决方案
+5. 要具体到文件名、函数名、技术细节，不要笼统概括
+
+topics: 5-10 个关键词
+decisions: 3-8 条技术决策，每条是一句完整中文
+不要输出 title 字段，title 由系统自动生成。
+
+语言：中文。技术标识保持原样（路径、命令、函数名）。";
 
 const MAX_INPUT_CHARS: usize = 8000;
-const MAX_PERIOD_INPUT_CHARS: usize = 12000;
+const MAX_PERIOD_INPUT_CHARS: usize = 16000;
 const MIN_CHUNK_CHARS_FOR_SUMMARY: usize = 200;
 const L1_BATCH_SIZE: usize = 10;
 
@@ -148,11 +155,14 @@ pub fn summarize_period(
             condensed.len() - included
         ));
     }
+    let is_weekly = period_label.contains("Week") || period_label.contains("weekly");
+    let min_words = if is_weekly { 500 } else { 200 };
     prompt.push_str(&format!(
-        "请综合以上 {} 个会话的工作内容，输出一份详细的周期性工作报告 JSON。\
-         要求 summary 字段覆盖所有主要工作主题，按项目/领域分段叙述，\
-         每个领域 2-3 句话说明做了什么和成果。",
-        session_summaries.len()
+        "\n请综合以上 {} 个会话，生成一个 JSON 对象。\
+         summary 必须按【主题名】分段，每段 3-5 句话，总长度不少于 {} 字。\
+         涵盖所有主要主题，写出具体技术细节，不要笼统概括。",
+        session_summaries.len(),
+        min_words
     ));
     let request = LlmRequest::with_prompt(prompt)
         .with_system(PERIODIC_SUMMARY_SYSTEM)
@@ -172,32 +182,33 @@ fn condense_for_period(summaries: &[SessionSummary]) -> Vec<String> {
 
     let mut entries = Vec::new();
     for (topic, group) in &by_topic {
-        let titles: Vec<&str> = group.iter().take(8).map(|s| s.title.as_str()).collect();
+        let titles: Vec<&str> = group.iter().take(10).map(|s| s.title.as_str()).collect();
         let all_decisions: Vec<&str> = group
             .iter()
             .flat_map(|s| s.decisions.iter().map(|d| d.as_str()))
-            .take(5)
+            .take(8)
             .collect();
         let summaries_text: String = group
             .iter()
-            .take(5)
+            .take(8)
             .map(|s| s.summary.as_str())
             .collect::<Vec<_>>()
             .join(" ");
 
+        let max_summary_len = 500;
         let mut entry = format!(
-            "【{}】（{} 个会话）\n  代表性工作：{}\n  概要：{}\n",
+            "【{}】（{} 个会话）\n  代表性工作：{}\n  详细内容：{}\n",
             topic,
             group.len(),
             titles.join("、"),
-            if summaries_text.len() > 300 {
-                format!("{}...", &summaries_text[..summaries_text.floor_char_boundary(300)])
+            if summaries_text.len() > max_summary_len {
+                format!("{}...", &summaries_text[..summaries_text.floor_char_boundary(max_summary_len)])
             } else {
                 summaries_text
             }
         );
         if !all_decisions.is_empty() {
-            entry.push_str(&format!("  关键决策：{}\n", all_decisions.join("；")));
+            entry.push_str(&format!("  技术决策：{}\n", all_decisions.join("；")));
         }
         entry.push('\n');
         entries.push(entry);

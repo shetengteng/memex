@@ -211,6 +211,7 @@ fn regenerate_weekly_report_inner(
     }
 
     let period_label = format!("Week {}-W{:02}", iso.year(), iso.week());
+    let fixed_title = format!("周报 {}-W{:02}", iso.year(), iso.week());
     let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
         .map_err(|e| {
             warn!("L4 weekly summarize failed: {}", e);
@@ -219,7 +220,7 @@ fn regenerate_weekly_report_inner(
     db.upsert_aggregate_summary(
         "weekly",
         &scope_key,
-        Some(&summary.title),
+        Some(&fixed_title),
         &summary.summary,
         &summary.topics,
         &summary.decisions,
@@ -239,12 +240,13 @@ pub fn regenerate_report_by_key(
         .split_once(':')
         .ok_or_else(|| anyhow::anyhow!("invalid scope_key format: {}", scope_key))?;
 
-    let (after, before, period_label) = match scope_type {
+    let (after, before, period_label, fixed_title) = match scope_type {
         "daily" => {
             let after = format!("{}T00:00:00+00:00", date_part);
             let before = format!("{}T23:59:59+00:00", date_part);
             let label = format!("Daily {}", date_part);
-            (after, before, label)
+            let title = format!("日报 {}", date_part);
+            (after, before, label, title)
         }
         "weekly" => {
             let (year, week) = parse_iso_week(date_part)?;
@@ -255,7 +257,8 @@ pub fn regenerate_report_by_key(
             let after = format!("{}T00:00:00+00:00", start);
             let before = format!("{}T23:59:59+00:00", end);
             let label = format!("Week {}", date_part);
-            (after, before, label)
+            let title = format!("周报 {}", date_part);
+            (after, before, label, title)
         }
         other => return Err(anyhow::anyhow!("unsupported scope_type: {}", other)),
     };
@@ -289,11 +292,11 @@ pub fn regenerate_report_by_key(
             warn!("regenerate_report_by_key: LLM summarize_period failed: {}", e);
             anyhow::anyhow!(e)
         })?;
-    info!("regenerate_report_by_key: generated title='{}', summary_len={}", summary.title, summary.summary.len());
+    info!("regenerate_report_by_key: generated summary_len={}, title='{}'", summary.summary.len(), fixed_title);
     db.upsert_aggregate_summary(
         scope_type,
         scope_key,
-        Some(&summary.title),
+        Some(&fixed_title),
         &summary.summary,
         &summary.topics,
         &summary.decisions,
@@ -368,6 +371,7 @@ fn regenerate_daily_report_inner(
     }
 
     let period_label = format!("Daily {}", today);
+    let fixed_title = format!("日报 {}", today);
     let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
         .map_err(|e| {
             warn!("L4 daily summarize failed: {}", e);
@@ -376,7 +380,7 @@ fn regenerate_daily_report_inner(
     db.upsert_aggregate_summary(
         "daily",
         &scope_key,
-        Some(&summary.title),
+        Some(&fixed_title),
         &summary.summary,
         &summary.topics,
         &summary.decisions,
