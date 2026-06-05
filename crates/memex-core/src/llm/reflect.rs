@@ -131,7 +131,9 @@ pub fn generate_reflection(
         "\n请基于上述材料做一次反思级别的回顾，按 system 描述输出 JSON。",
     );
 
-    let request = LlmRequest::with_prompt(prompt).with_system(REFLECTION_SYSTEM);
+    let request = LlmRequest::with_prompt(prompt)
+        .with_system(REFLECTION_SYSTEM)
+        .with_max_tokens(4096);
     let response = provider.generate(&request)?;
     parse_reflection(&response.text)
 }

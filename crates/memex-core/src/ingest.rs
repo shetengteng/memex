@@ -228,6 +228,91 @@ fn regenerate_weekly_report_inner(
     Ok(db.get_aggregate_summary("weekly", &scope_key)?)
 }
 
+/// 根据 scope_key 重新生成指定的日报或周报。
+/// scope_key 格式：`daily:2026-06-04` 或 `weekly:2026-W23`。
+pub fn regenerate_report_by_key(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    scope_key: &str,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
+    let (scope_type, date_part) = scope_key
+        .split_once(':')
+        .ok_or_else(|| anyhow::anyhow!("invalid scope_key format: {}", scope_key))?;
+
+    let (after, before, period_label) = match scope_type {
+        "daily" => {
+            let after = format!("{}T00:00:00+00:00", date_part);
+            let before = format!("{}T23:59:59+00:00", date_part);
+            let label = format!("Daily {}", date_part);
+            (after, before, label)
+        }
+        "weekly" => {
+            let (year, week) = parse_iso_week(date_part)?;
+            let start = chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Mon)
+                .ok_or_else(|| anyhow::anyhow!("invalid week: {}", date_part))?;
+            let end = chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Sun)
+                .ok_or_else(|| anyhow::anyhow!("invalid week: {}", date_part))?;
+            let after = format!("{}T00:00:00+00:00", start);
+            let before = format!("{}T23:59:59+00:00", end);
+            let label = format!("Week {}", date_part);
+            (after, before, label)
+        }
+        other => return Err(anyhow::anyhow!("unsupported scope_type: {}", other)),
+    };
+
+    let sessions = db.list_sessions_in_range(&after, &before)?;
+    info!("regenerate_report_by_key: scope_key={}, sessions={}", scope_key, sessions.len());
+    if sessions.is_empty() {
+        warn!("regenerate_report_by_key: no sessions in range {} .. {}", after, before);
+        return Ok(None);
+    }
+
+    let mut l2_summaries = Vec::new();
+    for s in &sessions {
+        if let Ok(Some(row)) = db.get_summary(&s.id, "L2_session") {
+            l2_summaries.push(summarize::SessionSummary {
+                title: row.title.unwrap_or_default(),
+                summary: row.summary,
+                topics: row.topics,
+                decisions: row.decisions,
+            });
+        }
+    }
+    info!("regenerate_report_by_key: l2_summaries={}", l2_summaries.len());
+    if l2_summaries.is_empty() {
+        warn!("regenerate_report_by_key: no L2 summaries found for {} sessions", sessions.len());
+        return Ok(None);
+    }
+
+    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
+        .map_err(|e| {
+            warn!("regenerate_report_by_key: LLM summarize_period failed: {}", e);
+            anyhow::anyhow!(e)
+        })?;
+    info!("regenerate_report_by_key: generated title='{}', summary_len={}", summary.title, summary.summary.len());
+    db.upsert_aggregate_summary(
+        scope_type,
+        scope_key,
+        Some(&summary.title),
+        &summary.summary,
+        &summary.topics,
+        &summary.decisions,
+        sessions.len() as i64,
+    )?;
+    Ok(db.get_aggregate_summary(scope_type, scope_key)?)
+}
+
+fn parse_iso_week(s: &str) -> anyhow::Result<(i32, u32)> {
+    // "2026-W23" → (2026, 23)
+    let parts: Vec<&str> = s.split("-W").collect();
+    if parts.len() != 2 {
+        return Err(anyhow::anyhow!("invalid week format: {}", s));
+    }
+    let year: i32 = parts[0].parse()?;
+    let week: u32 = parts[1].parse()?;
+    Ok((year, week))
+}
+
 fn try_l4_periodic_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
     let _ = regenerate_daily_report_inner(db, provider, /* force = */ false);
 }

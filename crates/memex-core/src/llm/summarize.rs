@@ -4,16 +4,16 @@ use serde::{Deserialize, Serialize};
 use super::provider::{LlmProvider, LlmRequest};
 
 const SUMMARY_SYSTEM: &str = "\
-你是一个面向技术开发场景的会话摘要助手。输入是用户与 AI 助手的一段对话，\
-请生成一段简洁、有结构的摘要。输出 JSON，字段如下：
-- title: 一行标题，不超过 60 个字符
-- summary: 用 2-4 句话概括完成了什么、做了哪些关键决策
-- topics: 1-5 个主题关键词组成的数组
-- decisions: 0-3 个关键决策组成的数组
-所有自然语言字段（title、summary、topics、decisions）都必须使用简体中文，\
-无论输入是什么语言。保持技术标识原样：文件路径、命令名、函数名、英文缩写（SQL/HTTP/API 等）\
-不要翻译。\
-只输出合法 JSON，不要带 markdown 代码块标记。";
+你是一位面向技术开发场景的会话摘要助手。输入是用户与 AI 助手的一段编程对话。\
+请生成结构化摘要。
+
+输出严格合法的 JSON（不带 ```json 标记），包含以下字段：
+- title (string): 一行标题，不超过 60 字符，概括核心工作
+- summary (string): 2-4 句话，说明完成了什么、解决了什么问题、做了哪些关键决策
+- topics (string[]): 1-5 个主题关键词
+- decisions (string[]): 0-3 个关键技术决策，每条是纯字符串
+
+语言：所有自然语言使用简体中文。技术标识保持原样（文件路径、命令名、函数名、缩写）。";
 
 const CHUNK_SUMMARY_SYSTEM: &str = "\
 你是一个面向技术开发场景的文本摘要助手。输入是编程会话中的一段文本，\
@@ -33,18 +33,24 @@ const PROJECT_SUMMARY_SYSTEM: &str = "\
 只输出合法 JSON，不要带 markdown 代码块标记。";
 
 const PERIODIC_SUMMARY_SYSTEM: &str = "\
-你是一个工作日记摘要助手。输入是某个时间段内多个会话的摘要，\
-请生成周期性工作报告。输出 JSON，字段如下：
-- title: 周期标签，如 \"日报 2026-06-01\" 或 \"周报 2026-W22\"
-- summary: 用 3-6 句话概括这段时间内完成的工作
-- topics: 1-8 个主题关键词数组
-- decisions: 0-5 个关键决策数组
-所有自然语言字段都必须使用简体中文，无论输入会话摘要是什么语言（即使输入是英文，\
-输出也必须是中文）。保持技术标识原样：文件路径、命令名、函数名、英文缩写（SQL/HTTP/API 等）\
-不要翻译。\
-只输出合法 JSON，不要带 markdown 代码块标记。";
+你是一位资深工程师的工作报告撰写助手。输入是某个时间段内多个 AI 辅助编程会话的摘要，\
+请生成一份结构清晰、有洞察力的周期性工作报告。
+
+输出严格合法的 JSON（不带 ```json 标记），包含以下字段：
+- title (string): 如 \"日报 2026-06-01\" 或 \"周报 2026-W22\"
+- summary (string): 详细的工作叙述，要求如下：
+  · 按主题/项目分段，每段用【主题名】开头
+  · 每个主题 2-4 句话，说明做了什么、为什么做、达成了什么效果
+  · 日报至少 150 字，周报至少 400 字
+  · 涉及 bug 修复的要说明根因和方案
+  · 涉及性能优化的要给出前后对比数据（如果输入中有）
+- topics (string[]): 5-10 个覆盖所有工作的主题关键词
+- decisions (string[]): 3-8 个关键技术决策，每条是一句完整的中文描述
+
+语言：所有自然语言使用简体中文。技术标识保持原样（文件路径、命令名、函数名、缩写）。";
 
 const MAX_INPUT_CHARS: usize = 8000;
+const MAX_PERIOD_INPUT_CHARS: usize = 12000;
 const MIN_CHUNK_CHARS_FOR_SUMMARY: usize = 200;
 const L1_BATCH_SIZE: usize = 10;
 
@@ -120,25 +126,83 @@ pub fn summarize_period(
     period_label: &str,
     session_summaries: &[SessionSummary],
 ) -> Result<SessionSummary> {
-    let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str(&format!("以下是 {} 期间的工作会话摘要：\n\n", period_label));
-    for (i, s) in session_summaries.iter().enumerate() {
-        let entry = format!(
-            "会话 {}：{}\n  摘要：{}\n  关键决策：{}\n\n",
-            i + 1,
-            s.title,
-            s.summary,
-            s.decisions.join("；")
-        );
-        if prompt.len() + entry.len() > MAX_INPUT_CHARS {
+    let condensed = condense_for_period(session_summaries);
+
+    let mut prompt = String::with_capacity(MAX_PERIOD_INPUT_CHARS);
+    prompt.push_str(&format!(
+        "以下是 {} 期间的工作会话摘要（共 {} 个会话）：\n\n",
+        period_label,
+        session_summaries.len()
+    ));
+    let mut included = 0usize;
+    for entry in &condensed {
+        if prompt.len() + entry.len() > MAX_PERIOD_INPUT_CHARS {
             break;
         }
-        prompt.push_str(&entry);
+        prompt.push_str(entry);
+        included += 1;
     }
-    prompt.push_str("请输出一份周期性工作报告的 JSON。");
-    let request = LlmRequest::with_prompt(prompt).with_system(PERIODIC_SUMMARY_SYSTEM);
+    if included < condensed.len() {
+        prompt.push_str(&format!(
+            "（还有 {} 组工作因篇幅限制未列出）\n\n",
+            condensed.len() - included
+        ));
+    }
+    prompt.push_str(&format!(
+        "请综合以上 {} 个会话的工作内容，输出一份详细的周期性工作报告 JSON。\
+         要求 summary 字段覆盖所有主要工作主题，按项目/领域分段叙述，\
+         每个领域 2-3 句话说明做了什么和成果。",
+        session_summaries.len()
+    ));
+    let request = LlmRequest::with_prompt(prompt)
+        .with_system(PERIODIC_SUMMARY_SYSTEM)
+        .with_max_tokens(4096);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
+}
+
+fn condense_for_period(summaries: &[SessionSummary]) -> Vec<String> {
+    use std::collections::BTreeMap;
+    let mut by_topic: BTreeMap<String, Vec<&SessionSummary>> = BTreeMap::new();
+
+    for s in summaries {
+        let key = s.topics.first().cloned().unwrap_or_else(|| "其他".to_string());
+        by_topic.entry(key).or_default().push(s);
+    }
+
+    let mut entries = Vec::new();
+    for (topic, group) in &by_topic {
+        let titles: Vec<&str> = group.iter().take(8).map(|s| s.title.as_str()).collect();
+        let all_decisions: Vec<&str> = group
+            .iter()
+            .flat_map(|s| s.decisions.iter().map(|d| d.as_str()))
+            .take(5)
+            .collect();
+        let summaries_text: String = group
+            .iter()
+            .take(5)
+            .map(|s| s.summary.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let mut entry = format!(
+            "【{}】（{} 个会话）\n  代表性工作：{}\n  概要：{}\n",
+            topic,
+            group.len(),
+            titles.join("、"),
+            if summaries_text.len() > 300 {
+                format!("{}...", &summaries_text[..summaries_text.floor_char_boundary(300)])
+            } else {
+                summaries_text
+            }
+        );
+        if !all_decisions.is_empty() {
+            entry.push_str(&format!("  关键决策：{}\n", all_decisions.join("；")));
+        }
+        entry.push('\n');
+        entries.push(entry);
+    }
+    entries
 }
 
 pub const fn min_chunk_chars() -> usize {
@@ -181,15 +245,23 @@ fn build_prompt(messages: &[(String, String)]) -> String {
 }
 
 fn parse_summary(text: &str) -> Result<SessionSummary> {
-    let cleaned = text
-        .trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
+    if text.trim().len() < 10 {
+        anyhow::bail!("LLM returned too-short response ({} chars), cannot parse summary", text.len());
+    }
 
-    if let Ok(summary) = serde_json::from_str::<SessionSummary>(cleaned) {
-        return Ok(summary);
+    let cleaned = strip_code_fences(text);
+
+    if let Ok(summary) = serde_json::from_str::<SessionSummary>(&cleaned) {
+        if !summary.summary.is_empty() {
+            return Ok(summary);
+        }
+    }
+
+    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cleaned) {
+        let extracted = extract_summary_from_value(&val);
+        if !extracted.summary.is_empty() {
+            return Ok(extracted);
+        }
     }
 
     Ok(SessionSummary {
@@ -198,6 +270,50 @@ fn parse_summary(text: &str) -> Result<SessionSummary> {
         topics: Vec::new(),
         decisions: Vec::new(),
     })
+}
+
+fn strip_code_fences(text: &str) -> String {
+    let s = text.trim();
+    if let Some(rest) = s.strip_prefix("```json") {
+        rest.trim_end_matches("```").trim().to_string()
+    } else if let Some(rest) = s.strip_prefix("```") {
+        rest.trim_end_matches("```").trim().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
+    let title = val["title"].as_str().unwrap_or("").to_string();
+    let summary = val["summary"].as_str().unwrap_or("").to_string();
+
+    let topics = match val.get("topics") {
+        Some(serde_json::Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    let decisions = match val.get("decisions") {
+        Some(serde_json::Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| match v {
+                serde_json::Value::String(s) => Some(s.clone()),
+                serde_json::Value::Object(obj) => {
+                    obj.get("decision")
+                        .or_else(|| obj.get("content"))
+                        .or_else(|| obj.get("desc"))
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    SessionSummary { title, summary, topics, decisions }
 }
 
 fn extract_first_sentence(text: &str, max_len: usize) -> String {
@@ -260,6 +376,27 @@ mod tests {
         let text = "This is not valid JSON but a plain text response.";
         let s = parse_summary(text).unwrap();
         assert!(!s.title.is_empty());
+    }
+
+    #[test]
+    fn test_parse_summary_object_decisions() {
+        let json = r#"```json
+{
+    "title": "日报 2026-06-04",
+    "summary": "完成了多项优化工作。",
+    "topics": ["优化", "重构"],
+    "decisions": [
+        {"chapter": "架构", "decision": "选择 SQLite FTS5"},
+        {"chapter": "性能", "decision": "用 sqlite_sequence 替代 COUNT(*)"}
+    ]
+}
+```"#;
+        let s = parse_summary(json).unwrap();
+        assert_eq!(s.title, "日报 2026-06-04");
+        assert_eq!(s.decisions.len(), 2);
+        assert_eq!(s.decisions[0], "选择 SQLite FTS5");
+        assert_eq!(s.decisions[1], "用 sqlite_sequence 替代 COUNT(*)");
+        assert_eq!(s.topics.len(), 2);
     }
 
     #[test]

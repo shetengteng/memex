@@ -37,11 +37,11 @@ async function load() {
   }
 }
 
-async function handleRegenerate() {
+async function handleRegenerate(scopeKey?: string) {
   regenerating.value = true
   regenError.value = ''
   try {
-    const updated = await regenerateReport(scope.value)
+    const updated = await regenerateReport(scope.value, scopeKey)
     if (updated) {
       await load()
       selectedKey.value = updated.scope_key
@@ -153,12 +153,24 @@ function formatCreatedAt(iso: string): string {
       </aside>
 
       <article v-if="current">
-        <header class="mb-3">
-          <h3 class="text-lg font-semibold">{{ current.title || formatLabel(current) }}</h3>
-          <p class="mt-1 text-xs text-muted-foreground">
-            {{ t('reports.session_count', { count: current.session_count }) }} ·
-            {{ t('reports.generated_at', { time: formatCreatedAt(current.created_at) }) }}
-          </p>
+        <header class="mb-3 flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">{{ current.title || formatLabel(current) }}</h3>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ t('reports.session_count', { count: current.session_count }) }} ·
+              {{ t('reports.generated_at', { time: formatCreatedAt(current.created_at) }) }}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 gap-1 text-xs text-muted-foreground"
+            :disabled="regenerating"
+            @click="handleRegenerate(current.scope_key)"
+          >
+            <RefreshCw class="h-3 w-3" :class="{ 'animate-spin': regenerating }" />
+            {{ t('reports.regenerate.this') }}
+          </Button>
         </header>
 
         <p class="text-sm leading-relaxed whitespace-pre-line">{{ current.summary }}</p>

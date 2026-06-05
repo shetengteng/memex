@@ -2,7 +2,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { Loader2 } from 'lucide-vue-next'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -28,7 +27,6 @@ const sessionsLoading = ref(false)
 const detailSession = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
 const refreshing = ref(false)
-const initialLoading = ref(true)
 const sessionFilter = ref('')
 const sessionMessagesFilter = ref<'all' | 'invalid' | 'valid'>('all')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -44,7 +42,6 @@ async function loadDashboard() {
   if (bd) breakdown.value = bd
   timeline.value = tl
   if (ss) sessions.value = ss
-  initialLoading.value = false
 }
 
 async function loadSessions() {
@@ -111,7 +108,7 @@ function handleDeepLinkUrl(raw: string) {
 let unlistenDeepLink: UnlistenFn | null = null
 
 onMounted(async () => {
-  await loadDashboard()
+  loadDashboard()
   refreshTimer = setInterval(loadDashboard, 15_000)
 
   unlistenDeepLink = await listen<string>('deep-link', (event) => {
@@ -136,41 +133,36 @@ onUnmounted(() => {
     <DashSidebar :active-tab="tab" @switch-tab="switchTab" />
 
     <div class="flex-1 overflow-y-auto p-6">
-      <!-- Loading -->
-      <div v-if="initialLoading" class="flex h-full items-center justify-center">
-        <div class="flex flex-col items-center gap-3">
-          <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
-          <span class="text-sm text-muted-foreground">Loading...</span>
-        </div>
-      </div>
-      <div v-else class="mx-auto w-full max-w-7xl">
-        <OverviewTab
-          v-if="tab === 'overview'"
-          :stats="stats"
-          :breakdown="breakdown"
-          :timeline="timeline"
-          :recent-sessions="sessions.slice(0, 10)"
-          :refreshing="refreshing"
-          @refresh="manualRefresh"
-          @navigate-projects="switchTab('projects')"
-          @open-session="openSessionDetail"
-          @show-invalid-sessions="showInvalidSessions"
-        />
-        <SessionsTab
-          v-else-if="tab === 'sessions'"
-          :sessions="sessions"
-          :loading="sessionsLoading"
-          :initial-filter="sessionFilter"
-          :initial-messages-filter="sessionMessagesFilter"
-          :breakdown="breakdown"
-          @open-session="openSessionDetail"
-        />
-        <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
-        <ReportsTab v-else-if="tab === 'reports'" />
-        <ReflectTab v-else-if="tab === 'reflect'" />
-        <WorkloadTab v-else-if="tab === 'workload'" />
-        <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
-        <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" @refresh-session="openSessionDetail" />
+      <div class="mx-auto w-full max-w-7xl">
+        <KeepAlive>
+          <OverviewTab
+            v-if="tab === 'overview'"
+            :stats="stats"
+            :breakdown="breakdown"
+            :timeline="timeline"
+            :recent-sessions="sessions.slice(0, 10)"
+            :refreshing="refreshing"
+            @refresh="manualRefresh"
+            @navigate-projects="switchTab('projects')"
+            @open-session="openSessionDetail"
+            @show-invalid-sessions="showInvalidSessions"
+          />
+          <SessionsTab
+            v-else-if="tab === 'sessions'"
+            :sessions="sessions"
+            :loading="sessionsLoading"
+            :initial-filter="sessionFilter"
+            :initial-messages-filter="sessionMessagesFilter"
+            :breakdown="breakdown"
+            @open-session="openSessionDetail"
+          />
+          <ProjectsTab v-else-if="tab === 'projects'" @open-session="openSessionDetail" @filter-sessions="filterByProject" />
+          <ReportsTab v-else-if="tab === 'reports'" />
+          <ReflectTab v-else-if="tab === 'reflect'" />
+          <WorkloadTab v-else-if="tab === 'workload'" />
+          <SearchTab v-else-if="tab === 'search'" @open-session="openSessionDetail" />
+          <SessionDetailTab v-else-if="tab === 'session-detail'" :session="detailSession" :loading="detailLoading" @back="tab = 'sessions'" @refresh-session="openSessionDetail" />
+        </KeepAlive>
       </div>
     </div>
   </div>

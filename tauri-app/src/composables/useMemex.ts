@@ -54,8 +54,8 @@ export function useMemex() {
     return invoke<AggregateSummary[]>('list_reports', { scope, limit })
   }
 
-  async function regenerateReport(scope: 'daily' | 'weekly'): Promise<AggregateSummary | null> {
-    return invoke<AggregateSummary | null>('regenerate_report', { scope })
+  async function regenerateReport(scope: 'daily' | 'weekly', scopeKey?: string): Promise<AggregateSummary | null> {
+    return invoke<AggregateSummary | null>('regenerate_report', { scope, scopeKey })
   }
 
   async function daemonStatus(): Promise<DaemonStatus> {

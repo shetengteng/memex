@@ -250,7 +250,7 @@ impl Db {
 
     pub fn message_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
-        Ok(conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?)
+        Ok(conn.query_row("SELECT COALESCE(SUM(message_count), 0) FROM sessions", [], |row| row.get(0))?)
     }
 
     pub fn list_sessions_by_project(&self, project_path: &str) -> Result<Vec<SessionRow>> {

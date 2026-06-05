@@ -55,13 +55,14 @@ fn test_tools_list() {
     assert!(resp.error.is_none());
     let tools = resp.result.unwrap();
     let tool_list = tools["tools"].as_array().unwrap();
-    assert_eq!(tool_list.len(), 5);
+    assert_eq!(tool_list.len(), 6);
     let names: Vec<&str> = tool_list.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"search_memory"));
     assert!(names.contains(&"get_session"));
     assert!(names.contains(&"list_recent"));
     assert!(names.contains(&"stats"));
     assert!(names.contains(&"get_project_context"));
+    assert!(names.contains(&"list_sessions_by_range"));
 }
 
 #[test]

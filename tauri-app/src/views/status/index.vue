@@ -27,17 +27,9 @@ const { getStats, getConfig, daemonStatus, daemonRestart } = useMemex()
 
 type Tone = 'success' | 'warning' | 'error' | 'muted'
 
-const stats = ref<Stats>({
-  sessions: 0,
-  messages: 0,
-  chunks: 0,
-  db_exists: false,
-  summaries: 0,
-  sessions_eligible_for_summary: 0,
-  chunks_summarized: 0,
-  llm_provider: null,
-})
+const stats = ref<Stats | null>(null)
 const loading = ref(true)
+const statsError = ref('')
 const daemon = ref<DaemonStatus | null>(null)
 const restarting = ref(false)
 const restartError = ref('')
@@ -79,28 +71,29 @@ async function handleRestart() {
 }
 
 onMounted(async () => {
-  try { stats.value = await getStats() } catch { /* ignore */ }
-
-  for (const a of adapterDefs) {
-    try {
-      const v = await getConfig(`adapter.${a.key}.enabled`)
-      adapterEnabled.value[a.key] = v === null ? true : v === 'true'
-    } catch {
-      adapterEnabled.value[a.key] = true
-    }
-  }
-  try {
-    const v = await getConfig('llm.ollama_enabled')
-    llmOllama.value = v === 'true'
-  } catch { /* default */ }
-
-  await probeDaemon()
+  await Promise.allSettled([
+    getStats().then((s) => (stats.value = s)).catch((e) => { statsError.value = String(e) }),
+    probeDaemon(),
+    ...adapterDefs.map(async (a) => {
+      try {
+        const v = await getConfig(`adapter.${a.key}.enabled`)
+        adapterEnabled.value[a.key] = v === null ? true : v === 'true'
+      } catch {
+        adapterEnabled.value[a.key] = true
+      }
+    }),
+    getConfig('llm.ollama_enabled').then((v) => { llmOllama.value = v === 'true' }).catch(() => {}),
+  ])
   loading.value = false
 })
 
 function refresh() {
   loading.value = true
-  Promise.allSettled([getStats().then((s) => (stats.value = s)), probeDaemon()]).finally(() => {
+  statsError.value = ''
+  Promise.allSettled([
+    getStats().then((s) => (stats.value = s)).catch((e) => { statsError.value = String(e) }),
+    probeDaemon(),
+  ]).finally(() => {
     loading.value = false
   })
 }
@@ -151,11 +144,11 @@ const activeAdapterCount = computed(
 )
 
 const llmProviderLabel = computed(() =>
-  stats.value.llm_provider ?? t('status.card.llm_provider_none'),
+  stats.value?.llm_provider ?? t('status.card.llm_provider_none'),
 )
 
 const llmProviderTone = computed<Tone>(() => {
-  if (stats.value.llm_provider) return 'success'
+  if (stats.value?.llm_provider) return 'success'
   if (llmOllama.value) return 'warning'
   return 'muted'
 })
@@ -263,7 +256,10 @@ const heroIcon = computed(() => {
               <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {{ t('status.card.database') }}
               </span>
-              <Badge v-if="!stats.db_exists" variant="destructive" class="ml-1 text-[10px]">
+              <Badge v-if="!stats" variant="secondary" class="ml-1 text-[10px]">
+                {{ loading ? '...' : (statsError || t('status.db.not_initialized')) }}
+              </Badge>
+              <Badge v-else-if="!stats.db_exists" variant="destructive" class="ml-1 text-[10px]">
                 {{ t('status.db.not_initialized') }}
               </Badge>
               <Badge v-else variant="secondary" class="ml-1 text-[10px]">
@@ -276,30 +272,35 @@ const heroIcon = computed(() => {
             />
           </CollapsibleTrigger>
           <CollapsibleContent class="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-            <div class="grid grid-cols-4 gap-2 px-4 pb-3 pt-1">
-              <div class="rounded-md border border-border bg-muted/20 p-2">
-                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.sessions') }}</div>
-                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.sessions) }}</div>
-              </div>
-              <div class="rounded-md border border-border bg-muted/20 p-2">
-                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.messages') }}</div>
-                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.messages) }}</div>
-              </div>
-              <div class="rounded-md border border-border bg-muted/20 p-2">
-                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.chunks') }}</div>
-                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.chunks) }}</div>
-              </div>
-              <div class="rounded-md border border-border bg-muted/20 p-2">
-                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.summaries') }}</div>
-                <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.summaries) }}</div>
-              </div>
+            <div v-if="!stats" class="px-4 pb-3 pt-1 text-xs text-muted-foreground">
+              {{ loading ? t('common.loading') : statsError }}
             </div>
-            <p v-if="stats.chunks > 0" class="px-4 pb-2 text-[10px] text-muted-foreground">
-              {{ t('status.index.fts_ready') }}
-            </p>
-            <p v-else-if="stats.db_exists" class="px-4 pb-2 text-[10px] text-muted-foreground">
-              {{ t('status.index.empty') }}
-            </p>
+            <template v-else>
+              <div class="grid grid-cols-4 gap-2 px-4 pb-3 pt-1">
+                <div class="rounded-md border border-border bg-muted/20 p-2">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.sessions') }}</div>
+                  <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.sessions) }}</div>
+                </div>
+                <div class="rounded-md border border-border bg-muted/20 p-2">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.messages') }}</div>
+                  <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.messages) }}</div>
+                </div>
+                <div class="rounded-md border border-border bg-muted/20 p-2">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.chunks') }}</div>
+                  <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.chunks) }}</div>
+                </div>
+                <div class="rounded-md border border-border bg-muted/20 p-2">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{{ t('status.kpi.summaries') }}</div>
+                  <div class="mt-0.5 text-base font-semibold tabular-nums">{{ formatNumber(stats.summaries) }}</div>
+                </div>
+              </div>
+              <p v-if="stats.chunks > 0" class="px-4 pb-2 text-[10px] text-muted-foreground">
+                {{ t('status.index.fts_ready') }}
+              </p>
+              <p v-else-if="stats.db_exists" class="px-4 pb-2 text-[10px] text-muted-foreground">
+                {{ t('status.index.empty') }}
+              </p>
+            </template>
           </CollapsibleContent>
         </Card>
       </Collapsible>
@@ -386,7 +387,7 @@ const heroIcon = computed(() => {
               </div>
 
               <!-- 摘要计数 -->
-              <p v-if="stats.llm_provider" class="mt-1 px-1 text-[10px] text-muted-foreground">
+              <p v-if="stats?.llm_provider" class="mt-1 px-1 text-[10px] text-muted-foreground">
                 {{ t('status.llm.active_hint', {
                   sessions: formatNumber(stats.summaries),
                   chunks: formatNumber(stats.chunks_summarized),

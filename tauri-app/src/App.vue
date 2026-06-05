@@ -23,7 +23,7 @@ import SessionView from '@/views/session/index.vue'
 const currentView = ref<ViewName>('search')
 const selectedSessionId = ref<string | null>(null)
 const searchQuery = ref('')
-const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchInputRef = ref<InstanceType<typeof Input> | null>(null)
 const appWindow = getCurrentWindow()
 const { t } = useI18n()
 const { getStats, getConfig, batchSummarize } = useMemex()
@@ -150,7 +150,7 @@ function switchView(view: ViewName) {
   if (view === currentView.value && view !== 'session') return
   currentView.value = view
   if (view === 'search') {
-    nextTick(() => searchInputRef.value?.focus())
+    nextTick(() => (searchInputRef.value?.$el as HTMLInputElement)?.focus())
   }
 }
 
@@ -158,7 +158,7 @@ function goHome() {
   searchQuery.value = ''
   selectedSessionId.value = null
   currentView.value = 'search'
-  nextTick(() => searchInputRef.value?.focus())
+  nextTick(() => (searchInputRef.value?.$el as HTMLInputElement)?.focus())
 }
 
 const navValue = computed<string>(() => {
@@ -225,7 +225,7 @@ provide('back', back)
 
 watch(currentView, (v) => {
   if (v === 'search') {
-    nextTick(() => searchInputRef.value?.focus())
+    nextTick(() => (searchInputRef.value?.$el as HTMLInputElement)?.focus())
   }
 })
 

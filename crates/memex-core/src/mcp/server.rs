@@ -130,6 +130,20 @@ fn handle_list_tools(req: &JsonRpcRequest) -> JsonRpcResponse {
                         "top": { "type": "integer", "description": "Number of recent sessions to include (default 3)." }
                     }
                 }
+            },
+            {
+                "name": TOOL_LIST_SESSIONS_BY_RANGE,
+                "description": "List sessions within a time range, with their L2 summaries. Useful for generating custom reports (daily/weekly) by AI.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "after": { "type": "string", "description": "Start date (ISO 8601, e.g. '2026-06-01' or '2026-06-01T00:00:00+00:00')" },
+                        "before": { "type": "string", "description": "End date (ISO 8601, e.g. '2026-06-07' or '2026-06-07T23:59:59+00:00')" },
+                        "limit": { "type": "integer", "description": "Max sessions to return (default 100)" },
+                        "project": { "type": "string", "description": "Filter by project path" }
+                    },
+                    "required": ["after", "before"]
+                }
             }
         ]
     });
@@ -156,6 +170,7 @@ fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
         TOOL_LIST_RECENT => tool_list_recent(db, &args),
         TOOL_STATS => tool_stats(db),
         TOOL_GET_PROJECT_CONTEXT => tool_get_project_context(db, &args),
+        TOOL_LIST_SESSIONS_BY_RANGE => tool_list_sessions_by_range(db, &args),
         _ => Err(format!("unknown tool: {}", tool_name)),
     };
 
@@ -331,4 +346,70 @@ fn tool_get_project_context(
         &ContextOptions { top_n: top, redact: true },
     ).map_err(|e| e.to_string())?;
     Ok(md)
+}
+
+fn tool_list_sessions_by_range(
+    db: &Db,
+    args: &serde_json::Value,
+) -> std::result::Result<String, String> {
+    let after_raw = args.get("after").and_then(|v| v.as_str()).unwrap_or("");
+    let before_raw = args.get("before").and_then(|v| v.as_str()).unwrap_or("");
+    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+    let project_filter = args.get("project").and_then(|v| v.as_str());
+
+    let after = normalize_date_bound(after_raw, true);
+    let before = normalize_date_bound(before_raw, false);
+
+    let mut sessions = db
+        .list_sessions_in_range(&after, &before)
+        .map_err(|e| e.to_string())?;
+
+    sessions.retain(|s| {
+        !crate::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
+    });
+    if let Some(proj) = project_filter {
+        sessions.retain(|s| s.project_path.as_deref() == Some(proj));
+    }
+    sessions.truncate(limit);
+
+    let mut enriched: Vec<serde_json::Value> = Vec::with_capacity(sessions.len());
+    for s in &sessions {
+        let summary = db.get_summary(&s.id, "L2_session").ok().flatten();
+        let mut obj = serde_json::json!({
+            "id": s.id,
+            "source": s.source,
+            "project_path": s.project_path,
+            "title": s.title,
+            "message_count": s.message_count,
+            "updated_at": s.updated_at,
+            "deep_link": deep_link_for_session(&s.id),
+        });
+        if let Some(sum) = summary {
+            obj["l2_summary"] = serde_json::json!({
+                "title": sum.title,
+                "summary": sum.summary,
+                "topics": sum.topics,
+                "decisions": sum.decisions,
+            });
+        }
+        enriched.push(obj);
+    }
+
+    let result = serde_json::json!({
+        "range": { "after": after, "before": before },
+        "total": enriched.len(),
+        "sessions": enriched,
+    });
+    serde_json::to_string_pretty(&result).map_err(|e| e.to_string())
+}
+
+fn normalize_date_bound(raw: &str, is_start: bool) -> String {
+    if raw.contains('T') {
+        return raw.to_string();
+    }
+    if is_start {
+        format!("{}T00:00:00+00:00", raw)
+    } else {
+        format!("{}T23:59:59+00:00", raw)
+    }
 }

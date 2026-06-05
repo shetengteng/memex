@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 5;
+pub(super) const SCHEMA_VERSION: u32 = 6;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (

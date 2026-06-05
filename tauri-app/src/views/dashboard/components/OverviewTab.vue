@@ -164,54 +164,68 @@ const topProjects = computed<Array<[string, number]>>(() => {
 
   <!-- KPI strip -->
   <section class="grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-x-8 gap-y-1 border-y border-border py-5">
-    <div>
-      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.total_sessions') }}</div>
-      <div class="mt-1 flex items-baseline gap-2">
-        <span class="text-3xl font-bold tabular-nums">{{ formatNumber(stats?.sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(stats?.messages ?? 0) }} {{ t('overview.kpi.messages_suffix') }}</span>
+    <!-- skeleton state while data loads -->
+    <template v-if="!stats">
+      <div v-for="i in 4" :key="i">
+        <div class="h-3 w-20 animate-pulse rounded bg-muted" />
+        <div class="mt-2 h-8 w-24 animate-pulse rounded bg-muted" />
       </div>
-    </div>
-    <Button
-      variant="ghost"
-      class="group h-auto justify-start rounded-md px-2 py-1 text-left hover:bg-muted/50"
-      @click="emit('navigateProjects')"
-    >
-      <div class="w-full">
-        <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.projects') }}</div>
+    </template>
+    <template v-else>
+      <div>
+        <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.total_sessions') }}</div>
         <div class="mt-1 flex items-baseline gap-2">
-          <span class="text-3xl font-bold tabular-nums text-primary group-hover:underline">{{ projectCount }}</span>
-          <span class="text-xs text-muted-foreground">{{ t('overview.kpi.view_all') }}</span>
+          <span class="text-3xl font-bold tabular-nums">{{ formatNumber(stats.sessions) }}</span>
+          <span class="text-xs text-muted-foreground">{{ formatNumber(stats.messages) }} {{ t('overview.kpi.messages_suffix') }}</span>
         </div>
       </div>
-    </Button>
-    <div>
-      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_7d') }}</div>
-      <div class="mt-1 flex items-baseline gap-2">
-        <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_7d_sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_7d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
+      <Button
+        variant="ghost"
+        class="group h-auto justify-start rounded-md px-2 py-1 text-left hover:bg-muted/50"
+        @click="emit('navigateProjects')"
+      >
+        <div class="w-full">
+          <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.projects') }}</div>
+          <div class="mt-1 flex items-baseline gap-2">
+            <span class="text-3xl font-bold tabular-nums text-primary group-hover:underline">{{ projectCount }}</span>
+            <span class="text-xs text-muted-foreground">{{ t('overview.kpi.view_all') }}</span>
+          </div>
+        </div>
+      </Button>
+      <div>
+        <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_7d') }}</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_7d_sessions ?? 0) }}</span>
+          <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_7d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
+        </div>
       </div>
-    </div>
-    <div>
-      <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_30d') }}</div>
-      <div class="mt-1 flex items-baseline gap-2">
-        <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_30d_sessions ?? 0) }}</span>
-        <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_30d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
+      <div>
+        <div class="text-xs font-medium text-muted-foreground">{{ t('overview.kpi.last_30d') }}</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="text-3xl font-bold tabular-nums">{{ formatNumber(breakdown?.recent_30d_sessions ?? 0) }}</span>
+          <span class="text-xs text-muted-foreground">{{ formatNumber(breakdown?.recent_30d_messages ?? 0) }} {{ t('overview.kpi.msg_short') }}</span>
+        </div>
       </div>
-    </div>
+    </template>
   </section>
 
   <!-- Timeline -->
   <section class="mt-8">
     <div class="mb-3 flex items-baseline justify-between">
       <h3 class="text-sm font-semibold">{{ t('overview.timeline.title') }}</h3>
-      <span class="text-xs text-muted-foreground">
+      <span v-if="stats" class="text-xs text-muted-foreground">
         {{ t('overview.timeline.meta', { days: TIMELINE_DAYS, total: formatNumber(timelineTotal), days_active: timelineActiveDays }) }}
         <template v-if="timelinePeakDay.sessions > 0">
           {{ t('overview.timeline.peak', { count: formatNumber(timelinePeakDay.sessions), date: timelinePeakDay.date }) }}
         </template>
       </span>
     </div>
-    <div class="flex h-40 items-end gap-[3px]">
+    <div v-if="!stats" class="flex h-40 items-end gap-[3px]">
+      <div v-for="i in 30" :key="i" class="flex-1">
+        <div class="h-full animate-pulse rounded-sm bg-muted" :style="{ height: Math.random() * 60 + 20 + '%' }" />
+      </div>
+    </div>
+    <div v-else class="flex h-40 items-end gap-[3px]">
       <Tooltip v-for="d in timelineDates" :key="d.date">
         <TooltipTrigger as-child>
           <div class="group flex h-full flex-1 flex-col items-center justify-end">

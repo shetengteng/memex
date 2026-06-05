@@ -180,6 +180,16 @@ impl Db {
                 params![5u32],
             )?;
         }
+        if from < 6 {
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_chunks_has_summary
+                    ON chunks(id) WHERE summary IS NOT NULL;",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![6u32],
+            )?;
+        }
         Ok(())
     }
 }

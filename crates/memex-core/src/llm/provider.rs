@@ -24,7 +24,7 @@ impl Default for LlmRequest {
         Self {
             system: None,
             prompt: String::new(),
-            max_tokens: 512,
+            max_tokens: 2048,
             temperature: 0.3,
         }
     }
@@ -40,6 +40,11 @@ impl LlmRequest {
 
     pub fn with_system(mut self, system: impl Into<String>) -> Self {
         self.system = Some(system.into());
+        self
+    }
+
+    pub fn with_max_tokens(mut self, max_tokens: usize) -> Self {
+        self.max_tokens = max_tokens;
         self
     }
 }

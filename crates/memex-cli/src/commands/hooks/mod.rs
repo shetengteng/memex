@@ -80,8 +80,7 @@ pub fn install(ide: Ide, memex_bin: &Path, memex_home: &Path) -> Result<HookStat
     })
 }
 
-/// 把 hook 配置精确移除（保留同文件里其他 hook）。
-/// wrapper 脚本本身**不**删除，避免用户曾经自己手改过；CLI 输出会提示路径。
+/// 把 hook 配置精确移除（保留同文件里其他 hook），同时删除 wrapper 脚本。
 pub fn uninstall(ide: Ide) -> Result<HookStatus> {
     if !supports(ide) {
         return Ok(HookStatus {
@@ -100,6 +99,10 @@ pub fn uninstall(ide: Ide) -> Result<HookStatus> {
             Ide::Codex => codex::remove_hook(&cfg)?,
             Ide::OpenCode => {}
         }
+    }
+    let wrapper = wrapper_path_for(ide);
+    if wrapper.exists() {
+        let _ = fs::remove_file(&wrapper);
     }
     Ok(HookStatus {
         ide: ide.as_str().to_string(),
@@ -132,19 +135,34 @@ pub fn status(ide: Ide) -> Result<HookStatus> {
     }
     let content = fs::read_to_string(&cfg)
         .with_context(|| format!("failed to read {}", cfg.display()))?;
-    let installed = match ide {
+    let config_has_entry = match ide {
         Ide::Cursor => cursor::probe_hook(&content),
         Ide::ClaudeCode => claude::probe_hook(&content),
         Ide::Codex => codex::probe_hook(&content),
         Ide::OpenCode => false,
     };
+    let wrapper = wrapper_path_for(ide);
+    let wrapper_exists = wrapper.exists();
+    let installed = config_has_entry && wrapper_exists;
     Ok(HookStatus {
         ide: ide.as_str().to_string(),
         supported: true,
         installed,
         config_path: cfg.to_string_lossy().to_string(),
-        wrapper_path: None,
+        wrapper_path: if wrapper_exists { Some(wrapper.to_string_lossy().to_string()) } else { None },
     })
+}
+
+fn wrapper_path_for(ide: Ide) -> PathBuf {
+    let home = dirs::home_dir().expect("cannot determine home directory");
+    let hooks_dir = home.join(".memex").join(wrapper::HOOK_DIRNAME);
+    let name = match ide {
+        Ide::Cursor => "cursor-session-start.sh",
+        Ide::ClaudeCode => "claude-code-session-start.sh",
+        Ide::Codex => "codex-session-start.sh",
+        Ide::OpenCode => "opencode-session-start.sh",
+    };
+    hooks_dir.join(name)
 }
 
 pub fn list_status() -> Vec<HookStatus> {

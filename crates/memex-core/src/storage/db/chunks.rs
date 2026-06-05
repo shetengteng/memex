@@ -31,7 +31,16 @@ impl Db {
 
     pub fn chunk_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
-        Ok(conn.query_row("SELECT COUNT(*) FROM chunks", [], |row| row.get(0))?)
+        // AUTOINCREMENT seq is a fast O(1) approximation; exact COUNT(*) scans 700K+ rows (~11s).
+        let fast: Result<u64, _> = conn.query_row(
+            "SELECT seq FROM sqlite_sequence WHERE name='chunks'",
+            [],
+            |row| row.get(0),
+        );
+        match fast {
+            Ok(n) => Ok(n),
+            Err(_) => Ok(conn.query_row("SELECT COUNT(*) FROM chunks", [], |row| row.get(0))?),
+        }
     }
 
     pub fn update_chunk_summary(&self, chunk_id: i64, summary: &str) -> Result<()> {

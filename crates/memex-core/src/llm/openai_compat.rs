@@ -162,6 +162,14 @@ impl LlmProvider for OpenAiCompatProvider {
             .collect::<Vec<_>>()
             .join("");
 
+        if text.trim().is_empty() {
+            anyhow::bail!(
+                "OpenAI-compat API returned empty content (model={}, provider={})",
+                self.model,
+                self.name
+            );
+        }
+
         let usage = parsed.usage.unwrap_or_default();
 
         Ok(LlmResponse {
