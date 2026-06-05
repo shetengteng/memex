@@ -509,7 +509,7 @@ impl Adapter for CursorSqliteAdapter {
 /// common ancestor directory. Light-weight: no JSON value parsing required.
 fn infer_project_from_raw_json(raw: &str) -> Option<String> {
     let pattern = "\"file:///";
-    let mut paths: Vec<String> = Vec::new();
+    let mut dirs: Vec<String> = Vec::new();
     for (i, _) in raw.match_indices(pattern) {
         let uri_start = i + 1;
         let uri_rest = &raw[uri_start..];
@@ -517,15 +517,21 @@ fn infer_project_from_raw_json(raw: &str) -> Option<String> {
             let uri = &uri_rest[..end];
             if let Some(path) = uri.strip_prefix("file://") {
                 let decoded = percent_decode(path);
-                if !decoded.is_empty() && !paths.contains(&decoded) {
-                    paths.push(decoded);
-                    if paths.len() >= 10 { break; }
+                let p = std::path::Path::new(&decoded);
+                let dir = p.parent()
+                    .map(|d| d.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if dir.is_empty() { continue; }
+                if dir.contains("/.cursor/") || dir.contains("\\.cursor\\") { continue; }
+                if !dirs.contains(&dir) {
+                    dirs.push(dir);
+                    if dirs.len() >= 10 { break; }
                 }
             }
         }
     }
-    if paths.is_empty() { return None; }
-    find_common_ancestor(&paths)
+    if dirs.is_empty() { return None; }
+    find_common_ancestor(&dirs)
 }
 
 fn percent_decode(s: &str) -> String {
@@ -552,25 +558,17 @@ fn percent_decode(s: &str) -> String {
 /// `/Users/foo` = 2 components, so we require > 3.
 const MIN_ANCESTOR_DEPTH: usize = 4;
 
-fn find_common_ancestor(paths: &[String]) -> Option<String> {
-    if paths.is_empty() { return None; }
-    if paths.len() == 1 {
-        let p = std::path::Path::new(&paths[0]);
-        let dir = if p.is_absolute() && p.extension().is_some() {
-            p.parent().map(|d| d.to_string_lossy().to_string())
-        } else {
-            Some(paths[0].clone())
-        };
-        return dir.filter(|s| {
-            let depth = std::path::Path::new(s).components().count();
-            !s.is_empty() && s != "/" && depth >= MIN_ANCESTOR_DEPTH
-        });
+fn find_common_ancestor(dirs: &[String]) -> Option<String> {
+    if dirs.is_empty() { return None; }
+    if dirs.len() == 1 {
+        let depth = std::path::Path::new(&dirs[0]).components().count();
+        return if depth >= MIN_ANCESTOR_DEPTH { Some(dirs[0].clone()) } else { None };
     }
-    let first = std::path::Path::new(&paths[0]);
+    let first = std::path::Path::new(&dirs[0]);
     let components: Vec<_> = first.components().collect();
     let mut common_len = components.len();
-    for path in &paths[1..] {
-        let p = std::path::Path::new(path);
+    for dir in &dirs[1..] {
+        let p = std::path::Path::new(dir);
         let p_comps: Vec<_> = p.components().collect();
         let matching = components.iter()
             .zip(p_comps.iter())
