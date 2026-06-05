@@ -4,11 +4,7 @@
 //!   1. 先停 daemon（它持有 `memex.db` 的写句柄；不停掉直接删 db
 //!      在 macOS/Linux 上虽然不会立即报错，但残留的 WAL 会让重建脏掉）。
 //!   2. 调 `memex_core::maintenance` 做文件系统删除。
-//!   3. 异步触发 app 退出，让用户手动重启进入干净状态。
-//!
-//! 调度选项：
-//! - 返回 `ResetReport` 给前端展示「删除了 N 个文件、约 M MB」。
-//! - `exit_app` 由后台任务延迟 600ms 执行，给 IPC 响应留时间。
+//!   3. 重启 daemon 并通知前端刷新，app 保持运行。
 
 use std::process::Command;
 use std::time::Duration;
@@ -16,9 +12,9 @@ use std::time::Duration;
 use memex_core::maintenance::{ResetReport, reset_all, reset_index_only};
 use memex_core::memex_dir;
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter};
 
-use super::daemon::{daemon_status, read_lock_for_maintenance, is_process_alive_for_maintenance};
+use super::daemon::{daemon_restart, read_lock_for_maintenance, is_process_alive_for_maintenance};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemResetResult {
@@ -26,9 +22,9 @@ pub struct SystemResetResult {
     pub report: ResetReport,
 }
 
-/// 重建索引：停掉 daemon → 删 `memex.db*` → 退出 app。
+/// 重建索引：停掉 daemon → 删 `memex.db*` → 重启 daemon。
 /// 保留 `sessions/*.md` / `config.toml` / `redactions.yaml`。
-/// 重启后 daemon 会重新跑 ingest，但 LLM 摘要需要用户重新触发。
+/// daemon 会重新跑 ingest，但 LLM 摘要需要用户重新触发。
 #[tauri::command]
 pub async fn system_reset_index(app: AppHandle) -> Result<SystemResetResult, String> {
     stop_daemon_blocking();
@@ -39,7 +35,7 @@ pub async fn system_reset_index(app: AppHandle) -> Result<SystemResetResult, Str
         .map_err(|e| format!("join error: {e}"))?
         .map_err(|e| e.to_string())?;
 
-    schedule_exit(app);
+    restart_after_reset(app);
 
     Ok(SystemResetResult {
         mode: "index",
@@ -47,18 +43,23 @@ pub async fn system_reset_index(app: AppHandle) -> Result<SystemResetResult, Str
     })
 }
 
-/// 彻底重置：停掉 daemon → 清空整个 memex 目录 → 退出 app。
+/// 彻底重置：停掉 daemon → 清空整个 memex 目录 → 重建目录 → 重启 daemon。
 #[tauri::command]
 pub async fn system_reset_all(app: AppHandle) -> Result<SystemResetResult, String> {
     stop_daemon_blocking();
 
     let memex = memex_dir();
-    let report = tokio::task::spawn_blocking(move || reset_all(&memex))
-        .await
-        .map_err(|e| format!("join error: {e}"))?
-        .map_err(|e| e.to_string())?;
+    let report = tokio::task::spawn_blocking(move || {
+        let r = reset_all(&memex)?;
+        memex_core::config::ensure_memex_dir(&memex)
+            .map_err(|e| anyhow::anyhow!("failed to recreate memex dir: {e}"))?;
+        Ok::<_, anyhow::Error>(r)
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| e.to_string())?;
 
-    schedule_exit(app);
+    restart_after_reset(app);
 
     Ok(SystemResetResult {
         mode: "all",
@@ -94,18 +95,11 @@ fn stop_daemon_blocking() {
     let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
 }
 
-/// 延迟 600ms 退出 app，给前端 IPC 响应留时间。
-fn schedule_exit(app: AppHandle) {
+/// 重置后重启 daemon 并通知前端刷新，不再退出 app。
+fn restart_after_reset(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        // 先把所有窗口收起来，给用户一个"操作生效"的视觉反馈。
-        for (_label, win) in app.webview_windows() {
-            let _ = win.hide();
-        }
-        app.exit(0);
-    });
-    // 让 `daemon_status` 缓存里的旧状态被清掉（best-effort，不阻塞主路径）。
-    tauri::async_runtime::spawn(async move {
-        let _ = daemon_status().await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let _ = daemon_restart().await;
+        let _ = app.emit("reset-complete", ());
     });
 }

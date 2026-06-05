@@ -29,6 +29,10 @@ const zh: Messages = {
   'common.offline': '未运行',
   'common.starting': '启动中',
   'common.ready': '就绪',
+  'common.close': '关闭',
+
+  'footer.scanning': '扫描中…',
+  'footer.scanning_with_count': '扫描中 {msgs} 条',
 
   // popup 底部导航
   'nav.home': '主页',
@@ -69,6 +73,7 @@ const zh: Messages = {
   'settings.adapters.offline': '离线',
   'settings.adapters.rescan': '立即重新扫描',
   'settings.adapters.rescanning': '扫描中…',
+  'settings.adapters.rescan_progress': '已扫描 {msgs} 条消息，继续扫描中…',
   'settings.adapters.rescan_done': '已导入 {msgs} 条新消息',
   'settings.adapters.rescan_empty': '没有发现新会话',
   'settings.adapters.rescan_failed': '扫描失败：{err}',
@@ -174,11 +179,11 @@ const zh: Messages = {
   'settings.reset.confirm.side_effect_title': '影响',
   'settings.reset.confirm.side_effect_index': 'LLM 摘要、Reflect 报告需要在重新索引后重跑；IDE 集成与 CLI 安装不受影响。',
   'settings.reset.confirm.side_effect_all': 'LLM Provider、隐私规则、IDE 集成中安装的 MCP/Skill 配置需要重新设置。',
-  'settings.reset.confirm.exit_hint': '操作完成后 Memex 会自动退出，请重启 app 以进入干净状态。',
+  'settings.reset.confirm.exit_hint': '操作完成后数据将被清除，app 会自动刷新。',
   'settings.reset.confirm.cancel': '取消',
   'settings.reset.confirm.proceed': '我已知晓，确认执行',
   'settings.reset.running': '正在执行…',
-  'settings.reset.done': '已清理 {files} 项，约 {size}；正在退出 app…',
+  'settings.reset.done': '已清理 {files} 项，约 {size}。',
   'settings.reset.failed': '执行失败：{err}',
 
   // 状态页
@@ -463,6 +468,10 @@ const en: Messages = {
   'common.offline': 'Offline',
   'common.starting': 'Starting',
   'common.ready': 'Ready',
+  'common.close': 'Close',
+
+  'footer.scanning': 'Scanning…',
+  'footer.scanning_with_count': 'Scanning {msgs} msgs',
 
   // popup nav
   'nav.home': 'Home',
@@ -503,6 +512,7 @@ const en: Messages = {
   'settings.adapters.offline': 'offline',
   'settings.adapters.rescan': 'Rescan now',
   'settings.adapters.rescanning': 'Scanning…',
+  'settings.adapters.rescan_progress': '{msgs} messages scanned so far…',
   'settings.adapters.rescan_done': 'Imported {msgs} new messages',
   'settings.adapters.rescan_empty': 'No new sessions found',
   'settings.adapters.rescan_failed': 'Rescan failed: {err}',
@@ -608,11 +618,11 @@ const en: Messages = {
   'settings.reset.confirm.side_effect_title': 'Side effects',
   'settings.reset.confirm.side_effect_index': 'LLM summaries and Reflect reports need to be regenerated after reindex; IDE integrations and CLI install are unaffected.',
   'settings.reset.confirm.side_effect_all': 'LLM providers, redaction rules, and IDE-side MCP/Skill installs all need to be configured again.',
-  'settings.reset.confirm.exit_hint': 'Memex will exit automatically after the operation; please relaunch the app to enter a clean state.',
+  'settings.reset.confirm.exit_hint': 'Data will be cleared and the app will refresh automatically.',
   'settings.reset.confirm.cancel': 'Cancel',
   'settings.reset.confirm.proceed': 'I understand, proceed',
   'settings.reset.running': 'Running…',
-  'settings.reset.done': 'Removed {files} entries, ~{size}; exiting app…',
+  'settings.reset.done': 'Removed {files} entries, ~{size}.',
   'settings.reset.failed': 'Failed: {err}',
 
   // status

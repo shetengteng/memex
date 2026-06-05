@@ -3,13 +3,14 @@ import { ref, computed, provide, onMounted, onUnmounted, nextTick, watch } from 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { listen } from '@tauri-apps/api/event'
-import { Search, Settings, Activity, LayoutDashboard, Home, AlertTriangle, Copy, ExternalLink, Terminal, Sparkles, RefreshCw } from 'lucide-vue-next'
+import { Search, Settings, Activity, LayoutDashboard, Home, AlertTriangle, Copy, ExternalLink, Terminal, Sparkles, RefreshCw, Loader2 } from 'lucide-vue-next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ViewName, Stats } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
 import { formatNumber } from '@/lib/utils'
+import { scanState, resetScanState } from '@/composables/useScanState'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -34,6 +35,7 @@ interface SummaryProgress { current: number; total: number; done: boolean }
 const batchRunning = ref(false)
 const batchProgress = ref<SummaryProgress | null>(null)
 let unlistenSummaryProgress: (() => void) | null = null
+let unlistenResetComplete: (() => void) | null = null
 
 async function handleBatchSummarize() {
   if (batchRunning.value) return
@@ -190,7 +192,7 @@ async function openDashboard() {
       }
     }
     const url = import.meta.env.DEV
-      ? 'http://localhost:1420/#/dashboard'
+      ? `${window.location.origin}/#/dashboard`
       : 'index.html#/dashboard'
     const wv = new WebviewWindow('dashboard', {
       title: 'Memex Dashboard',
@@ -272,11 +274,16 @@ onMounted(async () => {
   await refreshStats()
   statsTimer = setInterval(refreshStats, 10_000)
   checkOllamaOnStartup()
+  listen('reset-complete', () => {
+    resetScanState()
+    refreshStats().catch(() => {})
+  }).then((unlisten) => { unlistenResetComplete = unlisten })
 })
 
 onUnmounted(() => {
   if (statsTimer) clearInterval(statsTimer)
   unlistenSummaryProgress?.()
+  unlistenResetComplete?.()
 })
 </script>
 
@@ -389,6 +396,11 @@ onUnmounted(() => {
       <Separator />
       <div class="flex items-center justify-between bg-muted/50 px-4 py-2.5">
         <span class="mono flex items-center gap-1 text-xs text-muted-foreground">
+          <template v-if="scanState.scanning">
+            <Loader2 class="h-3 w-3 animate-spin text-primary" />
+            <span class="text-primary">{{ scanState.msgs > 0 ? t('footer.scanning_with_count', { msgs: scanState.msgs }) : t('footer.scanning') }}</span>
+            ·
+          </template>
           {{ formatNumber(stats.sessions) }} · 
           <span :class="stats.db_exists ? 'text-success' : 'text-muted-foreground'">●</span>
           {{ stats.db_exists ? t('common.ready') : t('status.db.not_initialized') }}

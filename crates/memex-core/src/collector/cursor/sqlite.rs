@@ -164,9 +164,9 @@ impl CursorSqliteAdapter {
                 Some(WorkspaceIdentifier { uri: Some(u), .. }) => {
                     u.fs_path.or(u.path).filter(|s| !s.is_empty())
                 }
-                // multi-folder workspace（configPath）此处不还原成 cwd，
-                // 让 project_path 保持 None。如果以后想用 .code-workspace 文件名
-                // 当作"项目名"，可以在这里加一条 fallback。
+                Some(WorkspaceIdentifier { config_path: Some(ref cp), .. }) => {
+                    config_path_to_project(cp)
+                }
                 _ => None,
             };
             out.insert(
@@ -499,6 +499,30 @@ impl Adapter for CursorSqliteAdapter {
 
         Ok(messages)
     }
+}
+
+/// Extract a project path from a multi-folder workspace `configPath`.
+/// The value may be a JSON string (`"/path/to/foo.code-workspace"`)
+/// or an object with `fsPath`/`path` fields.
+/// Returns the parent directory of the `.code-workspace` file.
+/// Skips Cursor-internal workspace.json paths (under `Cursor/Workspaces/`).
+fn config_path_to_project(val: &serde_json::Value) -> Option<String> {
+    let raw = match val {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Object(obj) => {
+            obj.get("fsPath")
+                .or_else(|| obj.get("path"))
+                .and_then(|v| v.as_str())
+                .map(String::from)
+        }
+        _ => None,
+    };
+    let raw = raw.filter(|s| !s.is_empty())?;
+    if raw.contains("Cursor/Workspaces/") || raw.contains("Cursor\\Workspaces\\") {
+        return None;
+    }
+    let p = std::path::Path::new(&raw);
+    p.parent().map(|d| d.to_string_lossy().to_string()).filter(|s| !s.is_empty())
 }
 
 fn bubble_content(bubble: &Bubble) -> Option<String> {

@@ -111,19 +111,23 @@ impl Db {
             (true, true) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ON CONFLICT(id) DO UPDATE SET
+                    project_path = COALESCE(excluded.project_path, sessions.project_path),
                     created_at = excluded.created_at,
                     updated_at = excluded.updated_at",
             (true, false) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ON CONFLICT(id) DO UPDATE SET
+                    project_path = COALESCE(excluded.project_path, sessions.project_path),
                     created_at = excluded.created_at",
             (false, true) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ON CONFLICT(id) DO UPDATE SET
+                    project_path = COALESCE(excluded.project_path, sessions.project_path),
                     updated_at = excluded.updated_at",
             (false, false) => "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                ON CONFLICT(id) DO NOTHING",
+                ON CONFLICT(id) DO UPDATE SET
+                    project_path = COALESCE(excluded.project_path, sessions.project_path)",
         };
         conn.execute(
             sql,

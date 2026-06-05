@@ -3,6 +3,7 @@ import { ref, inject, watch, onMounted } from 'vue'
 import { Loader2, Sparkles } from 'lucide-vue-next'
 import type { SearchResult, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
+import { scanState, startScanning, stopScanning } from '@/composables/useScanState'
 import { timeAgo } from '@/lib/utils'
 import IdeIcon from '@/components/IdeIcon.vue'
 import { useI18n } from '@/i18n'
@@ -38,27 +39,45 @@ onMounted(async () => {
   } catch { /* ignore */ }
 })
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function stopPoll() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
+async function pollRecent() {
+  try {
+    const batch = await listRecent(PAGE_SIZE, 0)
+    recentSessions.value = batch
+    noMoreRecent.value = batch.length < PAGE_SIZE
+  } catch { /* ignore */ }
+}
+
 function startIngest() {
   if (ingesting.value) return
   ingesting.value = true
   ingestError.value = null
   ingestMessage.value = null
+  startScanning()
+  stopPoll()
+  pollTimer = setInterval(pollRecent, 3000)
   triggerIngest()
     .then(async (result) => {
+      scanState.msgs = result.messages_ingested
       if (result.messages_ingested > 0) {
         ingestMessage.value = t('search.empty.ingest_done', { msgs: result.messages_ingested })
       } else {
         ingestMessage.value = t('search.empty.ingest_none')
       }
-      const batch = await listRecent(PAGE_SIZE, 0)
-      recentSessions.value = batch
-      noMoreRecent.value = batch.length < PAGE_SIZE
+      await pollRecent()
     })
     .catch((e) => {
       ingestError.value = String(e)
     })
     .finally(() => {
+      stopPoll()
       ingesting.value = false
+      stopScanning()
     })
 }
 

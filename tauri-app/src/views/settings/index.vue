@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useMemex } from '@/composables/useMemex'
 import { Switch } from '@/components/ui/switch'
@@ -37,7 +37,8 @@ import LlmProviders from './LlmProviders.vue'
 import IdeIcon from '@/components/IdeIcon.vue'
 
 const { t, locale } = useI18n()
-const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor, systemResetIndex, systemResetAll } = useMemex()
+import { scanState, startScanning, stopScanning } from '@/composables/useScanState'
+const { toggleAdapter: ipcToggleAdapter, getConfig, setConfig, cliStatus: ipcCliStatus, cliInstall: ipcCliInstall, cliUninstall: ipcCliUninstall, llmTestOllama, triggerIngest, runDoctor, systemResetIndex, systemResetAll, getStats } = useMemex()
 const APP_VERSION = __APP_VERSION__
 const RELEASES_LATEST_PAGE = 'https://github.com/shetengteng/memex/releases/latest'
 
@@ -233,11 +234,34 @@ const rescanState = ref<{ state: 'idle' | 'running' | 'done' | 'empty' | 'error'
   error: '',
 })
 
+let rescanPollTimer: ReturnType<typeof setInterval> | null = null
+let rescanBaselineMsgs = 0
+
+function stopRescanPoll() {
+  if (rescanPollTimer) { clearInterval(rescanPollTimer); rescanPollTimer = null }
+}
+
+async function pollRescanProgress() {
+  try {
+    const stats = await getStats()
+    const delta = Number(stats.messages) - rescanBaselineMsgs
+    if (delta > 0) {
+      rescanState.value.msgs = delta
+      scanState.msgs = delta
+    }
+  } catch { /* ignore */ }
+}
+
 function startRescan() {
   if (rescanState.value.state === 'running') return
   rescanState.value = { state: 'running', msgs: 0, error: '' }
+  startScanning()
+  stopRescanPoll()
+  getStats().then((s) => { rescanBaselineMsgs = Number(s.messages) }).catch(() => {})
+  rescanPollTimer = setInterval(pollRescanProgress, 3000)
   triggerIngest()
     .then((result) => {
+      scanState.msgs = result.messages_ingested
       if (result.messages_ingested > 0) {
         rescanState.value = { state: 'done', msgs: result.messages_ingested, error: '' }
       } else {
@@ -247,7 +271,13 @@ function startRescan() {
     .catch((e) => {
       rescanState.value = { state: 'error', msgs: 0, error: e instanceof Error ? e.message : String(e) }
     })
+    .finally(() => {
+      stopRescanPoll()
+      stopScanning()
+    })
 }
+
+onUnmounted(stopRescanPoll)
 
 function rescanAdapter(row: AdapterRow) {
   if (row.scanState === 'running') return
@@ -642,7 +672,7 @@ async function performReset() {
             Ollama
           </span>
           <Select
-            v-if="llm.ollamaEnabled && llm.ollamaAvailable"
+            v-if="llm.ollamaAvailable"
             :model-value="llm.ollamaModel"
             :disabled="ollamaModelsLoading || ollamaModels.length === 0"
             @update:model-value="(v: unknown) => { if (typeof v === 'string') setOllamaModel(v) }"
@@ -659,7 +689,7 @@ async function performReset() {
           </Select>
           <div class="flex items-center gap-2 shrink-0">
             <Button
-              v-if="llm.ollamaEnabled && llm.ollamaAvailable"
+              v-if="llm.ollamaAvailable"
               variant="ghost"
               size="sm"
               class="h-6 w-6 p-0"
@@ -856,6 +886,12 @@ async function performReset() {
                   {{ rescanState.state === 'running' ? t('settings.adapters.rescanning') : t('settings.adapters.rescan') }}
                 </Button>
               </div>
+              <p
+                v-if="rescanState.state === 'running' && rescanState.msgs > 0"
+                class="mt-2 text-[11px] text-muted-foreground"
+              >
+                {{ t('settings.adapters.rescan_progress', { msgs: rescanState.msgs }) }}
+              </p>
               <p
                 v-if="rescanState.state === 'done'"
                 class="mt-2 text-[11px] text-success"
@@ -1357,16 +1393,17 @@ async function performReset() {
             variant="ghost"
             size="sm"
             class="h-8 text-xs"
-            :disabled="resetState === 'running' || resetState === 'done'"
+            :disabled="resetState === 'running'"
             @click="closeResetConfirm"
           >
-            {{ t('settings.reset.confirm.cancel') }}
+            {{ resetState === 'done' ? t('common.close') : t('settings.reset.confirm.cancel') }}
           </Button>
           <Button
+            v-if="resetState !== 'done'"
             variant="destructive"
             size="sm"
             class="h-8 gap-1 text-xs"
-            :disabled="resetState === 'running' || resetState === 'done'"
+            :disabled="resetState === 'running'"
             @click="performReset"
           >
             <RefreshCw v-if="resetState === 'running'" class="h-3 w-3 animate-spin" />
