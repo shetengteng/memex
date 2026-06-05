@@ -233,38 +233,40 @@ const rescanState = ref<{ state: 'idle' | 'running' | 'done' | 'empty' | 'error'
   error: '',
 })
 
-async function startRescan() {
+function startRescan() {
   if (rescanState.value.state === 'running') return
   rescanState.value = { state: 'running', msgs: 0, error: '' }
-  try {
-    const result = await triggerIngest()
-    if (result.messages_ingested > 0) {
-      rescanState.value = { state: 'done', msgs: result.messages_ingested, error: '' }
-    } else {
-      rescanState.value = { state: 'empty', msgs: 0, error: '' }
-    }
-  } catch (e) {
-    rescanState.value = { state: 'error', msgs: 0, error: e instanceof Error ? e.message : String(e) }
-  }
+  triggerIngest()
+    .then((result) => {
+      if (result.messages_ingested > 0) {
+        rescanState.value = { state: 'done', msgs: result.messages_ingested, error: '' }
+      } else {
+        rescanState.value = { state: 'empty', msgs: 0, error: '' }
+      }
+    })
+    .catch((e) => {
+      rescanState.value = { state: 'error', msgs: 0, error: e instanceof Error ? e.message : String(e) }
+    })
 }
 
-async function rescanAdapter(row: AdapterRow) {
+function rescanAdapter(row: AdapterRow) {
   if (row.scanState === 'running') return
   row.scanState = 'running'
   row.scanMsgs = 0
   row.scanError = ''
-  try {
-    const result = await triggerIngest(row.key)
-    if (result.messages_ingested > 0) {
-      row.scanState = 'done'
-      row.scanMsgs = result.messages_ingested
-    } else {
-      row.scanState = 'empty'
-    }
-  } catch (e) {
-    row.scanState = 'error'
-    row.scanError = e instanceof Error ? e.message : String(e)
-  }
+  triggerIngest(row.key)
+    .then((result) => {
+      if (result.messages_ingested > 0) {
+        row.scanState = 'done'
+        row.scanMsgs = result.messages_ingested
+      } else {
+        row.scanState = 'empty'
+      }
+    })
+    .catch((e) => {
+      row.scanState = 'error'
+      row.scanError = e instanceof Error ? e.message : String(e)
+    })
 }
 
 const doctorRunning = ref(false)

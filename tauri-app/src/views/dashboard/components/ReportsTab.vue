@@ -93,7 +93,7 @@ function formatCreatedAt(iso: string): string {
           size="sm"
           class="h-8 gap-1.5 text-xs"
           :disabled="regenerating"
-          @click="handleRegenerate"
+          @click="handleRegenerate()"
         >
           <Sparkles class="h-3.5 w-3.5" :class="{ 'animate-pulse': regenerating }" />
           {{ regenerating ? t('reports.regenerate.in_progress') : scope === 'daily' ? t('reports.regenerate.daily') : t('reports.regenerate.weekly') }}

@@ -38,26 +38,28 @@ onMounted(async () => {
   } catch { /* ignore */ }
 })
 
-async function startIngest() {
+function startIngest() {
   if (ingesting.value) return
   ingesting.value = true
   ingestError.value = null
   ingestMessage.value = null
-  try {
-    const result = await triggerIngest()
-    if (result.messages_ingested > 0) {
-      ingestMessage.value = t('search.empty.ingest_done', { msgs: result.messages_ingested })
-    } else {
-      ingestMessage.value = t('search.empty.ingest_none')
-    }
-    const batch = await listRecent(PAGE_SIZE, 0)
-    recentSessions.value = batch
-    noMoreRecent.value = batch.length < PAGE_SIZE
-  } catch (e) {
-    ingestError.value = String(e)
-  } finally {
-    ingesting.value = false
-  }
+  triggerIngest()
+    .then(async (result) => {
+      if (result.messages_ingested > 0) {
+        ingestMessage.value = t('search.empty.ingest_done', { msgs: result.messages_ingested })
+      } else {
+        ingestMessage.value = t('search.empty.ingest_none')
+      }
+      const batch = await listRecent(PAGE_SIZE, 0)
+      recentSessions.value = batch
+      noMoreRecent.value = batch.length < PAGE_SIZE
+    })
+    .catch((e) => {
+      ingestError.value = String(e)
+    })
+    .finally(() => {
+      ingesting.value = false
+    })
 }
 
 watch(() => props.query, (val) => {
