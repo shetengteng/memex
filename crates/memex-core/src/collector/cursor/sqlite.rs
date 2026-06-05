@@ -381,7 +381,7 @@ impl Adapter for CursorSqliteAdapter {
                     .name
                     .clone()
                     .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
+                    .filter(|s| !s.is_empty() && !is_generic_title(s))
             });
 
             sessions.push(SessionMeta {
@@ -502,6 +502,24 @@ impl Adapter for CursorSqliteAdapter {
 
         Ok(messages)
     }
+}
+
+fn is_generic_title(s: &str) -> bool {
+    const GENERIC: &[&str] = &[
+        "conversation initiation",
+        "conversation start",
+        "start the conversation",
+        "start of the conversation",
+        "new conversation",
+        "开始对话",
+        "新对话",
+        "新的对话",
+        "继续讨论",
+        "prompts file discussion",
+        "prompts from prompts.txt",
+    ];
+    let lower = s.to_lowercase();
+    GENERIC.iter().any(|g| lower == *g)
 }
 
 /// Infer project_path by scanning the raw composerData JSON for `file:///` URIs

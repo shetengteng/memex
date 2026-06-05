@@ -1,5 +1,16 @@
 //! 消息写入。按 `(content_hash, session_id)` 做幂等去重；
-//! 只有真的插入新行时才会更新 `sessions.message_count` 和 `sessions.updated_at`。
+//! 只有真的插入新行时才会自增 `sessions.message_count`。
+//!
+//! 注意：**不再在这里更新 `sessions.updated_at`**。
+//! `updated_at` 完全由 `insert_session_with_title` 控制（基于 collector 上报
+//! 的真实 mtime，例如 cursor `composer.last_updated_at` / claude_code jsonl
+//! 文件 mtime / codex rollout 文件 mtime）。
+//!
+//! 历史 bug：之前每插入一条新消息都用 `Utc::now()` 覆盖 `sessions.updated_at`。
+//! 这在 commit c57de98 修好 cursor 共享 file_path 之前并不显眼（大部分
+//! 历史消息会被 last_offset 吞掉，UPDATE 不会被触发），修好后所有历史
+//! 消息都重新走 insert_message，导致每条 cursor 会话的 updated_at 全部
+//! 被刷成「今天」，把真实活动时间彻底覆盖。
 
 use anyhow::Result;
 use rusqlite::params;
@@ -36,8 +47,8 @@ impl Db {
             params![id, session_id, role, content, timestamp, source_offset, content_hash],
         )?;
         conn.execute(
-            "UPDATE sessions SET message_count = message_count + 1, updated_at = ?1 WHERE id = ?2",
-            params![chrono::Utc::now().to_rfc3339(), session_id],
+            "UPDATE sessions SET message_count = message_count + 1 WHERE id = ?1",
+            params![session_id],
         )?;
         Ok(true)
     }

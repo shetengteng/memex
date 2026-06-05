@@ -56,7 +56,7 @@ impl Db {
         if level == "L2_session" {
             if let Some(t) = title {
                 conn.execute(
-                    "UPDATE sessions SET title = ?1 WHERE id = ?2",
+                    "UPDATE sessions SET title = ?1 WHERE id = ?2 AND (title IS NULL OR title = '')",
                     params![t, session_id],
                 )?;
             }

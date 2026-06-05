@@ -59,3 +59,39 @@ export function formatNumber(n: number): string {
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K'
   return n.toLocaleString('en-US')
 }
+
+// 数据库里历史遗留的占位标题：opencode 在 session 创建瞬间会写
+// "New session - 2026-01-23T..."；cursor 早期版本也会留下 "Conversation initiation"
+// 之类的通用句。这些标题没有任何语义，UI 应当把它们当作"没标题"，
+// 在 fallback 链里跳过、改用 first_user_message。
+//
+// 后端（opencode.rs / cursor/sqlite.rs）现在已经在 scan 阶段过滤这些 title，
+// 但数据库里已经入库的历史会话仍然带着这些 title，所以前端这道防线必须保留。
+const GENERIC_TITLE_PATTERNS: RegExp[] = [
+  /^new session\s*-\s*\d{4}-\d{2}-\d{2}t/i,
+  /^new session$/i,
+  /^new conversation$/i,
+  /^conversation initiation$/i,
+  /^conversation start$/i,
+  /^start the conversation$/i,
+  /^start of the conversation$/i,
+  /^开始对话$/,
+  /^新对话$/,
+  /^新的对话$/,
+  /^继续讨论$/,
+  /^prompts file discussion$/i,
+  /^prompts from prompts\.txt$/i,
+]
+
+export function isPlaceholderTitle(s: string | null | undefined): boolean {
+  if (!s) return true
+  const t = s.trim()
+  if (!t) return true
+  return GENERIC_TITLE_PATTERNS.some((re) => re.test(t))
+}
+
+/** 返回干净有意义的 title；为空或匹配占位模板时返回 null。 */
+export function meaningfulTitle(s: string | null | undefined): string | null {
+  if (isPlaceholderTitle(s)) return null
+  return s!.trim()
+}

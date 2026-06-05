@@ -24,6 +24,66 @@ fn test_insert_and_dedup() {
     assert_eq!(db.message_count().unwrap(), 1);
 }
 
+/// 回归测试：insert_message **不应该**用 `Utc::now()` 覆盖
+/// `sessions.updated_at`。否则把 ingest_adapter 阶段写入的真实 mtime
+/// （cursor `composer.last_updated_at` / claude_code 文件 mtime 等）
+/// 全部刷成「今天」，会话列表里所有日期都被推到当天，掩盖真实活动时间。
+#[test]
+fn test_insert_message_does_not_overwrite_session_updated_at() {
+    use rusqlite::params;
+
+    let db = Db::open_in_memory().unwrap();
+    // 模拟 cursor 上报的真实 mtime：2025-06-11（一年前）。
+    let real_mtime_secs: u64 = 1_749_628_448; // 2025-06-11T07:54:08Z
+    db.insert_session("s1", "cursor", None, "/state.vscdb#composer=s1", real_mtime_secs, real_mtime_secs)
+        .unwrap();
+
+    let updated_before: String = {
+        let conn = db.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT updated_at FROM sessions WHERE id = ?1",
+            params!["s1"],
+            |row| row.get(0),
+        ).unwrap()
+    };
+    assert!(
+        updated_before.starts_with("2025-06-11"),
+        "insert_session 必须用真实 mtime 写入 updated_at，实际：{}",
+        updated_before
+    );
+
+    // 写入若干新消息，模拟 ingest_adapter 后续把消息批量写入。
+    let h1 = blake3::hash(b"msg1").to_hex().to_string();
+    let h2 = blake3::hash(b"msg2").to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h1).unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h2).unwrap();
+
+    let updated_after: String = {
+        let conn = db.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT updated_at FROM sessions WHERE id = ?1",
+            params!["s1"],
+            |row| row.get(0),
+        ).unwrap()
+    };
+    assert_eq!(
+        updated_before, updated_after,
+        "insert_message 不能覆盖 sessions.updated_at —— 这是 cursor 历史会话\n\
+         updated_at 全部变成今天的根因。"
+    );
+
+    // message_count 仍应正常自增。
+    let count: i64 = {
+        let conn = db.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT message_count FROM sessions WHERE id = ?1",
+            params!["s1"],
+            |row| row.get(0),
+        ).unwrap()
+    };
+    assert_eq!(count, 2, "insert_message 仍应维护 message_count 自增");
+}
+
 #[test]
 fn test_fts_search() {
     let db = Db::open_in_memory().unwrap();

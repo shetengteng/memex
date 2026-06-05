@@ -3,7 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { RefreshCw, Sparkles, AlertCircle } from 'lucide-vue-next'
 import { listen } from '@tauri-apps/api/event'
 import type { Stats, StatsBreakdown, TimelineEntry, SessionRow, SummaryProgress } from '@/types'
-import { formatNumber, adapterLabel, timeAgo } from '@/lib/utils'
+import { formatNumber, adapterLabel, timeAgo, meaningfulTitle } from '@/lib/utils'
 import IdeIcon from '@/components/IdeIcon.vue'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
@@ -133,7 +133,7 @@ const ineligibleSessions = computed(() => {
 })
 
 function summaryLine(s: SessionRow): string {
-  const c = (s.summary_title ?? s.title ?? s.first_user_message ?? '').trim()
+  const c = (meaningfulTitle(s.summary_title) ?? meaningfulTitle(s.title) ?? s.first_user_message ?? '').trim()
   if (!c) return '—'
   return c.length > 90 ? c.slice(0, 90) + '…' : c
 }

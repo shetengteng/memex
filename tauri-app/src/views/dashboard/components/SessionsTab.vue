@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { SessionRow, StatsBreakdown } from '@/types'
-import { timeAgo, adapterLabel } from '@/lib/utils'
+import { timeAgo, adapterLabel, meaningfulTitle } from '@/lib/utils'
 import { useI18n } from '@/i18n'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -145,7 +145,7 @@ function formatDate(dateStr: string): string {
 }
 
 function summaryLine(s: SessionRow): string {
-  const c = (s.summary_title ?? s.title ?? s.first_user_message ?? '').trim()
+  const c = (meaningfulTitle(s.summary_title) ?? meaningfulTitle(s.title) ?? s.first_user_message ?? '').trim()
   if (!c) return '—'
   return c.length > 90 ? c.slice(0, 90) + '…' : c
 }

@@ -91,7 +91,13 @@ impl Adapter for OpenCodeAdapter {
                     last_offset: 0,
                     mtime: mtime_secs,
                     created_secs,
-                    title: Some(title).filter(|s| !s.is_empty()),
+                    // opencode 在 session 创建时给一个形如 "New session - 2026-01-23T..."
+                    // 的占位 title。等效于 cursor 的 "Conversation initiation"：
+                    // 没有任何语义、也不该挤掉 first_user_message 在 popup/列表里的显示。
+                    // 这里直接视为空，让 UI fallback 走 first_user_message。
+                    title: Some(title)
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty() && !is_opencode_placeholder_title(s)),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -192,6 +198,14 @@ impl Adapter for OpenCodeAdapter {
     }
 }
 
+/// opencode 在 session 创建瞬间会写入形如 `New session - 2026-01-23T08:45:35.508Z`
+/// 的 placeholder title（用户从未给会话起名时的默认值）。这种 title 不携带语义，
+/// 应该让 popup / dashboard 的 fallback 链跳过它、显示 `first_user_message` 才有用。
+fn is_opencode_placeholder_title(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    lower.starts_with("new session - ") || lower == "new session"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +255,52 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "ses_001");
         assert_eq!(sessions[0].project_path, Some("/tmp/proj".to_string()));
+    }
+
+    #[test]
+    fn test_opencode_placeholder_title_classification() {
+        assert!(is_opencode_placeholder_title("New session - 2026-01-23T08:45:35.508Z"));
+        assert!(is_opencode_placeholder_title("New session - 2025-12-31T23:59:59.000Z"));
+        assert!(is_opencode_placeholder_title("new session - 2026-06-01T08:33:59.831Z"));
+        assert!(is_opencode_placeholder_title("New session"));
+        assert!(!is_opencode_placeholder_title("Greeting tone check-in"));
+        assert!(!is_opencode_placeholder_title("Vue 3 简单按钮弹窗组件"));
+        assert!(!is_opencode_placeholder_title("New session about Redis"));
+    }
+
+    #[test]
+    fn test_scan_filters_placeholder_titles() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("opencode.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE project (id TEXT PRIMARY KEY, name TEXT);
+             INSERT INTO project VALUES ('proj1', 'test-project');
+             CREATE TABLE session (
+                 id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT,
+                 slug TEXT NOT NULL, directory TEXT NOT NULL, title TEXT NOT NULL,
+                 version TEXT NOT NULL, share_url TEXT, summary_additions INTEGER,
+                 summary_deletions INTEGER, summary_files INTEGER, summary_diffs TEXT,
+                 revert TEXT, permission TEXT,
+                 time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL,
+                 time_compacting INTEGER, time_archived INTEGER
+             );
+             INSERT INTO session VALUES
+                 ('s_placeholder', 'proj1', NULL, 'x', '/tmp/p', 'New session - 2026-01-23T08:45:35.508Z', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1000000, 2000000, NULL, NULL),
+                 ('s_real', 'proj1', NULL, 'y', '/tmp/p', 'Vue 3 简单按钮弹窗组件', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1000000, 2000000, NULL, NULL);",
+        )
+        .unwrap();
+        let adapter = OpenCodeAdapter::with_db_path(db_path);
+        let sessions = adapter.scan().unwrap();
+        assert_eq!(sessions.len(), 2);
+        let placeholder = sessions.iter().find(|s| s.id == "s_placeholder").unwrap();
+        let real = sessions.iter().find(|s| s.id == "s_real").unwrap();
+        assert!(
+            placeholder.title.is_none(),
+            "opencode 自带占位 title 应当被过滤为 None，实际：{:?}",
+            placeholder.title
+        );
+        assert_eq!(real.title.as_deref(), Some("Vue 3 简单按钮弹窗组件"));
     }
 
     #[test]

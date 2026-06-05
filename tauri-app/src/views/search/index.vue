@@ -4,7 +4,7 @@ import { Loader2, Sparkles } from 'lucide-vue-next'
 import type { SearchResult, SessionRow, ViewName } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { scanState, startScanning, stopScanning } from '@/composables/useScanState'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, meaningfulTitle } from '@/lib/utils'
 import IdeIcon from '@/components/IdeIcon.vue'
 import { useI18n } from '@/i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -151,8 +151,8 @@ function openSession(sessionId: string) {
 
 function sessionLine1(s: SessionRow): string {
   const candidates: Array<string | null | undefined> = [
-    s.summary_title,
-    s.title,
+    meaningfulTitle(s.summary_title),
+    meaningfulTitle(s.title),
     s.first_user_message,
   ]
   for (const c of candidates) {
