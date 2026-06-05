@@ -16,41 +16,23 @@ pub struct MemexConfig {
     pub privacy: PrivacyConfig,
 }
 
-/// ⚠️  不要派生 `Default`：`#[derive(Default)]` 在每个字段上调用 `T::default()`，
-/// 这会把 `bool` 字段变成 `false`，让 `#[serde(default = "default_true")]`
-/// 失效（serde 默认值仅在「反序列化时字段缺失」才会触发，**不会**作用于
-/// `Default::default()`）。OOB 首启时 `ensure_memex_dir` 写盘的就是
-/// `MemexConfig::default()` 的结果，必须保证它本身就是「开箱可用」的。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 数据源适配器默认全部关闭，用户在 Settings 页面按需开启。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AdaptersConfig {
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub claude_code: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub cursor: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub codex: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub opencode: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub aider: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub continue_dev: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub cline: bool,
-}
-
-impl Default for AdaptersConfig {
-    fn default() -> Self {
-        Self {
-            claude_code: true,
-            cursor: true,
-            codex: true,
-            opencode: true,
-            aider: true,
-            continue_dev: true,
-            cline: true,
-        }
-    }
 }
 
 /// 同上：不能 `#[derive(Default)]`，否则 String 字段会变成 `""`，
@@ -239,15 +221,15 @@ mod tests {
     }
 
     #[test]
-    fn default_adapters_all_enabled() {
+    fn default_adapters_all_disabled() {
         let c = MemexConfig::default();
-        assert!(c.adapters.claude_code, "OOB adapters 必须默认全开，否则 watcher 没有任何目录可监听");
-        assert!(c.adapters.cursor);
-        assert!(c.adapters.codex);
-        assert!(c.adapters.opencode);
-        assert!(c.adapters.aider);
-        assert!(c.adapters.continue_dev);
-        assert!(c.adapters.cline);
+        assert!(!c.adapters.claude_code, "OOB adapters 必须默认关闭，由用户按需开启");
+        assert!(!c.adapters.cursor);
+        assert!(!c.adapters.codex);
+        assert!(!c.adapters.opencode);
+        assert!(!c.adapters.aider);
+        assert!(!c.adapters.continue_dev);
+        assert!(!c.adapters.cline);
     }
 
     #[test]
