@@ -643,7 +643,7 @@ async function performReset() {
             v-if="llm.ollamaEnabled && llm.ollamaAvailable"
             :model-value="llm.ollamaModel"
             :disabled="ollamaModelsLoading || ollamaModels.length === 0"
-            @update:model-value="(v: string) => setOllamaModel(v)"
+            @update:model-value="(v: unknown) => { if (typeof v === 'string') setOllamaModel(v) }"
           >
             <SelectTrigger class="h-7 flex-1 min-w-0 font-mono text-[11px]">
               <SelectValue :placeholder="ollamaModelsLoading ? 'Loading…' : llm.ollamaModel" />
