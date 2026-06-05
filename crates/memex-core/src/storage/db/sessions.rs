@@ -160,6 +160,8 @@ impl Db {
              FROM sessions s
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'
+             WHERE NOT (s.message_count = 0
+                        AND s.created_at < datetime('now', '-1 day'))
              ORDER BY s.updated_at DESC
              LIMIT ?1 OFFSET ?2",
         )?;
@@ -249,7 +251,11 @@ impl Db {
 
     pub fn session_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
-        Ok(conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?)
+        Ok(conn.query_row(
+            "SELECT COUNT(*) FROM sessions
+             WHERE NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))",
+            [], |row| row.get(0),
+        )?)
     }
 
     pub fn message_count(&self) -> Result<u64> {
@@ -273,6 +279,8 @@ impl Db {
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'
              WHERE s.project_path = ?1
+               AND NOT (s.message_count = 0
+                        AND s.created_at < datetime('now', '-1 day'))
              ORDER BY s.updated_at DESC",
         )?;
         let rows = stmt
@@ -333,6 +341,7 @@ impl Db {
         let mut stmt = conn.prepare(
             "SELECT id, source, project_path, title, message_count, created_at, updated_at
              FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
+               AND NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))
              ORDER BY updated_at DESC",
         )?;
         let rows = stmt
