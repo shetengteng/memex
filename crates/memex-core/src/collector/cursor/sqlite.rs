@@ -373,6 +373,9 @@ impl Adapter for CursorSqliteAdapter {
             // 所以这里以 enrichment 为准；enrichment 缺失时退回 composer.name
             // 当 title（至少给 UI 留下可读字符串），project_path 留空。
             let enrichment = enrichments.get(&composer_id).cloned().unwrap_or_default();
+            let project_path = enrichment.project_path.or_else(|| {
+                infer_project_from_raw_json(&text)
+            });
             let title = enrichment.title.or_else(|| {
                 composer
                     .name
@@ -384,7 +387,7 @@ impl Adapter for CursorSqliteAdapter {
             sessions.push(SessionMeta {
                 id: format!("cursor-{}", composer_id),
                 source: "cursor".to_string(),
-                project_path: enrichment.project_path,
+                project_path,
                 // 关键：每个 composer 必须有独一无二的 file_path。
                 // 否则 ingest 会把所有 cursor session 的 collect 进度
                 // 共享到 `sources` 表的同一行（key = file_path），
@@ -499,6 +502,86 @@ impl Adapter for CursorSqliteAdapter {
 
         Ok(messages)
     }
+}
+
+/// Infer project_path by scanning the raw composerData JSON for `file:///` URIs
+/// in the `codeBlockData` section. Collects up to 10 paths and finds their
+/// common ancestor directory. Light-weight: no JSON value parsing required.
+fn infer_project_from_raw_json(raw: &str) -> Option<String> {
+    let pattern = "\"file:///";
+    let mut paths: Vec<String> = Vec::new();
+    for (i, _) in raw.match_indices(pattern) {
+        let uri_start = i + 1;
+        let uri_rest = &raw[uri_start..];
+        if let Some(end) = uri_rest.find('"') {
+            let uri = &uri_rest[..end];
+            if let Some(path) = uri.strip_prefix("file://") {
+                let decoded = percent_decode(path);
+                if !decoded.is_empty() && !paths.contains(&decoded) {
+                    paths.push(decoded);
+                    if paths.len() >= 10 { break; }
+                }
+            }
+        }
+    }
+    if paths.is_empty() { return None; }
+    find_common_ancestor(&paths)
+}
+
+fn percent_decode(s: &str) -> String {
+    let mut out = Vec::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(byte) = u8::from_str_radix(
+                &s[i + 1..i + 3], 16,
+            ) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).to_string()
+}
+
+/// Minimum path depth to be considered a meaningful project path.
+/// `/Users/foo` = 2 components, so we require > 3.
+const MIN_ANCESTOR_DEPTH: usize = 4;
+
+fn find_common_ancestor(paths: &[String]) -> Option<String> {
+    if paths.is_empty() { return None; }
+    if paths.len() == 1 {
+        let p = std::path::Path::new(&paths[0]);
+        let dir = if p.is_absolute() && p.extension().is_some() {
+            p.parent().map(|d| d.to_string_lossy().to_string())
+        } else {
+            Some(paths[0].clone())
+        };
+        return dir.filter(|s| {
+            let depth = std::path::Path::new(s).components().count();
+            !s.is_empty() && s != "/" && depth >= MIN_ANCESTOR_DEPTH
+        });
+    }
+    let first = std::path::Path::new(&paths[0]);
+    let components: Vec<_> = first.components().collect();
+    let mut common_len = components.len();
+    for path in &paths[1..] {
+        let p = std::path::Path::new(path);
+        let p_comps: Vec<_> = p.components().collect();
+        let matching = components.iter()
+            .zip(p_comps.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+        common_len = common_len.min(matching);
+    }
+    if common_len < MIN_ANCESTOR_DEPTH { return None; }
+    let ancestor: std::path::PathBuf = components[..common_len].iter().collect();
+    let s = ancestor.to_string_lossy().to_string();
+    if s.is_empty() || s == "/" { None } else { Some(s) }
 }
 
 /// Extract a project path from a multi-folder workspace `configPath`.

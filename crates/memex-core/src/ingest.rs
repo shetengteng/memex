@@ -121,6 +121,7 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
                     summary: row.summary,
                     topics: row.topics,
                     decisions: row.decisions,
+                    project_name: None,
                 });
             }
         }
@@ -203,6 +204,7 @@ fn regenerate_weekly_report_inner(
                 summary: row.summary,
                 topics: row.topics,
                 decisions: row.decisions,
+                project_name: None,
             });
         }
     }
@@ -278,6 +280,7 @@ pub fn regenerate_report_by_key(
                 summary: row.summary,
                 topics: row.topics,
                 decisions: row.decisions,
+                project_name: None,
             });
         }
     }
@@ -363,6 +366,7 @@ fn regenerate_daily_report_inner(
                 summary: row.summary,
                 topics: row.topics,
                 decisions: row.decisions,
+                project_name: None,
             });
         }
     }
@@ -441,6 +445,9 @@ pub fn summarize_session_by_id(
                 &summary.decisions,
                 message_count_at_creation,
             );
+            if let Some(ref name) = summary.project_name {
+                let _ = db.update_session_project_path(session_id, name);
+            }
             true
         }
         Err(e) => {

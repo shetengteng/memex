@@ -353,4 +353,16 @@ impl Db {
         Ok(rows)
     }
 
+    pub fn update_session_project_path(
+        &self,
+        session_id: &str,
+        project_path: &str,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET project_path = ?1 WHERE id = ?2 AND (project_path IS NULL OR project_path = '')",
+            params![project_path, session_id],
+        )?;
+        Ok(())
+    }
 }

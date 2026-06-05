@@ -12,6 +12,9 @@ const SUMMARY_SYSTEM: &str = "\
 - summary (string): 2-4 句话，说明完成了什么、解决了什么问题、做了哪些关键决策
 - topics (string[]): 1-5 个主题关键词
 - decisions (string[]): 0-3 个关键技术决策，每条是纯字符串
+- project_name (string|null): 从对话中推断出的项目名称。根据文件路径、代码仓库、\
+  package.json/Cargo.toml 中出现的项目标识来判断。输出最后一级有意义的目录名即可\
+  （如 \"memex\"、\"tt-paikebao-mp\"）。如果无法确定则输出 null
 
 语言：所有自然语言使用简体中文。技术标识保持原样（文件路径、命令名、函数名、缩写）。";
 
@@ -67,6 +70,8 @@ pub struct SessionSummary {
     pub summary: String,
     pub topics: Vec<String>,
     pub decisions: Vec<String>,
+    #[serde(default)]
+    pub project_name: Option<String>,
 }
 
 pub fn summarize_session(
@@ -280,6 +285,7 @@ fn parse_summary(text: &str) -> Result<SessionSummary> {
         summary: text.chars().take(500).collect(),
         topics: Vec::new(),
         decisions: Vec::new(),
+        project_name: None,
     })
 }
 
@@ -324,7 +330,12 @@ fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
         _ => Vec::new(),
     };
 
-    SessionSummary { title, summary, topics, decisions }
+    let project_name = val.get("project_name")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .filter(|s| !s.is_empty());
+
+    SessionSummary { title, summary, topics, decisions, project_name }
 }
 
 fn extract_first_sentence(text: &str, max_len: usize) -> String {
@@ -463,12 +474,14 @@ mod tests {
                 summary: "Implemented FTS5 search.".into(),
                 topics: vec!["search".into()],
                 decisions: vec![],
+                project_name: None,
             },
             SessionSummary {
                 title: "Add adapters".into(),
                 summary: "Added Claude and Cursor adapters.".into(),
                 topics: vec!["adapters".into()],
                 decisions: vec![],
+                project_name: None,
             },
         ];
         let result = summarize_project(&provider, &sessions).unwrap();
@@ -486,6 +499,7 @@ mod tests {
             summary: "Built new feature.".into(),
             topics: vec!["feature".into()],
             decisions: vec!["use trait pattern".into()],
+            project_name: None,
         }];
         let result = summarize_period(&provider, "2026-06-01", &sessions).unwrap();
         assert!(result.title.contains("Daily Report"));
