@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memex · Menubar Popup</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 模拟 macOS 桌面背景 */
+    body { background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%); }
+    .desktop {
+      min-height: 100vh; padding: 40px;
+      display: flex; flex-direction: column; align-items: center; gap: 24px;
+    }
+    /* 顶栏（macOS 菜单栏占位） */
+    .menubar-mock {
+      position: fixed; top: 0; left: 0; right: 0; height: 24px;
+      background: rgba(255,255,255,0.6); backdrop-filter: blur(20px);
+      display: flex; align-items: center; gap: 16px; padding: 0 12px;
+      font-size: 12px; color: #1e293b;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    /* popup 浮窗 */
+    .popup {
+      width: 420px;
+      background: var(--popover);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 48px -12px rgba(0,0,0,0.25), 0 8px 16px -4px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    /* 三角箭头指向菜单栏 */
+    .popup::before {
+      content: ""; position: absolute; top: -8px; right: 40px;
+      width: 16px; height: 16px; background: var(--popover);
+      border-left: 1px solid var(--border);
+      border-top: 1px solid var(--border);
+      transform: rotate(45deg);
+    }
+  </style>
+</head>
+<body>
+
+<div class="menubar-mock">
+  <span class="font-bold">  Finder</span>
+  <span>File</span>
+  <span>Edit</span>
+  <span>View</span>
+  <span>Go</span>
+  <span>Window</span>
+  <span>Help</span>
+  <span class="ml-auto flex items-center gap-3">
+    <span style="color: var(--primary);">M</span>
+    <span>🔋 95%</span>
+    <span>📶</span>
+    <span>10:42</span>
+  </span>
+</div>
+
+<div class="desktop pt-16">
+
+  <p class="text-[12px] text-white/80 max-w-md text-center mb-2">
+    菜单栏点击 Memex 图标后弹出的 popup（macOS NSPopover 风格） · ⌘⇧M 唤起
+  </p>
+
+  <div class="popup relative">
+
+    <!-- 顶部 mini header -->
+    <header class="flex items-center gap-2 px-3 py-2.5 border-b" style="border-color: var(--border);">
+      <div class="w-6 h-6 rounded-md flex items-center justify-center text-white font-bold text-[12px]" style="background: linear-gradient(135deg, #18181b, #4f46e5);">M</div>
+      <span class="font-semibold text-[13px]">Memex</span>
+      <span class="status-dot ok ml-1"></span>
+
+      <div class="ml-auto flex items-center gap-1">
+        <button class="btn btn-icon-xs btn-ghost" title="搜索 (⌘K)">
+          <i data-lucide="search" class="text-[14px]"></i>
+        </button>
+        <button class="btn btn-icon-xs btn-ghost" title="Settings">
+          <i data-lucide="settings" class="text-[14px]"></i>
+        </button>
+        <button class="btn btn-icon-xs btn-ghost" title="退出">
+          <i data-lucide="x" class="text-[14px]"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- 主体：最近会话列表 -->
+    <div class="max-h-[420px] overflow-y-auto">
+
+      <div class="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--muted-foreground);">
+        最近会话
+      </div>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5 transition-colors">
+        <span class="ide-dot ide-dot-cursor mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">Memex menubar shadcn 重构原型</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>memex</span><span>·</span><span>42 msg</span><span>·</span><span>14:32</span>
+          </div>
+        </div>
+      </button>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5">
+        <span class="ide-dot ide-dot-cursor mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">shadcn-vue blocks 调研</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>memex</span><span>·</span><span>28 msg</span><span>·</span><span>12:48</span>
+          </div>
+        </div>
+      </button>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5">
+        <span class="ide-dot ide-dot-claude mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">AsyncMQ 集成方案确认</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>tt-projects</span><span>·</span><span>67 msg</span><span>·</span><span>昨天</span>
+          </div>
+        </div>
+      </button>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5">
+        <span class="ide-dot ide-dot-opencode mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">SKILL.md 多 IDE 适配验证</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>memex</span><span>·</span><span>34 msg</span><span>·</span><span>2 天前</span>
+          </div>
+        </div>
+      </button>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5">
+        <span class="ide-dot ide-dot-cursor mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">MCP server stdio mode 优化</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>memex</span><span>·</span><span>89 msg</span><span>·</span><span>3 天前</span>
+          </div>
+        </div>
+      </button>
+
+      <button class="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] flex items-start gap-2.5">
+        <span class="ide-dot ide-dot-claude mt-1.5"></span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold truncate">tauri 2 macOS menubar 焦点修复</div>
+          <div class="flex items-center gap-1.5 text-[11px] mt-0.5" style="color: var(--muted-foreground);">
+            <span>memex</span><span>·</span><span>52 msg</span><span>·</span><span>4 天前</span>
+          </div>
+        </div>
+      </button>
+
+    </div>
+
+    <!-- 底部状态栏 + 跳板 -->
+    <footer class="border-t px-3 py-2.5 flex items-center gap-2" style="border-color: var(--border); background: var(--muted);">
+      <span class="mono text-[11px] flex items-center gap-1.5" style="color: var(--muted-foreground);">
+        <span class="status-dot ok"></span>
+        <span class="font-semibold text-[var(--foreground)]">6,521</span>
+        <span>·</span>
+        <span style="color: var(--adapter-claude);">qwen2.5</span>
+        <span>98%</span>
+      </span>
+      <div class="ml-auto flex items-center gap-1">
+        <button class="btn btn-ghost btn-xs"><i data-lucide="sparkles" class="text-[12px]"></i></button>
+        <div class="separator separator-v" style="background: var(--border); height: 16px;"></div>
+        <button class="btn btn-outline btn-xs">
+          <i data-lucide="layout-dashboard" class="text-[12px]"></i>
+          Dashboard
+          <i data-lucide="arrow-up-right" class="text-[10px]"></i>
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <p class="text-[11px] text-white/70 max-w-md text-center">
+    点击会话 → 在 popup 内展开预览，或点 Dashboard 跳到独立窗口的完整视图
+  </p>
+
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="_shared.js"></script>
+</body>
+</html>

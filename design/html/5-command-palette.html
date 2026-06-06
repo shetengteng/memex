@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memex · Command Palette (⌘K)</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<!-- 背景：模拟 Today 页面（不动的快照） -->
+<div class="shell">
+
+  <aside class="sidebar-container">
+    <div class="px-4 py-4 flex items-center gap-2.5 border-b" style="border-color: var(--sidebar-border);">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold" style="background: linear-gradient(135deg, #18181b, #4f46e5);">M</div>
+      <div>
+        <div class="font-bold text-[15px] tracking-tight leading-tight">Memex</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">AI memory hub</div>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto p-2 space-y-0.5">
+      <button class="sidebar-menu-item active"><i data-lucide="sunrise" class="menu-icon"></i><span>Today</span></button>
+      <button class="sidebar-menu-item"><i data-lucide="library" class="menu-icon"></i><span>Library</span></button>
+      <button class="sidebar-menu-item"><i data-lucide="sparkles" class="menu-icon"></i><span>Insights</span></button>
+      <div class="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--muted-foreground);">Workspace</div>
+      <button class="sidebar-menu-item"><i data-lucide="plug" class="menu-icon"></i><span>Connect</span></button>
+      <button class="sidebar-menu-item"><i data-lucide="settings" class="menu-icon"></i><span>Settings</span></button>
+    </nav>
+  </aside>
+
+  <main class="shell-content">
+    <header class="flex items-center gap-3 px-6 h-14 border-b shrink-0" style="border-color: var(--border);">
+      <button class="btn btn-icon-sm btn-ghost"><i data-lucide="panel-left" class="text-[16px]"></i></button>
+      <div class="separator separator-v h-5" style="background: var(--border);"></div>
+      <nav class="text-[13px] flex items-center gap-1.5" style="color: var(--muted-foreground);">
+        <span>Dashboard</span><i data-lucide="chevron-right" class="text-[12px]"></i>
+        <span style="color: var(--foreground); font-weight: 500;">Today</span>
+      </nav>
+      <button class="ml-auto btn btn-outline btn-sm gap-2 min-w-[280px] justify-between text-[var(--muted-foreground)]">
+        <span class="flex items-center gap-2"><i data-lucide="search" class="text-[14px]"></i>搜索会话、项目、命令…</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <button class="btn btn-icon-sm btn-ghost"><i data-lucide="bell" class="text-[16px]"></i></button>
+      <div class="avatar">TS</div>
+    </header>
+    <div class="flex-1 overflow-y-auto opacity-40 pointer-events-none">
+      <div class="max-w-6xl mx-auto px-6 py-6 space-y-6">
+        <section><h1 class="text-2xl font-bold tracking-tight">早上好，Terrell</h1></section>
+        <section class="card p-5 h-32"></section>
+        <section class="grid grid-cols-2 gap-4">
+          <div class="card p-5 h-48"></div>
+          <div class="card p-5 h-48"></div>
+        </section>
+        <section class="card p-5 h-64"></section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ─── Command Dialog (默认打开) ───────────────────────────────────────── -->
+<div class="sheet-overlay" data-cmd-close></div>
+
+<div class="cmd-dialog">
+
+  <div class="cmd-input-wrap">
+    <i data-lucide="search" class="text-[16px]" style="color: var(--muted-foreground);"></i>
+    <input class="cmd-input" placeholder="搜索任何事…" value="shadcn 重构" autofocus />
+    <kbd>Esc</kbd>
+  </div>
+
+  <div class="cmd-list">
+
+    <!-- 搜索结果 (有输入时) -->
+    <div class="cmd-group-label">搜索结果 · 4 个匹配</div>
+    <div class="cmd-item active">
+      <span class="ide-dot ide-dot-cursor"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium truncate">Memex menubar <mark class="bg-yellow-200 text-inherit">shadcn</mark> <mark class="bg-yellow-200 text-inherit">重构</mark> 原型</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">memex · Cursor · 2h ago</div>
+      </div>
+      <i data-lucide="corner-down-left" class="text-[12px] right" style="color: var(--muted-foreground);"></i>
+    </div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-cursor"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium truncate"><mark class="bg-yellow-200 text-inherit">shadcn</mark>-vue blocks 调研</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">memex · Cursor · 4h ago</div>
+      </div>
+    </div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-claude"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium truncate">tauri menubar UI <mark class="bg-yellow-200 text-inherit">重构</mark>评审</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">memex · Claude · 昨天</div>
+      </div>
+    </div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-cursor"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[14px] font-medium truncate"><mark class="bg-yellow-200 text-inherit">重构</mark> sessions 列表为 facets 模式</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">memex · Cursor · 3 天前</div>
+      </div>
+    </div>
+
+    <div class="cmd-group-label">快速跳转</div>
+    <div class="cmd-item">
+      <i data-lucide="sunrise" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">跳到 Today</div>
+      <kbd class="right">⌘ 1</kbd>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="library" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">跳到 Library</div>
+      <kbd class="right">⌘ 2</kbd>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="sparkles" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">跳到 Insights</div>
+      <kbd class="right">⌘ 3</kbd>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="plug" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">跳到 Connect</div>
+      <kbd class="right">⌘ 4</kbd>
+    </div>
+
+    <div class="cmd-group-label">快速操作</div>
+    <div class="cmd-item">
+      <i data-lucide="refresh-cw" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">立即采集一次所有 adapter</div>
+      <kbd class="right">⌘ R</kbd>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="brain-circuit" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">生成本周反思 (L4)</div>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="sparkles" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">为今天生成日报 (L3)</div>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="copy" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">复制 Cursor MCP 配置</div>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="moon" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">切换深色模式</div>
+    </div>
+
+    <div class="cmd-group-label">最近会话</div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-cursor"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] truncate">memex · Cursor</div>
+      </div>
+      <span class="text-[11px] right" style="color: var(--muted-foreground);">14:32</span>
+    </div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-cursor"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] truncate">memex · Cursor</div>
+      </div>
+      <span class="text-[11px] right" style="color: var(--muted-foreground);">12:48</span>
+    </div>
+    <div class="cmd-item">
+      <span class="ide-dot ide-dot-claude"></span>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] truncate">tt-projects · Claude</div>
+      </div>
+      <span class="text-[11px] right" style="color: var(--muted-foreground);">昨天</span>
+    </div>
+
+    <div class="cmd-group-label">项目</div>
+    <div class="cmd-item">
+      <i data-lucide="folder" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">memex <span class="text-[11px]" style="color: var(--muted-foreground);">· 1,842 sessions</span></div>
+    </div>
+    <div class="cmd-item">
+      <i data-lucide="folder" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+      <div class="flex-1">tt-projects <span class="text-[11px]" style="color: var(--muted-foreground);">· 923 sessions</span></div>
+    </div>
+
+  </div>
+
+  <footer class="px-3 py-2 border-t flex items-center justify-between text-[11px]" style="border-color: var(--border); color: var(--muted-foreground);">
+    <div class="flex items-center gap-3">
+      <span class="flex items-center gap-1"><kbd>↑</kbd><kbd>↓</kbd>导航</span>
+      <span class="flex items-center gap-1"><kbd>↵</kbd>选中</span>
+      <span class="flex items-center gap-1"><kbd>Esc</kbd>关闭</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <span>由</span><span class="font-mono">SQLite FTS5</span><span>驱动</span>
+    </div>
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="_shared.js"></script>
+</body>
+</html>

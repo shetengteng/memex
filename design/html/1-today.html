@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memex · Today</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ─── Sidebar (shadcn-vue Sidebar block) ──────────────────────────────── -->
+  <aside class="sidebar-container">
+    <!-- header / logo -->
+    <div class="px-4 py-4 flex items-center gap-2.5 border-b" style="border-color: var(--sidebar-border);">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
+           style="background: linear-gradient(135deg, #18181b, #4f46e5);">M</div>
+      <div>
+        <div class="font-bold text-[15px] tracking-tight leading-tight">Memex</div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">AI memory hub</div>
+      </div>
+    </div>
+
+    <!-- nav -->
+    <nav class="flex-1 overflow-y-auto p-2 space-y-0.5">
+      <button class="sidebar-menu-item active">
+        <i data-lucide="sunrise" class="menu-icon"></i>
+        <span>Today</span>
+        <span class="badge badge-default ml-auto" style="background: var(--primary); color: var(--primary-foreground); font-size: 10px; padding: 1px 6px;">12</span>
+      </button>
+      <button class="sidebar-menu-item">
+        <i data-lucide="library" class="menu-icon"></i>
+        <span>Library</span>
+      </button>
+      <button class="sidebar-menu-item">
+        <i data-lucide="sparkles" class="menu-icon"></i>
+        <span>Insights</span>
+      </button>
+
+      <div class="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider"
+           style="color: var(--muted-foreground);">Workspace</div>
+
+      <button class="sidebar-menu-item">
+        <i data-lucide="plug" class="menu-icon"></i>
+        <span>Connect</span>
+        <span class="status-dot ok ml-auto"></span>
+      </button>
+      <button class="sidebar-menu-item">
+        <i data-lucide="settings" class="menu-icon"></i>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- footer mini stats -->
+    <div class="p-3 border-t" style="border-color: var(--sidebar-border);">
+      <div class="card p-3 space-y-2">
+        <div class="flex items-center justify-between text-[11px]" style="color: var(--muted-foreground);">
+          <span>采集状态</span>
+          <span class="flex items-center gap-1"><span class="status-dot ok"></span>Live</span>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-lg font-bold tabular-nums">6,521</span>
+          <span class="text-[11px]" style="color: var(--muted-foreground);">sessions</span>
+        </div>
+        <div class="text-[11px]" style="color: var(--muted-foreground);">
+          <span>qwen2.5</span> · <span class="text-[var(--success)]">98%</span> 已摘要
+        </div>
+      </div>
+      <div class="mt-2 px-1 text-[10px]" style="color: var(--muted-foreground);">Memex v0.2.0 · local only</div>
+    </div>
+  </aside>
+
+  <!-- ─── Main content ───────────────────────────────────────────────────── -->
+  <main class="shell-content">
+
+    <!-- header bar -->
+    <header class="flex items-center gap-3 px-6 h-14 border-b shrink-0" style="border-color: var(--border);">
+      <button class="btn btn-icon-sm btn-ghost" aria-label="toggle sidebar">
+        <i data-lucide="panel-left" class="text-[16px]"></i>
+      </button>
+      <div class="separator separator-v h-5" style="background: var(--border);"></div>
+      <nav class="text-[13px] flex items-center gap-1.5" style="color: var(--muted-foreground);">
+        <span>Dashboard</span>
+        <i data-lucide="chevron-right" class="text-[12px]"></i>
+        <span style="color: var(--foreground); font-weight: 500;">Today</span>
+      </nav>
+
+      <button data-cmd-trigger class="ml-auto btn btn-outline btn-sm gap-2 min-w-[280px] justify-between text-[var(--muted-foreground)]">
+        <span class="flex items-center gap-2">
+          <i data-lucide="search" class="text-[14px]"></i>
+          搜索会话、项目、命令…
+        </span>
+        <kbd>⌘K</kbd>
+      </button>
+
+      <button class="btn btn-icon-sm btn-ghost" aria-label="notifications">
+        <i data-lucide="bell" class="text-[16px]"></i>
+      </button>
+      <div class="avatar">TS</div>
+    </header>
+
+    <!-- scrollable body -->
+    <div class="flex-1 overflow-y-auto">
+      <div class="max-w-6xl mx-auto px-6 py-6 space-y-6">
+
+        <!-- title / greeting -->
+        <section class="flex items-end justify-between">
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight">早上好，Terrell</h1>
+            <p class="mt-1 text-[13px]" style="color: var(--muted-foreground);">
+              今天是 2026 年 6 月 6 日 周六 · 上次采集
+              <span class="text-[var(--foreground)] font-medium">2 分钟前</span>
+            </p>
+          </div>
+          <button class="btn btn-ghost btn-sm">
+            <i data-lucide="refresh-cw" class="text-[13px]"></i>
+            <span>刷新</span>
+          </button>
+        </section>
+
+        <!-- 顶部叙事卡：今天活动 -->
+        <section class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="activity" class="text-[16px]" style="color: var(--primary);"></i>
+              <h2 class="text-[15px] font-semibold">你今天的活动</h2>
+            </div>
+            <span class="badge badge-outline">06-06</span>
+          </div>
+
+          <div class="flex items-end gap-4">
+            <!-- inline sparkline (24h) -->
+            <div class="flex items-end gap-[2px] h-12 flex-shrink-0">
+              <!-- 24 个 bar，高度递增/递减 mock 一天活动节律 -->
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.35); height: 18%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.45); height: 30%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.55); height: 42%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.45); height: 35%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.6); height: 55%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.7); height: 75%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.85); height: 95%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: var(--primary); height: 100%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.75); height: 80%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.6); height: 60%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.5); height: 45%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.4); height: 32%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.3); height: 22%;"></div>
+              <div class="w-1.5 rounded-sm" style="background: rgba(24,24,27,0.2); height: 12%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+              <div class="w-1.5 rounded-sm bg-[var(--muted)]" style="height: 8%;"></div>
+            </div>
+
+            <!-- big stats -->
+            <div class="grid grid-cols-4 gap-6 flex-1">
+              <div>
+                <div class="text-2xl font-bold tabular-nums">12</div>
+                <div class="text-[11px]" style="color: var(--muted-foreground);">Sessions</div>
+              </div>
+              <div>
+                <div class="text-2xl font-bold tabular-nums">348</div>
+                <div class="text-[11px]" style="color: var(--muted-foreground);">Messages</div>
+              </div>
+              <div>
+                <div class="text-2xl font-bold tabular-nums">4</div>
+                <div class="text-[11px]" style="color: var(--muted-foreground);">Projects</div>
+              </div>
+              <div>
+                <div class="text-2xl font-bold tabular-nums">3</div>
+                <div class="text-[11px]" style="color: var(--muted-foreground);">Tools</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="separator separator-h my-4"></div>
+
+          <div class="flex items-center justify-between text-[12px]" style="color: var(--muted-foreground);">
+            <div>
+              最活跃 <span class="text-[var(--foreground)] font-medium">14:00 – 16:00</span> ·
+              主要在 <span class="text-[var(--foreground)] font-medium">memex</span> (8) /
+              <span class="text-[var(--foreground)] font-medium">tt-projects</span> (3)
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="ide-chip"><span class="ide-dot ide-dot-cursor"></span>Cursor 8</span>
+              <span class="ide-chip"><span class="ide-dot ide-dot-claude"></span>Claude 3</span>
+              <span class="ide-chip"><span class="ide-dot ide-dot-codex"></span>Codex 1</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 两栏：本周摘要 + 待反思 -->
+        <section class="grid grid-cols-2 gap-4">
+
+          <!-- 本周 L3 摘要 -->
+          <div class="card p-5 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="brain-circuit" class="text-[16px]" style="color: var(--adapter-claude);"></i>
+                <h3 class="text-[14px] font-semibold">本周自动摘要</h3>
+                <span class="badge badge-secondary">L3</span>
+              </div>
+              <span class="text-[11px]" style="color: var(--muted-foreground);">Week 23</span>
+            </div>
+
+            <p class="text-[13px] mb-3" style="color: var(--muted-foreground);">
+              67 sessions · 1,892 messages · 跨 4 个项目
+            </p>
+
+            <p class="text-[13px] leading-relaxed mb-4">
+              主线在做 <span class="font-semibold">Memex 菜单栏 shadcn 重构</span>：
+              确认 7 tab → 5 tab 收敛，引入 Sidebar block 与 ⌘K 命令面板。
+              同期推进 tt-projects 的 AsyncMQ 集成方案。
+            </p>
+
+            <div class="text-[11px] font-semibold uppercase tracking-wider mb-2" style="color: var(--muted-foreground);">
+              关键决策
+            </div>
+            <ul class="space-y-1.5 mb-4 text-[13px]">
+              <li class="flex gap-2"><span class="w-1 h-1 rounded-full bg-[var(--primary)] mt-2 shrink-0"></span>用 Sidebar block 替代手写 nav，节省 ~120 行代码</li>
+              <li class="flex gap-2"><span class="w-1 h-1 rounded-full bg-[var(--primary)] mt-2 shrink-0"></span>把 Sessions + Projects 合并为 Library，多视图切换</li>
+              <li class="flex gap-2"><span class="w-1 h-1 rounded-full bg-[var(--primary)] mt-2 shrink-0"></span>Search 统一到全局 ⌘K，消除 popup/dashboard 双实现</li>
+            </ul>
+
+            <div class="mt-auto flex items-center justify-between pt-3 border-t" style="border-color: var(--border);">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="badge badge-secondary">ui</span>
+                <span class="badge badge-secondary">shadcn</span>
+                <span class="badge badge-secondary">refactor</span>
+                <span class="badge badge-secondary">+5</span>
+              </div>
+              <button class="btn btn-ghost btn-xs">
+                <span>完整摘要</span>
+                <i data-lucide="arrow-right" class="text-[12px]"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 待反思 L4 -->
+          <div class="card p-5 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="lightbulb" class="text-[16px]" style="color: var(--warning);"></i>
+                <h3 class="text-[14px] font-semibold">等待你的反思</h3>
+                <span class="badge badge-secondary">L4</span>
+              </div>
+              <span class="badge badge-warning">2 项</span>
+            </div>
+
+            <div class="space-y-2 mb-4">
+              <button class="w-full text-left p-3 rounded-lg border hover:bg-[var(--accent)] transition-colors"
+                      style="border-color: var(--border);">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-[13px] font-semibold">上周反思未读</span>
+                  <span class="badge badge-outline">12 digests</span>
+                </div>
+                <p class="text-[12px] truncate" style="color: var(--muted-foreground);">
+                  "shadcn 重构 + MCP 接入 + AsyncMQ 集成的协同关系…"
+                </p>
+              </button>
+
+              <button class="w-full text-left p-3 rounded-lg border hover:bg-[var(--accent)] transition-colors"
+                      style="border-color: var(--border); border-style: dashed;">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-[13px] font-semibold">5 月反思未生成</span>
+                  <i data-lucide="plus" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+                </div>
+                <p class="text-[12px]" style="color: var(--muted-foreground);">
+                  累计 312 sessions · 让 AI 帮你回顾一下
+                </p>
+              </button>
+            </div>
+
+            <div class="mt-auto pt-3 border-t flex items-center justify-between" style="border-color: var(--border);">
+              <span class="text-[11px]" style="color: var(--muted-foreground);">最近反思 2026-06-06 09:12</span>
+              <button class="btn btn-ghost btn-xs">
+                <span>全部反思</span>
+                <i data-lucide="arrow-right" class="text-[12px]"></i>
+              </button>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 智能续接 -->
+        <section class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="zap" class="text-[16px]" style="color: var(--adapter-codex);"></i>
+              <h3 class="text-[14px] font-semibold">接着想想？</h3>
+              <span class="text-[11px]" style="color: var(--muted-foreground);">智能续接你的近期会话</span>
+            </div>
+            <button class="btn btn-ghost btn-xs">
+              <i data-lucide="settings-2" class="text-[12px]"></i>
+              规则
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <article class="p-3 rounded-lg border flex items-start gap-3" style="border-color: var(--border);">
+              <div class="ide-chip mt-0.5"><span class="ide-dot ide-dot-cursor"></span>Cursor</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2 mb-1">
+                  <span class="text-[13px] font-semibold truncate">Memex menubar shadcn 重构原型</span>
+                  <span class="text-[11px] shrink-0" style="color: var(--muted-foreground);">memex · 2 小时前</span>
+                </div>
+                <p class="text-[12px] mb-2" style="color: var(--muted-foreground);">
+                  <span class="font-medium" style="color: var(--warning);">中断点</span>：
+                  在讨论 Tab → Sidebar 改造与 ⌘K 命令面板的优先级
+                </p>
+                <div class="flex items-center gap-1.5">
+                  <button class="btn btn-outline btn-xs">
+                    <i data-lucide="arrow-up-right" class="text-[12px]"></i>
+                    继续会话
+                  </button>
+                  <button class="btn btn-ghost btn-xs">
+                    <i data-lucide="send" class="text-[12px]"></i>
+                    发送到 IDE
+                  </button>
+                  <button class="btn btn-ghost btn-xs">
+                    <i data-lucide="archive" class="text-[12px]"></i>
+                    归档
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <article class="p-3 rounded-lg border flex items-start gap-3" style="border-color: var(--border);">
+              <div class="ide-chip mt-0.5"><span class="ide-dot ide-dot-claude"></span>Claude</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2 mb-1">
+                  <span class="text-[13px] font-semibold truncate">AsyncMQ 集成方案确认</span>
+                  <span class="text-[11px] shrink-0" style="color: var(--muted-foreground);">tt-projects · 昨天 22:11</span>
+                </div>
+                <p class="text-[12px] mb-2" style="color: var(--muted-foreground);">
+                  <span class="font-medium" style="color: var(--warning);">中断点</span>：
+                  在确认 message[N] 字段切分策略，等你确认是否走 CSV-in-JSON
+                </p>
+                <div class="flex items-center gap-1.5">
+                  <button class="btn btn-outline btn-xs"><i data-lucide="arrow-up-right" class="text-[12px]"></i>继续会话</button>
+                  <button class="btn btn-ghost btn-xs"><i data-lucide="send" class="text-[12px]"></i>发送到 IDE</button>
+                  <button class="btn btn-ghost btn-xs"><i data-lucide="archive" class="text-[12px]"></i>归档</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="p-3 rounded-lg border flex items-start gap-3" style="border-color: var(--border);">
+              <div class="ide-chip mt-0.5"><span class="ide-dot ide-dot-opencode"></span>OpenCode</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2 mb-1">
+                  <span class="text-[13px] font-semibold truncate">SKILL.md 多 IDE 适配验证</span>
+                  <span class="text-[11px] shrink-0" style="color: var(--muted-foreground);">memex · 2 天前</span>
+                </div>
+                <p class="text-[12px] mb-2" style="color: var(--muted-foreground);">
+                  <span class="font-medium" style="color: var(--warning);">中断点</span>：
+                  讨论 Codex 与 Aider 的 SKILL 注入差异
+                </p>
+                <div class="flex items-center gap-1.5">
+                  <button class="btn btn-outline btn-xs"><i data-lucide="arrow-up-right" class="text-[12px]"></i>继续会话</button>
+                  <button class="btn btn-ghost btn-xs"><i data-lucide="send" class="text-[12px]"></i>发送到 IDE</button>
+                  <button class="btn btn-ghost btn-xs"><i data-lucide="archive" class="text-[12px]"></i>归档</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 系统状态（Collapsible） -->
+        <section class="card" data-collapsible data-open="false">
+          <button class="w-full px-5 py-3 flex items-center justify-between" data-collapsible-trigger>
+            <div class="flex items-center gap-2">
+              <i data-lucide="settings-2" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+              <span class="text-[14px] font-semibold">系统状态</span>
+              <span class="status-dot ok"></span>
+              <span class="text-[12px]" style="color: var(--muted-foreground);">Daemon Running · 5/7 adapter · LLM Ollama:qwen2.5</span>
+            </div>
+            <i data-lucide="chevron-down" class="text-[14px]" style="color: var(--muted-foreground);"></i>
+          </button>
+          <div data-collapsible-content hidden class="px-5 pb-4 space-y-2 text-[12px]">
+            <div class="separator separator-h"></div>
+            <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 pt-2">
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">Daemon</span><span class="flex items-center gap-1"><span class="status-dot ok"></span>Running (pid 4823)</span></div>
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">采集器</span><span>5 / 7 active</span></div>
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">LLM Provider</span><span class="text-[var(--adapter-claude)]">Ollama : qwen2.5</span></div>
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">FTS5 索引</span><span class="flex items-center gap-1"><span class="status-dot ok"></span>Healthy</span></div>
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">存储路径</span><span class="mono">~/.memex/</span></div>
+              <div class="flex justify-between"><span style="color: var(--muted-foreground);">已用空间</span><span>824 MB</span></div>
+            </div>
+            <div class="pt-2 flex justify-end">
+              <button class="btn btn-outline btn-xs"><span>打开 Connect</span><i data-lucide="arrow-right" class="text-[12px]"></i></button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="_shared.js"></script>
+</body>
+</html>
