@@ -260,3 +260,31 @@ export interface WorkloadReport {
   by_project: WorkloadProjectBucket[]
   overall: WorkloadOverall
 }
+
+export interface IdeStatus {
+  ide: string
+  config_path: string
+  config_exists: boolean
+  installed: boolean
+  command: string | null
+}
+
+export interface SkillStatus {
+  ide: string
+  dest_path: string
+  installed: boolean
+  size: number | null
+}
+
+export interface HookStatus {
+  ide: string
+  supported: boolean
+  installed: boolean
+  config_path: string
+  wrapper_path: string | null
+}
+
+export interface UpdateInfo {
+  latest_tag: string
+  html_url: string
+}

@@ -80,6 +80,16 @@ fn find_daemon_binary() -> Option<PathBuf> {
     None
 }
 
+/// 返回 daemon 写 stdout 日志的绝对路径，方便 GUI 直接 `open` 这个文件。
+/// 该路径与 `memex-daemon` 自身写入逻辑保持一致（`~/.memex/daemon.stdout.log`）。
+#[tauri::command]
+pub fn daemon_log_path() -> String {
+    memex_dir()
+        .join("daemon.stdout.log")
+        .to_string_lossy()
+        .into_owned()
+}
+
 #[tauri::command]
 pub async fn daemon_status() -> Result<DaemonStatus, String> {
     let info = read_lock();

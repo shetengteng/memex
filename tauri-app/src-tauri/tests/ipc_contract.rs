@@ -5,7 +5,7 @@
 //! with `tauri-app/src/types/index.ts`.
 
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
-use memex_menubar_lib::commands::{Stats, SummaryProgress};
+use memex_menubar_lib::commands::{DaemonStatus, LockInfo, Stats, SummaryProgress};
 
 fn assert_object_keys(value: &serde_json::Value, expected: &[&str]) {
     let obj = value
@@ -136,4 +136,50 @@ fn breakdown_contract() {
     );
     assert_eq!(v["by_adapter"]["cursor"], 4);
     assert_eq!(v["by_project"]["/repo"], 4);
+}
+
+#[test]
+fn daemon_status_contract() {
+    let v = serde_json::to_value(DaemonStatus {
+        running: true,
+        pid: Some(12345),
+        port: Some(45291),
+        http_ok: true,
+        started_at: Some("2026-06-07T03:00:00+00:00".into()),
+    })
+    .unwrap();
+    assert_object_keys(&v, &["running", "pid", "port", "http_ok", "started_at"]);
+    assert_eq!(v["pid"], 12345);
+    assert_eq!(v["http_ok"], true);
+}
+
+#[test]
+fn daemon_status_handles_null_fields() {
+    // 没在跑的 daemon：pid / port / started_at 都该是 null，而不是 0 或空字符串
+    let v = serde_json::to_value(DaemonStatus {
+        running: false,
+        pid: None,
+        port: None,
+        http_ok: false,
+        started_at: None,
+    })
+    .unwrap();
+    assert!(v["pid"].is_null());
+    assert!(v["port"].is_null());
+    assert!(v["started_at"].is_null());
+}
+
+#[test]
+fn lock_info_roundtrip() {
+    // LockInfo 既要 Serialize 也要 Deserialize（从 daemon.lock 文件读回来）
+    let original = LockInfo {
+        pid: 9999,
+        port: 45291,
+        started_at: "2026-06-07T03:00:00+00:00".into(),
+    };
+    let s = serde_json::to_string(&original).unwrap();
+    let back: LockInfo = serde_json::from_str(&s).unwrap();
+    assert_eq!(back.pid, 9999);
+    assert_eq!(back.port, 45291);
+    assert_eq!(back.started_at, "2026-06-07T03:00:00+00:00");
 }

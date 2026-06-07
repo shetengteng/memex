@@ -1,29 +1,30 @@
 <script setup lang="ts">
-import { cn } from '@/lib/utils'
+import { XIcon } from 'lucide-vue-next';
+
+import type { DialogContentEmits, DialogContentProps } from "reka-ui"
+import type { HTMLAttributes } from "vue"
+import { reactiveOmit } from "@vueuse/core"
 import {
   DialogClose,
   DialogContent,
-  type DialogContentEmits,
-  type DialogContentProps,
   DialogPortal,
   useForwardPropsEmits,
-} from 'reka-ui'
-import { X } from 'lucide-vue-next'
-import { computed, type HTMLAttributes } from 'vue'
-import DialogOverlay from './DialogOverlay.vue'
+} from "reka-ui"
+import { cn } from "@/lib/utils"
+import { Button } from '@/components/ui/button'
+import DialogOverlay from "./DialogOverlay.vue"
 
-defineOptions({ inheritAttrs: false })
+defineOptions({
+  inheritAttrs: false,
+})
 
-const props = defineProps<DialogContentProps & {
-  class?: HTMLAttributes['class']
-  hideClose?: boolean
-}>()
+const props = withDefaults(defineProps<DialogContentProps & { class?: HTMLAttributes["class"], showCloseButton?: boolean }>(), {
+  showCloseButton: true,
+})
 const emits = defineEmits<DialogContentEmits>()
 
-const delegatedProps = computed(() => {
-  const { class: _, hideClose: _h, ...rest } = props
-  return rest
-})
+const delegatedProps = reactiveOmit(props, "class")
+
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
@@ -31,19 +32,21 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
   <DialogPortal>
     <DialogOverlay />
     <DialogContent
-      v-bind="{ ...forwarded, ...$attrs }"
-      :class="cn(
-        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg',
-        props.class,
-      )"
+      data-slot="dialog-content"
+      v-bind="{ ...$attrs, ...forwarded }"
+      :class="cn('bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 ring-foreground/10 grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-sm ring-1 duration-100 sm:max-w-sm fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none', props.class)"
     >
       <slot />
+
       <DialogClose
-        v-if="!hideClose"
-        class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+        v-if="showCloseButton"
+        data-slot="dialog-close"
+        as-child
       >
-        <X class="h-4 w-4" />
-        <span class="sr-only">Close</span>
+        <Button variant="ghost" class="absolute top-2 right-2" size="icon-sm">
+          <XIcon />
+          <span class="sr-only">Close</span>
+        </Button>
       </DialogClose>
     </DialogContent>
   </DialogPortal>

@@ -1,8 +1,14 @@
 # Memex Web UI — Popup 内嵌方案设计
 
 > 日期：2026-06-01
-> 状态：设计中
+> 状态：**[历史归档]** 已被 `20260607-01-Memex-popup替换为桌面应用-重构方案.md` 取代
 > 背景：参考 tars-ai-butler 的 `tars web` 实现，为 Memex Tauri menubar popup 增加 Web UI 内嵌能力。
+>
+> ---
+>
+> **2026-06-07 注**：本方案的"在 popup 内嵌 Web UI"路线已被废弃，
+> 改为**完整桌面应用 + 极简托盘 popup**的双窗口架构（详见 `20260607-01-*.md`）。
+> 不再考虑额外起 HTTP 服务暴露 Web UI；所有界面统一在 Tauri 主窗口内。
 
 ---
 

@@ -21,6 +21,7 @@ prompts.txt
 *.db-shm
 *.db-wal
 target/
+node_modules/
 tauri-app/node_modules/
 tauri-app/dist/
 tauri-app/tsconfig.tsbuildinfo

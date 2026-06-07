@@ -1,37 +1,49 @@
 <script setup lang="ts">
-import { cn } from '@/lib/utils'
-import {
-  ToggleGroupRoot,
-  type ToggleGroupRootEmits,
-  type ToggleGroupRootProps,
-  useForwardPropsEmits,
-} from 'reka-ui'
-import { computed, provide, type HTMLAttributes } from 'vue'
+import type { VariantProps } from "class-variance-authority"
+import type { ToggleGroupRootEmits, ToggleGroupRootProps } from "reka-ui"
+import type { HTMLAttributes } from "vue"
+import type { toggleVariants } from '@/components/ui/toggle'
+import { reactiveOmit } from "@vueuse/core"
+import { ToggleGroupRoot, useForwardPropsEmits } from "reka-ui"
+import { provide } from "vue"
+import { cn } from "@/lib/utils"
 
-const props = defineProps<ToggleGroupRootProps & {
-  class?: HTMLAttributes['class']
-  size?: 'default' | 'sm' | 'lg' | 'xl'
-  variant?: 'default' | 'outline'
-}>()
+type ToggleGroupVariants = VariantProps<typeof toggleVariants>
+
+const props = withDefaults(defineProps<ToggleGroupRootProps & {
+  class?: HTMLAttributes["class"]
+  variant?: ToggleGroupVariants["variant"]
+  size?: ToggleGroupVariants["size"]
+  spacing?: number
+}>(), {
+  spacing: 0,
+})
+
 const emits = defineEmits<ToggleGroupRootEmits>()
 
-const delegated = computed(() => {
-  const { class: _c, size: _s, variant: _v, ...rest } = props
-  return rest
+provide("toggleGroup", {
+  variant: props.variant,
+  size: props.size,
+  spacing: props.spacing,
 })
-const forwarded = useForwardPropsEmits(delegated, emits)
 
-provide('toggleGroupContext', {
-  size: props.size ?? 'default',
-  variant: props.variant ?? 'default',
-})
+const delegatedProps = reactiveOmit(props, "class", "size", "variant")
+const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
   <ToggleGroupRoot
+    v-slot="slotProps"
+    data-slot="toggle-group"
+    :data-size="size"
+    :data-variant="variant"
+    :data-spacing="spacing"
+    :style="{
+      '--gap': spacing,
+    }"
     v-bind="forwarded"
-    :class="cn('inline-flex items-center justify-center gap-1', props.class)"
+    :class="cn('rounded-lg data-[size=sm]:rounded-[min(var(--radius-md),10px)] group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch', props.class)"
   >
-    <slot />
+    <slot v-bind="slotProps" />
   </ToggleGroupRoot>
 </template>

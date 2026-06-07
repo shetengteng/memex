@@ -1,25 +1,34 @@
 <script setup lang="ts">
-import { cn } from '@/lib/utils'
-import { SelectIcon, SelectTrigger, type SelectTriggerProps, useForwardProps } from 'reka-ui'
-import { ChevronDown } from 'lucide-vue-next'
-import { computed, type HTMLAttributes } from 'vue'
+import { ChevronDownIcon } from 'lucide-vue-next';
 
-const props = defineProps<SelectTriggerProps & { class?: HTMLAttributes['class'] }>()
-const delegatedProps = computed(() => {
-  const { class: _, ...rest } = props
-  return rest
-})
-const forwarded = useForwardProps(delegatedProps)
+import type { SelectTriggerProps } from "reka-ui"
+import type { HTMLAttributes } from "vue"
+import { reactiveOmit } from "@vueuse/core"
+import { SelectIcon, SelectTrigger, useForwardProps } from "reka-ui"
+import { cn } from "@/lib/utils"
+
+const props = withDefaults(
+  defineProps<SelectTriggerProps & { class?: HTMLAttributes["class"], size?: "sm" | "default" }>(),
+  { size: "default" },
+)
+
+const delegatedProps = reactiveOmit(props, "class", "size")
+const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
   <SelectTrigger
-    v-bind="forwarded"
-    :class="cn('flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 [&>span]:text-left', props.class)"
+    data-slot="select-trigger"
+    :data-size="size"
+    v-bind="forwardedProps"
+    :class="cn(
+      'border-input data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-sm transition-colors select-none focus-visible:ring-3 aria-invalid:ring-3 data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*=size-])]:size-4 flex w-fit items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center [&_svg]:pointer-events-none [&_svg]:shrink-0',
+      props.class,
+    )"
   >
     <slot />
     <SelectIcon as-child>
-      <ChevronDown class="h-4 w-4 shrink-0 opacity-50" />
+      <ChevronDownIcon class="text-muted-foreground size-4 pointer-events-none" />
     </SelectIcon>
   </SelectTrigger>
 </template>

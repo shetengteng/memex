@@ -28,8 +28,9 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 | 全文检索 | SQLite FTS5 + BM25 排序 + 时间衰减 + 中文 bigram |
 | 智能摘要 | Ollama 本地 LLM 四级摘要（chunk → session → project → 日报） |
 | MCP 协议 | 4 个工具：`search_memory` / `get_session` / `list_recent` / `stats` |
-| 系统托盘 | macOS 透明圆角 popup，shadcn-vue UI，⌘⇧M 快捷键唤起 |
-| Web Dashboard | `http://127.0.0.1:9999` 完整统计面板 |
+| 桌面应用 | 完整 1100×720 主窗口（Today / Library / Insights / Connect / Settings 五大页），⌘⇧M 切换主窗口 |
+| 系统托盘 | 极简 360×520 popup（最近 5 条 + 跳板），左键弹出 / 右键菜单 / 失焦自动隐藏 |
+| Daemon HTTP API | `http://127.0.0.1:9999` 提供 stats / search / sessions REST 接口 |
 | 隐私保护 | 自动脱敏 + 云端 opt-in + private session 过滤 |
 | 实时监听 | 文件系统事件驱动，2 秒内自动入库 |
 
@@ -108,7 +109,7 @@ bash scripts/upgrade-local.sh --skip-backup
 # 4. 查看统计
 ./target/release/memex stats
 
-# 5. 安装 Menubar App
+# 5. 启动桌面应用（含完整主窗口 + 极简托盘 popup）
 open target/release/bundle/macos/Memex.app
 ```
 
@@ -160,7 +161,7 @@ open target/release/bundle/macos/Memex.app
 | CLI | clap |
 | Daemon | axum + tokio + notify |
 | MCP | 手写 stdio JSON-RPC |
-| Menubar | Tauri 2 + Vue 3 + TypeScript + shadcn-vue |
+| Desktop App | Tauri 2 + Vue 3 + TypeScript + Vue Router 4 + shadcn-vue + reka-ui |
 | LLM | Ollama (本地) / Anthropic (可选云端) |
 | 构建 | Cargo workspace + Vite |
 
@@ -216,7 +217,7 @@ open site/index.html
 - [`skills/codex/SKILL.md`](skills/codex/SKILL.md) — Codex 专属
 - [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) — OpenCode 专属
 
-> 用法：在 Memex popup → Settings → IDE Integrations 一键安装/卸载 MCP + SKILL 到 4 个 IDE。
+> 用法：在 Memex 桌面应用 → Connect → IDE 集成 一键安装/卸载 MCP + SKILL 到 4 个 IDE。
 
 ---
 

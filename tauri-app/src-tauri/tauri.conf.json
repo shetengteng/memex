@@ -15,8 +15,25 @@
       {
         "label": "main",
         "title": "Memex",
-        "width": 480,
-        "height": 640,
+        "width": 1100,
+        "height": 720,
+        "minWidth": 880,
+        "minHeight": 560,
+        "visible": false,
+        "decorations": true,
+        "transparent": false,
+        "shadow": true,
+        "resizable": true,
+        "skipTaskbar": false,
+        "alwaysOnTop": false,
+        "center": true
+      },
+      {
+        "label": "tray-popup",
+        "title": "Memex Tray",
+        "url": "index.html#/tray-popup",
+        "width": 360,
+        "height": 520,
         "visible": false,
         "decorations": false,
         "transparent": true,
@@ -24,7 +41,8 @@
         "backgroundColor": "#00000000",
         "resizable": false,
         "skipTaskbar": true,
-        "alwaysOnTop": true
+        "alwaysOnTop": true,
+        "focus": true
       }
     ],
     "security": {

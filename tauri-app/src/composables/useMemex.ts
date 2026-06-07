@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -138,6 +138,46 @@ export function useMemex() {
     return invoke<SystemResetResult>('system_reset_all')
   }
 
+  async function ideListStatus(): Promise<IdeStatus[]> {
+    return invoke<IdeStatus[]>('ide_list_status')
+  }
+
+  async function ideInstall(ide: string): Promise<IdeStatus> {
+    return invoke<IdeStatus>('ide_install', { ide })
+  }
+
+  async function ideUninstall(ide: string): Promise<IdeStatus> {
+    return invoke<IdeStatus>('ide_uninstall', { ide })
+  }
+
+  async function skillListStatus(): Promise<SkillStatus[]> {
+    return invoke<SkillStatus[]>('skill_list_status')
+  }
+
+  async function skillInstall(ide: string): Promise<SkillStatus> {
+    return invoke<SkillStatus>('skill_install', { ide })
+  }
+
+  async function skillUninstall(ide: string): Promise<SkillStatus> {
+    return invoke<SkillStatus>('skill_uninstall', { ide })
+  }
+
+  async function hookListStatus(): Promise<HookStatus[]> {
+    return invoke<HookStatus[]>('hook_list_status')
+  }
+
+  async function hookInstall(ide: string): Promise<HookStatus> {
+    return invoke<HookStatus>('hook_install', { ide })
+  }
+
+  async function hookUninstall(ide: string): Promise<HookStatus> {
+    return invoke<HookStatus>('hook_uninstall', { ide })
+  }
+
+  async function checkForUpdates(): Promise<UpdateInfo> {
+    return invoke<UpdateInfo>('check_for_updates')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
     retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
@@ -149,5 +189,9 @@ export function useMemex() {
     reflectList, reflectGet, reflectRun,
     getWorkload,
     systemResetIndex, systemResetAll,
+    ideListStatus, ideInstall, ideUninstall,
+    skillListStatus, skillInstall, skillUninstall,
+    hookListStatus, hookInstall, hookUninstall,
+    checkForUpdates,
   }
 }

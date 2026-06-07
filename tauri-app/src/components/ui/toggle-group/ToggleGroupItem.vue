@@ -1,45 +1,45 @@
 <script setup lang="ts">
-import { cn } from '@/lib/utils'
-import { ToggleGroupItem, type ToggleGroupItemProps, useForwardProps } from 'reka-ui'
-import { computed, inject, type HTMLAttributes } from 'vue'
+import type { VariantProps } from "class-variance-authority"
+import type { ToggleGroupItemProps } from "reka-ui"
+import type { HTMLAttributes } from "vue"
+import { reactiveOmit } from "@vueuse/core"
+import { ToggleGroupItem, useForwardProps } from "reka-ui"
+import { inject } from "vue"
+import { cn } from "@/lib/utils"
+import { toggleVariants } from '@/components/ui/toggle'
 
-const props = defineProps<ToggleGroupItemProps & { class?: HTMLAttributes['class'] }>()
+type ToggleGroupVariants = VariantProps<typeof toggleVariants> & {
+  spacing?: number
+}
 
-const ctx = inject<{ size: string; variant: string }>('toggleGroupContext', { size: 'default', variant: 'default' })
+const props = defineProps<ToggleGroupItemProps & {
+  class?: HTMLAttributes["class"]
+  variant?: ToggleGroupVariants["variant"]
+  size?: ToggleGroupVariants["size"]
+}>()
 
-const delegated = computed(() => {
-  const { class: _c, ...rest } = props
-  return rest
-})
-const forwarded = useForwardProps(delegated)
+const context = inject<ToggleGroupVariants>("toggleGroup")
 
-const sizeClass = computed(() => {
-  switch (ctx.size) {
-    case 'sm': return 'h-8 min-w-8 px-2'
-    case 'lg': return 'h-10 min-w-10 px-3'
-    case 'xl': return 'h-11 min-w-11 px-3.5'
-    default: return 'h-9 min-w-9 px-2.5'
-  }
-})
-
-const variantClass = computed(() => {
-  return ctx.variant === 'outline'
-    ? 'border border-input shadow-xs'
-    : ''
-})
+const delegatedProps = reactiveOmit(props, "class", "size", "variant")
+const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
   <ToggleGroupItem
-    v-bind="forwarded"
+    v-slot="slotProps"
+    data-slot="toggle-group-item"
+    :data-variant="context?.variant || variant"
+    :data-size="context?.size || size"
+    :data-spacing="context?.spacing"
+    v-bind="forwardedProps"
     :class="cn(
-      'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-      'data-[state=on]:bg-primary/10 data-[state=on]:text-primary',
-      sizeClass,
-      variantClass,
-      props.class,
-    )"
+      'group-data-[spacing=0]/toggle-group:rounded-none group-data-[spacing=0]/toggle-group:px-2 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-1.5 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-1.5 group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-lg group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-lg group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-lg group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-lg shrink-0 focus:z-10 focus-visible:z-10 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0 group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t',
+      toggleVariants({
+        variant: context?.variant || variant,
+        size: context?.size || size,
+      }),
+      props.class)"
   >
-    <slot />
+    <slot v-bind="slotProps" />
   </ToggleGroupItem>
 </template>
