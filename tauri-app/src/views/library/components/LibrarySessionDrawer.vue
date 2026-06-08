@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <div v-if="session" class="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+      <div v-if="session" class="flex-1 space-y-5 overflow-y-auto px-7 py-5">
         <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">加载详情中…</p>
 
         <section v-if="detail?.intent">

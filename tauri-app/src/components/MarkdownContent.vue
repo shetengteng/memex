@@ -42,15 +42,15 @@ const rendered = computed(() => {
 .markdown-body :deep(h2) { font-size: 1.05em; }
 .markdown-body :deep(h3) { font-size: 1em; }
 .markdown-body :deep(p) {
-  margin: 0.35em 0;
+  margin: 0.55em 0;
 }
 .markdown-body :deep(ul),
 .markdown-body :deep(ol) {
-  margin: 0.35em 0;
-  padding-left: 1.4em;
+  margin: 0.55em 0;
+  padding-left: 1.5em;
 }
 .markdown-body :deep(li) {
-  margin: 0.15em 0;
+  margin: 0.25em 0;
 }
 .markdown-body :deep(code) {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -60,8 +60,8 @@ const rendered = computed(() => {
   border-radius: 3px;
 }
 .markdown-body :deep(pre) {
-  margin: 0.5em 0;
-  padding: 0.6em 0.8em;
+  margin: 0.75em 0;
+  padding: 0.9em 1em;
   background: var(--color-muted, #f1f5f9);
   border-radius: 6px;
   overflow-x: auto;

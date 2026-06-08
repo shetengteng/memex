@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,12 +10,21 @@ import {
   Zap,
 } from 'lucide-vue-next'
 import IdeChip from '@/components/shell/IdeChip.vue'
-import { sessions } from '@/stores/memex'
-
-const router = useRouter()
+import { sessions, type Session } from '@/stores/memex'
+import LibrarySessionDrawer from '@/views/library/components/LibrarySessionDrawer.vue'
 
 // 后端暂未暴露"未完成/被中断"信号，先把最近 3 条 session 当候选
 const resumeCandidates = computed(() => sessions.slice(0, 3))
+
+// 复用 LibrarySessionDrawer：点击「打开会话」直接就地弹框，
+// 避免老逻辑「router.push('/library?session=...')」会先跳到 Library 页面再弹框带来的视觉切换闪烁。
+const selected = ref<Session | null>(null)
+const drawerOpen = ref(false)
+
+function openSession(s: Session) {
+  selected.value = s
+  drawerOpen.value = true
+}
 
 const fromNow = (iso: string) => {
   if (!iso) return '—'
@@ -25,10 +33,6 @@ const fromNow = (iso: string) => {
   if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
   if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`
   return `${Math.floor(diff / 86400)} 天前`
-}
-
-function openSession(id: string) {
-  router.push(`/library?session=${id}`)
 }
 </script>
 
@@ -63,7 +67,7 @@ function openSession(id: string) {
         </p>
         <!-- 第 3 行：按钮（左）+ project·time（右）。左右布局，右侧贴边。-->
         <div class="flex items-center gap-1.5">
-          <Button size="sm" variant="outline" class="h-7 gap-1 text-xs" @click="openSession(s.id)">
+          <Button size="sm" variant="outline" class="h-7 gap-1 text-xs" @click="openSession(s)">
             <ArrowUpRight class="size-3" />
             打开会话
           </Button>
@@ -85,4 +89,6 @@ function openSession(id: string) {
       </p>
     </div>
   </Card>
+
+  <LibrarySessionDrawer v-model:open="drawerOpen" :session="selected" />
 </template>
