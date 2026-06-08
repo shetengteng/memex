@@ -832,6 +832,70 @@ pub fn regenerate_threads(
     Ok(ok)
 }
 
+/// 按用户给定关键词，让 LLM 在最近 80 个 L2 摘要里挑出相关 session，
+/// 作为一条新线索 upsert 落库。返回新线索的 thread_id。
+///
+/// 与 `regenerate_threads` 互补：那个是全量自动聚类（一次产出多条 thread），
+/// 这个是命题搜索（一次查询产出一条 thread）。
+pub fn search_thread_by_query(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    query: &str,
+) -> anyhow::Result<i64> {
+    let q = query.trim();
+    if q.is_empty() {
+        anyhow::bail!("query is empty");
+    }
+
+    // 1) 取最近 80 个 session 的 L2 摘要
+    let sessions = db.list_sessions_paged(80, 0)?;
+    if sessions.is_empty() {
+        anyhow::bail!("没有可检索的会话——先生成 L2 摘要");
+    }
+
+    let mut batch = Vec::with_capacity(sessions.len());
+    for s in &sessions {
+        let row = match db.get_summary(&s.id, "L2_session") {
+            Ok(Some(r)) => r,
+            _ => continue,
+        };
+        let project_name = s.project_path.as_deref().and_then(|p| {
+            p.rsplit('/').find(|seg| !seg.is_empty()).map(|s| s.to_string())
+        });
+        batch.push((
+            s.id.clone(),
+            summarize::SessionSummary {
+                title: row.title.unwrap_or_default(),
+                summary: row.summary,
+                topics: row.topics,
+                decisions: row.decisions,
+                project_name,
+                intent: None,
+            },
+        ));
+    }
+    if batch.is_empty() {
+        anyhow::bail!("最近 80 个会话都没有 L2 摘要——先生成 L2 摘要");
+    }
+
+    // 2) LLM 命题搜索；失败用字面匹配 fallback
+    let draft = match crate::llm::threads::query_threads_by_keyword(provider, &batch, q) {
+        Ok(d) => d,
+        Err(e) => {
+            warn!("L5 LLM 关键词检索失败，使用字面匹配 fallback: {}", e);
+            crate::llm::threads::fallback_query_match(&batch, q)
+        }
+    };
+
+    if draft.session_ids.is_empty() {
+        anyhow::bail!("未找到与「{}」相关的会话", q);
+    }
+
+    // 3) upsert 落库
+    let thread_id = db.upsert_thread_with_sessions(&draft)?;
+    Ok(thread_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

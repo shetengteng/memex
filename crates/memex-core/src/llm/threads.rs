@@ -106,6 +106,165 @@ pub fn cluster_threads(
     Ok(map_to_drafts(&parsed.threads, batch))
 }
 
+/// LLM 解析得到的"按关键词命题搜索"返回结构。
+#[derive(Debug, Clone, Deserialize)]
+struct LlmQueryThread {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    session_indices: Vec<usize>,
+}
+
+const QUERY_THREAD_SYSTEM: &str = "\
+你是一位资深技术工作流分析师。用户给你一个关键词或主题描述，并给你一批最近的\
+编程会话摘要（每条带编号、所属项目、标题、主题、正文）。请挑选出**与用户关键词\
+确实相关**的会话，组成一条「主题线索（Thread）」。
+
+输出严格合法的 JSON（不带 ```json 标记）：
+
+{
+  \"name\": \"线索名（≤30 字符的简体中文短语，应能体现关键词）\",
+  \"summary\": \"一句话主题描述，≤100 字符\",
+  \"session_indices\": [1, 3, 7]
+}
+
+硬性要求：
+1. session_indices 必须是 1-based 整数，对应输入序号
+2. 宁缺毋滥：只有真正讨论该关键词的会话才入选；标题/正文里仅仅\
+   提到一句无关上下文的会话不算
+3. 如果没有任何会话相关，输出 session_indices=[] 并把 name 设为关键词原文
+4. 不要复述输入的 session 标题，要抽象出更高层的主题
+5. 所有自然语言用简体中文。技术标识保持原样
+
+只输出 JSON，不要解释。";
+
+/// 按用户关键词，让 LLM 从一批 session 摘要里挑出相关 session。
+/// 失败时调用方应使用 fallback：在标题/主题/摘要字面包含关键词。
+pub fn query_threads_by_keyword(
+    provider: &dyn LlmProvider,
+    sessions: &[(String, SessionSummary)],
+    query: &str,
+) -> Result<ThreadDraft> {
+    if sessions.is_empty() {
+        return Ok(ThreadDraft {
+            name: query.to_string(),
+            summary: String::new(),
+            session_ids: vec![],
+        });
+    }
+    let batch: &[(String, SessionSummary)] = if sessions.len() > MAX_SESSIONS_PER_BATCH {
+        &sessions[..MAX_SESSIONS_PER_BATCH]
+    } else {
+        sessions
+    };
+
+    let mut prompt = String::with_capacity(8000);
+    prompt.push_str(&format!("用户关键词：{}\n\n", query));
+    prompt.push_str("以下是若干条编程会话的摘要，每条带 1-based 编号和所属项目：\n\n");
+    for (i, (_, summary)) in batch.iter().enumerate() {
+        let n = i + 1;
+        let title = if summary.title.is_empty() {
+            "(无标题)"
+        } else {
+            &summary.title
+        };
+        let body = if summary.summary.chars().count() > MAX_SUMMARY_CHARS {
+            let s: String = summary.summary.chars().take(MAX_SUMMARY_CHARS).collect();
+            format!("{}…", s)
+        } else {
+            summary.summary.clone()
+        };
+        let topics = if summary.topics.is_empty() {
+            String::new()
+        } else {
+            format!("（主题：{}）", summary.topics.join("、"))
+        };
+        let project = summary
+            .project_name
+            .as_deref()
+            .filter(|p| !p.trim().is_empty())
+            .unwrap_or("(未知项目)");
+        prompt.push_str(&format!(
+            "[{}] project={} | {}{}\n  {}\n\n",
+            n, project, title, topics, body,
+        ));
+    }
+    prompt.push_str("请按要求挑选与关键词相关的会话，输出 JSON。");
+
+    let request = LlmRequest::with_prompt(prompt)
+        .with_system(QUERY_THREAD_SYSTEM)
+        .with_max_tokens(MAX_OUTPUT_TOKENS);
+    let response = provider.generate(&request)?;
+    let cleaned = strip_code_fences(&response.text);
+    let parsed: LlmQueryThread = serde_json::from_str(&cleaned).map_err(|e| {
+        anyhow::anyhow!(
+            "parse query thread JSON failed: {e}; raw: {}",
+            &cleaned[..cleaned.len().min(200)]
+        )
+    })?;
+
+    // 把 1-based session_indices 映射到真实 session_id，去重并丢掉越界的。
+    let mut seen = std::collections::HashSet::new();
+    let mut session_ids = Vec::new();
+    for idx in parsed.session_indices {
+        if idx == 0 || idx > batch.len() {
+            continue;
+        }
+        let sid = batch[idx - 1].0.clone();
+        if seen.insert(sid.clone()) {
+            session_ids.push(sid);
+        }
+    }
+
+    let name = if parsed.name.trim().is_empty() {
+        query.to_string()
+    } else {
+        parsed.name.trim().to_string()
+    };
+
+    Ok(ThreadDraft {
+        name,
+        summary: parsed.summary.trim().to_string(),
+        session_ids,
+    })
+}
+
+/// 关键词检索的确定性 fallback：在 title / topics / summary 里做大小写不敏感的
+/// 字面子串匹配。比 LLM 弱很多但永远可用。
+pub fn fallback_query_match(
+    sessions: &[(String, SessionSummary)],
+    query: &str,
+) -> ThreadDraft {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return ThreadDraft {
+            name: query.to_string(),
+            summary: String::new(),
+            session_ids: vec![],
+        };
+    }
+    let mut session_ids = Vec::new();
+    for (sid, s) in sessions {
+        let hit = s.title.to_lowercase().contains(&needle)
+            || s.summary.to_lowercase().contains(&needle)
+            || s.topics.iter().any(|t| t.to_lowercase().contains(&needle))
+            || s
+                .decisions
+                .iter()
+                .any(|d| d.to_lowercase().contains(&needle));
+        if hit {
+            session_ids.push(sid.clone());
+        }
+    }
+    ThreadDraft {
+        name: query.to_string(),
+        summary: String::new(),
+        session_ids,
+    }
+}
+
 /// 当 LLM 不可用或解析失败时的确定性 fallback：
 /// 按 (project_name, topics[0]) 作为桶 key 分桶。把 project 放进 key 是为了
 /// 避免跨项目错聚类——同样讨论"prompts.txt"的两个 session 来自不同项目时
@@ -395,5 +554,38 @@ mod tests {
         let prompt = build_clustering_prompt(&batch);
         assert!(prompt.contains("project=memex"), "应包含 project=memex 信号:\n{}", prompt);
         assert!(prompt.contains("project=tt-qimen"), "应包含 project=tt-qimen 信号:\n{}", prompt);
+    }
+
+    /// 关键词字面 fallback：在 title / topics / summary / decisions 任一命中即收录。
+    #[test]
+    fn fallback_query_match_hits_title_topics_summary_decisions() {
+        let mut a = sp("修 Tauri 多窗口", "无关内容", &[], "memex");
+        let mut b = sp("写 Markdown", "讨论 Tauri 事件循环", &[], "memex");
+        let mut c = sp("修 bug", "不沾边", &["tauri"], "memex");
+        let mut d = sp("改 schema", "不沾边", &[], "memex");
+        d.decisions = vec!["Tauri 升级 v2".into()];
+        // 完全不相关的 e 不应入选
+        let e = sp("命理预测", "不沾边", &[], "tt-qimen");
+        b.title = b.title.clone();
+        a.title = a.title.clone();
+        c.title = c.title.clone();
+        let sessions = vec![
+            ("s_a".into(), a),
+            ("s_b".into(), b),
+            ("s_c".into(), c),
+            ("s_d".into(), d),
+            ("s_e".into(), e),
+        ];
+        let draft = fallback_query_match(&sessions, "Tauri");
+        assert_eq!(draft.name, "Tauri");
+        assert_eq!(draft.session_ids.len(), 4);
+        assert!(!draft.session_ids.contains(&"s_e".to_string()));
+    }
+
+    #[test]
+    fn fallback_query_match_empty_query_returns_empty() {
+        let sessions = vec![("s1".into(), s("a", "x", &["topic"]))];
+        let draft = fallback_query_match(&sessions, "   ");
+        assert_eq!(draft.session_ids.len(), 0);
     }
 }
