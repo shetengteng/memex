@@ -57,6 +57,8 @@ pub struct SessionContext {
     pub summary: Option<String>,
     pub topics: Vec<String>,
     pub decisions: Vec<String>,
+    /// L2 摘要推断出的"用户真实意图"，渲染时优先于 first_user_message。
+    pub intent: Option<String>,
     pub first_user_message: Option<String>,
 }
 
@@ -66,11 +68,37 @@ pub fn collect_project_context(
     project_path: &str,
     top_n: usize,
 ) -> Result<ProjectContext> {
-    let sessions = db.list_sessions_by_project(project_path)?;
-    let total = sessions.len() as i64;
-    let last_active = sessions
+    let all_sessions = db.list_sessions_by_project(project_path)?;
+    let total = all_sessions.len() as i64;
+    let last_active = all_sessions
         .first()
         .map(|s| short_date(&s.updated_at));
+
+    // 过滤掉信息量为零的 session（没标题、没 summary、没 intent、且 first_user_message
+    // 是 noise 模板）—— 让"近期会话"块只展示有价值的内容，而不是把空骨架占进 top_n。
+    let sessions: Vec<_> = all_sessions
+        .iter()
+        .filter(|s| {
+            let has_signal_title = s
+                .summary_title
+                .as_deref()
+                .or(s.title.as_deref())
+                .map(|t| !t.trim().is_empty())
+                .unwrap_or(false);
+            let has_signal_intent = s
+                .intent
+                .as_deref()
+                .map(|t| !t.trim().is_empty())
+                .unwrap_or(false);
+            let has_signal_prompt = s
+                .first_user_message
+                .as_deref()
+                .map(|t| !is_noise_prompt(t))
+                .unwrap_or(false);
+            has_signal_title || has_signal_intent || has_signal_prompt
+        })
+        .cloned()
+        .collect();
 
     // 项目名提取：先按 '/' 取最后一段（标准 unix 路径），如果整段还含
     // '-Users-…' 这种 Cursor 转义形式，再按 '-' 取最后一段兜底。
@@ -99,6 +127,12 @@ pub fn collect_project_context(
     let mut recent = Vec::new();
     for s in sessions.iter().take(top_n) {
         let l2 = db.get_summary(&s.id, "L2_session")?;
+        // first_user_message 在 noise 模板上直接置空，不让 "=== Role ===" 这类
+        // claude_code system prompt 占位文本污染下游 LLM 的注意力。
+        let first_user_message = s
+            .first_user_message
+            .clone()
+            .filter(|t| !t.trim().is_empty() && !is_noise_prompt(t));
         recent.push(SessionContext {
             session_id: s.id.clone(),
             adapter: s.source.clone(),
@@ -111,7 +145,8 @@ pub fn collect_project_context(
             summary: l2.as_ref().map(|r| r.summary.clone()),
             topics: l2.as_ref().map(|r| r.topics.clone()).unwrap_or_default(),
             decisions: l2.as_ref().map(|r| r.decisions.clone()).unwrap_or_default(),
-            first_user_message: s.first_user_message.clone(),
+            intent: s.intent.clone().filter(|t| !t.trim().is_empty()),
+            first_user_message,
         });
     }
 
@@ -172,33 +207,46 @@ pub fn render_markdown(ctx: &ProjectContext) -> String {
         out.push_str(&format!("话题：{}\n", ctx.project_topics.join(" / ")));
     }
 
-    for s in &ctx.recent_sessions {
-        out.push('\n');
-        out.push_str(&format!(
-            "**{}** · {} · {}\n",
-            ctx.project_name,
-            short_date(&s.updated_at),
-            s.adapter
-        ));
-        if let Some(t) = s.title.as_ref() {
-            out.push_str(&format!("标题：{}\n", first_line(t, 100)));
-        }
-        if let Some(summary) = s.summary.as_ref().filter(|t| !t.trim().is_empty()) {
-            out.push_str(&format!("{}\n", first_paragraph(summary, 480)));
-        }
-        if !s.decisions.is_empty() {
+    if !ctx.recent_sessions.is_empty() {
+        out.push_str("\n近期会话：\n");
+        for s in &ctx.recent_sessions {
+            // 改为紧凑的 list 式渲染，不再每条都重打项目名。
+            // 行首是标题（最具信息），后面 meta（日期 · adapter），下面缩进的内容。
+            let title = s
+                .title
+                .as_deref()
+                .map(|t| first_line(t, 100))
+                .unwrap_or_else(|| "（未命名会话）".to_string());
             out.push_str(&format!(
-                "已决定：{}\n",
-                s.decisions
-                    .iter()
-                    .take(3)
-                    .map(|d| first_line(d, 100))
-                    .collect::<Vec<_>>()
-                    .join("；")
+                "- {} · {} · {}\n",
+                title,
+                short_date(&s.updated_at),
+                s.adapter
             ));
-        }
-        if let Some(prompt) = s.first_user_message.as_ref().filter(|t| !t.trim().is_empty()) {
-            out.push_str(&format!("最后提示：{}\n", first_line(prompt, 120)));
+            if let Some(summary) = s.summary.as_ref().filter(|t| !t.trim().is_empty()) {
+                out.push_str(&format!("  概述：{}\n", first_paragraph(summary, 360)));
+            }
+            if !s.decisions.is_empty() {
+                out.push_str(&format!(
+                    "  已决定：{}\n",
+                    s.decisions
+                        .iter()
+                        .take(3)
+                        .map(|d| first_line(d, 100))
+                        .collect::<Vec<_>>()
+                        .join("；")
+                ));
+            }
+            // intent 优先（L2 LLM 推断的"用户真实意图"），缺时退到 first_user_message。
+            // first_user_message 已在 collect 时滤掉 `=== Role ===` 这类 system prompt 噪音。
+            let last_prompt = s
+                .intent
+                .as_deref()
+                .or(s.first_user_message.as_deref())
+                .filter(|t| !t.trim().is_empty());
+            if let Some(prompt) = last_prompt {
+                out.push_str(&format!("  关注：{}\n", first_line(prompt, 120)));
+            }
         }
     }
 
@@ -247,6 +295,32 @@ fn first_paragraph(s: &str, max: usize) -> String {
         .trim()
         .to_string();
     truncate(&para, max)
+}
+
+/// 识别 IDE agent 框架塞进"第一条 user 消息"的 system prompt 模板，避免它们
+/// 作为 "最后提示" 注入到下游 LLM。这类内容对接收方完全无意义，纯噪声。
+///
+/// 目前覆盖：
+/// - claude_code workflow agent 框架：`=== Role ===`, `=== Skills`, `=== Task ===`
+/// - cursor / 其他 IDE 的内嵌 system header（一般以多行模板形式开头）
+fn is_noise_prompt(s: &str) -> bool {
+    let trimmed = s.trim_start();
+    // 头部就是 `=== ... ===` 这种 ALL-CAPS 段落分隔符，几乎都是 agent 框架模板。
+    if trimmed.starts_with("=== Role")
+        || trimmed.starts_with("=== Task")
+        || trimmed.starts_with("=== Skills")
+        || trimmed.starts_with("=== System")
+        || trimmed.starts_with("=== Goal")
+    {
+        return true;
+    }
+    // 极短或只有标点的 fallback。
+    let visible: String = trimmed
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .take(4)
+        .collect();
+    visible.len() < 2
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -333,12 +407,131 @@ mod tests {
         assert!(md.contains("**memex**"), "缺少项目名:\n{}", md);
         assert!(md.contains("2 个会话"), "缺少会话计数:\n{}", md);
         assert!(md.contains("概览："), "缺少概览行:\n{}", md);
-        assert!(md.contains("最后提示：fix the login bug"), "缺少 last prompt:\n{}", md);
+        assert!(md.contains("近期会话："), "应有 list 形式 header:\n{}", md);
+        assert!(
+            md.contains("- Fix login bug · "),
+            "应以 list 形式渲染标题:\n{}",
+            md,
+        );
+        assert!(md.contains("关注：fix the login bug"), "应用关注字段渲染最后提示:\n{}", md);
         assert!(md.contains("已决定：use RS256"), "缺少 decisions:\n{}", md);
         assert!(
             md.contains("memex hooks uninstall"),
             "缺少 opt-out 提示，避免用户找不到怎么关:\n{}", md,
         );
+    }
+
+    /// claude_code workflow agent 框架把整段 `=== Role === ...` 当作 user
+    /// 消息塞进 jsonl，导致这一段被 SQL 取作"第一条 user 消息"。这类内容
+    /// 渲染进 work memory 完全无信息量，必须过滤。
+    #[test]
+    fn render_filters_noise_first_user_message() {
+        let db = Db::open_in_memory().unwrap();
+        db.insert_session(
+            "s1", "claude_code", Some("/work/foo"), "/f.jsonl", 0, 0,
+        ).unwrap();
+        let h = blake3::hash(b"x").to_hex().to_string();
+        // 标题 fallback 用 first_user_message 时会被 "=== Role ===" 污染。
+        // 但是同时给一个 L2 摘要标题，让 session 仍然有 signal 不被整体过滤。
+        db.insert_message(
+            "m1", "s1", "user",
+            "=== Role ===\n你是 Pilot Transition agent。\n=== Task ===\n做事。",
+            None, 0, &h,
+        ).unwrap();
+        db.upsert_summary(
+            "s1", "L2_session",
+            Some("推进 JIRA 状态"),
+            "对 ZOOM-1269895 做 In Progress → Ready for Review 推进。",
+            &["jira".into()],
+            &[],
+            2,
+        ).unwrap();
+
+        let md = build_context(
+            &db,
+            "/work/foo",
+            &ContextOptions { top_n: 3, redact: false },
+        ).unwrap();
+
+        assert!(
+            !md.contains("=== Role ==="),
+            "must filter out the role template:\n{}",
+            md,
+        );
+        assert!(
+            md.contains("推进 JIRA 状态"),
+            "should still render the L2 title even when first_user_message is noise:\n{}",
+            md,
+        );
+    }
+
+    /// 当 session 没有标题、没有 summary、没有 intent，并且 first_user_message
+    /// 也是噪音时，render 应该整体跳过这个会话，而不是输出空骨架行。
+    #[test]
+    fn render_skips_session_with_no_signal() {
+        let db = Db::open_in_memory().unwrap();
+        // s1 全噪音：会被过滤掉
+        db.insert_session(
+            "s1", "claude_code", Some("/work/bar"), "/f1.jsonl", 1717000000, 1717010000,
+        ).unwrap();
+        let h1 = blake3::hash(b"a").to_hex().to_string();
+        db.insert_message("m1", "s1", "user", "=== Role ===", None, 0, &h1).unwrap();
+        // s2 有标题：保留
+        db.insert_session(
+            "s2", "claude_code", Some("/work/bar"), "/f2.jsonl", 1717100000, 1717110000,
+        ).unwrap();
+        let h2 = blake3::hash(b"b").to_hex().to_string();
+        db.insert_message("m2", "s2", "user", "real question", None, 0, &h2).unwrap();
+        db.upsert_summary(
+            "s2", "L2_session", Some("有标题的 session"),
+            "summary", &[], &[], 1,
+        ).unwrap();
+
+        let md = build_context(
+            &db,
+            "/work/bar",
+            &ContextOptions { top_n: 3, redact: false },
+        ).unwrap();
+
+        // 总会话数仍按全量计算（让用户看到完整规模），但 list 里不再展示 s1。
+        assert!(md.contains("2 个会话"), "总数应统计全量:\n{}", md);
+        assert!(md.contains("有标题的 session"));
+        assert!(!md.contains("（未命名会话）"));
+    }
+
+    /// intent 优先于 first_user_message 作为"关注"行内容。
+    #[test]
+    fn render_prefers_intent_over_first_user_message() {
+        let db = Db::open_in_memory().unwrap();
+        db.insert_session(
+            "s1", "cursor", Some("/work/baz"), "/f.jsonl", 0, 0,
+        ).unwrap();
+        let h = blake3::hash(b"x").to_hex().to_string();
+        db.insert_message("m1", "s1", "user", "原始提问相对啰嗦的版本", None, 0, &h).unwrap();
+        db.upsert_summary(
+            "s1", "L2_session", Some("修 bug"),
+            "做事的 summary", &[], &[], 1,
+        ).unwrap();
+        db.update_session_intent("s1", Some("修复登录 bug")).unwrap();
+
+        let md = build_context(
+            &db,
+            "/work/baz",
+            &ContextOptions { top_n: 3, redact: false },
+        ).unwrap();
+
+        assert!(md.contains("关注：修复登录 bug"), "应优先用 intent:\n{}", md);
+        assert!(!md.contains("关注：原始提问相对啰嗦"), "intent 在时不应用 first_user_message:\n{}", md);
+    }
+
+    #[test]
+    fn is_noise_prompt_catches_common_templates() {
+        assert!(is_noise_prompt("=== Role ===\nfoo"));
+        assert!(is_noise_prompt("  === Task ===  body"));
+        assert!(is_noise_prompt("=== System ===\n..."));
+        assert!(!is_noise_prompt("修一下登录"));
+        assert!(!is_noise_prompt("帮我设计一个 schema"));
+        assert!(is_noise_prompt("  "));
     }
 
     /// Cursor 在某些场景下把 project_path 写成 "-Users-me-work-memex" 形式
