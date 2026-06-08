@@ -139,7 +139,11 @@ const fmtTime = (iso: string) =>
     </Card>
 
     <Dialog v-model:open="openDetail">
-      <DialogContent class="w-[92vw] max-w-4xl">
+      <!--
+        ! 前缀是为了覆盖 shadcn-vue DialogContent 默认的 sm:max-w-sm（~384px），
+        与 LibrarySessionDrawer 的 DialogContent 保持完全一致的宽度（~896px）。
+      -->
+      <DialogContent class="w-[92vw] !max-w-4xl">
         <DialogHeader>
           <DialogTitle>{{ detail?.title ?? detail?.scope_key ?? '反思详情' }}</DialogTitle>
         </DialogHeader>
