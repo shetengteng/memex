@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 9;
+pub(super) const SCHEMA_VERSION: u32 = 10;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -199,4 +199,34 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     latency_ms INTEGER,
     updated_at TEXT NOT NULL
 );
+
+-- v10: threads —— L5 \"主题线索\" 的 N:N 中间表。
+-- LLM 把多个 session 的 L2 摘要聚类成「线索」（如 'memex 桌面化迁移'、
+-- 'cursor 适配器问题'），同一个 session 可以属于多个 thread。
+-- 数据来源：try_l5_thread_clustering（在 ingest.rs 中）。
+-- 重新生成：每次只有手动/周期触发，结果会增量插入 + 已不再相关的 thread 不删除（保留历史）。
+CREATE TABLE IF NOT EXISTS threads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    session_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(name)
+);
+
+CREATE TABLE IF NOT EXISTS thread_sessions (
+    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (thread_id, session_id)
+);
+
+-- 反查\"一个 session 属于哪些 thread\" 的热路径。
+CREATE INDEX IF NOT EXISTS idx_thread_sessions_session
+    ON thread_sessions(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_threads_updated_at
+    ON threads(updated_at DESC);
 ";

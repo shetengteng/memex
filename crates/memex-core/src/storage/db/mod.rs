@@ -17,6 +17,7 @@ mod schema;
 mod sessions;
 mod sources;
 mod summaries;
+mod threads;
 #[cfg(test)]
 mod tests;
 
@@ -29,6 +30,7 @@ use rusqlite::{Connection, params};
 pub use providers::LlmProviderRow;
 pub use sessions::{MessageRow, SessionDetail, SessionRow};
 pub use summaries::{AggregateSummaryRow, SummaryRow};
+pub use threads::{ThreadDetail, ThreadDraft, ThreadRow};
 
 pub struct Db {
     pub(crate) conn: Mutex<Connection>,
@@ -242,6 +244,39 @@ impl Db {
             conn.execute(
                 "UPDATE schema_version SET version = ?1",
                 params![9u32],
+            )?;
+        }
+        if from < 10 {
+            // v10：新增 threads + thread_sessions N:N 中间表，用于 L5
+            // 「主题线索」聚类（LLM 把多个 session 聚合成线索）。
+            // 这是纯新增表，老库迁移只创建结构，不回填数据；下一次手动
+            // 触发 regenerate_threads 或者 try_l5_thread_clustering 跑完
+            // 才会有内容。SCHEMA_SQL 里也写了相同 DDL，新装库直接拿到。
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS threads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    summary TEXT NOT NULL DEFAULT '',
+                    session_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(name)
+                );
+                 CREATE TABLE IF NOT EXISTS thread_sessions (
+                    thread_id INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+                    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                    confidence REAL NOT NULL DEFAULT 1.0,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (thread_id, session_id)
+                );
+                 CREATE INDEX IF NOT EXISTS idx_thread_sessions_session
+                    ON thread_sessions(session_id);
+                 CREATE INDEX IF NOT EXISTS idx_threads_updated_at
+                    ON threads(updated_at DESC);",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![10u32],
             )?;
         }
         Ok(())
