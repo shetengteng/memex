@@ -141,6 +141,7 @@ mod tests {
             ollama_url: "http://localhost:11434".to_string(),
             ollama_model: "qwen2.5".to_string(),
             summary_cooldown_secs: 600,
+            summarize_interval_ms: 0,
         };
         let p = OllamaProvider::from_config(&config);
         assert_eq!(p.model, "qwen2.5");

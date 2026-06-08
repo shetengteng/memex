@@ -97,6 +97,7 @@ mod tests {
             ollama_url: "http://127.0.0.1:0".into(),
             ollama_model: "test".into(),
             summary_cooldown_secs: 600,
+            summarize_interval_ms: 0,
         }
     }
 
@@ -115,6 +116,7 @@ mod tests {
             ollama_url: "http://127.0.0.1:0".into(),
             ollama_model: "test".into(),
             summary_cooldown_secs: 600,
+            summarize_interval_ms: 0,
         };
         let provider = select_provider(&cfg, tmp.path());
         assert!(
@@ -172,6 +174,7 @@ mod tests {
             ollama_url: format!("http://127.0.0.1:{}", port),
             ollama_model: "test".into(),
             summary_cooldown_secs: 600,
+            summarize_interval_ms: 0,
         };
 
         let provider = select_provider_unified(&db, &cfg, tmp.path());

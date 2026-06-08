@@ -249,6 +249,37 @@ const appVersion = `v${packageJson.version}`
     </SidebarContent>
 
     <SidebarFooter>
+      <!-- 摘要进行中时把状态条 + 暂停按钮直接顶到 footer 顶部，无需展开 popover 即可一眼看到。
+           progress bar 给视觉反馈，暂停 button 用 destructive 样式让用户一眼识别出 "可点击中断" 而非装饰。 -->
+      <div
+        v-if="inFlight"
+        class="mb-1.5 space-y-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2"
+      >
+        <div class="flex items-center gap-1.5 text-[11px]">
+          <span class="relative flex size-1.5 shrink-0 items-center justify-center">
+            <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/70" />
+            <span class="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+          </span>
+          <span class="flex-1 truncate font-medium text-emerald-700 tabular-nums dark:text-emerald-400">
+            生成摘要 {{ progress?.current ?? 0 }}/{{ progress?.total ?? 0 }}
+          </span>
+          <button
+            type="button"
+            class="rounded-sm bg-rose-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="aborting"
+            @click="abortBatchSummarize"
+          >
+            {{ aborting ? '暂停中…' : '⏸ 暂停' }}
+          </button>
+        </div>
+        <div class="h-1 w-full overflow-hidden rounded-full bg-emerald-500/15">
+          <div
+            class="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
+            :style="{ width: progress && progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : '0%' }"
+          />
+        </div>
+      </div>
+
       <SidebarMenu>
         <SidebarMenuItem>
           <Popover>

@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -44,6 +45,11 @@ const DEFAULT_TEMPLATE =
   '生成一句话主旨、用户的真实意图、1~3 条关键决策、1~3 条具体的下一步。风格：精炼，不要废话。'
 const prompt = ref<string>(DEFAULT_TEMPLATE)
 const savingPrompt = ref(false)
+
+// 摘要节流：通过 set_config 持久化到 config.toml 的 llm.summarize_interval_ms
+// 默认 2000ms — 与 LlmConfig::default 保持一致
+const summarizeIntervalMs = ref<number>(2000)
+const savingInterval = ref(false)
 
 function fromBackend(p: LlmProvider): Provider {
   return {
@@ -82,8 +88,35 @@ async function loadPrompt() {
   }
 }
 
+async function loadSummarizeInterval() {
+  try {
+    const v = await memex.getConfig('llm.summarize_interval_ms')
+    if (v) {
+      const n = Number.parseInt(v, 10)
+      if (!Number.isNaN(n) && n >= 0) summarizeIntervalMs.value = n
+    }
+  } catch {
+    /* ignore — keep default 2000 */
+  }
+}
+
+async function saveSummarizeInterval() {
+  if (savingInterval.value) return
+  const v = Math.max(0, Math.floor(summarizeIntervalMs.value || 0))
+  savingInterval.value = true
+  try {
+    await memex.setConfig('llm.summarize_interval_ms', String(v))
+    summarizeIntervalMs.value = v
+    toast.success(`摘要间隔已保存为 ${v}ms`)
+  } catch (err) {
+    toast.error(`保存失败：${String(err)}`)
+  } finally {
+    savingInterval.value = false
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadProviders(), loadPrompt()])
+  await Promise.all([loadProviders(), loadPrompt(), loadSummarizeInterval()])
 })
 
 const enabledCount = computed(() => providers.value.filter((p) => p.enabled).length)
@@ -426,6 +459,35 @@ function kindLabel(k: Provider['kind']) {
             <Trash2 class="size-3.5" />
           </Button>
         </div>
+      </CardContent>
+    </Card>
+
+    <!-- 摘要节流：每条 L2 摘要之间的间隔，避免 Ollama 一次性把 GPU 拉满。 -->
+    <Card>
+      <CardHeader class="pb-2">
+        <CardTitle class="text-base">摘要节流</CardTitle>
+        <CardDescription class="text-xs">
+          批量生成 L2 摘要时，每条之间等待的毫秒数。设大一点让 Ollama / Apple Silicon 散热并给系统留呼吸空间；设 0 跑满。
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="flex items-center gap-3">
+        <Input
+          v-model.number="summarizeIntervalMs"
+          type="number"
+          min="0"
+          step="500"
+          class="h-9 w-32 font-mono text-sm"
+        />
+        <span class="text-xs text-muted-foreground">ms（推荐 2000–5000）</span>
+        <Button
+          size="sm"
+          variant="outline"
+          class="ml-auto"
+          :disabled="savingInterval"
+          @click="saveSummarizeInterval"
+        >
+          {{ savingInterval ? '保存中…' : '保存' }}
+        </Button>
       </CardContent>
     </Card>
 

@@ -24,6 +24,7 @@ pub async fn get_config(key: String) -> Result<Option<String>, String> {
         "llm.ollama_enabled" => Some(config.llm.ollama_enabled.to_string()),
         "llm.ollama_url" => Some(config.llm.ollama_url.clone()),
         "llm.ollama_model" => Some(config.llm.ollama_model.clone()),
+        "llm.summarize_interval_ms" => Some(config.llm.summarize_interval_ms.to_string()),
         "privacy.auto_redact" => Some(config.privacy.redaction_enabled.to_string()),
         "privacy.private_from_mcp" => Some(config.privacy.skip_private_sessions.to_string()),
         k if k.starts_with("adapter.") && k.ends_with(".enabled") => {
@@ -66,6 +67,10 @@ pub async fn set_config(key: String, value: String) -> Result<(), String> {
         }
         "llm.ollama_url" => config.llm.ollama_url = value.clone(),
         "llm.ollama_model" => config.llm.ollama_model = value.clone(),
+        "llm.summarize_interval_ms" => {
+            // 容错：把空 / 非法数字归零（=不节流）
+            config.llm.summarize_interval_ms = value.parse::<u64>().unwrap_or(0);
+        }
         "privacy.auto_redact" => config.privacy.redaction_enabled = is_true,
         "privacy.private_from_mcp" => config.privacy.skip_private_sessions = is_true,
         _ => {
