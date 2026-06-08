@@ -248,6 +248,7 @@ pub fn run() {
             commands::daemon_log_path,
             commands::memex_data_dir,
             commands::backup_now,
+            commands::ensure_backup_dir,
             commands::list_daemon_log_files,
             commands::read_daemon_log,
             commands::trigger_ingest,

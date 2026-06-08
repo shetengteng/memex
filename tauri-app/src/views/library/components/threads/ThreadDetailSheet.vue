@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/sheet'
 import { FolderGit2, Loader2, Trash2 } from 'lucide-vue-next'
 import type { SessionRow, ThreadRow } from '@/types'
-import { adapterLabel, lastProjectName, timeFmt } from '../../composables/threadsFormat'
+import { adapterLabel, durationDays, lastProjectName, timeFmt } from '../../composables/threadsFormat'
 
 defineProps<{
   open: boolean
@@ -77,10 +77,13 @@ const emit = defineEmits<{
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
               活跃时间
             </h4>
-            <div class="mt-2 flex items-center gap-2 text-[11.5px]">
+            <div class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
+              <span class="text-muted-foreground">开始</span>
               <span class="tabular-nums">{{ timeFmt(thread.first_session_at) }}</span>
-              <span class="flex-1 border-t border-dashed border-border" />
+              <span class="text-muted-foreground">最近</span>
               <span class="tabular-nums">{{ timeFmt(thread.last_session_at) }}</span>
+              <span class="text-muted-foreground">持续</span>
+              <span class="tabular-nums">{{ durationDays(thread.first_session_at, thread.last_session_at) }} 天</span>
             </div>
           </section>
 

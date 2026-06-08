@@ -14,6 +14,19 @@ pub fn memex_data_dir() -> String {
     memex_dir().to_string_lossy().to_string()
 }
 
+/// 确保 `~/.memex/backups/` 存在，并返回其绝对路径。
+/// 前端"打开备份目录"按钮在用户从未备份过的情况下也能用：先 ensure 再
+/// reveal，否则 Finder 会跳到上一级 `~/.memex`，跟用户意图不一致。
+#[tauri::command]
+pub fn ensure_backup_dir() -> Result<String, String> {
+    let dir = memex_dir().join("backups");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("创建备份目录失败：{}", e))?;
+    }
+    Ok(dir.to_string_lossy().to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupResult {
     pub path: String,
@@ -71,4 +84,59 @@ pub async fn backup_now() -> Result<BackupResult, String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(stdout.trim())
         .map_err(|e| format!("无法解析 CLI 输出（{}）：{}", e, stdout))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `ensure_backup_dir` 在文件夹不存在时应该把它建出来，并返回完整路径。
+    /// 用 `MEMEX_HOME` 环境变量把 memex_dir() 重定向到一个临时目录，避免污染
+    /// 用户真实 `~/.memex`。
+    ///
+    /// 注意：env::set_var 进程级，本测试不能与其他 memex_dir() 测试并行；
+    /// cargo 默认顺序串行执行单元测试，问题不大。
+    #[test]
+    fn ensure_backup_dir_creates_and_returns_path() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let prev = std::env::var("MEMEX_HOME").ok();
+        // SAFETY: tests are single-threaded by default
+        unsafe { std::env::set_var("MEMEX_HOME", tmp.path()) };
+
+        let path_str = ensure_backup_dir().expect("ensure_backup_dir ok");
+        let p = std::path::Path::new(&path_str);
+        assert!(p.exists(), "backup dir should exist after call");
+        assert!(p.is_dir(), "should be a directory");
+        assert!(
+            p.ends_with("backups"),
+            "must end with `backups`, got {}",
+            path_str,
+        );
+
+        // 重新跑一遍应该是幂等的，不报错
+        let path_str_2 = ensure_backup_dir().expect("idempotent");
+        assert_eq!(path_str, path_str_2);
+
+        match prev {
+            // SAFETY: see above
+            Some(v) => unsafe { std::env::set_var("MEMEX_HOME", v) },
+            None => unsafe { std::env::remove_var("MEMEX_HOME") },
+        }
+    }
+
+    /// `memex_data_dir` 应返回 memex_dir 的绝对路径字符串，不带后缀。
+    #[test]
+    fn memex_data_dir_returns_root() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let prev = std::env::var("MEMEX_HOME").ok();
+        unsafe { std::env::set_var("MEMEX_HOME", tmp.path()) };
+
+        let got = memex_data_dir();
+        assert_eq!(got, tmp.path().to_string_lossy());
+
+        match prev {
+            Some(v) => unsafe { std::env::set_var("MEMEX_HOME", v) },
+            None => unsafe { std::env::remove_var("MEMEX_HOME") },
+        }
+    }
 }

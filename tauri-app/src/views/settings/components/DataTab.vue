@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   Card,
   CardAction,
@@ -14,16 +15,26 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Download, FolderArchive, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
+import {
+  Download,
+  FolderArchive,
+  FolderOpen,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
 import { stats } from '@/stores/memex'
 
 const memex = useMemex()
 const dbPath = ref<string>('')
+const dataDir = ref<string>('')
+const lastBackupPath = ref<string>('')
 const rebuilding = ref(false)
 const clearing = ref(false)
 const backingUp = ref(false)
+const openingFolder = ref(false)
 
 interface BackupResult {
   path: string
@@ -31,20 +42,50 @@ interface BackupResult {
   size_bytes: number
 }
 
+const backupDir = computed(() =>
+  dataDir.value ? `${dataDir.value}/backups` : '',
+)
+
 async function onBackupNow() {
   if (backingUp.value) return
   backingUp.value = true
   try {
     const r = await invoke<BackupResult>('backup_now')
+    lastBackupPath.value = r.path
     const mb = (r.size_bytes / 1024 / 1024).toFixed(1)
     toast.success(`备份完成（${r.files} 个文件 · ${mb} MB）`, {
       description: r.path,
-      duration: 8000,
+      duration: 10_000,
+      action: {
+        label: '在 Finder 显示',
+        onClick: () => {
+          void revealItemInDir(r.path).catch((e) =>
+            toast.error(`无法打开文件位置：${String(e)}`),
+          )
+        },
+      },
     })
   } catch (e) {
     toast.error(`备份失败：${String(e)}`)
   } finally {
     backingUp.value = false
+  }
+}
+
+async function onOpenBackupFolder() {
+  if (!backupDir.value || openingFolder.value) return
+  openingFolder.value = true
+  try {
+    // 第一次点击如果文件夹还不存在（用户从未备份过），先建出来，
+    // 否则 Finder 会跳到 `~/.memex` 而不是 backups 子目录。
+    await invoke('ensure_backup_dir').catch(() => {
+      /* ignore: 即使 IPC 不存在也尝试直接打开父目录 */
+    })
+    await revealItemInDir(backupDir.value)
+  } catch (e) {
+    toast.error(`无法打开备份目录：${String(e)}`)
+  } finally {
+    openingFolder.value = false
   }
 }
 
@@ -56,7 +97,10 @@ onMounted(async () => {
   try {
     // 改用轻量 command，不再为了拿一个路径预跑 doctor
     const dir = await invoke<string>('memex_data_dir')
-    if (dir) dbPath.value = `${dir}/memex.db`
+    if (dir) {
+      dataDir.value = dir
+      dbPath.value = `${dir}/memex.db`
+    }
   } catch {
     /* ignore */
   }
@@ -144,7 +188,7 @@ function importDb() {
       </CardHeader>
       <CardContent class="space-y-4">
         <div class="flex items-center justify-between gap-3">
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <Label class="text-sm">立即备份</Label>
             <p class="truncate text-xs text-muted-foreground">
               将 memex.db / config.toml / sessions/ 打包到 .tar.gz
@@ -153,12 +197,34 @@ function importDb() {
           <Button
             variant="outline"
             size="sm"
-            class="gap-1.5"
+            class="shrink-0 gap-1.5"
             :disabled="backingUp"
             @click="onBackupNow"
           >
             <FolderArchive :class="['size-3.5', backingUp && 'animate-pulse']" />
             {{ backingUp ? '备份中…' : '立即备份' }}
+          </Button>
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <Label class="text-sm">备份目录</Label>
+            <code
+              v-if="backupDir"
+              class="mt-0.5 block truncate text-xs text-muted-foreground"
+              :title="backupDir"
+            >{{ backupDir }}</code>
+            <p v-else class="text-xs text-muted-foreground">—</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="shrink-0 gap-1.5"
+            :disabled="!backupDir || openingFolder"
+            @click="onOpenBackupFolder"
+          >
+            <FolderOpen class="size-3.5" />
+            打开目录
           </Button>
         </div>
       </CardContent>

@@ -13,6 +13,12 @@ export const dateRangeFmt = (start?: string | null, end?: string | null) => {
   return `${fmt(s)} → ${fmt(e)} · ${days} 天`
 }
 
+export const durationDays = (start?: string | null, end?: string | null) => {
+  if (!start || !end) return 0
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  return Math.max(1, Math.round(ms / 86_400_000))
+}
+
 export const timeFmt = (iso: string) =>
   new Date(iso).toLocaleString('zh-CN', {
     month: 'numeric',
