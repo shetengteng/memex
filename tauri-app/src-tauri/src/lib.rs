@@ -241,6 +241,8 @@ pub fn run() {
             commands::list_threads,
             commands::get_thread_detail,
             commands::regenerate_threads,
+            commands::delete_thread,
+            commands::search_thread_by_query,
             commands::daemon_status,
             commands::daemon_restart,
             commands::daemon_log_path,
