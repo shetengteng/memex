@@ -22,6 +22,8 @@ import type {
   SessionRow,
   Stats,
   StatsBreakdown,
+  ThreadDetail,
+  ThreadRow,
 } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 
@@ -95,7 +97,7 @@ export interface Session {
 // 视图自动响应。
 export const sessions: Session[] = reactive([])
 
-function rowToSession(row: SessionRow): Session {
+export function rowToSession(row: SessionRow): Session {
   // 用 project_path 末段当 workspace/project 名；title 缺失时退到 first_user_message
   const projName = row.project_path
     ? row.project_path.split('/').filter(Boolean).pop() ?? row.project_path
@@ -402,5 +404,52 @@ export async function refreshBreakdown(): Promise<void> {
     applyBreakdown(await memex.getBreakdown())
   } catch {
     /* swallow */
+  }
+}
+
+// ============================================================
+// L5「主题线索（Threads）」
+// ============================================================
+//
+// 后端 IPC：
+//   - list_threads(limit, offset) → ThreadRow[]
+//   - get_thread_detail(thread_id) → ThreadDetail | null
+//   - regenerate_threads() → number（新建/更新的 thread 数）
+//
+// store 只缓存"线索列表"和"当前打开的详情"。详情是按需拉的，因为我们想
+// 让点击不同 thread 时立刻看到最新 session 列表，不靠列表内嵌的 stale 数据。
+
+export const threads: ThreadRow[] = reactive([])
+
+/** 主动重拉线索列表。失败时静默吞掉，沿用其它 refresh* 的模式。 */
+export async function refreshThreads(limit = 100): Promise<void> {
+  try {
+    const rows = await invoke<ThreadRow[]>('list_threads', { limit, offset: 0 })
+    threads.splice(0, threads.length, ...rows)
+  } catch {
+    /* swallow */
+  }
+}
+
+/** 拉单条线索详情（包含命中的 session 列表，对应 LibrarySessionListItem 直接渲染）。 */
+export async function fetchThreadDetail(threadId: number): Promise<ThreadDetail | null> {
+  try {
+    return await invoke<ThreadDetail | null>('get_thread_detail', { threadId })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 手动触发 LLM 重新聚类。返回新建/更新的 thread 数。
+ * 阻塞调用（一次 LLM 调用），调用方负责显示 loading 状态。
+ */
+export async function regenerateThreads(): Promise<number> {
+  try {
+    const n = await invoke<number>('regenerate_threads')
+    await refreshThreads()
+    return n
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
   }
 }

@@ -21,7 +21,6 @@ import {
   MessagesSquare,
   RefreshCw,
   Search,
-  Sparkles,
 } from 'lucide-vue-next'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -38,6 +37,7 @@ import { toast } from 'vue-sonner'
 import LibraryFacets from './components/LibraryFacets.vue'
 import LibrarySessionListItem from './components/LibrarySessionListItem.vue'
 import LibrarySessionDrawer from './components/LibrarySessionDrawer.vue'
+import LibraryThreadsTab from './components/LibraryThreadsTab.vue'
 import LibraryProjectsGrid from './components/LibraryProjectsGrid.vue'
 
 const memex = useMemex()
@@ -476,21 +476,7 @@ onBeforeUnmount(() => {
 
         <LibraryProjectsGrid v-else-if="tab === 'projects'" @open="openProject" />
 
-        <div v-else class="flex flex-1 items-center justify-center p-10">
-          <div class="flex flex-col items-center gap-3 text-center">
-            <GitBranch class="size-10 text-muted-foreground/50" />
-            <div>
-              <div class="text-sm font-medium">线索（Threads） · 即将上线</div>
-              <p class="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-                按"主题线索"聚合跨会话的对话。需要后端补一张 thread_links 表，先在界面上留个入口。
-              </p>
-            </div>
-            <Badge variant="outline" class="gap-1.5">
-              <Sparkles class="size-3" />
-              敬请期待
-            </Badge>
-          </div>
-        </div>
+        <LibraryThreadsTab v-else @open="openSession" />
       </section>
     </div>
 

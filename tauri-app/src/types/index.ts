@@ -22,6 +22,25 @@ export interface SessionRow {
   intent: string | null
 }
 
+/**
+ * L5「主题线索」一行 —— `threads` 表 + 派生的 session_count。
+ * 由后端 `list_threads` / `get_thread_detail` 返回，字段对齐 storage::db::ThreadRow。
+ */
+export interface ThreadRow {
+  id: number
+  name: string
+  summary: string
+  session_count: number
+  created_at: string
+  updated_at: string
+}
+
+/** 线索详情：基础信息 + 命中的 session 列表（复用 SessionRow 渲染）。 */
+export interface ThreadDetail {
+  thread: ThreadRow
+  sessions: SessionRow[]
+}
+
 export interface SearchResult {
   chunk_id: number
   session_id: string

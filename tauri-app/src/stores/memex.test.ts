@@ -13,14 +13,18 @@ import {
   computeDurationMin,
   daemon,
   daemonStatus,
+  fetchThreadDetail,
   initMemexStore,
   loadMoreSessions,
   projects,
   refreshBreakdown,
   refreshProjects,
   refreshSessions,
+  refreshThreads,
+  regenerateThreads,
   sessions,
   stats,
+  threads,
   totals,
 } from './memex'
 
@@ -329,6 +333,113 @@ describe('stores/memex', () => {
       })
       const r = await loadMoreSessions()
       expect(r).toEqual({ loaded: 0, hasMore: false })
+    })
+  })
+
+  describe('threads (L5)', () => {
+    beforeEach(() => {
+      threads.splice(0, threads.length)
+    })
+
+    it('refreshThreads populates the reactive list', async () => {
+      mockedInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === 'list_threads') {
+          return [
+            {
+              id: 1,
+              name: '桌面化',
+              summary: 'memex 桌面化迁移',
+              session_count: 3,
+              created_at: '2026-06-08T10:00:00+00:00',
+              updated_at: '2026-06-08T11:00:00+00:00',
+            },
+          ]
+        }
+        return null
+      })
+      await refreshThreads()
+      expect(threads.length).toBe(1)
+      expect(threads[0].name).toBe('桌面化')
+    })
+
+    it('refreshThreads swallows backend errors and leaves list untouched', async () => {
+      threads.push({
+        id: 99,
+        name: 'preexisting',
+        summary: '',
+        session_count: 0,
+        created_at: '',
+        updated_at: '',
+      })
+      mockedInvoke.mockImplementation(async () => {
+        throw new Error('db gone')
+      })
+      await refreshThreads()
+      expect(threads.length).toBe(1)
+      expect(threads[0].name).toBe('preexisting')
+    })
+
+    it('fetchThreadDetail forwards id and returns detail', async () => {
+      mockedInvoke.mockImplementation(async (cmd: string, args?: { threadId?: number }) => {
+        if (cmd === 'get_thread_detail') {
+          expect(args?.threadId).toBe(42)
+          return {
+            thread: {
+              id: 42,
+              name: 'foo',
+              summary: 'bar',
+              session_count: 0,
+              created_at: '',
+              updated_at: '',
+            },
+            sessions: [],
+          }
+        }
+        return null
+      })
+      const d = await fetchThreadDetail(42)
+      expect(d?.thread.name).toBe('foo')
+    })
+
+    it('fetchThreadDetail returns null on error', async () => {
+      mockedInvoke.mockImplementation(async () => {
+        throw new Error('boom')
+      })
+      const d = await fetchThreadDetail(1)
+      expect(d).toBeNull()
+    })
+
+    it('regenerateThreads invokes backend then refreshes list', async () => {
+      let calls = 0
+      mockedInvoke.mockImplementation(async (cmd: string) => {
+        calls += 1
+        if (cmd === 'regenerate_threads') return 5
+        if (cmd === 'list_threads') {
+          return [
+            {
+              id: 7,
+              name: 'new',
+              summary: '',
+              session_count: 2,
+              created_at: '',
+              updated_at: '',
+            },
+          ]
+        }
+        return null
+      })
+      const n = await regenerateThreads()
+      expect(n).toBe(5)
+      expect(calls).toBe(2) // regenerate + list
+      expect(threads.length).toBe(1)
+      expect(threads[0].id).toBe(7)
+    })
+
+    it('regenerateThreads rethrows backend errors', async () => {
+      mockedInvoke.mockImplementation(async () => {
+        throw new Error('LLM not configured')
+      })
+      await expect(regenerateThreads()).rejects.toThrow('LLM not configured')
     })
   })
 
