@@ -83,9 +83,10 @@ const tFmt = (iso: string) => {
           :value="`session ${s.title}`"
           @select="go(`/library?session=${s.id}`)"
         >
-          <Search class="mr-2 size-4" />
+          <Search class="mr-2 size-4 shrink-0" />
           <span class="truncate">"{{ s.title }}"</span>
-          <span class="ml-auto shrink-0 text-xs text-muted-foreground">
+          <!-- 同样：flex-1 + text-right + truncate，避免与 CommandItem 内置的 CheckIcon(ml-auto) 争抢 -->
+          <span class="flex-1 truncate text-right text-xs text-muted-foreground">
             · {{ s.project }} · {{ ADAPTER_MAP[s.adapter].label }} · {{ tFmt(s.startedAt) }}
           </span>
         </CommandItem>
@@ -157,9 +158,17 @@ const tFmt = (iso: string) => {
           :value="`project ${p.name}`"
           @select="go(`/library?project=${p.name}`)"
         >
-          <FolderGit2 class="mr-2 size-4" />
-          {{ p.name }}
-          <span class="ml-auto text-xs text-muted-foreground tabular-nums">{{ p.sessions }} 个会话</span>
+          <FolderGit2 class="mr-2 size-4 shrink-0" />
+          <span class="truncate">{{ p.name }}</span>
+          <!--
+            用 flex-1 + text-right 而不是 ml-auto。
+            CommandItem 自带一个隐藏的 CheckIcon(ml-auto) 在末尾，与 sessions span 的 ml-auto
+            会争抢右侧空间，导致数字看起来没有靠右、整行凌乱。
+            flex-1 + text-right 把 sessions span 撑满中间剩余空间，数字稳定贴右。
+          -->
+          <span class="flex-1 text-right text-xs text-muted-foreground tabular-nums">
+            {{ p.sessions }} 个会话
+          </span>
         </CommandItem>
       </CommandGroup>
     </CommandList>
