@@ -26,6 +26,7 @@ import { formatNumber, humanizeBackendError } from '@/lib/utils'
 import {
   ChevronUp,
   Library,
+  Pause,
   Plug,
   Settings as SettingsIcon,
   Sparkles,
@@ -250,7 +251,7 @@ const appVersion = `v${packageJson.version}`
 
     <SidebarFooter>
       <!-- 摘要进行中时把状态条 + 暂停按钮直接顶到 footer 顶部，无需展开 popover 即可一眼看到。
-           progress bar 给视觉反馈，暂停 button 用 destructive 样式让用户一眼识别出 "可点击中断" 而非装饰。 -->
+           暂停用低饱和度 icon button，避免红色 destructive 样式喧宾夺主。 -->
       <div
         v-if="inFlight"
         class="mb-1.5 space-y-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2"
@@ -263,14 +264,22 @@ const appVersion = `v${packageJson.version}`
           <span class="flex-1 truncate font-medium text-emerald-700 tabular-nums dark:text-emerald-400">
             生成摘要 {{ progress?.current ?? 0 }}/{{ progress?.total ?? 0 }}
           </span>
-          <button
-            type="button"
-            class="rounded-sm bg-rose-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="aborting"
-            @click="abortBatchSummarize"
-          >
-            {{ aborting ? '暂停中…' : '⏸ 暂停' }}
-          </button>
+          <Tooltip :delay-duration="120">
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                aria-label="暂停摘要生成"
+                class="flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-emerald-500/20 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="aborting"
+                @click="abortBatchSummarize"
+              >
+                <Pause class="size-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <span>{{ aborting ? '暂停中…' : '暂停摘要生成' }}</span>
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div class="h-1 w-full overflow-hidden rounded-full bg-emerald-500/15">
           <div
