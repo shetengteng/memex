@@ -33,6 +33,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '设置', breadcrumb: ['设置'] },
   },
   {
+    path: '/logs',
+    name: 'logs',
+    component: () => import('@/views/logs/index.vue'),
+    meta: { title: '日志', breadcrumb: ['设置', '日志'] },
+  },
+  {
     path: '/tray-popup',
     name: 'tray-popup',
     component: () => import('@/views/tray-popup/index.vue'),

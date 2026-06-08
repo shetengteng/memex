@@ -52,18 +52,16 @@ function openSession(id: string) {
         :key="s.id"
         class="rounded-lg border p-3"
       >
+        <!-- 第 1 行：标题 + IDE 标签。把 project·time 从这里挪走，给标题更多空间。-->
         <div class="mb-1 flex items-baseline justify-between gap-3">
-          <div class="flex min-w-0 items-baseline gap-2">
-            <span class="truncate text-[13px] font-semibold">{{ s.title }}</span>
-            <span class="shrink-0 text-[11px] text-muted-foreground">
-              {{ s.project }} · {{ fromNow(s.startedAt) }}
-            </span>
-          </div>
+          <span class="truncate text-[13px] font-semibold">{{ s.title }}</span>
           <IdeChip :adapter="s.adapter" class="shrink-0" />
         </div>
+        <!-- 第 2 行：会话指标，纯 muted 文本 -->
         <p class="mb-2 text-[12px] text-muted-foreground">
           {{ s.messages }} 条消息 · {{ s.adapter }}
         </p>
+        <!-- 第 3 行：按钮（左）+ project·time（右）。左右布局，右侧贴边。-->
         <div class="flex items-center gap-1.5">
           <Button size="sm" variant="outline" class="h-7 gap-1 text-xs" @click="openSession(s.id)">
             <ArrowUpRight class="size-3" />
@@ -77,6 +75,9 @@ function openSession(id: string) {
             <Archive class="size-3" />
             归档
           </Button>
+          <span class="ml-auto truncate text-[11px] text-muted-foreground">
+            {{ s.project }} · {{ fromNow(s.startedAt) }}
+          </span>
         </div>
       </article>
       <p v-if="!resumeCandidates.length" class="text-center text-[12px] italic text-muted-foreground">

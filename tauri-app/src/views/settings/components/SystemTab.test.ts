@@ -87,18 +87,17 @@ describe('SystemTab', () => {
     },
   }
 
-  it('loads cli status / doctor / version on mount', async () => {
+  it('loads cli status / version on mount; doctor 改为手动触发', async () => {
     const wrapper = mount(SystemTab, { global: { stubs } })
     await flushPromises()
     expect(ipcMocks.cliStatus).toHaveBeenCalled()
-    expect(ipcMocks.runDoctor).toHaveBeenCalled()
+    expect(ipcMocks.runDoctor).not.toHaveBeenCalled()
     const text = wrapper.text()
     expect(text).toContain('v0.3.4')
-    expect(text).toContain('Schema v12')
-    expect(text).toContain('2,148 composers')
+    expect(text).toContain('未检查')
   })
 
-  it('doctor 还在 loading 时显示"检查中…"占位而不是"—"或硬编码 ~/.memex', async () => {
+  it('点击运行 Doctor 后展示报告数据', async () => {
     let resolveDoctor!: (v: any) => void
     ipcMocks.runDoctor.mockReturnValueOnce(
       new Promise((r) => {
@@ -107,11 +106,14 @@ describe('SystemTab', () => {
     )
     const wrapper = mount(SystemTab, { global: { stubs } })
     await flushPromises()
-    // doctor 还没 resolve，应当看到"检查中…"
+    expect(wrapper.text()).toContain('未检查')
+
+    const doctorBtn = wrapper.findAll('button').find((b) => b.text().includes('运行 Doctor'))
+    expect(doctorBtn).toBeTruthy()
+    await doctorBtn!.trigger('click')
+    await flushPromises()
     expect(wrapper.text()).toContain('检查中…')
-    // 不应该误导用户显示假的 ~/.memex
-    expect(wrapper.text()).not.toContain('~/.memex')
-    // resolve 后切回真实数据
+
     resolveDoctor({
       data_dir: '~/.memex',
       config_present: true,
@@ -129,7 +131,7 @@ describe('SystemTab', () => {
     })
     await flushPromises()
     expect(wrapper.text()).toContain('~/.memex')
-    expect(wrapper.text()).not.toContain('检查中…')
+    expect(wrapper.text()).not.toContain('未检查')
   })
 
   it('reports "已是最新" when latest_tag matches current version', async () => {

@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -18,8 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Monitor, Moon, Shield, Sun } from 'lucide-vue-next'
-import { themeMode } from '@/composables/useTheme'
+import { Shield } from 'lucide-vue-next'
+import { themeMode, type ThemeMode } from '@/composables/useTheme'
 import { useMemex } from '@/composables/useMemex'
 
 const memex = useMemex()
@@ -102,65 +101,25 @@ notifications.forEach((n) => {
         <CardDescription>外观</CardDescription>
         <CardTitle class="text-base">主题与语言</CardTitle>
       </CardHeader>
-      <CardContent class="space-y-5">
-        <div class="space-y-2">
-          <Label class="text-xs text-muted-foreground">主题</Label>
-          <div class="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              class="group flex flex-col items-center gap-2 rounded-lg border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-accent"
-              :class="themeMode === 'light' && 'border-primary bg-accent ring-1 ring-primary/40'"
-              @click="themeMode = 'light'"
-            >
-              <div
-                class="flex size-12 items-center justify-center rounded-md bg-white text-amber-500 shadow-sm ring-1 ring-zinc-200"
-              >
-                <Sun class="size-5" />
-              </div>
-              <div class="text-center">
-                <div class="text-[12px] font-medium">浅色</div>
-                <div class="text-[10px] text-muted-foreground">Light</div>
-              </div>
-            </button>
-            <button
-              type="button"
-              class="group flex flex-col items-center gap-2 rounded-lg border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-accent"
-              :class="themeMode === 'dark' && 'border-primary bg-accent ring-1 ring-primary/40'"
-              @click="themeMode = 'dark'"
-            >
-              <div
-                class="flex size-12 items-center justify-center rounded-md bg-zinc-900 text-zinc-100 shadow-sm ring-1 ring-zinc-800"
-              >
-                <Moon class="size-5" />
-              </div>
-              <div class="text-center">
-                <div class="text-[12px] font-medium">深色</div>
-                <div class="text-[10px] text-muted-foreground">Dark</div>
-              </div>
-            </button>
-            <button
-              type="button"
-              class="group flex flex-col items-center gap-2 rounded-lg border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-accent"
-              :class="themeMode === 'system' && 'border-primary bg-accent ring-1 ring-primary/40'"
-              @click="themeMode = 'system'"
-            >
-              <div
-                class="flex size-12 items-center justify-center rounded-md bg-gradient-to-br from-white to-zinc-900 text-zinc-700 shadow-sm ring-1 ring-zinc-300"
-              >
-                <Monitor class="size-5" />
-              </div>
-              <div class="text-center">
-                <div class="text-[12px] font-medium">跟随系统</div>
-                <div class="text-[10px] text-muted-foreground">Auto</div>
-              </div>
-            </button>
-          </div>
+      <!-- 用户反馈"主题与语言中间不要有横线"。把两行合并到 space-y-3 紧凑布局，
+           不再用 space-y-5 那种像隔开两个独立设置项一样的大 gap。
+           Select 风格简化：原来主题用了 icon+label，用户希望直接下拉选。 -->
+      <CardContent class="space-y-3">
+        <div class="flex items-center justify-between">
+          <Label class="text-sm">主题</Label>
+          <Select :model-value="themeMode" @update:model-value="(v) => (themeMode = String(v) as ThemeMode)">
+            <SelectTrigger class="h-9 w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">浅色</SelectItem>
+              <SelectItem value="dark">深色</SelectItem>
+              <SelectItem value="system">跟随系统</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Separator />
         <div class="flex items-center justify-between">
           <Label class="text-sm">界面语言</Label>
           <Select v-model="lang">
-            <SelectTrigger class="w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger class="h-9 w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="zh">简体中文</SelectItem>
               <SelectItem value="en">English</SelectItem>

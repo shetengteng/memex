@@ -1,13 +1,49 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-vue-next'
-import { daemon, sessions, userName } from '@/stores/memex'
+import { toast } from 'vue-sonner'
+import {
+  daemon,
+  refreshBreakdown,
+  refreshProjects,
+  refreshSessions,
+  sessions,
+  userName,
+} from '@/stores/memex'
 import ActivityCard from './components/ActivityCard.vue'
+import KpiRowCard from './components/KpiRowCard.vue'
 import WeeklySummaryCard from './components/WeeklySummaryCard.vue'
 import ReflectionCard from './components/ReflectionCard.vue'
 import SmartResumeCard from './components/SmartResumeCard.vue'
 import SystemStatusCard from './components/SystemStatusCard.vue'
+
+const refreshing = ref(false)
+
+/**
+ * Today 页右上「刷新」按钮：用户主动触发数据重拉。
+ * 拉的是 store 维度（sessions / projects / breakdown），让 ActivityCard /
+ * WeeklySummaryCard 等子组件的派生 computed 立刻刷新。各子组件自己 mount 时拉的
+ * 私有数据（如 ActivityCard.workload）由 'today-refresh' 事件触发它们重拉。
+ */
+async function onRefresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  // 立即弹一个 loading toast 让用户知道点击有反应；完成后 dismiss + 改成 success/error。
+  // 之前只有 toast.success（end），如果数据刷新很快用户感觉不到任何反馈。
+  const loadingId = toast.loading('刷新中…')
+  try {
+    await Promise.all([refreshSessions(), refreshProjects(), refreshBreakdown()])
+    window.dispatchEvent(new CustomEvent('today-refresh'))
+    toast.dismiss(loadingId)
+    toast.success('已刷新')
+  } catch (e) {
+    toast.dismiss(loadingId)
+    toast.error(`刷新失败：${String(e)}`)
+  } finally {
+    refreshing.value = false
+  }
+}
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -58,11 +94,19 @@ function formatRelative(iso: string): string {
             <span class="font-medium text-foreground">{{ lastIngestText }}</span>
           </p>
         </div>
-        <Button variant="ghost" size="sm" class="gap-1.5">
-          <RefreshCw class="size-3.5" />
-          刷新
+        <Button
+          variant="ghost"
+          size="sm"
+          class="gap-1.5"
+          :disabled="refreshing"
+          @click="onRefresh"
+        >
+          <RefreshCw :class="['size-3.5', refreshing && 'animate-spin']" />
+          {{ refreshing ? '刷新中…' : '刷新' }}
         </Button>
       </section>
+
+      <KpiRowCard />
 
       <ActivityCard />
 

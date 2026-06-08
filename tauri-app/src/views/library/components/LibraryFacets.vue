@@ -34,10 +34,10 @@ const emit = defineEmits<{
 }>()
 
 const PROJECT_DEFAULT_LIMIT = 8
+const PROJECT_PAGE_STEP = 10
 const projectQuery = ref('')
-const projectsExpanded = ref(false)
+const projectsLimit = ref(PROJECT_DEFAULT_LIMIT)
 
-// 按 sessions 数倒序，过滤搜索词
 const sortedProjects = computed(() =>
   [...projects].sort((a, b) => b.sessions - a.sessions),
 )
@@ -46,15 +46,24 @@ const filteredProjects = computed(() => {
   if (!q) return sortedProjects.value
   return sortedProjects.value.filter((p) => p.name.toLowerCase().includes(q))
 })
-// 显示规则：搜索时 → 全部命中；未搜索 → 默认 N 条 + "更多"按钮
+// 搜索时 → 全部命中；未搜索 → 当前 limit
 const visibleProjects = computed(() => {
-  if (projectQuery.value.trim() || projectsExpanded.value) return filteredProjects.value
-  return filteredProjects.value.slice(0, PROJECT_DEFAULT_LIMIT)
+  if (projectQuery.value.trim()) return filteredProjects.value
+  return filteredProjects.value.slice(0, projectsLimit.value)
 })
 const hiddenProjectCount = computed(() => {
-  if (projectQuery.value.trim() || projectsExpanded.value) return 0
-  return Math.max(0, filteredProjects.value.length - PROJECT_DEFAULT_LIMIT)
+  if (projectQuery.value.trim()) return 0
+  return Math.max(0, filteredProjects.value.length - projectsLimit.value)
 })
+const nextProjectStep = computed(() =>
+  Math.min(PROJECT_PAGE_STEP, hiddenProjectCount.value),
+)
+function expandProjects() {
+  projectsLimit.value += PROJECT_PAGE_STEP
+}
+function collapseProjects() {
+  projectsLimit.value = PROJECT_DEFAULT_LIMIT
+}
 
 // 全选/全清逻辑：均针对当前可见集合
 const allAdaptersSelected = computed(() =>
@@ -203,20 +212,22 @@ function toggleSelectAllProjects() {
               没有匹配的项目
             </p>
 
-            <button
-              v-if="hiddenProjectCount > 0"
-              class="text-[11px] text-muted-foreground hover:text-foreground"
-              @click="projectsExpanded = true"
-            >
-              + {{ hiddenProjectCount }} 更多…
-            </button>
-            <button
-              v-else-if="projectsExpanded && !projectQuery && filteredProjects.length > PROJECT_DEFAULT_LIMIT"
-              class="text-[11px] text-muted-foreground hover:text-foreground"
-              @click="projectsExpanded = false"
-            >
-              收起
-            </button>
+            <div class="flex items-center gap-3 text-[11px]">
+              <button
+                v-if="hiddenProjectCount > 0"
+                class="text-muted-foreground hover:text-foreground"
+                @click="expandProjects"
+              >
+                + 展开 {{ nextProjectStep }}（剩 {{ hiddenProjectCount }}）
+              </button>
+              <button
+                v-if="!projectQuery && projectsLimit > PROJECT_DEFAULT_LIMIT"
+                class="text-muted-foreground hover:text-foreground"
+                @click="collapseProjects"
+              >
+                收起
+              </button>
+            </div>
           </div>
         </div>
 

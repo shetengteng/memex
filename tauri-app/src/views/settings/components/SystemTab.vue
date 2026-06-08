@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Card,
@@ -31,6 +31,7 @@ import { useMemex } from '@/composables/useMemex'
 import { useDaemon } from '@/composables/useDaemon'
 import type { CliStatus, DoctorRunResult, UpdateInfo } from '@/types'
 
+const router = useRouter()
 const memex = useMemex()
 const cli = ref<CliStatus | null>(null)
 const cliBusy = ref(false)
@@ -45,11 +46,17 @@ const updateMessage = ref<string>('')
 // 仅调用现有的 `daemon_status` / `daemon_restart` 命令，不依赖任何 daemon 架构改造。
 const { status: daemonStatus, loading: daemonLoading, restart: restartDaemon } = useDaemon()
 
-const daemonRunning = computed(() => daemonStatus.value?.running === true && daemonStatus.value?.http_ok === true)
+// HTTP 探活在弱网下会偶尔超时，导致 5s 轮询期间 badge 闪烁。这里改成：
+// 1) Badge 颜色只看 PID 是否存活（少抖动）
+// 2) HTTP 异常用文字 "HTTP 未就绪" 单独提示
+const daemonProcessAlive = computed(() => daemonStatus.value?.running === true)
+const daemonRunning = computed(
+  () => daemonStatus.value?.running === true && daemonStatus.value?.http_ok === true,
+)
 const daemonStateLabel = computed(() => {
   if (!daemonStatus.value) return '检查中…'
   if (daemonRunning.value) return '运行中'
-  if (daemonStatus.value.running) return '启动中（HTTP 未就绪）'
+  if (daemonProcessAlive.value) return 'HTTP 未就绪'
   return '已停止'
 })
 const daemonStartedLabel = computed(() => {
@@ -71,44 +78,41 @@ async function onRestartDaemon() {
   }
 }
 
-// daemon 日志文件由 daemon 自身写入 ~/.memex/daemon.stdout.log（见 launchd.rs 与 logging.rs），
-// 不依赖 launchd 也会写到这个路径。前端先调 `daemon_log_path` 拿到绝对路径（避免在 JS 里
-// 处理 ~ 展开 / 跨平台 home dir 的麻烦），再通过 plugin-opener 拉起系统默认应用（macOS Console.app）。
-async function onOpenDaemonLog() {
-  let filePath = '~/.memex/daemon.stdout.log'
-  try {
-    filePath = await invoke<string>('daemon_log_path')
-    await openUrl(`file://${filePath}`)
-  } catch (e) {
-    toast.error(`无法打开日志：${String(e)}`, {
-      description: `路径：${filePath}`,
-    })
-  }
+// 跳转到应用内置的日志查看页（/logs）。
+// 之前 invoke `daemon_log_path` 然后 openUrl(file://) 是错的：daemon 用
+// `tracing_appender::rolling::daily` 写到 `~/.memex/logs/daemon.log.YYYY-MM-DD`，
+// 没有 stdout.log 这个单文件，所以 file:// 必然失败。/logs 页面里 invoke
+// `list_daemon_log_files` / `read_daemon_log` 把 rolling 文件读出来，并且支持
+// 选文件 / 调行数 / 过滤关键字 / 自动刷新。
+function onOpenDaemonLog() {
+  router.push('/logs')
 }
 
 const cliInstalled = computed(() => cli.value?.installed ?? false)
 const cliPath = computed(() => cli.value?.target_dir ?? '—')
 
-// doctor 还没跑出来时（或正在重跑时）所有派生字段都展示 '检查中…'，
-// 而不是误导性的 '—' / 硬编码 '~/.memex' / "异常"。
+// doctor 改为手动触发；未运行时显示"未检查"，正在跑时显示"检查中…"
+function pendingLabel(): string {
+  return doctorRunning.value ? '检查中…' : '未检查'
+}
 const schemaLabel = computed(() => {
-  if (!doctor.value) return '检查中…'
+  if (!doctor.value) return pendingLabel()
   const v = doctor.value.report.schema_version
   return v == null ? '未知' : `Schema v${v}`
 })
 const ftsLabel = computed(() => {
-  if (!doctor.value) return '检查中…'
+  if (!doctor.value) return pendingLabel()
   return doctor.value.report.fts_ok ? '正常' : '异常'
 })
 const cursorLabel = computed(() => {
-  if (!doctor.value) return '检查中…'
+  if (!doctor.value) return pendingLabel()
   const p = doctor.value.cursor_probe
   if (p.status === 'ok') return `${p.composer_count.toLocaleString()} composers`
   if (p.status === 'not_found') return '未找到'
   if (p.status === 'permission_denied') return '无权限'
   return '错误'
 })
-const dataDir = computed(() => doctor.value?.data_dir ?? '检查中…')
+const dataDir = computed(() => doctor.value?.data_dir ?? pendingLabel())
 
 async function refreshCli() {
   try {
@@ -190,7 +194,7 @@ onMounted(async () => {
   } catch {
     /* ignore */
   }
-  await Promise.all([refreshCli(), runDoctor()])
+  await refreshCli()
 })
 </script>
 
@@ -202,7 +206,7 @@ onMounted(async () => {
         <CardTitle class="text-base">Memex Daemon</CardTitle>
         <CardAction>
           <Badge
-            :variant="daemonRunning ? 'default' : daemonStatus?.running ? 'secondary' : 'destructive'"
+            :variant="daemonProcessAlive ? 'default' : daemonStatus ? 'destructive' : 'secondary'"
             class="gap-1"
           >
             <Server class="size-3" />

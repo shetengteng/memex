@@ -36,65 +36,65 @@ const groupFmt = (iso: string, group: string) => {
   >
     <div class="min-w-0 flex-1">
       <div class="mb-1 flex items-baseline justify-between gap-3">
-        <div class="flex min-w-0 items-baseline gap-2">
-          <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
-          <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-            {{ session.project }} · {{ groupFmt(session.startedAt, groupKey) }}
-          </span>
-        </div>
+        <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
         <IdeChip :adapter="session.adapter" class="shrink-0" />
       </div>
       <p class="mb-2 truncate text-[12.5px] text-muted-foreground/90">
         {{ session.intent || '—' }}
       </p>
-      <div class="flex flex-wrap items-center gap-1.5">
-        <Badge
-          variant="secondary"
-          class="h-5 gap-1 bg-muted/70 px-1.5 font-normal text-muted-foreground"
-        >
-          <MessageCircle class="size-2.5" />
-          <span class="tabular-nums">{{ session.messages }}</span>
-        </Badge>
-        <Badge
-          variant="secondary"
-          class="h-5 gap-1 bg-muted/70 px-1.5 font-normal text-muted-foreground"
-        >
-          <Clock class="size-2.5" />
-          <span class="tabular-nums">{{ session.durationMin }}m</span>
-        </Badge>
-        <Badge
-          v-if="session.l2Done"
-          variant="outline"
-          class="h-5 gap-1 border-emerald-500/30 bg-emerald-500/5 px-1.5 font-normal text-emerald-700 dark:text-emerald-400"
-        >
-          <Check class="size-2.5" />
-          L2 已生成
-        </Badge>
-        <Badge
-          v-else
-          variant="outline"
-          class="h-5 gap-1 border-amber-500/40 bg-amber-500/5 px-1.5 font-normal text-amber-700 dark:text-amber-500"
-        >
-          <Clock class="size-2.5" />
-          L2 待生成
-        </Badge>
-        <template v-if="session.topics.length">
-          <span class="mx-0.5 size-1 shrink-0 rounded-full bg-border" />
+      <div class="flex items-center gap-2">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <Badge
-            v-for="t in session.topics.slice(0, 3)"
-            :key="t"
-            variant="outline"
-            class="h-5 px-1.5 font-normal text-muted-foreground"
+            variant="secondary"
+            class="h-5 gap-1 bg-muted/70 px-1.5 font-normal text-muted-foreground"
           >
-            {{ t }}
+            <MessageCircle class="size-2.5" />
+            <span class="tabular-nums">{{ session.messages }}</span>
           </Badge>
-          <span
-            v-if="session.topics.length > 3"
-            class="text-[10px] tabular-nums text-muted-foreground"
+          <Badge
+            variant="secondary"
+            class="h-5 gap-1 bg-muted/70 px-1.5 font-normal text-muted-foreground"
           >
-            +{{ session.topics.length - 3 }}
-          </span>
-        </template>
+            <Clock class="size-2.5" />
+            <span class="tabular-nums">{{ session.durationMin }}m</span>
+          </Badge>
+          <Badge
+            v-if="session.l2Done"
+            variant="outline"
+            class="h-5 gap-1 border-emerald-500/30 bg-emerald-500/5 px-1.5 font-normal text-emerald-700 dark:text-emerald-400"
+          >
+            <Check class="size-2.5" />
+            L2 已生成
+          </Badge>
+          <Badge
+            v-else
+            variant="outline"
+            class="h-5 gap-1 border-amber-500/40 bg-amber-500/5 px-1.5 font-normal text-amber-700 dark:text-amber-500"
+          >
+            <Clock class="size-2.5" />
+            L2 待生成
+          </Badge>
+          <template v-if="session.topics.length">
+            <span class="mx-0.5 size-1 shrink-0 rounded-full bg-border" />
+            <Badge
+              v-for="t in session.topics.slice(0, 3)"
+              :key="t"
+              variant="outline"
+              class="h-5 px-1.5 font-normal text-muted-foreground"
+            >
+              {{ t }}
+            </Badge>
+            <span
+              v-if="session.topics.length > 3"
+              class="text-[10px] tabular-nums text-muted-foreground"
+            >
+              +{{ session.topics.length - 3 }}
+            </span>
+          </template>
+        </div>
+        <span class="shrink-0 truncate text-[11px] tabular-nums text-muted-foreground/80">
+          {{ session.project }} · {{ groupFmt(session.startedAt, groupKey) }}
+        </span>
       </div>
     </div>
     <ChevronRight

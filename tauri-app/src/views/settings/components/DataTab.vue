@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import {
   Card,
   CardAction,
@@ -13,26 +14,39 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Download, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
+import { Download, FolderArchive, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
 import { stats } from '@/stores/memex'
 
 const memex = useMemex()
 const dbPath = ref<string>('')
-const ready = ref(false)
-const backupAuto = ref(true)
-const backupRetentionDays = ref<'3' | '7' | '30'>('7')
 const rebuilding = ref(false)
 const clearing = ref(false)
+const backingUp = ref(false)
+
+interface BackupResult {
+  path: string
+  files: number
+  size_bytes: number
+}
+
+async function onBackupNow() {
+  if (backingUp.value) return
+  backingUp.value = true
+  try {
+    const r = await invoke<BackupResult>('backup_now')
+    const mb = (r.size_bytes / 1024 / 1024).toFixed(1)
+    toast.success(`备份完成（${r.files} 个文件 · ${mb} MB）`, {
+      description: r.path,
+      duration: 8000,
+    })
+  } catch (e) {
+    toast.error(`备份失败：${String(e)}`)
+  } finally {
+    backingUp.value = false
+  }
+}
 
 const sessionsTotal = computed(() => stats.value?.sessions ?? 0)
 const messagesTotal = computed(() => stats.value?.messages ?? 0)
@@ -40,27 +54,12 @@ const summariesTotal = computed(() => stats.value?.summaries ?? 0)
 
 onMounted(async () => {
   try {
-    const report = await memex.runDoctor()
-    dbPath.value = report.data_dir ? `${report.data_dir}/memex.db` : ''
+    // 改用轻量 command，不再为了拿一个路径预跑 doctor
+    const dir = await invoke<string>('memex_data_dir')
+    if (dir) dbPath.value = `${dir}/memex.db`
   } catch {
     /* ignore */
   }
-  try {
-    const auto = await memex.getConfig('backup.auto')
-    if (auto != null) backupAuto.value = auto === 'true'
-    const ret = await memex.getConfig('backup.retention_days')
-    if (ret === '3' || ret === '7' || ret === '30') backupRetentionDays.value = ret
-  } catch {
-    /* ignore */
-  }
-  ready.value = true
-})
-
-watch(backupAuto, (v) => {
-  if (ready.value) memex.setConfig('backup.auto', String(v)).catch(() => {})
-})
-watch(backupRetentionDays, (v) => {
-  if (ready.value) memex.setConfig('backup.retention_days', String(v)).catch(() => {})
 })
 
 async function rebuildIndex() {
@@ -141,31 +140,26 @@ function importDb() {
     <Card>
       <CardHeader>
         <CardDescription>备份</CardDescription>
-        <CardTitle class="text-base">自动快照</CardTitle>
+        <CardTitle class="text-base">手动快照</CardTitle>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <Label class="text-sm">每晚自动快照</Label>
-            <p class="text-xs text-muted-foreground">
-              保存于 ~/Library/Application Support/memex/backups
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <Label class="text-sm">立即备份</Label>
+            <p class="truncate text-xs text-muted-foreground">
+              将 memex.db / config.toml / sessions/ 打包到 .tar.gz
             </p>
           </div>
-          <Switch v-model="backupAuto" />
-        </div>
-        <div class="flex items-center justify-between">
-          <div>
-            <Label class="text-sm">保留最近</Label>
-            <p class="text-xs text-muted-foreground">更老的快照会自动清理</p>
-          </div>
-          <Select v-model="backupRetentionDays">
-            <SelectTrigger class="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">3 天</SelectItem>
-              <SelectItem value="7">7 天</SelectItem>
-              <SelectItem value="30">30 天</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            :disabled="backingUp"
+            @click="onBackupNow"
+          >
+            <FolderArchive :class="['size-3.5', backingUp && 'animate-pulse']" />
+            {{ backingUp ? '备份中…' : '立即备份' }}
+          </Button>
         </div>
       </CardContent>
     </Card>

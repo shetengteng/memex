@@ -162,9 +162,18 @@ pub async fn llm_list_models(
     base_url: String,
     api_key: String,
 ) -> Result<Vec<String>, String> {
-    match kind.as_str() {
+    // ureq 是同步阻塞客户端；如果直接在 async fn 里调用会阻住整个 tokio runtime，
+    // 让 IPC 排队、UI 看起来卡死（用户感觉「拉取」按钮无响应、超 10s 才弹错）。
+    // 用 spawn_blocking 把 HTTP 调用挪到专门的阻塞线程池上。
+    tokio::task::spawn_blocking(move || run_list_models(&kind, &base_url, &api_key))
+        .await
+        .map_err(|e| format!("internal: blocking task join error: {e}"))?
+}
+
+fn run_list_models(kind: &str, base_url: &str, api_key: &str) -> Result<Vec<String>, String> {
+    match kind {
         "openai_compat" | "anthropic" => {
-            let provider = OpenAiCompatProvider::new("_probe", &base_url, &api_key, "");
+            let provider = OpenAiCompatProvider::new("_probe", base_url, api_key, "");
             provider.list_models().map_err(|e| e.to_string())
         }
         "ollama" => {

@@ -34,6 +34,14 @@ export function useMemex() {
     return invoke<number>('batch_summarize')
   }
 
+  /**
+   * 中断当前批量摘要任务。返回值表示「中断时是否真的有任务在跑」。
+   * 工作线程在跑完当前正在处理的那条之后退出，再 emit summary-progress(aborted=true)。
+   */
+  async function abortSummarize(): Promise<boolean> {
+    return invoke<boolean>('abort_summarize')
+  }
+
   async function toggleAdapter(adapter: string, enabled: boolean): Promise<void> {
     return invoke<void>('toggle_adapter', { adapter, enabled })
   }
@@ -180,7 +188,7 @@ export function useMemex() {
 
   return {
     getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
-    retrySummary, batchSummarize, toggleAdapter, getConfig, setConfig,
+    retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
     triggerIngest, runDoctor, cliStatus, cliInstall, cliUninstall,
     llmTestOllama,

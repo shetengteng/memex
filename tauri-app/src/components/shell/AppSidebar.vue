@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
   Sidebar,
   SidebarContent,
@@ -49,6 +50,18 @@ const router = useRouter()
 const memex = useMemex()
 const batchSummarizing = ref(false)
 
+interface SummaryProgress {
+  current: number
+  total: number
+  session_id: string
+  success: boolean
+  done: boolean
+  aborted: boolean
+}
+const progress = ref<SummaryProgress | null>(null)
+const aborting = ref(false)
+const inFlight = computed(() => progress.value !== null && !progress.value.done)
+
 const librarySessionsBadge = computed(() => ({
   display: formatNumber(totals.sessions),
   tooltip: `${totals.sessions.toLocaleString()} 个会话`,
@@ -84,12 +97,25 @@ const sessionsPending = computed(() => {
 })
 
 async function runBatchSummarize() {
-  if (batchSummarizing.value) return
+  if (batchSummarizing.value || inFlight.value) return
   batchSummarizing.value = true
   try {
     const n = await memex.batchSummarize()
-    if (n > 0) toast.success(`已触发 ${n} 个会话的摘要任务`)
-    else toast.info('暂无待处理的会话')
+    if (n > 0) {
+      toast.success(`已触发 ${n} 个会话的摘要任务`)
+      // 预填一个 progress 占位 —— 后端 emit 第一条 summary-progress 之前 button
+      // 也能展示 "running"，避免按钮在「触发完成」与「第一条进度」之间瞬间复位
+      progress.value = {
+        current: 0,
+        total: n,
+        session_id: '',
+        success: true,
+        done: false,
+        aborted: false,
+      }
+    } else {
+      toast.info('暂无待处理的会话')
+    }
   } catch (e) {
     const fe = humanizeBackendError(e)
     toast.error('生成摘要失败', {
@@ -103,6 +129,51 @@ async function runBatchSummarize() {
     batchSummarizing.value = false
   }
 }
+
+async function abortBatchSummarize() {
+  if (aborting.value || !inFlight.value) return
+  aborting.value = true
+  try {
+    const was = await memex.abortSummarize()
+    if (was) toast.message('已请求暂停，当前会话完成后停止')
+    else toast.info('没有在跑的摘要任务')
+  } catch (e) {
+    toast.error(`暂停失败：${String(e)}`)
+  } finally {
+    aborting.value = false
+  }
+}
+
+const summaryButtonLabel = computed(() => {
+  if (batchSummarizing.value) return '触发中…'
+  const p = progress.value
+  if (p && !p.done) {
+    return `生成中 ${p.current}/${p.total}`
+  }
+  return `触发 ${sessionsPending.value} 个待摘要`
+})
+
+let unlistenProgress: UnlistenFn | null = null
+
+onMounted(async () => {
+  unlistenProgress = await listen<SummaryProgress>('summary-progress', (e) => {
+    progress.value = e.payload
+    if (e.payload.done) {
+      if (e.payload.aborted) {
+        toast.message(`已暂停（已完成 ${e.payload.current}/${e.payload.total}）`)
+      } else {
+        toast.success(`摘要全部完成 (${e.payload.total} 个)`)
+      }
+      window.setTimeout(() => {
+        if (progress.value && progress.value.done) progress.value = null
+      }, 4000)
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  if (unlistenProgress) unlistenProgress()
+})
 
 const appVersion = `v${packageJson.version}`
 </script>
@@ -265,17 +336,28 @@ const appVersion = `v${packageJson.version}`
                   </div>
                 </div>
 
-                <Button
-                  v-if="sessionsPending > 0"
-                  variant="outline"
-                  size="sm"
-                  class="w-full gap-1 text-[11px]"
-                  :disabled="batchSummarizing"
-                  @click="runBatchSummarize"
-                >
-                  <Wand2 class="size-3" />
-                  {{ batchSummarizing ? '触发中…' : `触发 ${sessionsPending} 个待摘要` }}
-                </Button>
+                <div v-if="sessionsPending > 0 || inFlight" class="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 gap-1 text-[11px]"
+                    :disabled="batchSummarizing || inFlight"
+                    @click="runBatchSummarize"
+                  >
+                    <Wand2 class="size-3" />
+                    {{ summaryButtonLabel }}
+                  </Button>
+                  <Button
+                    v-if="inFlight"
+                    variant="ghost"
+                    size="sm"
+                    class="px-2 text-[11px]"
+                    :disabled="aborting"
+                    @click="abortBatchSummarize"
+                  >
+                    {{ aborting ? '…' : '暂停' }}
+                  </Button>
+                </div>
               </div>
             </PopoverContent>
           </Popover>

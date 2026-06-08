@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +24,8 @@ const { t } = useI18n()
 const detail = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
 const visibleCount = ref(50)
+const loadMoreSentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
 
 watch(
   () => [props.open, props.session?.id] as const,
@@ -65,6 +67,28 @@ const remainingCount = computed(() => {
 function loadMore() {
   visibleCount.value += 50
 }
+
+// 滚动到底部 sentinel 时自动 loadMore，避免用户每次都点按钮
+watch(loadMoreSentinel, (el) => {
+  observer?.disconnect()
+  if (!el) {
+    observer = null
+    return
+  }
+  observer = new IntersectionObserver(
+    (entries) => {
+      const hit = entries.some((e) => e.isIntersecting)
+      if (hit && remainingCount.value > 0) loadMore()
+    },
+    { rootMargin: '120px' },
+  )
+  observer.observe(el)
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = null
+})
 </script>
 
 <template>
@@ -129,9 +153,18 @@ function loadMore() {
               :key="m.id ?? i"
               class="grid grid-cols-[28px_1fr] gap-3"
             >
+              <!-- 头像：user → primary 紫；assistant → emerald 绿；其他 (system/tool 等) → muted 灰圈 + Bot icon。
+                   之前 m.role === 'user' 三元判断把 system 也归到 assistant 的绿色，造成展示上的歧义；
+                   显式 switch 让用户一眼能区分 user / assistant / 系统消息。 -->
               <span
-                class="grid size-7 place-items-center rounded-full text-white"
-                :class="m.role === 'user' ? 'bg-primary' : 'bg-success'"
+                class="grid size-7 shrink-0 place-items-center rounded-full text-white"
+                :class="
+                  m.role === 'user'
+                    ? 'bg-primary'
+                    : m.role === 'assistant'
+                      ? 'bg-emerald-600'
+                      : 'bg-muted-foreground/40'
+                "
               >
                 <UserIcon v-if="m.role === 'user'" class="size-3.5" />
                 <Bot v-else class="size-3.5" />
@@ -140,9 +173,21 @@ function loadMore() {
                 <div class="mb-1 flex items-center gap-2 text-xs">
                   <span
                     class="font-semibold"
-                    :class="m.role === 'user' ? 'text-primary' : 'text-success'"
+                    :class="
+                      m.role === 'user'
+                        ? 'text-primary'
+                        : m.role === 'assistant'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-muted-foreground'
+                    "
                   >
-                    {{ m.role === 'user' ? t('session.role.user') : t('session.role.assistant') }}
+                    {{
+                      m.role === 'user'
+                        ? t('session.role.user')
+                        : m.role === 'assistant'
+                          ? t('session.role.assistant')
+                          : m.role
+                    }}
                   </span>
                   <span v-if="m.timestamp" class="text-muted-foreground">
                     {{ new Date(m.timestamp).toLocaleString() }}
@@ -155,7 +200,11 @@ function loadMore() {
             </article>
           </div>
 
-          <div v-if="remainingCount > 0" class="mt-6 flex justify-center">
+          <div
+            v-if="remainingCount > 0"
+            ref="loadMoreSentinel"
+            class="mt-6 flex justify-center"
+          >
             <Button variant="ghost" size="sm" @click="loadMore">
               {{ t('session.load_more', { count: remainingCount }) }}
             </Button>

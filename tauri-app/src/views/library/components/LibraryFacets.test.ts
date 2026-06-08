@@ -64,7 +64,7 @@ describe('LibraryFacets', () => {
     /* nothing */
   })
 
-  it('默认只渲染前 8 个项目并显示 "+ N 更多" 按钮', () => {
+  it('默认只渲染前 8 个项目并显示展开按钮（每次 +10）', () => {
     const wrapper = mount(LibraryFacets, { props: baseProps, global: { stubs } })
 
     // 12 个项目；默认 limit=8 → 隐藏 4 个
@@ -72,12 +72,12 @@ describe('LibraryFacets', () => {
     expect(html).toContain('proj-0')
     expect(html).toContain('proj-7')
     expect(html).not.toContain('proj-8')
-    expect(html).toContain('+ 4 更多')
+    expect(html).toContain('+ 展开 4（剩 4）')
   })
 
-  it('点击 "+ N 更多" 后展开剩余项目', async () => {
+  it('点击展开按钮后增量渲染下一批（一次 +10）', async () => {
     const wrapper = mount(LibraryFacets, { props: baseProps, global: { stubs } })
-    const moreBtn = wrapper.findAll('button').find((b) => b.text().includes('更多'))
+    const moreBtn = wrapper.findAll('button').find((b) => b.text().includes('展开'))
     expect(moreBtn).toBeTruthy()
     await moreBtn!.trigger('click')
 

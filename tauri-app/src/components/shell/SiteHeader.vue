@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router'
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
@@ -23,6 +22,7 @@ const route = useRoute()
 const { open: openPalette } = useCommandPalette()
 
 const crumbs = computed<string[]>(() => (route.meta?.breadcrumb as string[]) ?? [])
+const isToday = computed(() => route.path === '/today')
 const isLibrary = computed(() => route.path === '/library')
 const isInsights = computed(() => route.path === '/insights')
 const isConnect = computed(() => route.path === '/connect')
@@ -50,7 +50,7 @@ function onBellClick() {
           <template v-for="(c, i) in crumbs" :key="i">
             <BreadcrumbItem class="whitespace-nowrap">
               <BreadcrumbPage v-if="i === crumbs.length - 1" class="whitespace-nowrap">{{ c }}</BreadcrumbPage>
-              <BreadcrumbLink v-else href="#" class="whitespace-nowrap">{{ c }}</BreadcrumbLink>
+              <span v-else class="whitespace-nowrap text-muted-foreground/70">{{ c }}</span>
             </BreadcrumbItem>
             <BreadcrumbSeparator v-if="i < crumbs.length - 1" />
           </template>
@@ -110,35 +110,36 @@ function onBellClick() {
       <!-- 页面级 actions slot（settings 的 tabs 等用 Teleport 注入此处） -->
       <div id="memex-header-actions" class="flex min-w-0 items-center gap-2" />
 
-      <!-- 全局搜索：隐藏在 ≤md，hover 高亮，点击或 ⌘K 都能开 CommandPalette -->
-      <Button
-        variant="outline"
-        size="sm"
-        class="hidden h-8 min-w-[220px] justify-between gap-2 px-3 text-[12px] text-muted-foreground hover:text-foreground md:flex"
-        @click="openPalette"
-      >
-        <span class="flex items-center gap-2">
-          <Search class="size-3.5" />
-          搜索会话、项目、命令…
-        </span>
-        <kbd class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
-      </Button>
+      <!-- 全局搜索 + 通知按钮：仅在 Today 页展示。其他页面（Library / Insights / Connect / Settings）保持 header 干净。 -->
+      <template v-if="isToday">
+        <Button
+          variant="outline"
+          size="sm"
+          class="hidden h-8 min-w-[220px] justify-between gap-2 px-3 text-[12px] text-muted-foreground hover:text-foreground md:flex"
+          @click="openPalette"
+        >
+          <span class="flex items-center gap-2">
+            <Search class="size-3.5" />
+            搜索会话、项目、命令…
+          </span>
+          <kbd class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
+        </Button>
 
-      <!-- 通知按钮：占位，未接入通知系统但保留入口避免后期改 layout -->
-      <Tooltip :delay-duration="200">
-        <TooltipTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-8 text-muted-foreground hover:text-foreground"
-            aria-label="通知中心"
-            @click="onBellClick"
-          >
-            <Bell class="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">通知中心（开发中）</TooltipContent>
-      </Tooltip>
+        <Tooltip :delay-duration="200">
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-8 text-muted-foreground hover:text-foreground"
+              aria-label="通知中心"
+              @click="onBellClick"
+            >
+              <Bell class="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">通知中心（开发中）</TooltipContent>
+        </Tooltip>
+      </template>
     </div>
   </header>
 </template>

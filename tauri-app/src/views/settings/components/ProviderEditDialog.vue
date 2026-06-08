@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,6 +47,7 @@ const isEdit = computed(() => Boolean(props.editing.id))
 const showApiKey = ref(false)
 const testing = ref(false)
 const listingModels = ref(false)
+const availableModels = ref<string[]>([])
 
 const providerTemplates = [
   { name: 'DeepSeek', kind: 'openai_compat' as const, baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', icon: Sparkles },
@@ -123,60 +124,102 @@ async function testDraft() {
   }
 }
 
-// 拉取可用模型：需要 baseUrl 与（非 ollama 时的）apiKey；成功后把模型名直接写回
-// 表单 model 字段，省一次复制粘贴。
-async function fetchModels() {
-  if (listingModels.value) return
+// 抽出核心拉取逻辑。`silent=true` 时不弹 toast、不报错，用于自动 debounce 调用。
+async function performFetchModels(opts: { silent?: boolean } = {}): Promise<boolean> {
+  const silent = opts.silent === true
+  if (listingModels.value) return false
   const e = props.editing
   const kind = (e.kind || 'openai_compat').trim()
   const baseUrl = (e.baseUrl || '').trim()
   const apiKey = (e.apiKey || '').trim()
   if (!baseUrl) {
-    toast.error('请先填写 Base URL')
-    return
+    if (!silent) toast.error('请先填写 Base URL')
+    return false
   }
   if (kind !== 'ollama' && !apiKey) {
-    toast.error('请先填写 API Key')
-    return
+    if (!silent) toast.error('请先填写 API Key')
+    return false
   }
   listingModels.value = true
   try {
     const models = await memex.llmListModels(kind, baseUrl, apiKey)
     if (!models.length) {
-      toast.info('未查到模型清单')
-      return
+      availableModels.value = []
+      if (!silent) toast.info('未查到模型清单')
+      return false
     }
-    // 若用户当前未填 model，自动填第一个；否则只提示找到了多少个
+    availableModels.value = models
     if (!props.editing.model?.trim()) {
       emit('update:editing', { ...props.editing, model: models[0] })
-      toast.success(`已自动填入 ${models[0]}`, {
-        description: `共发现 ${models.length} 个可用模型`,
-      })
-    } else {
+    }
+    if (!silent) {
       toast.success(`发现 ${models.length} 个可用模型`, {
-        description: models.slice(0, 5).join(', ') + (models.length > 5 ? ' …' : ''),
+        description: '可在下拉中切换或在输入框搜索',
       })
     }
+    return true
   } catch (err) {
-    toast.error('拉取模型失败', {
-      description: String(err),
-      duration: 8000,
-    })
+    if (!silent) {
+      toast.error('拉取模型失败', {
+        description: String(err),
+        duration: 8000,
+      })
+    }
+    return false
   } finally {
     listingModels.value = false
   }
 }
+
+async function fetchModels() {
+  await performFetchModels()
+}
+
+// 自动拉取：当 kind / baseUrl / apiKey 变化时 debounce 500ms 后静默重拉。
+// 只在三个字段都有值且 dialog 已打开时触发。
+let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => [props.open, props.editing.kind, props.editing.baseUrl, props.editing.apiKey] as const,
+  ([isOpen, kind, baseUrl, apiKey]) => {
+    if (autoRefreshTimer) {
+      clearTimeout(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
+    if (!isOpen) return
+    const baseTrim = (baseUrl || '').trim()
+    const keyTrim = (apiKey || '').trim()
+    if (!baseTrim) return
+    if (kind !== 'ollama' && !keyTrim) return
+    autoRefreshTimer = setTimeout(() => {
+      void performFetchModels({ silent: true })
+    }, 500)
+  },
+)
+
+// 下拉框内的模型搜索过滤
+const modelSearch = ref('')
+const filteredAvailableModels = computed(() => {
+  const q = modelSearch.value.trim().toLowerCase()
+  if (!q) return availableModels.value
+  return availableModels.value.filter((m) => m.toLowerCase().includes(q))
+})
 </script>
 
 <template>
   <Dialog :open="open" @update:open="(v) => emit('update:open', v)">
-    <DialogContent class="sm:max-w-[720px] lg:max-w-[860px]">
-      <DialogHeader>
+    <DialogContent
+      class="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-[720px] lg:max-w-[860px]"
+    >
+      <!-- 固定头部：标题 + 描述。不滚动 -->
+      <DialogHeader class="shrink-0 border-b px-5 py-4">
         <DialogTitle>{{ isEdit ? '编辑 Provider' : '添加 Provider' }}</DialogTitle>
         <DialogDescription>
           配置 LLM 服务商：从模板快速填充，或手动输入 Base URL 与 API Key
         </DialogDescription>
       </DialogHeader>
+
+      <!-- 中间滚动区：弹框高度不够时只滚动这一段，不影响 header / footer -->
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
 
       <div v-if="!isEdit" class="space-y-2">
         <Label class="text-xs">从模板新建</Label>
@@ -211,7 +254,7 @@ async function fetchModels() {
             :model-value="editing.kind"
             @update:model-value="(v) => update('kind', v)"
           >
-            <SelectTrigger class="h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger class="h-9 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="openai_compat">OpenAI 兼容</SelectItem>
               <SelectItem value="anthropic">Anthropic</SelectItem>
@@ -264,14 +307,57 @@ async function fetchModels() {
               {{ listingModels ? '拉取中…' : '拉取可用模型' }}
             </Button>
           </div>
-          <Input
-            :model-value="editing.model"
-            @update:model-value="(v) => update('model', v)"
-            placeholder="deepseek-chat / gpt-4o-mini / qwen2.5:3b"
-            class="h-9 font-mono text-xs"
-          />
+          <div class="flex gap-2">
+            <Input
+              :model-value="editing.model"
+              @update:model-value="(v) => update('model', v)"
+              placeholder="deepseek-chat / gpt-4o-mini / qwen2.5:3b"
+              class="h-9 flex-1 font-mono text-xs"
+            />
+            <Select
+              v-if="availableModels.length"
+              :model-value="editing.model && availableModels.includes(editing.model) ? editing.model : ''"
+              @update:model-value="(v) => update('model', v)"
+            >
+              <SelectTrigger class="h-9 w-44 shrink-0 font-mono text-xs">
+                <SelectValue placeholder="从清单选" />
+              </SelectTrigger>
+              <SelectContent class="max-h-72">
+                <div class="sticky top-0 z-10 border-b bg-popover p-1.5">
+                  <Input
+                    v-model="modelSearch"
+                    placeholder="搜索模型…"
+                    class="h-7 font-mono text-xs"
+                    autofocus
+                  />
+                </div>
+                <SelectItem
+                  v-for="m in filteredAvailableModels"
+                  :key="m"
+                  :value="m"
+                  class="font-mono text-xs"
+                >
+                  {{ m }}
+                </SelectItem>
+                <div
+                  v-if="filteredAvailableModels.length === 0"
+                  class="px-2 py-3 text-center text-[11px] text-muted-foreground"
+                >
+                  无匹配
+                </div>
+              </SelectContent>
+            </Select>
+          </div>
           <p class="text-[10px] text-muted-foreground">
-            填好 Base URL 与 API Key 后，可点上方按钮自动拉取该 Provider 支持的模型清单
+            <span v-if="listingModels">
+              正在拉取可用模型…
+            </span>
+            <span v-else-if="availableModels.length">
+              共 {{ availableModels.length }} 个可用模型，下拉选择或手动输入。修改 URL/Key 时会自动重新拉取
+            </span>
+            <span v-else>
+              填好 Base URL 与 API Key，会自动拉取该 Provider 支持的模型清单
+            </span>
           </p>
         </div>
         <div class="flex items-center justify-between rounded-md border px-3 py-2 md:col-span-2">
@@ -287,8 +373,10 @@ async function fetchModels() {
           />
         </div>
       </div>
+      </div>
 
-      <DialogFooter>
+      <!-- 固定底部：测试 / 取消 / 保存。不滚动 -->
+      <DialogFooter class="shrink-0 border-t px-5 py-3">
         <Button
           variant="outline"
           class="mr-auto"

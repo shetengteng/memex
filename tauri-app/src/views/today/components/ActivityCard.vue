@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -117,12 +117,25 @@ const topAdapters = computed(() =>
 
 const todayBadge = computed(() => today10().slice(5)) // MM-DD
 
-onMounted(async () => {
+async function loadWorkload() {
   try {
     workload.value = await memex.getWorkload(1)
   } catch (e) {
     console.warn('[ActivityCard] getWorkload(1) failed', e)
   }
+}
+
+function onTodayRefresh() {
+  void loadWorkload()
+}
+
+onMounted(() => {
+  void loadWorkload()
+  window.addEventListener('today-refresh', onTodayRefresh)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('today-refresh', onTodayRefresh)
 })
 </script>
 

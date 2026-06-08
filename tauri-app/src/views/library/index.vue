@@ -79,6 +79,42 @@ async function onLoadMore() {
   }
 }
 
+// 无限滚动：当 sentinel 进入视口时触发 onLoadMore。仍保留底部按钮作为兜底入口。
+const loadMoreSentinel = ref<HTMLElement | null>(null)
+let loadMoreObserver: IntersectionObserver | null = null
+
+function setupInfiniteScroll() {
+  if (loadMoreObserver) return
+  if (!loadMoreSentinel.value) return
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      const hit = entries.some((e) => e.isIntersecting)
+      if (hit && hasMoreSessions.value && !loadingMore.value) {
+        onLoadMore()
+      }
+    },
+    { rootMargin: '200px 0px' },
+  )
+  loadMoreObserver.observe(loadMoreSentinel.value)
+}
+
+function teardownInfiniteScroll() {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect()
+    loadMoreObserver = null
+  }
+}
+
+watch(loadMoreSentinel, (el) => {
+  if (el) {
+    setupInfiniteScroll()
+  } else {
+    teardownInfiniteScroll()
+  }
+})
+
+onBeforeUnmount(teardownInfiniteScroll)
+
 // 已加载全部时主动关闭 hasMore（首屏 200 条；后端总数 ≤ 已加载 → 没有更多）
 watch(
   [() => sessions.length, () => totals.sessions],
@@ -422,17 +458,14 @@ onBeforeUnmount(() => {
             v-else
             class="flex flex-col items-center gap-1.5 py-6 text-[12px] text-muted-foreground"
           >
-            <Button
+            <div
               v-if="hasMoreSessions"
-              variant="ghost"
-              size="sm"
-              class="h-8 gap-2"
-              :disabled="loadingMore"
-              @click="onLoadMore"
+              ref="loadMoreSentinel"
+              class="flex items-center gap-2 py-1"
             >
               <RefreshCw :class="['size-3.5', loadingMore && 'animate-spin']" />
-              {{ loadingMore ? '加载中…' : '加载更多' }}
-            </Button>
+              <span>{{ loadingMore ? '加载中…' : '继续滚动加载更多' }}</span>
+            </div>
             <span v-else>
               已显示全部
               <span class="font-medium text-foreground tabular-nums">{{ filtered.length }}</span>

@@ -56,6 +56,13 @@ pub struct LlmConfig {
     /// 设为 0 可禁用冷却（每次 ingest 立刻摘要 / 重摘要）。
     #[serde(default = "default_summary_cooldown_secs")]
     pub summary_cooldown_secs: u64,
+
+    /// 批量摘要时，两次 LLM 调用之间的间隔毫秒数。
+    /// 用户实测 100 个会话连跑 Ollama 会让本地 GPU/CPU 长时间高负载、UI 卡顿。
+    /// 加 throttle 之后会显著降低瞬时压力，代价是总耗时变长。
+    /// 默认 2000ms（2 秒）；设为 0 表示不 throttle（保持旧行为）。
+    #[serde(default = "default_summarize_interval_ms")]
+    pub summarize_interval_ms: u64,
 }
 
 impl Default for LlmConfig {
@@ -65,6 +72,7 @@ impl Default for LlmConfig {
             ollama_url: default_ollama_url(),
             ollama_model: default_ollama_model(),
             summary_cooldown_secs: default_summary_cooldown_secs(),
+            summarize_interval_ms: default_summarize_interval_ms(),
         }
     }
 }
@@ -109,6 +117,10 @@ fn default_ollama_model() -> String {
 /// 适度延迟内拿到「最新」摘要，而不至于每次 ingest 都重摘要。
 fn default_summary_cooldown_secs() -> u64 {
     600
+}
+
+fn default_summarize_interval_ms() -> u64 {
+    2000
 }
 
 impl Default for MemexConfig {

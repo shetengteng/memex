@@ -1,3 +1,4 @@
+mod backup;
 mod cli_path;
 mod config;
 mod daemon;
@@ -7,6 +8,7 @@ mod ide_integration;
 mod ingest;
 mod llm_providers;
 mod llm_test;
+mod logs;
 mod maintenance;
 mod reflect;
 mod reports;
@@ -15,6 +17,7 @@ mod sessions;
 mod stats;
 mod update;
 
+pub use backup::*;
 pub use cli_path::*;
 pub use config::*;
 pub use daemon::*;
@@ -24,6 +27,7 @@ pub use ide_integration::*;
 pub use ingest::*;
 pub use llm_providers::*;
 pub use llm_test::*;
+pub use logs::*;
 pub use maintenance::*;
 pub use reflect::*;
 pub use reports::*;

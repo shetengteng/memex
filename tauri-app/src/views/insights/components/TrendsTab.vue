@@ -10,6 +10,7 @@ import IdeDot from '@/components/shell/IdeDot.vue'
 import { ADAPTER_MAP } from '@/stores/memex'
 import type { WorkloadReport } from '@/types'
 import { useMemex } from '@/composables/useMemex'
+import DailyBarChart from './DailyBarChart.vue'
 
 const memex = useMemex()
 const range = ref<'7d' | '30d' | '90d'>('30d')
@@ -68,6 +69,29 @@ const calendarColumns = computed<(CalCell | null)[][]>(() => {
   }
   if (cur.some((x) => x)) cols.push(cur)
   return cols
+})
+
+// GitHub 风格的月份标签：每列代表一周，若该周内出现某月的第 1~7 天则在那一列上方标 "M月"。
+// 同一个月只在它首次出现的那一列标，避免重复堆叠。
+const calendarMonthLabels = computed<string[]>(() => {
+  const cols = calendarColumns.value
+  const labels: string[] = new Array(cols.length).fill('')
+  let lastMonth = -1
+  for (let ci = 0; ci < cols.length; ci++) {
+    for (let wi = 0; wi < 7; wi++) {
+      const cell = cols[ci][wi]
+      if (!cell) continue
+      const m = new Date(cell.date).getMonth()
+      const day = new Date(cell.date).getDate()
+      // 进入新月份 + 该周 day<=7（保证标签贴在该月首列），才标
+      if (m !== lastMonth && day <= 7) {
+        labels[ci] = `${m + 1}月`
+        lastMonth = m
+        break
+      }
+    }
+  }
+  return labels
 })
 
 const calIntensity = (count: number) => {
@@ -171,6 +195,12 @@ const projectUsage = computed(() => {
       </Card>
     </div>
 
+    <DailyBarChart
+      class="mb-5"
+      :daily="data?.daily ?? []"
+      :days="days"
+    />
+
     <Card class="mb-5 p-5">
       <div class="mb-3 flex items-end justify-between">
         <div>
@@ -209,12 +239,25 @@ const projectUsage = computed(() => {
           <col style="width: 2rem" />
           <col v-for="(_, ci) in calendarColumns" :key="ci" />
         </colgroup>
+        <thead>
+          <!-- 月份标签：每列对应一周，遇到新月份的第一周在该列上方标 "M月" -->
+          <tr>
+            <th class="p-0" style="height: 14px" />
+            <th
+              v-for="(label, ci) in calendarMonthLabels"
+              :key="ci"
+              class="p-0 text-left align-bottom text-[10px] text-muted-foreground"
+              style="height: 14px"
+            >
+              {{ label }}
+            </th>
+          </tr>
+        </thead>
         <tbody>
+          <!-- 纵坐标显示完整 7 个周几标签（之前只显示周一/三/五，用户反馈"缺少周一周三等" -->
           <tr v-for="wi in 7" :key="wi - 1">
             <td class="pr-1.5 text-right text-[10px] text-muted-foreground">
-              <span v-if="(wi - 1) % 2 === 0">
-                {{ ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][wi - 1] }}
-              </span>
+              {{ ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][wi - 1] }}
             </td>
             <td
               v-for="(col, ci) in calendarColumns"
@@ -281,9 +324,14 @@ const projectUsage = computed(() => {
             <span
               v-for="h in 24"
               :key="h"
-              class="flex-1 text-center text-[9px] text-muted-foreground"
+              class="flex-1 text-center text-[9px] tabular-nums"
+              :class="
+                (h - 1) % 6 === 0
+                  ? 'font-medium text-muted-foreground'
+                  : 'text-muted-foreground/50'
+              "
             >
-              {{ (h - 1) % 3 === 0 ? String(h - 1).padStart(2, '0') : '' }}
+              {{ String(h - 1).padStart(2, '0') }}
             </span>
           </div>
         </div>
