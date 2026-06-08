@@ -243,7 +243,18 @@ const openProject = (name: string) => {
 watch(
   () => route.query.session,
   (id) => {
-    drawerSession.value = sessions.find((x) => x.id === id) ?? null
+    if (!id) {
+      drawerSession.value = null
+      return
+    }
+    // 跨 tab 打开会话时（如线索 tab 点条目），`sessions` 数组可能不包含该 id，
+    // 此时保留 drawerSession（由调用方提前 set 的实例），避免被覆盖为 null。
+    const found = sessions.find((x) => x.id === id)
+    if (found) {
+      drawerSession.value = found
+    } else if (drawerSession.value?.id !== id) {
+      drawerSession.value = null
+    }
   },
   { immediate: true },
 )
@@ -330,7 +341,6 @@ onBeforeUnmount(() => {
           <TabsTrigger value="threads" class="gap-1.5 text-[12px]">
             <GitBranch class="size-3.5" />
             线索
-            <Badge variant="outline" class="ml-1 h-4 px-1 text-[9px]">测试版</Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>

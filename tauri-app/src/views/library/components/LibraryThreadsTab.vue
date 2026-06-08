@@ -1,12 +1,17 @@
 <script setup lang="ts">
 /**
- * L5「主题线索」master-detail 视图。
+ * L5「线索（Threads）」视图 —— 搜索引擎心智模型重设计。
  *
- * 左侧：线索列表（按 updated_at DESC）+ 顶部「重新聚类」按钮 + 搜索。
- * 右侧：选中线索的 sessions 列表（复用 LibrarySessionListItem）。
+ * 信息架构（参考浏览器历史 / Spotlight 历史）：
+ *   - 顶部：醒目的关键词检索（主行为）+ 全量聚类（辅助行为）
+ *   - 左侧：搜索历史（之前的线索列表，按时间倒序）
+ *   - 右侧：当前选中那次搜索的结果（命中的 session 列表）
+ *   - 未选中：搜索引擎风格的 hero 空状态（大搜索框 + 几条建议词）
  *
- * 设计：本组件不直接打开 session 详情 Dialog——它把点击事件 emit 上去，
- * 由 library/index.vue 复用已有的 LibrarySessionDrawer 弹框，避免双份维护。
+ * 设计依据用户反馈："线索更像是搜索引擎，之前的是线索的搜索历史"。
+ *
+ * 组件不直接打开 session 详情，把 open 事件 emit 上去，由 library/index.vue
+ * 用已有的 LibrarySessionDrawer 弹框，避免双份维护。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +28,9 @@ import {
 import { toast } from 'vue-sonner'
 import LibrarySessionListItem from './LibrarySessionListItem.vue'
 import {
+  Clock,
   GitBranch,
+  History,
   Loader2,
   RefreshCw,
   Search,
@@ -46,25 +53,51 @@ import { humanizeBackendError } from '@/lib/utils'
 
 const emit = defineEmits<{ open: [Session] }>()
 
-const threadQuery = ref('')
 const selectedThreadId = ref<number | null>(null)
 const detailSessions = ref<SessionRow[]>([])
 const detailLoading = ref(false)
-const regenerating = ref(false)
-const regenerateError = ref<string | null>(null)
 
-// 关键词 LLM 检索
+// 主搜索（关键词 LLM 检索）
 const llmQuery = ref('')
 const llmSearching = ref(false)
+
+// 全量聚类（辅助）
+const regenerating = ref(false)
+
+// 历史筛选
+const historyFilter = ref('')
 
 // 删除确认
 const deleteTarget = ref<ThreadRow | null>(null)
 const deleting = ref(false)
 
-// 左侧线索列表宽度（像素）。用户可以拖动中间分隔条改变。
-// 上下界限：240..560，避免拖到太窄或挤掉右侧。
+const SUGGESTIONS = [
+  'Tauri 多窗口',
+  'L2 摘要 prompt',
+  'memex 桌面化',
+  'cursor 适配器',
+  'LLM 节流',
+]
+
+const filteredHistory = computed(() => {
+  const q = historyFilter.value.trim().toLowerCase()
+  if (!q) return threads.slice()
+  return threads.filter(
+    (t: ThreadRow) =>
+      t.name.toLowerCase().includes(q) || t.summary.toLowerCase().includes(q),
+  )
+})
+
+const selectedThread = computed(() =>
+  threads.find((t) => t.id === selectedThreadId.value) ?? null,
+)
+
+const tFmt = (iso: string) =>
+  new Date(iso).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
+
+// 左侧历史栏宽度（可拖动），延续上一轮的体验。
 const LEFT_MIN = 240
-const LEFT_MAX = 560
+const LEFT_MAX = 480
 const LEFT_STORAGE_KEY = 'memex.library.threads.leftWidth'
 const leftWidth = ref(
   (() => {
@@ -74,7 +107,7 @@ const leftWidth = ref(
     } catch {
       /* ignore */
     }
-    return 340
+    return 280
   })(),
 )
 const isDragging = ref(false)
@@ -93,8 +126,7 @@ function onSeparatorPointerDown(e: PointerEvent) {
 
 function onSeparatorPointerMove(e: PointerEvent) {
   if (!isDragging.value) return
-  const delta = e.clientX - dragStartX
-  const next = Math.min(LEFT_MAX, Math.max(LEFT_MIN, dragStartWidth + delta))
+  const next = Math.min(LEFT_MAX, Math.max(LEFT_MIN, dragStartWidth + (e.clientX - dragStartX)))
   leftWidth.value = next
 }
 
@@ -114,25 +146,6 @@ onUnmounted(() => {
   window.removeEventListener('pointermove', onSeparatorPointerMove)
 })
 
-const filteredThreads = computed(() => {
-  const q = threadQuery.value.trim().toLowerCase()
-  let xs = threads.slice()
-  if (q) {
-    xs = xs.filter(
-      (t: ThreadRow) =>
-        t.name.toLowerCase().includes(q) || t.summary.toLowerCase().includes(q),
-    )
-  }
-  return xs
-})
-
-const selectedThread = computed(() =>
-  threads.find((t) => t.id === selectedThreadId.value) ?? null,
-)
-
-const tFmt = (iso: string) =>
-  new Date(iso).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
-
 async function selectThread(id: number) {
   selectedThreadId.value = id
   detailLoading.value = true
@@ -145,12 +158,33 @@ async function selectThread(id: number) {
   }
 }
 
+async function onSearch() {
+  const q = llmQuery.value.trim()
+  if (!q) return
+  llmSearching.value = true
+  try {
+    const id = await searchThreadByQuery(q)
+    llmQuery.value = ''
+    if (id) {
+      await selectThread(id)
+    }
+    toast.success(`已为「${q}」生成线索`)
+  } catch (e) {
+    toast.error(humanizeBackendError(e).friendly)
+  } finally {
+    llmSearching.value = false
+  }
+}
+
+function applySuggestion(s: string) {
+  llmQuery.value = s
+  void onSearch()
+}
+
 async function onRegenerate() {
   regenerating.value = true
-  regenerateError.value = null
   try {
     await regenerateThreads()
-    // 拉完新数据后，如果之前选中的线索还在，重新拉详情
     if (selectedThreadId.value != null) {
       const stillExists = threads.some((t) => t.id === selectedThreadId.value)
       if (stillExists) {
@@ -160,31 +194,11 @@ async function onRegenerate() {
         detailSessions.value = []
       }
     }
-  } catch (e) {
-    regenerateError.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    regenerating.value = false
-  }
-}
-
-const openSession = (s: Session) => emit('open', s)
-
-async function onLlmSearch() {
-  const q = llmQuery.value.trim()
-  if (!q) return
-  llmSearching.value = true
-  try {
-    const id = await searchThreadByQuery(q)
-    llmQuery.value = ''
-    // 新线索往往出现在列表顶部（updated_at 是 now），选中它让用户看到结果
-    if (id) {
-      await selectThread(id)
-    }
-    toast.success(`已为「${q}」生成线索`)
+    toast.success('已重新聚类')
   } catch (e) {
     toast.error(humanizeBackendError(e).friendly)
   } finally {
-    llmSearching.value = false
+    regenerating.value = false
   }
 }
 
@@ -202,7 +216,7 @@ async function confirmDelete() {
       selectedThreadId.value = null
       detailSessions.value = []
     }
-    toast.success(`已删除线索「${t.name}」`)
+    toast.success(`已删除「${t.name}」`)
   } catch (e) {
     toast.error(humanizeBackendError(e).friendly)
   } finally {
@@ -211,21 +225,21 @@ async function confirmDelete() {
   }
 }
 
+const openSession = (s: Session) => emit('open', s)
+
 onMounted(async () => {
   await refreshThreads()
-  // 首次默认选中第一条，让右侧不空
-  if (threads.length && selectedThreadId.value == null) {
-    await selectThread(threads[0].id)
-  }
 })
 
-// 用户在外面再次切换到 threads tab 时，threads 数组可能已经更新（被外面 refresh），
-// 这里跟一下默认选中状态，避免空白。
+// 选择历史变化时让 watcher 默认行为：不要自动跳到第一条，让用户从 hero 出发。
+// 但如果用户在另一个 tab/窗口里加了新线索（reactive 数组变了），保持当前选中即可。
 watch(
   () => threads.length,
-  (n) => {
-    if (n && selectedThreadId.value == null) {
-      void selectThread(threads[0].id)
+  (n, old) => {
+    if (n > old && selectedThreadId.value == null) {
+      // 新增了线索（一般是搜索/聚类完成），自动选中最新的那条（updated_at 最大）
+      const newest = threads[0]
+      if (newest) void selectThread(newest.id)
     }
   },
 )
@@ -233,201 +247,206 @@ watch(
 
 <template>
   <div class="flex flex-1 min-h-0 overflow-hidden">
-    <!-- 左：线索列表 -->
+    <!-- 左：搜索历史 -->
     <aside
       class="flex shrink-0 flex-col border-r border-border/60"
       :style="{ width: `${leftWidth}px` }"
     >
-      <div class="space-y-2 border-b border-border/60 px-4 py-3">
-        <div class="flex items-center gap-2">
-          <div class="relative flex-1">
-            <Search
-              class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              v-model="threadQuery"
-              class="h-9 pl-9"
-              placeholder="搜索已有线索…"
-            />
-          </div>
-          <Button
-            variant="outline"
-            :disabled="regenerating"
-            class="h-9 px-3"
-            @click="onRegenerate"
-          >
-            <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
-            <RefreshCw v-else class="size-3.5" />
-            <span class="ml-1.5 text-[12px]">重新聚类</span>
-          </Button>
-        </div>
-        <!-- 按关键词让 LLM 在历史会话里挑相关 session 生成新线索 -->
-        <form class="flex items-center gap-2" @submit.prevent="onLlmSearch">
-          <div class="relative flex-1">
-            <Wand2
-              class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              v-model="llmQuery"
-              class="h-9 pl-9"
-              placeholder="按关键词让 LLM 找相关线索…"
-              :disabled="llmSearching"
-            />
-          </div>
-          <Button
-            type="submit"
-            variant="secondary"
-            :disabled="llmSearching || !llmQuery.trim()"
-            class="h-9 px-3"
-          >
-            <Loader2 v-if="llmSearching" class="size-3.5 animate-spin" />
-            <Wand2 v-else class="size-3.5" />
-            <span class="ml-1.5 text-[12px]">检索</span>
-          </Button>
-        </form>
+      <div class="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+        <History class="size-3.5 text-muted-foreground" />
+        <span class="text-[12px] font-medium">搜索历史</span>
+        <Badge variant="secondary" class="ml-auto tabular-nums text-[10px]">
+          {{ threads.length }}
+        </Badge>
       </div>
-
-      <div v-if="regenerateError" class="px-4 py-2 text-[11px] text-destructive">
-        {{ regenerateError }}
+      <div class="px-4 py-2">
+        <div class="relative">
+          <Search
+            class="pointer-events-none absolute left-3 top-1/2 size-3 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            v-model="historyFilter"
+            class="h-8 pl-8 text-[12px]"
+            placeholder="筛选历史…"
+          />
+        </div>
       </div>
 
       <div class="flex-1 min-h-0 overflow-y-auto">
-        <ul v-if="filteredThreads.length">
+        <ul v-if="filteredHistory.length" class="px-2 pb-2">
           <li
-            v-for="t in filteredThreads"
+            v-for="t in filteredHistory"
             :key="t.id"
             :data-active="t.id === selectedThreadId"
-            class="group/thread-row relative cursor-pointer border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/40 data-[active=true]:bg-accent/40"
+            class="group/history-row relative cursor-pointer rounded-md px-2 py-2 transition-colors hover:bg-accent/40 data-[active=true]:bg-accent/60"
             @click="selectThread(t.id)"
           >
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex min-w-0 items-center gap-2">
-                <GitBranch class="size-3.5 shrink-0 text-muted-foreground" />
-                <span class="truncate text-[13px] font-semibold">{{ t.name }}</span>
-              </div>
-              <div class="flex shrink-0 items-center gap-1">
-                <Badge variant="secondary" class="tabular-nums text-[10px]">
-                  {{ t.session_count }}
-                </Badge>
-                <!-- hover 时才出现的删除按钮：列表里默认 opacity-0 不抢注意力 -->
-                <button
-                  type="button"
-                  aria-label="删除线索"
-                  class="flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/thread-row:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
-                  @click.stop="requestDelete(t)"
-                >
-                  <Trash2 class="size-3" />
-                </button>
+            <div class="flex items-start gap-2">
+              <Clock class="mt-[3px] size-3 shrink-0 text-muted-foreground/70" />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="truncate text-[12.5px] font-medium">{{ t.name }}</span>
+                  <button
+                    type="button"
+                    aria-label="删除这条搜索历史"
+                    class="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/history-row:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
+                    @click.stop="requestDelete(t)"
+                  >
+                    <Trash2 class="size-3" />
+                  </button>
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground/80">
+                  <span class="tabular-nums">{{ t.session_count }} 个结果</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{{ tFmt(t.updated_at) }}</span>
+                </div>
               </div>
             </div>
-            <p
-              v-if="t.summary"
-              class="mt-1 line-clamp-2 text-[11px] text-muted-foreground"
-            >
-              {{ t.summary }}
-            </p>
-            <p class="mt-1 text-[10px] text-muted-foreground/80">
-              {{ tFmt(t.updated_at) }}
-            </p>
           </li>
         </ul>
-        <div
-          v-else
-          class="flex h-40 items-center justify-center"
-        >
-          <div class="text-center">
-            <GitBranch class="mx-auto size-8 text-muted-foreground/40" />
-            <p class="mt-2 text-[12px] text-muted-foreground">
-              {{ threadQuery ? '没有匹配的线索' : '暂无线索' }}
-            </p>
-            <p
-              v-if="!threadQuery"
-              class="mx-auto mt-1 max-w-[220px] text-[11px] text-muted-foreground/80"
-            >
-              点击右上角「重新聚类」让 LLM 把跨会话的主题归到一起。
-            </p>
-          </div>
+        <div v-else class="flex h-40 items-center justify-center px-4 text-center">
+          <p class="text-[11px] text-muted-foreground">
+            {{ historyFilter ? '没有匹配的历史' : '还没有搜索记录' }}
+          </p>
         </div>
       </div>
     </aside>
 
-    <!-- 中间分隔条：可拖动改变左侧宽度。用户反馈"线索的中间的竖线无法拖动 增加 宽度" -->
+    <!-- 拖动分隔条 -->
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="拖动改变线索列表宽度"
+      aria-label="拖动改变历史栏宽度"
       class="group relative w-1 shrink-0 cursor-col-resize select-none bg-transparent transition-colors hover:bg-primary/30"
       :data-dragging="isDragging"
       @pointerdown="onSeparatorPointerDown"
     >
-      <!-- 视觉上加一条细 hairline 在中间，hover/drag 时显眼一点 -->
       <span
         class="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/60 transition-colors group-hover:bg-primary/60 group-data-[dragging=true]:bg-primary"
       />
     </div>
 
-    <!-- 右：选中线索详情 + sessions -->
-    <section class="flex-1 min-w-0 overflow-y-auto">
-      <div
-        v-if="!selectedThread"
-        class="flex h-full items-center justify-center"
-      >
-        <div class="text-center text-muted-foreground">
-          <Sparkles class="mx-auto size-8 text-muted-foreground/40" />
-          <p class="mt-2 text-[12px]">从左侧选择一条线索查看命中会话</p>
+    <!-- 右：主搜索区 + 结果 -->
+    <section class="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <!-- 顶部：搜索栏（主操作） -->
+      <div class="border-b border-border/60 px-6 py-3">
+        <form class="flex items-center gap-2" @submit.prevent="onSearch">
+          <div class="relative flex-1">
+            <Wand2
+              class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              v-model="llmQuery"
+              class="h-11 pl-10 text-[14px]"
+              placeholder="输入主题、关键词或问题，让 LLM 从历史会话里挑出相关线索…"
+              :disabled="llmSearching"
+            />
+          </div>
+          <Button
+            type="submit"
+            :disabled="llmSearching || !llmQuery.trim()"
+            class="h-11 px-5"
+          >
+            <Loader2 v-if="llmSearching" class="size-4 animate-spin" />
+            <Wand2 v-else class="size-4" />
+            <span class="ml-1.5">检索</span>
+          </Button>
+          <!-- 全量聚类降为辅助，外观上去掉强调 -->
+          <Button
+            type="button"
+            variant="ghost"
+            :disabled="regenerating"
+            class="h-11 text-[12px] text-muted-foreground hover:text-foreground"
+            @click="onRegenerate"
+          >
+            <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
+            <RefreshCw v-else class="size-3.5" />
+            <span class="ml-1.5">全量聚类</span>
+          </Button>
+        </form>
+      </div>
+
+      <!-- 中间：结果区 / 空状态 hero -->
+      <div class="flex-1 overflow-y-auto">
+        <!-- 选中状态：展示当前线索的 sessions -->
+        <template v-if="selectedThread">
+          <header class="border-b border-border/60 px-6 py-4">
+            <div class="flex items-center gap-2">
+              <GitBranch class="size-4 text-muted-foreground" />
+              <h3 class="text-[15px] font-semibold">{{ selectedThread.name }}</h3>
+              <Badge variant="outline" class="tabular-nums text-[10px]">
+                {{ selectedThread.session_count }} 个会话
+              </Badge>
+            </div>
+            <p
+              v-if="selectedThread.summary"
+              class="mt-1.5 text-[12.5px] text-muted-foreground"
+            >
+              {{ selectedThread.summary }}
+            </p>
+          </header>
+
+          <div v-if="detailLoading" class="flex h-40 items-center justify-center">
+            <Loader2 class="size-4 animate-spin text-muted-foreground" />
+          </div>
+          <ul v-else-if="detailSessions.length">
+            <LibrarySessionListItem
+              v-for="row in detailSessions"
+              :key="row.id"
+              :session="rowToSession(row)"
+              group-key="month"
+              :active="false"
+              @open="openSession"
+            />
+          </ul>
+          <div v-else class="flex h-40 items-center justify-center">
+            <p class="text-[12px] text-muted-foreground">这条线索下暂无会话</p>
+          </div>
+        </template>
+
+        <!-- 未选中：搜索引擎风格的 hero -->
+        <div v-else class="flex h-full items-center justify-center px-6 py-12">
+          <div class="w-full max-w-lg text-center">
+            <div class="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles class="size-6 text-primary" />
+            </div>
+            <h3 class="mt-4 text-[16px] font-semibold">从主题开始检索</h3>
+            <p class="mx-auto mt-2 max-w-md text-[12.5px] text-muted-foreground">
+              输入一个关键词或问题，让本地 LLM 从你最近 80 个有摘要的会话里
+              挑出相关的，组成一条「线索」。每次检索都会保存到左侧搜索历史。
+            </p>
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <button
+                v-for="s in SUGGESTIONS"
+                :key="s"
+                type="button"
+                class="rounded-full border border-border/80 bg-background px-3 py-1 text-[11.5px] text-muted-foreground transition-colors hover:border-primary/60 hover:bg-primary/5 hover:text-foreground"
+                @click="applySuggestion(s)"
+              >
+                {{ s }}
+              </button>
+            </div>
+            <p class="mt-6 text-[11px] text-muted-foreground/70">
+              或者点上方<span class="font-medium text-foreground">全量聚类</span>让 LLM 自动归纳所有主题。
+            </p>
+          </div>
         </div>
       </div>
-      <template v-else>
-        <header class="border-b border-border/60 px-5 py-3.5">
-          <div class="flex items-center gap-2">
-            <GitBranch class="size-4 text-muted-foreground" />
-            <h3 class="text-[14px] font-semibold">{{ selectedThread.name }}</h3>
-            <Badge variant="outline" class="tabular-nums text-[10px]">
-              {{ selectedThread.session_count }} 个会话
-            </Badge>
-          </div>
-          <p
-            v-if="selectedThread.summary"
-            class="mt-1.5 text-[12px] text-muted-foreground"
-          >
-            {{ selectedThread.summary }}
-          </p>
-        </header>
-
-        <div v-if="detailLoading" class="flex h-40 items-center justify-center">
-          <Loader2 class="size-4 animate-spin text-muted-foreground" />
-        </div>
-        <ul v-else-if="detailSessions.length">
-          <LibrarySessionListItem
-            v-for="row in detailSessions"
-            :key="row.id"
-            :session="rowToSession(row)"
-            group-key="month"
-            :active="false"
-            @open="openSession"
-          />
-        </ul>
-        <div v-else class="flex h-40 items-center justify-center">
-          <p class="text-[12px] text-muted-foreground">这条线索下暂无会话</p>
-        </div>
-      </template>
     </section>
 
-    <!-- 删除确认。线索删除不影响下面的 session 本体，只断开 thread_sessions 关联，
-         所以风险低。但仍弹个确认避免误删。-->
+    <!-- 删除确认 -->
     <Dialog
       :open="deleteTarget !== null"
       @update:open="(v: boolean) => { if (!v) deleteTarget = null }"
     >
       <DialogContent class="w-[92vw] !max-w-md">
         <DialogHeader>
-          <DialogTitle>删除线索</DialogTitle>
+          <DialogTitle>删除搜索历史</DialogTitle>
           <DialogDescription>
-            将删除线索「{{ deleteTarget?.name }}」（包含
-            {{ deleteTarget?.session_count }} 个会话的关联）。
+            将删除「{{ deleteTarget?.name }}」（{{ deleteTarget?.session_count }} 个结果）。
             <br />
             <span class="text-muted-foreground">
-              这只会断开线索 ↔ 会话的关联，不会删除会话本身。下次"重新聚类"可能会再生成同名线索。
+              只是删除这次搜索的记录，不会删除会话本身。下次"重新聚类"可能会再生成同名线索。
             </span>
           </DialogDescription>
         </DialogHeader>
