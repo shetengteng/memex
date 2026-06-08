@@ -80,8 +80,9 @@ const rendered = computed(() => {
 }
 .markdown-body :deep(hr) {
   border: none;
-  border-top: 1px solid var(--color-border, #e2e8f0);
-  margin: 0.6em 0;
+  border-top: 1px dashed currentColor;
+  opacity: 0.25;
+  margin: 0.8em 0;
 }
 .markdown-body :deep(a) {
   color: var(--color-primary, #4f46e5);
