@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memex · 线索 (Threads) 重新设计原型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --bg: #fafaf9;
+        --surface: #ffffff;
+        --border: #e7e5e4;
+        --border-soft: #f1f0ee;
+        --fg: #1c1917;
+        --fg-mute: #78716c;
+        --fg-mute-2: #a8a29e;
+        --primary: #0f172a;
+        --primary-soft: #f5f5f4;
+        --accent: #fbbf24;
+      }
+      html,
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
+          'PingFang SC', 'Hiragino Sans GB', sans-serif;
+        font-feature-settings: 'tnum' on, 'cv11' on;
+        -webkit-font-smoothing: antialiased;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 1.4;
+        background: var(--primary-soft);
+        color: var(--fg-mute);
+        white-space: nowrap;
+      }
+      .chip-strong {
+        background: #f0fdf4;
+        color: #15803d;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+      }
+      .card:hover {
+        border-color: var(--fg);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        cursor: pointer;
+      }
+      .card[data-selected="true"] {
+        border-color: var(--fg);
+        box-shadow: 0 0 0 1px var(--fg);
+      }
+      .stat {
+        font-variant-numeric: tabular-nums;
+      }
+      .timeline-bar {
+        height: 4px;
+        background: var(--border-soft);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .timeline-bar > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #facc15, #f97316);
+      }
+      .scroll-y {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      .scroll-y::-webkit-scrollbar {
+        width: 6px;
+      }
+      .scroll-y::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部说明卡，仅原型用 -->
+    <div class="border-b border-stone-200 bg-amber-50">
+      <div class="mx-auto max-w-7xl px-6 py-2 text-[12px] text-amber-900">
+        <span class="font-medium">线索 (Threads) 设计原型 · v1</span>
+        <span class="mx-2 text-amber-700/60">|</span>
+        <span class="text-amber-800/80">
+          方向：卡片网格浏览（A） + 点击进详情侧栏（D 混合）。顶部主搜索 (S1) +
+          自动聚类开关 + 手动重新聚类。
+        </span>
+      </div>
+    </div>
+
+    <!-- 模拟 Library 顶栏 + tabs -->
+    <header class="border-b border-stone-200 bg-white">
+      <div class="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
+        <div class="text-[13px] font-semibold text-stone-900">Library</div>
+        <nav class="flex items-center gap-1 text-[12px]">
+          <span class="rounded-md px-2.5 py-1 text-stone-500 hover:text-stone-900">
+            会话
+          </span>
+          <span class="rounded-md px-2.5 py-1 text-stone-500 hover:text-stone-900">
+            项目
+          </span>
+          <span class="rounded-md bg-stone-900 px-2.5 py-1 font-medium text-white">
+            线索
+          </span>
+        </nav>
+      </div>
+    </header>
+
+    <!-- 主体 -->
+    <main class="mx-auto max-w-7xl px-6 py-5">
+      <!-- 顶部搜索栏 + 自动开关 + 全量聚类 -->
+      <section class="mb-4">
+        <div class="flex items-center gap-3">
+          <!-- 主搜索框 -->
+          <div class="relative flex-1">
+            <svg
+              class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h0M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5" />
+            </svg>
+            <input
+              type="text"
+              placeholder="输入主题、关键词或问题，让 LLM 从你的历史会话里挑出相关线索…"
+              class="h-11 w-full rounded-lg border border-stone-300 bg-white pl-11 pr-4 text-[14px] outline-none ring-stone-900/10 focus:border-stone-900 focus:ring-2"
+              value=""
+            />
+          </div>
+          <button
+            class="flex h-11 items-center gap-1.5 rounded-lg bg-stone-900 px-5 text-[13px] font-medium text-white hover:bg-stone-800"
+          >
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h0M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5" />
+            </svg>
+            检索
+          </button>
+        </div>
+
+        <!-- 第二行：筛选 + 自动开关 + 手动聚类 -->
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
+          <button class="flex items-center gap-1 rounded-full border border-stone-900 bg-stone-900 px-3 py-1 text-white">
+            全部 <span class="stat opacity-70">24</span>
+          </button>
+          <button class="flex items-center gap-1 rounded-full border border-stone-200 px-3 py-1 text-stone-700 hover:border-stone-400">
+            <svg class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            我标星 <span class="stat opacity-50">3</span>
+          </button>
+          <button class="flex items-center gap-1 rounded-full border border-stone-200 px-3 py-1 text-stone-700 hover:border-stone-400">
+            近 7 天 <span class="stat opacity-50">5</span>
+          </button>
+          <button class="flex items-center gap-1 rounded-full border border-stone-200 px-3 py-1 text-stone-700 hover:border-stone-400">
+            跨多项目 <span class="stat opacity-50">2</span>
+          </button>
+
+          <div class="ml-auto flex items-center gap-3">
+            <!-- 自动开关 -->
+            <label class="flex items-center gap-2 text-stone-600">
+              <span>自动聚类</span>
+              <span class="relative inline-block h-5 w-9 cursor-pointer rounded-full bg-stone-900">
+                <span class="absolute right-0.5 top-0.5 inline-block size-4 rounded-full bg-white transition-all"></span>
+              </span>
+            </label>
+            <span class="text-stone-300">|</span>
+            <!-- 手动聚类 -->
+            <button class="flex items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-stone-700 hover:border-stone-500 hover:bg-stone-50">
+              <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M3 21v-5h5" />
+              </svg>
+              全量聚类
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 卡片网格 -->
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <!-- 卡 1 - 选中态 -->
+        <article class="card p-4" data-selected="true">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-[14px] font-semibold leading-snug text-stone-900">
+              memex 项目问题排查与修复
+            </h3>
+            <button class="text-stone-300 hover:text-amber-500">
+              <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            </button>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-stone-500">
+            解决 memex 项目中各种技术问题：会话记录、context 注入、sessionStart hook、popup 桌面化、cursor 适配器。
+          </p>
+
+          <!-- 时间跨度 -->
+          <div class="mt-3 flex items-center gap-2 text-[10.5px] text-stone-500">
+            <span class="stat">6/4</span>
+            <div class="timeline-bar flex-1"><span style="width: 100%"></span></div>
+            <span class="stat font-medium text-stone-900">6/8</span>
+            <span class="ml-1 text-stone-400">· 5 天</span>
+          </div>
+
+          <!-- 项目 chips -->
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span class="chip">📁 memex</span>
+            <span class="chip">cursor · 6</span>
+            <span class="chip">claude_code · 2</span>
+          </div>
+
+          <!-- 关键决策预览 -->
+          <div class="mt-3 border-t border-stone-100 pt-3 text-[11.5px]">
+            <div class="text-stone-400">关键决策 · 3 条</div>
+            <div class="mt-1 flex items-start gap-1.5 text-stone-700">
+              <svg class="mt-0.5 size-3 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path d="m20 6-11 11-5-5" />
+              </svg>
+              <span class="line-clamp-1">用 partial index 修复 messages.timestamp 慢查询</span>
+            </div>
+          </div>
+
+          <!-- footer -->
+          <div class="mt-3 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span class="stat">8 个会话</span>
+            <span>by 自动聚类</span>
+          </div>
+        </article>
+
+        <!-- 卡 2 -->
+        <article class="card p-4">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-[14px] font-semibold leading-snug text-stone-900">
+              Tauri 多窗口与 desktop 化
+            </h3>
+            <button class="text-stone-300 hover:text-amber-500">
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            </button>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-stone-500">
+            把 popup 改造为 Tauri 桌面应用，处理 daemon 通信、menubar 集成、shadcn-vue 重构。
+          </p>
+
+          <div class="mt-3 flex items-center gap-2 text-[10.5px] text-stone-500">
+            <span class="stat">6/1</span>
+            <div class="timeline-bar flex-1"><span style="width: 75%"></span></div>
+            <span class="stat font-medium text-stone-900">6/7</span>
+            <span class="ml-1 text-stone-400">· 7 天</span>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span class="chip">📁 memex</span>
+            <span class="chip">cursor · 4</span>
+          </div>
+
+          <div class="mt-3 border-t border-stone-100 pt-3 text-[11.5px]">
+            <div class="text-stone-400">关键决策 · 5 条</div>
+            <div class="mt-1 flex items-start gap-1.5 text-stone-700">
+              <svg class="mt-0.5 size-3 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="line-clamp-1">daemon 作为唯一数据入口，menubar 通过 IPC 通信</span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span class="stat">4 个会话</span>
+            <span>by 自动聚类</span>
+          </div>
+        </article>
+
+        <!-- 卡 3 -->
+        <article class="card p-4">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-[14px] font-semibold leading-snug text-stone-900">
+              LLM 摘要与 Ollama 节流
+            </h3>
+            <button class="text-stone-300 hover:text-amber-500">
+              <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            </button>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-stone-500">
+            L1/L2/L3/L4 多层摘要架构，prompt 调优，Ollama 调用节流避免短时间打挂本地模型。
+          </p>
+
+          <div class="mt-3 flex items-center gap-2 text-[10.5px] text-stone-500">
+            <span class="stat">5/28</span>
+            <div class="timeline-bar flex-1"><span style="width: 95%"></span></div>
+            <span class="stat font-medium text-stone-900">6/8</span>
+            <span class="ml-1 text-stone-400">· 12 天</span>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span class="chip">📁 memex · 5</span>
+            <span class="chip chip-strong">🏷 关键词检索</span>
+          </div>
+
+          <div class="mt-3 border-t border-stone-100 pt-3 text-[11.5px]">
+            <div class="text-stone-400">关键决策 · 7 条</div>
+            <div class="mt-1 flex items-start gap-1.5 text-stone-700">
+              <svg class="mt-0.5 size-3 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="line-clamp-1">L1/L2 摘要后 sleep summarize_interval_ms 节流</span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span class="stat">5 个会话</span>
+            <span>by 手动检索「Ollama 节流」</span>
+          </div>
+        </article>
+
+        <!-- 卡 4 -->
+        <article class="card p-4">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-[14px] font-semibold leading-snug text-stone-900">
+              数据库 schema 演进与索引优化
+            </h3>
+            <button class="text-stone-300 hover:text-amber-500">
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            </button>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-stone-500">
+            schema v7 加 intent / v8 加 timestamp 索引 / v9 补 chunks 索引 / v10 加 threads 表。
+          </p>
+
+          <div class="mt-3 flex items-center gap-2 text-[10.5px] text-stone-500">
+            <span class="stat">5/30</span>
+            <div class="timeline-bar flex-1"><span style="width: 88%"></span></div>
+            <span class="stat font-medium text-stone-900">6/8</span>
+            <span class="ml-1 text-stone-400">· 10 天</span>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span class="chip">📁 memex</span>
+          </div>
+
+          <div class="mt-3 border-t border-stone-100 pt-3 text-[11.5px]">
+            <div class="text-stone-400">关键决策 · 4 条</div>
+            <div class="mt-1 flex items-start gap-1.5 text-stone-700">
+              <svg class="mt-0.5 size-3 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="line-clamp-1">用 partial index 优化 nullable 列</span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span class="stat">6 个会话</span>
+            <span>by 自动聚类</span>
+          </div>
+        </article>
+
+        <!-- 卡 5 -->
+        <article class="card p-4">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-[14px] font-semibold leading-snug text-stone-900">
+              promo 文案与项目宣传
+            </h3>
+            <button class="text-stone-300 hover:text-amber-500">
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+            </button>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-stone-500">
+            提取 promo 文案输出 md 文件，整理项目中英文简介。
+          </p>
+
+          <div class="mt-3 flex items-center gap-2 text-[10.5px] text-stone-500">
+            <span class="stat">6/2</span>
+            <div class="timeline-bar flex-1"><span style="width: 40%"></span></div>
+            <span class="stat font-medium text-stone-900">6/7</span>
+            <span class="ml-1 text-stone-400">· 5 天</span>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span class="chip">📁 tt-qimen</span>
+            <span class="chip">📁 memex</span>
+          </div>
+
+          <div class="mt-3 border-t border-stone-100 pt-3 text-[11.5px]">
+            <div class="text-stone-400">关键决策 · 1 条</div>
+            <div class="mt-1 flex items-start gap-1.5 text-stone-700">
+              <svg class="mt-0.5 size-3 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="line-clamp-1">中英文双版本并行维护</span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span class="stat">2 个会话</span>
+            <span>by 自动聚类</span>
+          </div>
+        </article>
+
+        <!-- 空卡：新建 -->
+        <article class="rounded-xl border border-dashed border-stone-300 p-4 hover:border-stone-500 hover:bg-stone-50 cursor-pointer flex flex-col items-center justify-center min-h-[220px] text-stone-400 hover:text-stone-600">
+          <svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <div class="mt-2 text-[12px]">关键词检索一个新主题</div>
+        </article>
+      </section>
+    </main>
+
+    <!-- 右侧 drawer 浮层（默认半隐藏，演示用） -->
+    <aside class="fixed inset-y-0 right-0 z-40 w-[420px] border-l border-stone-200 bg-white shadow-xl">
+      <header class="flex items-center justify-between border-b border-stone-200 px-5 py-3.5">
+        <div class="flex items-center gap-2">
+          <div class="text-[14px] font-semibold text-stone-900">memex 项目问题排查与修复</div>
+          <span class="chip chip-strong">8 个会话</span>
+        </div>
+        <button class="text-stone-400 hover:text-stone-900">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </header>
+
+      <div class="scroll-y h-[calc(100vh-49px)] overflow-y-auto px-5 py-4">
+        <!-- 摘要 -->
+        <section>
+          <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">主题摘要</h4>
+          <p class="mt-2 text-[12.5px] leading-relaxed text-stone-700">
+            解决 memex 项目中各种技术问题，包括会话记录、context 注入、sessionStart hook、
+            popup 桌面化、cursor 适配器等。涉及多个适配器（cursor、claude_code），
+            主线是把 popup 应用迁移为完整桌面应用。
+          </p>
+        </section>
+
+        <!-- 时间线 -->
+        <section class="mt-5">
+          <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">活跃时间</h4>
+          <div class="mt-2 flex items-center gap-2 text-[11.5px] text-stone-600">
+            <span class="stat">6/4 22:45</span>
+            <div class="timeline-bar flex-1"><span style="width: 100%"></span></div>
+            <span class="stat">6/8 19:47</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-[10.5px] text-stone-400">
+            <span>首次提及</span>
+            <span>共 5 天</span>
+            <span>最近活跃</span>
+          </div>
+        </section>
+
+        <!-- 关键决策 -->
+        <section class="mt-5">
+          <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+            关键决策 · 3 条
+          </h4>
+          <ul class="mt-2 space-y-2">
+            <li class="flex items-start gap-2 rounded-lg bg-emerald-50/50 p-2.5">
+              <svg class="mt-0.5 size-3.5 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="text-[12px] text-stone-700">用 partial index 修复 messages.timestamp 慢查询，提速 92×</span>
+            </li>
+            <li class="flex items-start gap-2 rounded-lg bg-emerald-50/50 p-2.5">
+              <svg class="mt-0.5 size-3.5 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="text-[12px] text-stone-700">SessionStart hook 注入 context 时过滤系统 prompt 噪音</span>
+            </li>
+            <li class="flex items-start gap-2 rounded-lg bg-emerald-50/50 p-2.5">
+              <svg class="mt-0.5 size-3.5 shrink-0 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m20 6-11 11-5-5" /></svg>
+              <span class="text-[12px] text-stone-700">用 LLM 摘要驱动跨会话主题聚类（L5）</span>
+            </li>
+          </ul>
+        </section>
+
+        <!-- 涉及项目 -->
+        <section class="mt-5">
+          <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">涉及项目</h4>
+          <div class="mt-2 space-y-1.5">
+            <div class="flex items-center gap-2 text-[12px]">
+              <span class="size-2 rounded-full bg-stone-900"></span>
+              <span class="flex-1 text-stone-700">memex</span>
+              <span class="stat text-stone-400">8</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 适配器分布 -->
+        <section class="mt-5">
+          <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">适配器</h4>
+          <div class="mt-2 flex h-2 overflow-hidden rounded-full bg-stone-100">
+            <span class="bg-stone-900" style="width: 75%"></span>
+            <span class="bg-amber-400" style="width: 25%"></span>
+          </div>
+          <div class="mt-2 flex justify-between text-[10.5px] text-stone-500">
+            <span><span class="mr-1 inline-block size-2 rounded-full bg-stone-900"></span>cursor · 6</span>
+            <span><span class="mr-1 inline-block size-2 rounded-full bg-amber-400"></span>claude_code · 2</span>
+          </div>
+        </section>
+
+        <!-- 会话列表 -->
+        <section class="mt-5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+              会话 · 按时间倒序
+            </h4>
+            <button class="text-[11px] text-stone-500 hover:text-stone-900">查看全部 →</button>
+          </div>
+          <ul class="mt-2 divide-y divide-stone-100 rounded-lg border border-stone-200">
+            <li class="cursor-pointer p-3 hover:bg-stone-50">
+              <div class="flex items-start justify-between gap-2">
+                <span class="line-clamp-1 text-[12.5px] font-medium text-stone-900">
+                  整理并记录 memex 项目中 popup 和 Today 页面的问题
+                </span>
+                <span class="stat text-[10.5px] text-stone-400">6/7 19:47</span>
+              </div>
+              <div class="mt-1 flex items-center gap-2 text-[10.5px] text-stone-400">
+                <span>cursor</span>
+                <span>·</span>
+                <span class="stat">1689 条消息</span>
+                <span>·</span>
+                <span class="stat">17h</span>
+              </div>
+            </li>
+            <li class="cursor-pointer p-3 hover:bg-stone-50">
+              <div class="flex items-start justify-between gap-2">
+                <span class="line-clamp-1 text-[12.5px] font-medium text-stone-900">
+                  分析和梳理 Memex 项目页面结构
+                </span>
+                <span class="stat text-[10.5px] text-stone-400">6/6 10:39</span>
+              </div>
+              <div class="mt-1 flex items-center gap-2 text-[10.5px] text-stone-400">
+                <span>cursor</span>
+                <span>·</span>
+                <span class="stat">218 条消息</span>
+                <span>·</span>
+                <span class="stat">66m</span>
+              </div>
+            </li>
+            <li class="cursor-pointer p-3 hover:bg-stone-50">
+              <div class="flex items-start justify-between gap-2">
+                <span class="line-clamp-1 text-[12.5px] font-medium text-stone-900">
+                  排查无效会话原因
+                </span>
+                <span class="stat text-[10.5px] text-stone-400">6/4 22:45</span>
+              </div>
+              <div class="mt-1 flex items-center gap-2 text-[10.5px] text-stone-400">
+                <span>cursor</span>
+                <span>·</span>
+                <span class="stat">99 条消息</span>
+                <span>·</span>
+                <span class="stat">1m</span>
+              </div>
+            </li>
+            <li class="cursor-pointer p-3 hover:bg-stone-50">
+              <div class="flex items-start justify-between gap-2">
+                <span class="line-clamp-1 text-[12.5px] font-medium text-stone-900">
+                  检查并实现数据重置功能
+                </span>
+                <span class="stat text-[10.5px] text-stone-400">6/4 16:21</span>
+              </div>
+              <div class="mt-1 flex items-center gap-2 text-[10.5px] text-stone-400">
+                <span>cursor</span>
+                <span>·</span>
+                <span class="stat">188 条消息</span>
+                <span>·</span>
+                <span class="stat">35m</span>
+              </div>
+            </li>
+            <li class="px-3 py-2 text-center text-[11px] text-stone-400">… 4 个更早会话</li>
+          </ul>
+        </section>
+
+        <!-- 底部操作 -->
+        <section class="mt-6 flex items-center gap-2">
+          <button class="flex-1 rounded-md border border-stone-300 bg-white px-3 py-2 text-[12px] text-stone-700 hover:border-stone-500 hover:bg-stone-50">
+            导出为 Markdown
+          </button>
+          <button class="rounded-md border border-red-200 bg-white px-3 py-2 text-[12px] text-red-600 hover:bg-red-50">
+            删除此主题
+          </button>
+        </section>
+      </div>
+    </aside>
+  </body>
+</html>
