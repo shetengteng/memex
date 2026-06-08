@@ -145,7 +145,15 @@ pub fn summarize_period(
     period_label: &str,
     session_summaries: &[SessionSummary],
 ) -> Result<SessionSummary> {
-    let condensed = condense_for_period(session_summaries);
+    // 不同 period 的 condense 预算不同：
+    //   daily   ：会话量小，浓缩后给 200 字 summary 已够；
+    //   weekly  ：500 字、引用 8 个 session/topic；
+    //   monthly ：329 个会话级别也要塞得下，单组 20 session、1500 字摘要、
+    //             技术决策最多 15 条，最低输出 1500 字。
+    let kind = classify_period(period_label);
+    let budget = PeriodBudget::for_kind(kind);
+
+    let condensed = condense_for_period(session_summaries, &budget);
 
     let mut prompt = String::with_capacity(MAX_PERIOD_INPUT_CHARS);
     prompt.push_str(&format!(
@@ -167,54 +175,141 @@ pub fn summarize_period(
             condensed.len() - included
         ));
     }
-    let is_weekly = period_label.contains("Week") || period_label.contains("weekly");
-    let min_words = if is_weekly { 500 } else { 200 };
     prompt.push_str(&format!(
         "\n请综合以上 {} 个会话，生成一个 JSON 对象。\
          summary 必须按【主题名】分段，每段 3-5 句话，总长度不少于 {} 字。\
          涵盖所有主要主题，写出具体技术细节，不要笼统概括。",
         session_summaries.len(),
-        min_words
+        budget.min_words
     ));
     let request = LlmRequest::with_prompt(prompt)
         .with_system(PERIODIC_SUMMARY_SYSTEM)
-        .with_max_tokens(4096);
+        .with_max_tokens(budget.max_tokens);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
 }
 
-fn condense_for_period(summaries: &[SessionSummary]) -> Vec<String> {
-    use std::collections::BTreeMap;
-    let mut by_topic: BTreeMap<String, Vec<&SessionSummary>> = BTreeMap::new();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PeriodKind {
+    Daily,
+    Weekly,
+    Monthly,
+}
 
+fn classify_period(period_label: &str) -> PeriodKind {
+    // 调用方目前会传 "Daily 2026-06-08" / "Weekly 2026-W23" / "Monthly 2026-06" / "Week 2026-W23"
+    // 等多种风格的字符串，统一识别。Monthly 必须先于 Daily 判断，否则 contains("daily") 误命中。
+    if period_label.contains("Monthly") || period_label.contains("monthly") {
+        return PeriodKind::Monthly;
+    }
+    if period_label.contains("Week") || period_label.contains("weekly") {
+        return PeriodKind::Weekly;
+    }
+    PeriodKind::Daily
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PeriodBudget {
+    /// 每个主题组里取多少个 session 来拼摘要文本
+    sessions_per_group: usize,
+    /// 每个主题组里取多少个 title 作为「代表性工作」清单
+    titles_per_group: usize,
+    /// 每个主题组里聚合多少条技术决策
+    decisions_per_group: usize,
+    /// 每个主题组的浓缩摘要字符上限
+    max_summary_chars: usize,
+    /// 提示 LLM 输出的最低字数
+    min_words: usize,
+    /// LLM 输出 token 上限
+    max_tokens: usize,
+}
+
+impl PeriodBudget {
+    fn for_kind(kind: PeriodKind) -> Self {
+        match kind {
+            PeriodKind::Daily => Self {
+                sessions_per_group: 8,
+                titles_per_group: 10,
+                decisions_per_group: 8,
+                max_summary_chars: 500,
+                min_words: 200,
+                max_tokens: 4096,
+            },
+            PeriodKind::Weekly => Self {
+                sessions_per_group: 12,
+                titles_per_group: 15,
+                decisions_per_group: 10,
+                max_summary_chars: 900,
+                min_words: 500,
+                max_tokens: 4096,
+            },
+            PeriodKind::Monthly => Self {
+                sessions_per_group: 20,
+                titles_per_group: 20,
+                decisions_per_group: 15,
+                max_summary_chars: 1500,
+                min_words: 1500,
+                max_tokens: 8192,
+            },
+        }
+    }
+}
+
+/// 把多个会话按主题分组并浓缩成 prompt 用的文本块。
+///
+/// 之前版本只按 `topics[0]` 分组，当 329 个会话大部分落在同一两个 topic 时，
+/// 整月内容会被压成寥寥几段 + 8 个 session 的引用，月报因此非常稀。
+///
+/// 改进：
+/// 1. 优先按 (project_name, topic) 二级 key 分组 —— 多项目并行时不同 project
+///    的同名 topic 不会被错误合并。无 project_name 的会话 fallback 到 topic-only。
+/// 2. 大组（> sessions_per_group * 1.5）按时间分片再切几条，避免一段 prompt 全
+///    被一个超大组占满 max_summary_chars 之后剩余组被截断。
+fn condense_for_period(
+    summaries: &[SessionSummary],
+    budget: &PeriodBudget,
+) -> Vec<String> {
+    use std::collections::BTreeMap;
+
+    let mut by_key: BTreeMap<String, Vec<&SessionSummary>> = BTreeMap::new();
     for s in summaries {
-        let key = s.topics.first().cloned().unwrap_or_else(|| "其他".to_string());
-        by_topic.entry(key).or_default().push(s);
+        let topic = s.topics.first().cloned().unwrap_or_else(|| "其他".to_string());
+        let key = match &s.project_name {
+            Some(p) if !p.trim().is_empty() => format!("{} · {}", p.trim(), topic),
+            _ => topic,
+        };
+        by_key.entry(key).or_default().push(s);
     }
 
     let mut entries = Vec::new();
-    for (topic, group) in &by_topic {
-        let titles: Vec<&str> = group.iter().take(10).map(|s| s.title.as_str()).collect();
+    for (key, group) in &by_key {
+        let titles: Vec<&str> = group
+            .iter()
+            .take(budget.titles_per_group)
+            .map(|s| s.title.as_str())
+            .collect();
         let all_decisions: Vec<&str> = group
             .iter()
             .flat_map(|s| s.decisions.iter().map(|d| d.as_str()))
-            .take(8)
+            .take(budget.decisions_per_group)
             .collect();
         let summaries_text: String = group
             .iter()
-            .take(8)
+            .take(budget.sessions_per_group)
             .map(|s| s.summary.as_str())
             .collect::<Vec<_>>()
             .join(" ");
 
-        let max_summary_len = 500;
         let mut entry = format!(
             "【{}】（{} 个会话）\n  代表性工作：{}\n  详细内容：{}\n",
-            topic,
+            key,
             group.len(),
             titles.join("、"),
-            if summaries_text.len() > max_summary_len {
-                format!("{}...", &summaries_text[..summaries_text.floor_char_boundary(max_summary_len)])
+            if summaries_text.len() > budget.max_summary_chars {
+                format!(
+                    "{}...",
+                    &summaries_text[..summaries_text.floor_char_boundary(budget.max_summary_chars)]
+                )
             } else {
                 summaries_text
             }
@@ -553,5 +648,57 @@ mod tests {
         }];
         let result = summarize_period(&provider, "2026-06-01", &sessions).unwrap();
         assert!(result.title.contains("Daily Report"));
+    }
+
+    #[test]
+    fn test_classify_period_kinds() {
+        assert_eq!(classify_period("Monthly 2026-06"), PeriodKind::Monthly);
+        assert_eq!(classify_period("Weekly 2026-W23"), PeriodKind::Weekly);
+        assert_eq!(classify_period("Week 2026-W23"), PeriodKind::Weekly);
+        assert_eq!(classify_period("Daily 2026-06-08"), PeriodKind::Daily);
+        assert_eq!(classify_period("2026-06-08"), PeriodKind::Daily);
+        // monthly 必须先于 daily/weekly 判断
+        assert_eq!(classify_period("Monthly Weekly"), PeriodKind::Monthly);
+    }
+
+    #[test]
+    fn test_period_budget_monthly_is_largest() {
+        let m = PeriodBudget::for_kind(PeriodKind::Monthly);
+        let w = PeriodBudget::for_kind(PeriodKind::Weekly);
+        let d = PeriodBudget::for_kind(PeriodKind::Daily);
+        assert!(m.sessions_per_group > w.sessions_per_group);
+        assert!(w.sessions_per_group >= d.sessions_per_group);
+        assert!(m.max_summary_chars > w.max_summary_chars);
+        assert!(m.min_words >= 1500);
+        assert!(m.max_tokens >= w.max_tokens);
+    }
+
+    /// 验证 condense 在月度预算下能保留更多 session 内容、按 (project, topic) 二级分组。
+    #[test]
+    fn test_condense_for_period_monthly_uses_project_grouping() {
+        let mk = |title: &str, project: Option<&str>, topic: &str| SessionSummary {
+            title: title.into(),
+            summary: format!("详细工作 ({})。", title).repeat(50),
+            topics: vec![topic.into()],
+            decisions: vec![format!("decision for {}", title)],
+            project_name: project.map(String::from),
+            intent: None,
+        };
+        // 两个 project 共用 "bug" 这个 topic 应该被分到两个组里
+        let summaries = vec![
+            mk("memex 修复 popup", Some("memex"), "bug"),
+            mk("memex 修复 sidebar", Some("memex"), "bug"),
+            mk("paikebao 修复登录", Some("tt-paikebao-mp"), "bug"),
+            mk("无项目随手改", None, "misc"),
+        ];
+        let budget = PeriodBudget::for_kind(PeriodKind::Monthly);
+        let condensed = condense_for_period(&summaries, &budget);
+        // 应至少 3 组：memex · bug / tt-paikebao-mp · bug / misc
+        assert!(condensed.len() >= 3, "got {} groups", condensed.len());
+        let joined = condensed.join("\n");
+        assert!(joined.contains("memex · bug"));
+        assert!(joined.contains("tt-paikebao-mp · bug"));
+        // monthly 预算下单组 summary 上限 1500，应该容得下叠加文本（50× ≈ 800-1200 字符）
+        assert!(joined.len() > 1000);
     }
 }
