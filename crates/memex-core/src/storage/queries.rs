@@ -390,31 +390,91 @@ impl Db {
             .filter_map(|r| r.ok())
             .collect();
 
-        // 1) 热力图：168 桶（weekday × hour），按 sessions 计数
+        // 1) 热力图：168 桶（weekday × hour）。
         //    SQLite 的 strftime('%w') 返回 0=Sunday..6=Saturday，
         //    转成 ISO 风格 0=Mon..6=Sun 需要 (w + 6) % 7。
-        let mut heat_stmt = conn.prepare(
+        //
+        //    分桶口径有"两条数据通路"：
+        //    A) 有 messages.timestamp 的 adapter（claude_code / codex / opencode）
+        //       按真实 message 时间分桶 —— 同一个跨多小时的会话能正确摊开。
+        //    B) 没有 messages.timestamp 的 adapter（cursor / continue）
+        //       退化用 session.updated_at（last activity）分桶 —— 整个 session 落在
+        //       它最后一次活动的那个小时桶里，这是数据源限制下能做到的最佳粗粒度。
+        //    sessions 字段 = distinct session 数；messages 字段 = 该桶 message 数。
+        //    两条通路按 (weekday, hour) 求和合并，最后整理成 168 桶数组。
+        use std::collections::BTreeMap;
+        let mut bucket: BTreeMap<(u8, u8), (i64, i64)> = BTreeMap::new();
+
+        // A) 有 timestamp 的 messages：sessions = COUNT(DISTINCT session_id)，messages = COUNT(*)
+        let mut msg_stmt = conn.prepare(
             "SELECT
-                (CAST(strftime('%w', updated_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
-                CAST(strftime('%H', updated_at, 'localtime') AS INTEGER) AS hour,
-                COUNT(*) as sessions,
-                COALESCE(SUM(message_count), 0) as msgs
-             FROM sessions
-             WHERE updated_at >= DATE('now', 'localtime', ?1)
+                (CAST(strftime('%w', m.timestamp, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
+                CAST(strftime('%H', m.timestamp, 'localtime') AS INTEGER) AS hour,
+                COUNT(DISTINCT m.session_id) AS sessions,
+                COUNT(*) AS msgs
+             FROM messages m
+             JOIN sessions s ON s.id = m.session_id
+             WHERE m.timestamp IS NOT NULL
+               AND m.timestamp >= DATE('now', 'localtime', ?1)
              GROUP BY weekday, hour",
         )?;
-        let heat_rows: Vec<WorkloadHeatmapCell> = heat_stmt
+        for row in msg_stmt
             .query_map(params![offset.clone()], |row| {
                 let w: i64 = row.get(0)?;
                 let h: i64 = row.get(1)?;
-                Ok(WorkloadHeatmapCell {
-                    weekday: w.clamp(0, 6) as u8,
-                    hour: h.clamp(0, 23) as u8,
-                    sessions: row.get(2)?,
-                    messages: row.get(3)?,
-                })
+                let s: i64 = row.get(2)?;
+                let m: i64 = row.get(3)?;
+                Ok((w.clamp(0, 6) as u8, h.clamp(0, 23) as u8, s, m))
             })?
             .filter_map(|r| r.ok())
+        {
+            let (w, h, s, m) = row;
+            let e = bucket.entry((w, h)).or_insert((0, 0));
+            e.0 += s;
+            e.1 += m;
+        }
+
+        // B) 退化路径：session 表里所有 message timestamp 都为 null 的 session，
+        //    按 session.updated_at 分到一个桶里（message_count 走 session.message_count）。
+        //    用 NOT EXISTS 取代 GROUP BY HAVING，让 SQLite 走 covering index 更快。
+        let mut sess_stmt = conn.prepare(
+            "SELECT
+                (CAST(strftime('%w', s.updated_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
+                CAST(strftime('%H', s.updated_at, 'localtime') AS INTEGER) AS hour,
+                COUNT(*) AS sessions,
+                COALESCE(SUM(s.message_count), 0) AS msgs
+             FROM sessions s
+             WHERE s.updated_at >= DATE('now', 'localtime', ?1)
+               AND NOT EXISTS (
+                   SELECT 1 FROM messages m
+                   WHERE m.session_id = s.id AND m.timestamp IS NOT NULL
+               )
+             GROUP BY weekday, hour",
+        )?;
+        for row in sess_stmt
+            .query_map(params![offset.clone()], |row| {
+                let w: i64 = row.get(0)?;
+                let h: i64 = row.get(1)?;
+                let s: i64 = row.get(2)?;
+                let m: i64 = row.get(3)?;
+                Ok((w.clamp(0, 6) as u8, h.clamp(0, 23) as u8, s, m))
+            })?
+            .filter_map(|r| r.ok())
+        {
+            let (w, h, s, m) = row;
+            let e = bucket.entry((w, h)).or_insert((0, 0));
+            e.0 += s;
+            e.1 += m;
+        }
+
+        let heat_rows: Vec<WorkloadHeatmapCell> = bucket
+            .into_iter()
+            .map(|((weekday, hour), (sessions, messages))| WorkloadHeatmapCell {
+                weekday,
+                hour,
+                sessions,
+                messages,
+            })
             .collect();
 
         // 2) 按 adapter 聚合
@@ -677,5 +737,115 @@ mod tests {
         ws_seed_session(&db, "old", "cursor", Some("/old"), &old, 1);
         let r = db.workload_report(30).unwrap();
         assert_eq!(r.overall.sessions, 0);
+    }
+
+    /// 验证 heatmap 的双通路口径：
+    ///   有 messages.timestamp 的 session 走 message 维度分桶，
+    ///   没 timestamp 的 session 退化用 session.updated_at。
+    /// 关键断言：一个跨多小时的会话，message 通路里能摊到多个 hour 桶，
+    /// 而 session 通路下永远只在 last_updated_at 的桶里出现一次。
+    #[test]
+    fn test_workload_heatmap_messages_vs_session_fallback() {
+        let db = Db::open_in_memory().unwrap();
+        // 同一天，三个 session：
+        //   s1 claude_code 9 点和 13 点各 1 条 message（有 timestamp）
+        //   s2 cursor     全无 timestamp，session.updated_at 15 点
+        //   s3 codex      11 点 1 条 message（有 timestamp）
+        let today_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+        ws_seed_session(
+            &db,
+            "s1",
+            "claude_code",
+            Some("/a"),
+            &format!("{today_local}T13:30:00+00:00"),
+            2,
+        );
+        ws_seed_session(
+            &db,
+            "s2",
+            "cursor",
+            Some("/a"),
+            &format!("{today_local}T15:00:00+00:00"),
+            7,
+        );
+        ws_seed_session(
+            &db,
+            "s3",
+            "codex",
+            Some("/b"),
+            &format!("{today_local}T11:00:00+00:00"),
+            1,
+        );
+
+        // 给 s1 / s3 插带 timestamp 的 message，s2 不插（模拟 cursor 没 timestamp）
+        let conn = db.conn.lock().unwrap();
+        for (mid, sid, ts) in [
+            ("m1", "s1", format!("{today_local}T09:00:00+00:00")),
+            ("m2", "s1", format!("{today_local}T13:00:00+00:00")),
+            ("m3", "s3", format!("{today_local}T11:00:00+00:00")),
+        ] {
+            conn.execute(
+                "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+                 VALUES (?1, ?2, 'user', 'x', ?3, 0, ?1)",
+                params![mid, sid, ts],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let r = db.workload_report(2).unwrap();
+
+        // 把 heatmap 拍平到 hour，按 UTC 计算（测试在不同时区跑会浮动）。
+        // 我们仅断言总和：3 条带 timestamp 的 message → message 通路出 3 桶（9/11/13），
+        // 1 个无 timestamp 的 cursor session → fallback 通路出 1 桶（15）。
+        let total_msgs: i64 = r.heatmap.iter().map(|c| c.messages).sum();
+        // 来源：message 通路 3 条 + cursor session 通路用 message_count=7 → 共 10
+        assert_eq!(total_msgs, 10, "messages aggregate across both paths");
+
+        // sessions 聚合是按 (weekday, hour) 桶后再求和，跨多小时的 session 在每个桶里
+        // 都贡献 1：
+        //   s1 命中 9 / 13 两桶 = 2
+        //   s3 命中 11 桶 = 1
+        //   s2 fallback 命中 15 桶 = 1
+        //   合计 = 4
+        // 这是符合"按时间段看活动"语义的预期，而不是 distinct session 总数。
+        let total_sessions: i64 = r.heatmap.iter().map(|c| c.sessions).sum();
+        assert_eq!(total_sessions, 4);
+
+        // 4 个不同的 hour 桶（9/11/13 + 15）。
+        let distinct_hours: std::collections::HashSet<u8> =
+            r.heatmap.iter().map(|c| c.hour).collect();
+        assert_eq!(distinct_hours.len(), 4, "expected 4 distinct hour buckets, got {:?}", distinct_hours);
+    }
+
+    /// session 表里所有 message 都有 timestamp 时，session.updated_at fallback 不应
+    /// 再被算一次（避免 double-count）。
+    #[test]
+    fn test_workload_heatmap_no_double_count_when_messages_have_ts() {
+        let db = Db::open_in_memory().unwrap();
+        let today_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+        ws_seed_session(
+            &db,
+            "s1",
+            "claude_code",
+            Some("/a"),
+            &format!("{today_local}T13:00:00+00:00"),
+            // 故意把 session.message_count 设成 99 —— 如果 fallback 误触发就会被加上
+            99,
+        );
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+             VALUES ('m1', 's1', 'user', 'x', ?1, 0, 'h1')",
+            params![format!("{today_local}T13:00:00+00:00")],
+        )
+        .unwrap();
+        drop(conn);
+
+        let r = db.workload_report(2).unwrap();
+        let total_msgs: i64 = r.heatmap.iter().map(|c| c.messages).sum();
+        assert_eq!(total_msgs, 1, "must NOT include session.message_count=99 fallback");
+        let total_sessions: i64 = r.heatmap.iter().map(|c| c.sessions).sum();
+        assert_eq!(total_sessions, 1);
     }
 }

@@ -16,7 +16,8 @@ import type { WorkloadReport } from '@/types'
 interface BarStyle {
   height: string
   background: string
-  count: number
+  sessions: number
+  messages: number
   hour: string
   isPeak: boolean
 }
@@ -31,34 +32,43 @@ function todayWeekday(): number {
   return js === 0 ? 6 : js - 1
 }
 
-// 把后端 heatmap 中今天这一行 24 列抽成 hourlyBars
-const hourlyBars = computed<number[]>(() => {
-  if (!workload.value) return Array(24).fill(0)
+// 把后端 heatmap 中今天这一行 24 列抽成 hourly buckets (sessions + messages)
+interface HourBucket { sessions: number; messages: number }
+const hourlyBuckets = computed<HourBucket[]>(() => {
+  const out: HourBucket[] = Array.from({ length: 24 }, () => ({ sessions: 0, messages: 0 }))
+  if (!workload.value) return out
   const wd = todayWeekday()
-  const out = Array(24).fill(0)
   for (const cell of workload.value.heatmap) {
-    if (cell.weekday === wd) out[cell.hour] = cell.sessions
+    if (cell.weekday === wd) {
+      out[cell.hour] = { sessions: cell.sessions, messages: cell.messages }
+    }
   }
   return out
 })
 
-const maxBar = computed(() => Math.max(...hourlyBars.value, 1))
-const peakHour = computed(() => hourlyBars.value.indexOf(maxBar.value))
+// 柱高用 messages 主导（粒度更细），sessions 仅在 cursor-only fallback 桶里能反映活动
+const hourlyHeight = computed<number[]>(() =>
+  hourlyBuckets.value.map((b) => (b.messages > 0 ? b.messages : b.sessions)),
+)
+const maxBar = computed(() => Math.max(...hourlyHeight.value, 1))
+const peakHour = computed(() => hourlyHeight.value.indexOf(maxBar.value))
 
 const bars = computed<BarStyle[]>(() =>
-  hourlyBars.value.map((v, idx) => {
+  hourlyBuckets.value.map((b, idx) => {
+    const v = hourlyHeight.value[idx]
     const ratio = v / maxBar.value
     const hour = `${String(idx).padStart(2, '0')}:00`
     const isPeak = idx === peakHour.value && v > 0
     if (v === 0)
-      return { height: '8%', background: 'var(--muted)', count: 0, hour, isPeak: false }
+      return { height: '8%', background: 'var(--muted)', sessions: 0, messages: 0, hour, isPeak: false }
     if (isPeak)
-      return { height: '100%', background: 'var(--primary)', count: v, hour, isPeak: true }
+      return { height: '100%', background: 'var(--primary)', sessions: b.sessions, messages: b.messages, hour, isPeak: true }
     const opacity = 0.25 + ratio * 0.6
     return {
       height: `${Math.max(12, ratio * 95)}%`,
       background: `color-mix(in oklab, var(--foreground) ${opacity * 100}%, transparent)`,
-      count: v,
+      sessions: b.sessions,
+      messages: b.messages,
       hour,
       isPeak: false,
     }
@@ -168,7 +178,7 @@ onBeforeUnmount(() => {
                 >峰值</span>
               </div>
               <div class="mt-0.5 tabular-nums text-muted-foreground">
-                {{ b.count }} 个会话
+                {{ b.sessions }} 会话 · {{ b.messages }} 消息
               </div>
             </div>
           </TooltipContent>
