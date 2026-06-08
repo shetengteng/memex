@@ -274,34 +274,64 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
-    <!-- 顶部主搜索栏 + 自动开关 + 手动聚类 -->
-    <section class="border-b border-border/60 px-6 py-4">
-      <form class="flex items-center gap-2" @submit.prevent="onSearch">
-        <div class="relative flex-1">
-          <Wand2
-            class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            id="threads-search-input"
-            v-model="llmQuery"
-            class="h-11 pl-10 text-[14px]"
-            placeholder="输入主题、关键词或问题，让 LLM 从你的历史会话里挑出相关线索…"
-            :disabled="llmSearching"
-          />
-        </div>
-        <Button
-          type="submit"
-          :disabled="llmSearching || !llmQuery.trim()"
-          class="h-11 px-5"
-        >
-          <Loader2 v-if="llmSearching" class="size-4 animate-spin" />
-          <Wand2 v-else class="size-4" />
-          <span class="ml-1.5">检索</span>
-        </Button>
-      </form>
+    <!-- 顶部：搜索 + 控制（左右布局，一行装下） -->
+    <section class="border-b border-border/60 px-6 py-3">
+      <div class="flex items-center gap-3">
+        <!-- 主搜索 -->
+        <form class="flex flex-1 items-center gap-2" @submit.prevent="onSearch">
+          <div class="relative flex-1">
+            <Wand2
+              class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              id="threads-search-input"
+              v-model="llmQuery"
+              class="h-9 pl-9 text-[13px]"
+              placeholder="输入主题、关键词或问题，让 LLM 从历史会话里挑出相关线索…"
+              :disabled="llmSearching"
+            />
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            :disabled="llmSearching || !llmQuery.trim()"
+            class="h-9"
+          >
+            <Loader2 v-if="llmSearching" class="size-3.5 animate-spin" />
+            <Wand2 v-else class="size-3.5" />
+            <span class="ml-1.5">检索</span>
+          </Button>
+        </form>
 
-      <!-- 第二行：筛选 + 自动开关 + 手动聚类 -->
-      <div class="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
+        <Separator orientation="vertical" class="h-6" />
+
+        <!-- 控制：自动聚类 + 全量聚类（与搜索同行） -->
+        <div class="flex shrink-0 items-center gap-3 text-[12px]">
+          <label class="flex cursor-pointer items-center gap-2 text-muted-foreground">
+            <span>自动聚类</span>
+            <Switch
+              :model-value="autoCluster"
+              size="sm"
+              @update:model-value="onAutoClusterChange"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="regenerating"
+            class="h-9"
+            @click="onRegenerate"
+          >
+            <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
+            <RefreshCw v-else class="size-3.5" />
+            <span class="ml-1.5">全量聚类</span>
+          </Button>
+        </div>
+      </div>
+
+      <!-- 第二行：仅筛选 chips -->
+      <div class="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
         <Badge
           :variant="filter === 'all' ? 'default' : 'outline'"
           class="cursor-pointer rounded-full px-3 py-1 text-[12px]"
@@ -326,30 +356,6 @@ onMounted(async () => {
           近 7 天
           <span class="ml-1 tabular-nums opacity-70">{{ filterCounts.recent_7d }}</span>
         </Badge>
-
-        <div class="ml-auto flex items-center gap-3">
-          <label class="flex cursor-pointer items-center gap-2 text-muted-foreground">
-            <span>自动聚类</span>
-            <Switch
-              :model-value="autoCluster"
-              size="sm"
-              @update:model-value="onAutoClusterChange"
-            />
-          </label>
-          <Separator orientation="vertical" class="h-4" />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            :disabled="regenerating"
-            class="h-8"
-            @click="onRegenerate"
-          >
-            <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
-            <RefreshCw v-else class="size-3.5" />
-            <span class="ml-1.5">全量聚类</span>
-          </Button>
-        </div>
       </div>
     </section>
 
