@@ -4,6 +4,7 @@ pub mod openai_compat;
 pub mod provider;
 pub mod reflect;
 pub mod summarize;
+pub mod threads;
 
 use std::path::Path;
 

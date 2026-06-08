@@ -15,6 +15,7 @@ mod reports;
 mod search;
 mod sessions;
 mod stats;
+mod threads;
 mod update;
 
 pub use backup::*;
@@ -34,4 +35,5 @@ pub use reports::*;
 pub use search::*;
 pub use sessions::*;
 pub use stats::*;
+pub use threads::*;
 pub use update::*;

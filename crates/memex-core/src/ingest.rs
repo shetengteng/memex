@@ -759,6 +759,73 @@ fn ingest_message_batch(
     Ok((msg_count, chunk_count, max_offset))
 }
 
+/// L5「主题线索」聚类：手动触发。
+///
+/// 从最近的 80 个有 L2 摘要的 session 出发，喂给 LLM 让它聚类成 thread。
+/// 没有可用 LLM 时退回到按 topic 分桶的 fallback —— 保证 UI 一定有内容看。
+///
+/// 返回成功落库的 thread 数。
+///
+/// 注意：此函数**不进入 try_summarize_new_sessions** 自动链路。
+/// 聚类一次涉及一个大 prompt（80 条摘要 × 200 字 ≈ 16k token 输入），
+/// 自动触发会让本地 Ollama 在每次 ingest 完成时都跑一遍，得不偿失。
+/// 用户在 Library / 设置里手动点击「重新聚类」时触发。
+pub fn regenerate_threads(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+) -> anyhow::Result<usize> {
+    // 1) 取最近 80 个 session 的 L2 摘要
+    let sessions = db.list_sessions_paged(80, 0)?;
+    if sessions.is_empty() {
+        return Ok(0);
+    }
+
+    let mut batch = Vec::with_capacity(sessions.len());
+    for s in &sessions {
+        let row = match db.get_summary(&s.id, "L2_session") {
+            Ok(Some(r)) => r,
+            _ => continue,
+        };
+        batch.push((
+            s.id.clone(),
+            summarize::SessionSummary {
+                title: row.title.unwrap_or_default(),
+                summary: row.summary,
+                topics: row.topics,
+                decisions: row.decisions,
+                project_name: None,
+                intent: None,
+            },
+        ));
+    }
+    if batch.is_empty() {
+        return Ok(0);
+    }
+
+    // 2) LLM 聚类；失败用 fallback
+    let drafts = match crate::llm::threads::cluster_threads(provider, &batch) {
+        Ok(d) if !d.is_empty() => d,
+        Ok(_) => {
+            warn!("L5 LLM 聚类返回 0 个 thread，使用 fallback");
+            crate::llm::threads::fallback_cluster(&batch)
+        }
+        Err(e) => {
+            warn!("L5 LLM 聚类失败，使用 fallback: {}", e);
+            crate::llm::threads::fallback_cluster(&batch)
+        }
+    };
+
+    // 3) 落库（upsert：同名 thread 会覆盖 link，避免漂移）
+    let mut ok = 0usize;
+    for d in &drafts {
+        match db.upsert_thread_with_sessions(d) {
+            Ok(_) => ok += 1,
+            Err(e) => warn!("upsert thread '{}' failed: {}", d.name, e),
+        }
+    }
+    Ok(ok)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
