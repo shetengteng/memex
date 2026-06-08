@@ -58,9 +58,19 @@ const tFmt = (iso: string) => {
 </script>
 
 <template>
-  <CommandDialog v-model:open="palette.isOpen.value">
+  <!--
+    Width: 默认 shadcn-vue DialogContent 是 sm:max-w-sm（~384px），命令面板里
+    "项目名 · 适配器 · 时间"一行经常被截，所以同 Library/Reflection dialog 一样
+    用 `!max-w-2xl` 拉到 ~672px，移动端用 w-[92vw] 兜底。
+    Height: CommandList 默认 max-h-72（288px）也太矮，几条记录就要滚动；
+    用 max-h-[60vh] 让它随窗口高度自适应。
+  -->
+  <CommandDialog
+    v-model:open="palette.isOpen.value"
+    class="w-[92vw] !max-w-2xl"
+  >
     <CommandInput placeholder="搜索任何东西…" />
-    <CommandList>
+    <CommandList class="!max-h-[60vh]">
       <CommandEmpty>没有匹配的结果</CommandEmpty>
 
       <CommandGroup heading="搜索结果">
