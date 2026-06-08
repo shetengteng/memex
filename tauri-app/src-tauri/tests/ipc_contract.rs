@@ -87,11 +87,12 @@ fn summary_progress_contract() {
         session_id: "sess-001".into(),
         success: true,
         done: false,
+        aborted: false,
     })
     .unwrap();
     assert_object_keys(
         &v,
-        &["current", "total", "session_id", "success", "done"],
+        &["current", "total", "session_id", "success", "done", "aborted"],
     );
 }
 
