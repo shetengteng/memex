@@ -39,6 +39,9 @@ export function useThreadsView() {
   const selectedThread = ref<ThreadRow | null>(null)
   const detailSessions = ref<SessionRow[]>([])
   const detailLoading = ref(false)
+  // 点会话打开 Drawer 时把 Sheet 暂时收起来（不销毁状态），关 Drawer 再恢复，
+  // 避免 Sheet + Drawer 两个 Dialog backdrop 叠加成「弹框嵌在抽屉里」的观感。
+  const sheetHiddenForDrawer = ref(false)
 
   // ── 删除二次确认 ────────────────────────────────────────
   const deleteTarget = ref<ThreadRow | null>(null)
@@ -67,11 +70,24 @@ export function useThreadsView() {
   })
 
   const sheetOpen = computed({
-    get: () => selectedThread.value !== null,
+    get: () => selectedThread.value !== null && !sheetHiddenForDrawer.value,
     set: (v: boolean) => {
-      if (!v) selectedThread.value = null
+      // 用户手动关 Sheet（按 ESC / 点 overlay）→ 真正关闭：清状态
+      if (!v) {
+        selectedThread.value = null
+        detailSessions.value = []
+        sheetHiddenForDrawer.value = false
+      }
     },
   })
+
+  function hideSheetForDrawer() {
+    sheetHiddenForDrawer.value = true
+  }
+
+  function restoreSheetFromDrawer() {
+    sheetHiddenForDrawer.value = false
+  }
 
   // ── actions ─────────────────────────────────────────────
   function setAutoCluster(v: boolean) {
@@ -190,6 +206,7 @@ export function useThreadsView() {
     deleteTarget,
     deleting,
     sheetOpen,
+    sheetHiddenForDrawer,
     // derived
     filterCounts,
     filteredThreads,
@@ -204,6 +221,8 @@ export function useThreadsView() {
     confirmDelete,
     cancelDelete,
     focusSearch,
+    hideSheetForDrawer,
+    restoreSheetFromDrawer,
   }
 }
 

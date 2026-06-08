@@ -14,6 +14,7 @@
  * Separator / Dialog；外层滚动用 `flex-1 min-h-0 overflow-y-auto` 避免 ScrollArea
  * 在 flex 链中失效。
  */
+import { watch } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import ThreadsToolbar from './threads/ThreadsToolbar.vue'
 import ThreadCard from './threads/ThreadCard.vue'
@@ -24,15 +25,29 @@ import { useThreadsView } from '../composables/useThreadsView'
 import { rowToSession, type Session } from '@/stores/memex'
 import type { SessionRow, ThreadRow } from '@/types'
 
+const props = defineProps<{ drawerOpen?: boolean }>()
 const emit = defineEmits<{ open: [Session] }>()
 
 const view = useThreadsView()
 
+// Sheet 与 LibrarySessionDrawer 都是 portal 到 body 的 Dialog 实例，同时显示
+// 视觉上会变成「弹框嵌在抽屉里」。改为协同切换：
+//   - 点会话条目 → 先把 Sheet 收起来（保留 selectedThread / detailSessions 状态）
+//     再 emit open，让父打开 Drawer
+//   - 监听 props.drawerOpen 由 true → false（用户关了 Drawer）→ 自动恢复 Sheet
 function onOpenSession(row: SessionRow) {
-  // 不关 Sheet：Drawer 是另一个 Dialog 实例，会自然 portal 到 body 顶层叠加在
-  // Sheet 之上。关掉 Drawer 后用户仍能继续在 Sheet 里点别的会话，不丢失上下文。
+  view.hideSheetForDrawer()
   emit('open', rowToSession(row))
 }
+
+watch(
+  () => props.drawerOpen,
+  (now, prev) => {
+    if (prev && !now && view.sheetHiddenForDrawer.value) {
+      view.restoreSheetFromDrawer()
+    }
+  },
+)
 
 function onDeleteFromCard(t: ThreadRow, e: MouseEvent) {
   view.requestDelete(t, e)

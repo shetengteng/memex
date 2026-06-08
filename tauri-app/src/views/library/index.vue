@@ -486,7 +486,11 @@ onBeforeUnmount(() => {
 
         <LibraryProjectsGrid v-else-if="tab === 'projects'" @open="openProject" />
 
-        <LibraryThreadsTab v-else @open="openSession" />
+        <LibraryThreadsTab
+          v-else
+          :drawer-open="drawerOpen"
+          @open="openSession"
+        />
       </section>
     </div>
 

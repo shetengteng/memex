@@ -135,4 +135,33 @@ describe('useThreadsView', () => {
     expect(view.llmQuery.value).toBe('')
     expect(view.selectedThread.value?.id).toBe(7)
   })
+
+  it('hide/restoreSheetForDrawer keeps selection alive while toggling visibility', () => {
+    const t = mkThread({ id: 11 })
+    mockState.threads = [t]
+    const view = useThreadsView()
+    view.selectedThread.value = t
+    expect(view.sheetOpen.value).toBe(true)
+
+    view.hideSheetForDrawer()
+    expect(view.sheetOpen.value).toBe(false)
+    // selection 还在 → 关 Drawer 后可以恢复
+    expect(view.selectedThread.value?.id).toBe(11)
+
+    view.restoreSheetFromDrawer()
+    expect(view.sheetOpen.value).toBe(true)
+    expect(view.selectedThread.value?.id).toBe(11)
+  })
+
+  it('manually closing the sheet (sheetOpen=false) clears selection and hidden flag', () => {
+    const t = mkThread({ id: 12 })
+    mockState.threads = [t]
+    const view = useThreadsView()
+    view.selectedThread.value = t
+    view.hideSheetForDrawer()
+    view.sheetOpen.value = false // 用户按 ESC / 点 overlay 真关
+    expect(view.selectedThread.value).toBeNull()
+    expect(view.sheetHiddenForDrawer.value).toBe(false)
+    expect(view.detailSessions.value).toEqual([])
+  })
 })
