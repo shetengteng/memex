@@ -8,7 +8,7 @@
  * 设计：本组件不直接打开 session 详情 Dialog——它把点击事件 emit 上去，
  * 由 library/index.vue 复用已有的 LibrarySessionDrawer 弹框，避免双份维护。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,59 @@ const detailSessions = ref<SessionRow[]>([])
 const detailLoading = ref(false)
 const regenerating = ref(false)
 const regenerateError = ref<string | null>(null)
+
+// 左侧线索列表宽度（像素）。用户可以拖动中间分隔条改变。
+// 上下界限：240..560，避免拖到太窄或挤掉右侧。
+const LEFT_MIN = 240
+const LEFT_MAX = 560
+const LEFT_STORAGE_KEY = 'memex.library.threads.leftWidth'
+const leftWidth = ref(
+  (() => {
+    try {
+      const v = Number(localStorage.getItem(LEFT_STORAGE_KEY))
+      if (Number.isFinite(v) && v >= LEFT_MIN && v <= LEFT_MAX) return v
+    } catch {
+      /* ignore */
+    }
+    return 340
+  })(),
+)
+const isDragging = ref(false)
+let dragStartX = 0
+let dragStartWidth = 0
+
+function onSeparatorPointerDown(e: PointerEvent) {
+  isDragging.value = true
+  dragStartX = e.clientX
+  dragStartWidth = leftWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', onSeparatorPointerMove)
+  window.addEventListener('pointerup', onSeparatorPointerUp, { once: true })
+}
+
+function onSeparatorPointerMove(e: PointerEvent) {
+  if (!isDragging.value) return
+  const delta = e.clientX - dragStartX
+  const next = Math.min(LEFT_MAX, Math.max(LEFT_MIN, dragStartWidth + delta))
+  leftWidth.value = next
+}
+
+function onSeparatorPointerUp() {
+  isDragging.value = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', onSeparatorPointerMove)
+  try {
+    localStorage.setItem(LEFT_STORAGE_KEY, String(leftWidth.value))
+  } catch {
+    /* ignore */
+  }
+}
+
+onUnmounted(() => {
+  window.removeEventListener('pointermove', onSeparatorPointerMove)
+})
 
 const filteredThreads = computed(() => {
   const q = threadQuery.value.trim().toLowerCase()
@@ -112,7 +165,8 @@ watch(
   <div class="flex flex-1 min-h-0 overflow-hidden">
     <!-- 左：线索列表 -->
     <aside
-      class="flex w-[300px] shrink-0 flex-col border-r border-border/60 md:w-[340px]"
+      class="flex shrink-0 flex-col border-r border-border/60"
+      :style="{ width: `${leftWidth}px` }"
     >
       <div class="flex items-center gap-2 border-b border-border/60 px-4 py-3">
         <div class="relative flex-1">
@@ -127,8 +181,8 @@ watch(
         </div>
         <Button
           variant="outline"
-          size="sm"
           :disabled="regenerating"
+          class="h-9 px-3"
           @click="onRegenerate"
         >
           <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
@@ -189,6 +243,21 @@ watch(
         </div>
       </div>
     </aside>
+
+    <!-- 中间分隔条：可拖动改变左侧宽度。用户反馈"线索的中间的竖线无法拖动 增加 宽度" -->
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="拖动改变线索列表宽度"
+      class="group relative w-1 shrink-0 cursor-col-resize select-none bg-transparent transition-colors hover:bg-primary/30"
+      :data-dragging="isDragging"
+      @pointerdown="onSeparatorPointerDown"
+    >
+      <!-- 视觉上加一条细 hairline 在中间，hover/drag 时显眼一点 -->
+      <span
+        class="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/60 transition-colors group-hover:bg-primary/60 group-data-[dragging=true]:bg-primary"
+      />
+    </div>
 
     <!-- 右：选中线索详情 + sessions -->
     <section class="flex-1 min-w-0 overflow-y-auto">
