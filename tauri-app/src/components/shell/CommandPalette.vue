@@ -64,10 +64,13 @@ const tFmt = (iso: string) => {
     用 `!max-w-2xl` 拉到 ~672px，移动端用 w-[92vw] 兜底。
     Height: CommandList 默认 max-h-72（288px）也太矮，几条记录就要滚动；
     用 max-h-[60vh] 让它随窗口高度自适应。
+    Position: CommandDialog 默认 `top-1/3 translate-y-0`（spotlight 风格），
+    被用户反映"没有居中"。用 `!top-1/2 !-translate-y-1/2` 还原回 DialogContent
+    的纵向居中行为，与 Library / Reflection dialog 保持一致。
   -->
   <CommandDialog
     v-model:open="palette.isOpen.value"
-    class="w-[92vw] !max-w-2xl"
+    class="w-[92vw] !max-w-2xl !top-1/2 !-translate-y-1/2"
   >
     <CommandInput placeholder="搜索任何东西…" />
     <CommandList class="!max-h-[60vh]">
