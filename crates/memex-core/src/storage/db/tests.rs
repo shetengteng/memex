@@ -367,3 +367,37 @@ fn test_sessions_needing_summary_skips_short_sessions() {
         "message_count < 2 的 session 不该被摘要候选列出"
     );
 }
+
+/// v7 新增：sessions.intent 列与 update_session_intent。
+#[test]
+fn test_update_session_intent_roundtrip() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0).unwrap();
+    let h = blake3::hash(b"hello").to_hex().to_string();
+    db.insert_message("m1", "s1", "user", "hello", None, 0, &h).unwrap();
+    db.insert_message("m2", "s1", "assistant", "world", None, 1, &h).unwrap();
+
+    // 默认 NULL
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert!(row.intent.is_none(), "新建 session 的 intent 默认为 NULL");
+
+    // 写入并复读
+    db.update_session_intent("s1", Some("修复登录")).unwrap();
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert_eq!(row.intent.as_deref(), Some("修复登录"));
+
+    // 写 None 应清空（重新生成摘要后 LLM 没给 intent 的情况）
+    db.update_session_intent("s1", None).unwrap();
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert!(row.intent.is_none(), "update_session_intent(None) 应清空");
+}
+
+/// SessionDetail.intent 也要从 sessions.intent 读出。
+#[test]
+fn test_get_session_detail_includes_intent() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "cursor", Some("/proj"), "/f.jsonl", 0, 0).unwrap();
+    db.update_session_intent("s1", Some("调研 monthly report")).unwrap();
+    let detail = db.get_session_detail("s1").unwrap().unwrap();
+    assert_eq!(detail.intent.as_deref(), Some("调研 monthly report"));
+}

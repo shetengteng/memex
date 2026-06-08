@@ -39,8 +39,12 @@ const groupFmt = (iso: string, group: string) => {
         <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
         <IdeChip :adapter="session.adapter" class="shrink-0" />
       </div>
-      <p class="mb-2 truncate text-[12.5px] text-muted-foreground/90">
-        {{ session.intent || '—' }}
+      <!-- intent 为空时直接不渲染整行，避免列表里出现一长串占位的 '—' 视觉噪声（用户反馈截图） -->
+      <p
+        v-if="session.intent && session.intent.trim()"
+        class="mb-2 truncate text-[12.5px] text-muted-foreground/90"
+      >
+        {{ session.intent }}
       </p>
       <div class="flex items-center gap-2">
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">

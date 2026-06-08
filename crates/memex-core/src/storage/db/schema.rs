@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 6;
+pub(super) const SCHEMA_VERSION: u32 = 7;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -32,7 +32,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     title TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    message_count INTEGER NOT NULL DEFAULT 0
+    message_count INTEGER NOT NULL DEFAULT 0,
+    -- v7: intent —— L2 摘要从原始对话推断出的「用户真实意图」一句话，
+    -- 用于 Library 列表行二级文字与 detail 弹框的「用户意图」段。
+    -- 不带摘要的会话此列为 NULL；摘要重生成时会覆盖。
+    intent TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (

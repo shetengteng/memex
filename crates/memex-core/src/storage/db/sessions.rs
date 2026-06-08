@@ -24,6 +24,9 @@ pub struct SessionRow {
     /// 第一条 user 消息的预览（约 120 字），尚未生成摘要时作为 fallback，
     /// 避免 popup 列表里整条目为空。
     pub first_user_message: Option<String>,
+    /// L2 摘要中由 LLM 推断出的"用户真实意图"，一句话。
+    /// 摘要尚未生成时为 None；UI 在列表里用它代替原始首条消息预览。
+    pub intent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -40,6 +43,8 @@ pub struct SessionDetail {
     pub updated_at: String,
     pub message_count: i64,
     pub messages: Vec<MessageRow>,
+    /// 与 `SessionRow.intent` 同源：L2 摘要的"用户真实意图"。
+    pub intent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,7 +161,8 @@ impl Db {
                     (SELECT substr(m.content, 1, 120)
                      FROM messages m
                      WHERE m.session_id = s.id AND m.role = 'user'
-                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message
+                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
+                    s.intent
              FROM sessions s
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'
@@ -177,6 +183,7 @@ impl Db {
                     updated_at: row.get(6)?,
                     summary_title: row.get(7)?,
                     first_user_message: row.get(8)?,
+                    intent: row.get(9)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -188,7 +195,7 @@ impl Db {
         let session = conn
             .query_row(
                 "SELECT id, source, project_path, file_path, title,
-                        created_at, updated_at, message_count
+                        created_at, updated_at, message_count, intent
                  FROM sessions WHERE id = ?1",
                 params![session_id],
                 |row| {
@@ -205,6 +212,7 @@ impl Db {
                         updated_at: row.get(6)?,
                         message_count: row.get(7)?,
                         messages: Vec::new(),
+                        intent: row.get(8)?,
                     })
                 },
             )
@@ -274,7 +282,8 @@ impl Db {
                     (SELECT substr(m.content, 1, 120)
                      FROM messages m
                      WHERE m.session_id = s.id AND m.role = 'user'
-                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message
+                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
+                    s.intent
              FROM sessions s
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'
@@ -295,6 +304,7 @@ impl Db {
                     updated_at: row.get(6)?,
                     summary_title: row.get(7)?,
                     first_user_message: row.get(8)?,
+                    intent: row.get(9)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -339,7 +349,7 @@ impl Db {
     ) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, source, project_path, title, message_count, created_at, updated_at
+            "SELECT id, source, project_path, title, message_count, created_at, updated_at, intent
              FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
                AND NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))
              ORDER BY updated_at DESC",
@@ -356,6 +366,7 @@ impl Db {
                     updated_at: row.get(6)?,
                     summary_title: None,
                     first_user_message: None,
+                    intent: row.get(7)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -371,6 +382,22 @@ impl Db {
         conn.execute(
             "UPDATE sessions SET project_path = ?1 WHERE id = ?2 AND (project_path IS NULL OR project_path = '')",
             params![project_path, session_id],
+        )?;
+        Ok(())
+    }
+
+    /// 把 L2 摘要 LLM 推断出来的「用户真实意图」一句话写到 `sessions.intent`。
+    /// 每次摘要重生成都覆盖这一列（即便从有值变成 None，也写入 None，
+    /// 保证 UI 能反映最新摘要结果，不会出现"重新生成后旧 intent 留在那里"的尴尬）。
+    pub fn update_session_intent(
+        &self,
+        session_id: &str,
+        intent: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET intent = ?1 WHERE id = ?2",
+            params![intent, session_id],
         )?;
         Ok(())
     }

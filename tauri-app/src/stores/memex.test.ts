@@ -112,6 +112,7 @@ describe('stores/memex', () => {
               updated_at: '2026-06-06T10:30:00Z',
               summary_title: null,
               first_user_message: 'first msg',
+              intent: null,
             },
           ]
         }
@@ -140,6 +141,7 @@ describe('stores/memex', () => {
               updated_at: '',
               summary_title: null,
               first_user_message: 'how do I',
+              intent: null,
             },
           ]
         }
@@ -147,6 +149,56 @@ describe('stores/memex', () => {
       })
       await initMemexStore(true)
       expect(sessions[0].title).toBe('how do I')
+    })
+
+    it('rowToSession maps summary intent into session.intent', async () => {
+      mockedInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === 'list_recent') {
+          return [
+            {
+              id: 's-intent',
+              source: 'cursor',
+              project_path: '/me/repo',
+              title: 'with summary',
+              message_count: 4,
+              created_at: '',
+              updated_at: '',
+              summary_title: 'with summary',
+              first_user_message: 'first',
+              intent: '修复登录失败的问题',
+            },
+          ]
+        }
+        if (cmd === 'list_projects') return []
+        return null
+      })
+      await initMemexStore(true)
+      expect(sessions[0].intent).toBe('修复登录失败的问题')
+    })
+
+    it('rowToSession falls back to first_user_message when intent is null', async () => {
+      mockedInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === 'list_recent') {
+          return [
+            {
+              id: 's-fallback',
+              source: 'cursor',
+              project_path: '/me/repo',
+              title: 'no summary yet',
+              message_count: 1,
+              created_at: '',
+              updated_at: '',
+              summary_title: null,
+              first_user_message: 'how do I read this thing',
+              intent: null,
+            },
+          ]
+        }
+        if (cmd === 'list_projects') return []
+        return null
+      })
+      await initMemexStore(true)
+      expect(sessions[0].intent).toBe('how do I read this thing')
     })
 
     it('refreshSessions reuses the same array reference', async () => {
@@ -228,6 +280,7 @@ describe('stores/memex', () => {
         updated_at: '',
         summary_title: null,
         first_user_message: '',
+        intent: null,
       }
     }
 

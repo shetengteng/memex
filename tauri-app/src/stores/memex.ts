@@ -105,6 +105,12 @@ function rowToSession(row: SessionRow): Session {
     (row.title && row.title.trim()) ||
     (row.first_user_message && row.first_user_message.trim().slice(0, 60)) ||
     '(无标题)'
+  // intent 优先取 LLM 摘要里推断出来的；摘要还没生成时退到第一条 user 消息预览，
+  // 让列表行依然有第二行有意义的辅助文字（LibrarySessionListItem 会读 session.intent）。
+  const intent =
+    (row.intent && row.intent.trim()) ||
+    (row.first_user_message && row.first_user_message.trim().slice(0, 120)) ||
+    undefined
   return {
     id: row.id,
     adapter: row.source,
@@ -116,6 +122,7 @@ function rowToSession(row: SessionRow): Session {
     title,
     topics: [],
     l2Done: !!row.summary_title,
+    intent,
   }
 }
 

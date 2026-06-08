@@ -205,9 +205,6 @@ const projectUsage = computed(() => {
       <div class="mb-3 flex items-end justify-between">
         <div>
           <h3 class="text-[14px] font-semibold">活动日历</h3>
-          <p class="text-[11px] text-muted-foreground">
-            过去 {{ days }} 天每日会话数
-          </p>
         </div>
         <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span>少</span>

@@ -71,6 +71,7 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
     try_l3_project_summaries(db, provider.as_ref());
     try_l4_periodic_summaries(db, provider.as_ref());
     try_l4_weekly_summaries(db, provider.as_ref());
+    try_l4_monthly_summaries(db, provider.as_ref());
 }
 
 fn try_l1_chunk_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
@@ -122,6 +123,7 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
                     topics: row.topics,
                     decisions: row.decisions,
                     project_name: None,
+                    intent: None,
                 });
             }
         }
@@ -150,6 +152,105 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
 
 fn try_l4_weekly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
     let _ = regenerate_weekly_report_inner(db, provider, /* force = */ false);
+}
+
+fn try_l4_monthly_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
+    let _ = regenerate_monthly_report_inner(db, provider, /* force = */ false);
+}
+
+/// 强制重新生成当前自然月（YYYY-MM）的 L4 月报，覆盖现有记录。
+/// 当月没有可用 L2 摘要时返回 Ok(None)。
+pub fn regenerate_monthly_report(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
+    regenerate_monthly_report_inner(db, provider, /* force = */ true)
+}
+
+fn regenerate_monthly_report_inner(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    force: bool,
+) -> anyhow::Result<Option<crate::storage::db::AggregateSummaryRow>> {
+    use chrono::Datelike;
+    let today = chrono::Utc::now().date_naive();
+    let (year, month) = (today.year(), today.month());
+    let scope_key = format!("monthly:{:04}-{:02}", year, month);
+
+    if !force
+        && db
+            .get_aggregate_summary("monthly", &scope_key)
+            .ok()
+            .flatten()
+            .is_some()
+    {
+        return Ok(None);
+    }
+
+    let (after, before) = match month_range(year, month) {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+
+    // 月报相比周报数据量更大，门槛设到 5 个会话；force 模式（用户主动点）下放到 1
+    let min_sessions = if force { 1 } else { 5 };
+    let sessions = match db.list_sessions_in_range(&after, &before) {
+        Ok(s) if s.len() >= min_sessions => s,
+        _ => return Ok(None),
+    };
+
+    let mut l2_summaries = Vec::new();
+    for s in &sessions {
+        if let Ok(Some(row)) = db.get_summary(&s.id, "L2_session") {
+            l2_summaries.push(summarize::SessionSummary {
+                title: row.title.unwrap_or_default(),
+                summary: row.summary,
+                topics: row.topics,
+                decisions: row.decisions,
+                project_name: None,
+                intent: None,
+            });
+        }
+    }
+    if l2_summaries.is_empty() {
+        return Ok(None);
+    }
+
+    let period_label = format!("Monthly {:04}-{:02}", year, month);
+    let fixed_title = format!("月报 {:04}-{:02}", year, month);
+    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
+        .map_err(|e| {
+            warn!("L4 monthly summarize failed: {}", e);
+            anyhow::anyhow!(e)
+        })?;
+    db.upsert_aggregate_summary(
+        "monthly",
+        &scope_key,
+        Some(&fixed_title),
+        &summary.summary,
+        &summary.topics,
+        &summary.decisions,
+        sessions.len() as i64,
+    )?;
+    Ok(db.get_aggregate_summary("monthly", &scope_key)?)
+}
+
+/// 返回 `year-month` 自然月的 ISO 8601 起止区间字符串
+/// （`[YYYY-MM-01T00:00:00+00:00, YYYY-(M+1)-01T00:00:00+00:00)`）。
+/// 12 月时下个月跨年到 (year+1)-01。
+fn month_range(year: i32, month: u32) -> Option<(String, String)> {
+    use chrono::NaiveDate;
+    let start = NaiveDate::from_ymd_opt(year, month, 1)?;
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    let end = NaiveDate::from_ymd_opt(next_year, next_month, 1)?;
+    Some((
+        format!("{}T00:00:00+00:00", start),
+        format!("{}T00:00:00+00:00", end),
+    ))
 }
 
 /// 强制重新生成当前 ISO 周的 L4 周报，无论数据库里是否已存在。
@@ -205,6 +306,7 @@ fn regenerate_weekly_report_inner(
                 topics: row.topics,
                 decisions: row.decisions,
                 project_name: None,
+                intent: None,
             });
         }
     }
@@ -262,6 +364,14 @@ pub fn regenerate_report_by_key(
             let title = format!("周报 {}", date_part);
             (after, before, label, title)
         }
+        "monthly" => {
+            let (year, month) = parse_year_month(date_part)?;
+            let (after, before) = month_range(year, month)
+                .ok_or_else(|| anyhow::anyhow!("invalid month: {}", date_part))?;
+            let label = format!("Monthly {}", date_part);
+            let title = format!("月报 {}", date_part);
+            (after, before, label, title)
+        }
         other => return Err(anyhow::anyhow!("unsupported scope_type: {}", other)),
     };
 
@@ -281,6 +391,7 @@ pub fn regenerate_report_by_key(
                 topics: row.topics,
                 decisions: row.decisions,
                 project_name: None,
+                intent: None,
             });
         }
     }
@@ -317,6 +428,20 @@ fn parse_iso_week(s: &str) -> anyhow::Result<(i32, u32)> {
     let year: i32 = parts[0].parse()?;
     let week: u32 = parts[1].parse()?;
     Ok((year, week))
+}
+
+fn parse_year_month(s: &str) -> anyhow::Result<(i32, u32)> {
+    // "2026-06" → (2026, 6)
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 2 {
+        return Err(anyhow::anyhow!("invalid month format: {}", s));
+    }
+    let year: i32 = parts[0].parse()?;
+    let month: u32 = parts[1].parse()?;
+    if !(1..=12).contains(&month) {
+        return Err(anyhow::anyhow!("month out of range: {}", month));
+    }
+    Ok((year, month))
 }
 
 fn try_l4_periodic_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
@@ -367,6 +492,7 @@ fn regenerate_daily_report_inner(
                 topics: row.topics,
                 decisions: row.decisions,
                 project_name: None,
+                intent: None,
             });
         }
     }
@@ -448,6 +574,9 @@ pub fn summarize_session_by_id(
             if let Some(ref name) = summary.project_name {
                 let _ = db.update_session_project_path(session_id, name);
             }
+            // 每次重生成都覆盖 sessions.intent，None 时显式写入 NULL，
+            // 避免「重新生成后旧 intent 文本继续留在 UI 上」的脏数据。
+            let _ = db.update_session_intent(session_id, summary.intent.as_deref());
             true
         }
         Err(e) => {
@@ -595,4 +724,46 @@ fn ingest_message_batch(
     }
 
     Ok((msg_count, chunk_count, max_offset))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_year_month_valid_inputs() {
+        assert_eq!(parse_year_month("2026-06").unwrap(), (2026, 6));
+        assert_eq!(parse_year_month("2025-01").unwrap(), (2025, 1));
+        assert_eq!(parse_year_month("2025-12").unwrap(), (2025, 12));
+    }
+
+    #[test]
+    fn parse_year_month_rejects_bad_format() {
+        assert!(parse_year_month("2026").is_err());
+        assert!(parse_year_month("2026-13").is_err(), "13 月不应通过");
+        assert!(parse_year_month("2026-00").is_err(), "0 月不应通过");
+        assert!(parse_year_month("abcd-06").is_err());
+    }
+
+    #[test]
+    fn month_range_normal_month() {
+        let (a, b) = month_range(2026, 6).unwrap();
+        assert_eq!(a, "2026-06-01T00:00:00+00:00");
+        assert_eq!(b, "2026-07-01T00:00:00+00:00");
+    }
+
+    #[test]
+    fn month_range_december_crosses_year() {
+        let (a, b) = month_range(2026, 12).unwrap();
+        assert_eq!(a, "2026-12-01T00:00:00+00:00");
+        assert_eq!(b, "2027-01-01T00:00:00+00:00");
+    }
+
+    #[test]
+    fn month_range_february_is_normal_28_or_29() {
+        // 2026 不是闰年，2 月 1 → 3 月 1
+        let (a, b) = month_range(2026, 2).unwrap();
+        assert_eq!(a, "2026-02-01T00:00:00+00:00");
+        assert_eq!(b, "2026-03-01T00:00:00+00:00");
+    }
 }

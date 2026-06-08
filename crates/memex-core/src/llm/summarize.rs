@@ -10,6 +10,9 @@ const SUMMARY_SYSTEM: &str = "\
 输出严格合法的 JSON（不带 ```json 标记），包含以下字段：
 - title (string): 一行标题，不超过 60 字符，概括核心工作
 - summary (string): 2-4 句话，说明完成了什么、解决了什么问题、做了哪些关键决策
+- intent (string|null): 用一句不超过 60 字符的中文，概括用户在本次会话中**真正想达成的目标**\
+  （不是助手的执行过程，也不是表面问题）。如：\"修复 popup 列表中 intent 字段不显示\"、\
+  \"调研为什么周报里出现了 Gemini 字样\"。无法确定时输出 null。
 - topics (string[]): 1-5 个主题关键词
 - decisions (string[]): 0-3 个关键技术决策，每条是纯字符串
 - project_name (string|null): 从对话中推断出的项目名称。根据文件路径、代码仓库、\
@@ -72,6 +75,10 @@ pub struct SessionSummary {
     pub decisions: Vec<String>,
     #[serde(default)]
     pub project_name: Option<String>,
+    /// L2 摘要新增字段：用户在本次会话中真正想达成的目标，一句话。
+    /// L3 / L4 项目级与周期级摘要不强制要求 LLM 输出此字段，因此默认 None。
+    #[serde(default)]
+    pub intent: Option<String>,
 }
 
 pub fn summarize_session(
@@ -267,8 +274,15 @@ fn parse_summary(text: &str) -> Result<SessionSummary> {
 
     let cleaned = strip_code_fences(text);
 
-    if let Ok(summary) = serde_json::from_str::<SessionSummary>(&cleaned) {
+    if let Ok(mut summary) = serde_json::from_str::<SessionSummary>(&cleaned) {
         if !summary.summary.is_empty() {
+            // 即便走快速分支，也把 intent 的空白 / 空字符串规范化成 None，
+            // 与 extract_summary_from_value 的行为保持一致 —— 否则
+            // UI 会出现 intent === "" 这种意义不明的脏数据。
+            summary.intent = summary
+                .intent
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
             return Ok(summary);
         }
     }
@@ -286,6 +300,7 @@ fn parse_summary(text: &str) -> Result<SessionSummary> {
         topics: Vec::new(),
         decisions: Vec::new(),
         project_name: None,
+        intent: None,
     })
 }
 
@@ -335,7 +350,12 @@ fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
         .map(String::from)
         .filter(|s| !s.is_empty());
 
-    SessionSummary { title, summary, topics, decisions, project_name }
+    let intent = val.get("intent")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    SessionSummary { title, summary, topics, decisions, project_name, intent }
 }
 
 fn extract_first_sentence(text: &str, max_len: usize) -> String {
@@ -391,6 +411,33 @@ mod tests {
             "```json\n{\"title\":\"Test\",\"summary\":\"S\",\"topics\":[],\"decisions\":[]}\n```";
         let s = parse_summary(text).unwrap();
         assert_eq!(s.title, "Test");
+    }
+
+    #[test]
+    fn test_parse_summary_extracts_intent() {
+        let json = r#"{
+            "title": "Fix",
+            "summary": "Fixed it.",
+            "topics": ["bug"],
+            "decisions": [],
+            "intent": "修复登录失败的问题"
+        }"#;
+        let s = parse_summary(json).unwrap();
+        assert_eq!(s.intent.as_deref(), Some("修复登录失败的问题"));
+    }
+
+    #[test]
+    fn test_parse_summary_intent_missing_is_none() {
+        let json = r#"{"title":"X","summary":"y","topics":[],"decisions":[]}"#;
+        let s = parse_summary(json).unwrap();
+        assert!(s.intent.is_none());
+    }
+
+    #[test]
+    fn test_parse_summary_intent_empty_string_is_none() {
+        let json = r#"{"title":"X","summary":"y","topics":[],"decisions":[],"intent":"  "}"#;
+        let s = parse_summary(json).unwrap();
+        assert!(s.intent.is_none(), "空字符串/纯空白应当视为 None");
     }
 
     #[test]
@@ -475,6 +522,7 @@ mod tests {
                 topics: vec!["search".into()],
                 decisions: vec![],
                 project_name: None,
+                intent: None,
             },
             SessionSummary {
                 title: "Add adapters".into(),
@@ -482,6 +530,7 @@ mod tests {
                 topics: vec!["adapters".into()],
                 decisions: vec![],
                 project_name: None,
+                intent: None,
             },
         ];
         let result = summarize_project(&provider, &sessions).unwrap();
@@ -500,6 +549,7 @@ mod tests {
             topics: vec!["feature".into()],
             decisions: vec!["use trait pattern".into()],
             project_name: None,
+            intent: None,
         }];
         let result = summarize_period(&provider, "2026-06-01", &sessions).unwrap();
         assert!(result.title.contains("Daily Report"));

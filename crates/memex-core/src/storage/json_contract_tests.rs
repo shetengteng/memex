@@ -90,6 +90,7 @@ fn test_session_row_json_fields() {
         updated_at: "2026-06-01T00:00:00+00:00".into(),
         summary_title: None,
         first_user_message: Some("hello there".into()),
+        intent: Some("修复 popup 列表中 intent 字段".into()),
     };
     let json: serde_json::Value = serde_json::to_value(&row).unwrap();
     let obj = json.as_object().unwrap();
@@ -101,6 +102,7 @@ fn test_session_row_json_fields() {
         "updated_at",
         "summary_title",
         "first_user_message",
+        "intent",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionRow missing: {}", field);
@@ -127,6 +129,7 @@ fn test_session_detail_json_fields() {
             content: "hello".into(),
             timestamp: Some("2026-06-01T00:00:00+00:00".into()),
         }],
+        intent: Some("调研 intent 字段补全".into()),
     };
     let json: serde_json::Value = serde_json::to_value(&detail).unwrap();
     let obj = json.as_object().unwrap();
@@ -134,6 +137,7 @@ fn test_session_detail_json_fields() {
         "id", "source", "project_path", "file_path", "title",
         "summary", "topics", "decisions",
         "created_at", "updated_at", "message_count", "messages",
+        "intent",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionDetail missing: {}", field);

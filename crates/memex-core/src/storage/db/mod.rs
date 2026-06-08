@@ -190,6 +190,22 @@ impl Db {
                 params![6u32],
             )?;
         }
+        if from < 7 {
+            // v7：sessions 表新增 intent 列。存量行该列为 NULL，等下次
+            // 摘要重生成（用户主动「重新生成」或 message_count 增长触发过期）
+            // 时由 LLM 输出填充，不做强制全量回填以免高 LLM 成本。
+            let has_col: bool = conn
+                .prepare("PRAGMA table_info(sessions)")?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .any(|name| name.as_deref() == Ok("intent"));
+            if !has_col {
+                conn.execute_batch("ALTER TABLE sessions ADD COLUMN intent TEXT;")?;
+            }
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![7u32],
+            )?;
+        }
         Ok(())
     }
 }

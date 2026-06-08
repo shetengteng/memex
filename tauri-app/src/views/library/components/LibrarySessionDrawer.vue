@@ -3,13 +3,14 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from 'reka-ui'
 import IdeChip from '@/components/shell/IdeChip.vue'
-import MarkdownContent from '@/components/MarkdownContent.vue'
+import MessageContent from '@/components/MessageContent.vue'
 import { Bot, User as UserIcon } from 'lucide-vue-next'
 import type { Session } from '@/stores/memex'
 import type { SessionDetail } from '@/types'
@@ -92,11 +93,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Sheet :open="open" @update:open="(v) => $emit('update:open', v)">
-    <SheetContent
-      class="flex w-full flex-col overflow-hidden p-0 data-[side=right]:sm:max-w-[640px] data-[side=right]:lg:max-w-[720px]"
+  <Dialog :open="open" @update:open="(v) => $emit('update:open', v)">
+    <DialogContent
+      class="flex h-[85vh] w-[92vw] !max-w-4xl flex-col gap-0 overflow-hidden p-0"
     >
-      <header v-if="session" class="flex items-start gap-3 border-b px-5 py-4">
+      <!-- 让 reka-ui 的 a11y 不报缺失 title，正文里有自定义 header 时把官方 title 视觉隐藏 -->
+      <VisuallyHidden>
+        <DialogTitle>{{ session?.title ?? '会话详情' }}</DialogTitle>
+        <DialogDescription>
+          {{ session ? `${session.messages} 条消息` : '' }}
+        </DialogDescription>
+      </VisuallyHidden>
+
+      <header v-if="session" class="flex items-start gap-3 border-b px-5 py-4 pr-12">
         <div class="min-w-0 flex-1">
           <div class="mb-1.5 flex items-center gap-2">
             <IdeChip :adapter="session.adapter" />
@@ -104,16 +113,25 @@ onBeforeUnmount(() => {
               {{ session.project }} · {{ tFmt(session.startedAt) }}
             </span>
           </div>
-          <SheetTitle class="text-[16px] font-semibold leading-tight">{{ session.title }}</SheetTitle>
-          <SheetDescription class="mt-1 text-[12px]">
+          <h2 class="text-[16px] font-semibold leading-tight">{{ session.title }}</h2>
+          <p class="mt-1 text-[12px] text-muted-foreground">
             {{ session.messages }} 条消息 · L2 摘要
             {{ session.l2Done ? '已生成' : '待生成' }}
-          </SheetDescription>
+          </p>
         </div>
       </header>
 
       <div v-if="session" class="flex-1 space-y-5 overflow-y-auto px-5 py-4">
         <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">加载详情中…</p>
+
+        <section v-if="detail?.intent">
+          <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            用户意图
+          </div>
+          <p class="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
+            {{ detail.intent }}
+          </p>
+        </section>
 
         <section v-if="detail?.summary">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -147,11 +165,12 @@ onBeforeUnmount(() => {
           <div class="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {{ t('session.messages') }}
           </div>
-          <div class="space-y-5">
+          <!-- 消息之间用 divide-y 加细虚线：原来只有 space-y-5 间距，长会话扫读时不容易找到相邻消息边界 -->
+          <div class="divide-y divide-dashed divide-border/60">
             <article
               v-for="(m, i) in visibleMessages"
               :key="m.id ?? i"
-              class="grid grid-cols-[28px_1fr] gap-3"
+              class="grid grid-cols-[28px_1fr] gap-3 py-3 first:pt-0 last:pb-0"
             >
               <!-- 头像：user → primary 紫；assistant → emerald 绿；其他 (system/tool 等) → muted 灰圈 + Bot icon。
                    之前 m.role === 'user' 三元判断把 system 也归到 assistant 的绿色，造成展示上的歧义；
@@ -194,7 +213,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <div class="text-sm leading-relaxed">
-                  <MarkdownContent :content="m.content" />
+                  <MessageContent :content="m.content" />
                 </div>
               </div>
             </article>
@@ -215,6 +234,6 @@ onBeforeUnmount(() => {
           未找到会话详情
         </p>
       </div>
-    </SheetContent>
-  </Sheet>
+    </DialogContent>
+  </Dialog>
 </template>

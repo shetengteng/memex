@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import MarkdownContent from '@/components/MarkdownContent.vue'
 import { BrainCircuit, ChevronRight } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { ReflectEntry, ReflectDetail } from '@/types'
@@ -138,13 +139,13 @@ const fmtTime = (iso: string) =>
     </Card>
 
     <Dialog v-model:open="openDetail">
-      <DialogContent class="max-w-2xl">
+      <DialogContent class="w-[92vw] max-w-4xl">
         <DialogHeader>
           <DialogTitle>{{ detail?.title ?? detail?.scope_key ?? '反思详情' }}</DialogTitle>
         </DialogHeader>
         <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">加载中…</p>
-        <div v-else-if="detail" class="max-h-[60vh] space-y-4 overflow-y-auto pr-2">
-          <pre class="whitespace-pre-wrap font-sans text-[13px] leading-relaxed">{{ detail.markdown }}</pre>
+        <div v-else-if="detail" class="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+          <MarkdownContent :content="detail.markdown" />
           <div v-if="detail.patterns.length">
             <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               规律

@@ -58,11 +58,11 @@ export function useMemex() {
     return invoke<ProjectSummary[]>('list_projects')
   }
 
-  async function listReports(scope: 'daily' | 'weekly', limit = 60): Promise<AggregateSummary[]> {
+  async function listReports(scope: 'daily' | 'weekly' | 'monthly', limit = 60): Promise<AggregateSummary[]> {
     return invoke<AggregateSummary[]>('list_reports', { scope, limit })
   }
 
-  async function regenerateReport(scope: 'daily' | 'weekly', scopeKey?: string): Promise<AggregateSummary | null> {
+  async function regenerateReport(scope: 'daily' | 'weekly' | 'monthly', scopeKey?: string): Promise<AggregateSummary | null> {
     return invoke<AggregateSummary | null>('regenerate_report', { scope, scopeKey })
   }
 

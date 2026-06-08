@@ -19,6 +19,7 @@ export interface SessionRow {
   updated_at: string
   summary_title: string | null
   first_user_message: string | null
+  intent: string | null
 }
 
 export interface SearchResult {
@@ -48,6 +49,7 @@ export interface SessionDetail {
   created_at: string
   updated_at: string
   messages: MessageRow[]
+  intent: string | null
 }
 
 export interface MessageRow {

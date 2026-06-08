@@ -1,5 +1,8 @@
 use memex_core::config::MemexConfig;
-use memex_core::ingest::{regenerate_daily_report, regenerate_weekly_report, regenerate_report_by_key};
+use memex_core::ingest::{
+    regenerate_daily_report, regenerate_monthly_report, regenerate_report_by_key,
+    regenerate_weekly_report,
+};
 use memex_core::llm::select_provider_unified;
 use memex_core::memex_dir;
 use memex_core::storage::db::{AggregateSummaryRow, Db};
@@ -15,8 +18,8 @@ pub async fn list_reports(scope: String, limit: Option<u32>) -> Result<Vec<Aggre
         .map_err(|e| e.to_string())
 }
 
-/// scope: "daily" | "weekly" — 生成最新的
-/// scope_key: 可选，如 "daily:2026-06-04" — 重新生成指定日期的
+/// scope: "daily" | "weekly" | "monthly" — 生成最新的
+/// scope_key: 可选，如 "daily:2026-06-04" / "monthly:2026-06" — 重新生成指定的
 #[tauri::command]
 pub async fn regenerate_report(scope: String, scope_key: Option<String>) -> Result<Option<AggregateSummaryRow>, String> {
     let memex = memex_dir();
@@ -37,6 +40,7 @@ pub async fn regenerate_report(scope: String, scope_key: Option<String>) -> Resu
     match scope.as_str() {
         "daily" => regenerate_daily_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
         "weekly" => regenerate_weekly_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
+        "monthly" => regenerate_monthly_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
         other => Err(format!("不支持的报告类型：{}", other)),
     }
 }

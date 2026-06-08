@@ -30,10 +30,11 @@ vi.mock('@/i18n', () => ({
   }),
 }))
 
-// Markdown 渲染只需要把 content 直接吐出来（避免 markdown-it 的 DOM 副作用）
-vi.mock('@/components/MarkdownContent.vue', () => ({
+// MessageContent → MarkdownContent + ToolCallBlock。在测试里只需要把 content 直接吐出来
+// （避免 markdown-it 的 DOM 副作用），所以两个组件都用同一个 stub。
+vi.mock('@/components/MessageContent.vue', () => ({
   default: {
-    name: 'MarkdownContent',
+    name: 'MessageContent',
     props: ['content'],
     template: '<div class="md-stub">{{ content }}</div>',
   },
@@ -73,14 +74,16 @@ function makeDetail(messageCount: number): SessionDetail {
       content: `msg-${i} body`,
       timestamp: '2026-06-01T10:00:00Z',
     })),
+    intent: null,
   }
 }
 
 const stubs = {
-  Sheet: { template: '<div><slot/></div>', props: ['open'], emits: ['update:open'] },
-  SheetContent: { template: '<div><slot/></div>' },
-  SheetTitle: { template: '<div class="sheet-title"><slot/></div>' },
-  SheetDescription: { template: '<div class="sheet-desc"><slot/></div>' },
+  Dialog: { template: '<div><slot/></div>', props: ['open'], emits: ['update:open'] },
+  DialogContent: { template: '<div><slot/></div>' },
+  DialogTitle: { template: '<div class="dialog-title"><slot/></div>' },
+  DialogDescription: { template: '<div class="dialog-desc"><slot/></div>' },
+  VisuallyHidden: { template: '<div class="sr-only"><slot/></div>' },
   Badge: { template: '<span><slot/></span>' },
   Button: {
     template:

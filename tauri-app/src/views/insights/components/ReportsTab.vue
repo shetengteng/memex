@@ -19,8 +19,8 @@ import type { AggregateSummary } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
 
-// 后端只暴露 'daily' / 'weekly'，monthly 一期不接入
-type BackendScope = 'daily' | 'weekly'
+// 后端支持 'daily' / 'weekly' / 'monthly'
+type BackendScope = 'daily' | 'weekly' | 'monthly'
 
 const router = useRouter()
 const memex = useMemex()
@@ -52,8 +52,7 @@ const selectedReport = computed(
 
 function onScopeChange(s: string | number) {
   const sv = String(s)
-  if (sv === 'daily' || sv === 'weekly') scope.value = sv
-  else toast.info('月报暂未支持，已切回日报')
+  if (sv === 'daily' || sv === 'weekly' || sv === 'monthly') scope.value = sv
 }
 
 async function regenerate() {
