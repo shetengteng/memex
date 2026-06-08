@@ -360,7 +360,14 @@ impl Db {
     /// message_count 字段，避免触碰 messages 表（量大且 timestamp 可能为空）。
     pub fn workload_report(&self, days: u32) -> Result<WorkloadReport> {
         let conn = self.conn.lock().unwrap();
-        let offset = format!("-{days} days");
+        // 语义：days=N 表示「包含今天在内、向前 N 天」的窗口。
+        //   days=1  → 仅今天
+        //   days=7  → 今天 + 前 6 天 = 一周
+        //   days=30 → 今天 + 前 29 天 = 一月
+        // SQLite 的 DATE('now', '-K days') 表示从今天向前数 K 天的那一天，
+        // 所以窗口起点偏移量应为 N-1（而非 N，否则会多包含一天，
+        // 导致「今天」桶把昨天的 session/消息也算进来）。
+        let offset = format!("-{} days", days.saturating_sub(1));
 
         // 0) 每日明细 — 日历视图原料
         let mut daily_stmt = conn.prepare(
