@@ -11,7 +11,8 @@
  * 严格使用 shadcn-vue 组件：Card / Badge / Button / Input / Switch /
  * Sheet / Separator / Dialog（删除二次确认）。外层滚动条参考 Today 页面，
  * 用 `flex-1 min-h-0 overflow-y-auto` 而不是 ScrollArea，避免 flex 高度链断裂。
- * Sheet 内部保留 ScrollArea（SheetContent 自身高度受控）。
+ * Sheet 内部同样改用 `flex-1 min-h-0 overflow-y-auto`：reka-ui 的 DialogContent
+ * 默认是 `fixed` 定位但子元素 flex 链不会自动建立 min-h，ScrollArea 同样会失效。
  */
 import { computed, onMounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
@@ -231,6 +232,17 @@ async function onRegenerate() {
 function focusSearch() {
   const el = document.getElementById('threads-search-input') as HTMLInputElement | null
   el?.focus()
+}
+
+// ─── 打开 session 详情时先关 Sheet（避免两个模态遮罩堆叠） ────
+function onOpenSession(row: SessionRow) {
+  // 先关 Sheet，让模态层只剩 LibrarySessionDrawer 自己的 Dialog。
+  // 等动画结束（默认 200ms 略放宽到 220ms）再 emit，否则 Drawer 出现时
+  // Sheet 的 backdrop 还在淡出，会出现两层遮罩短暂叠加。
+  const target = rowToSession(row)
+  selectedThread.value = null
+  detailSessions.value = []
+  setTimeout(() => emit('open', target), 220)
 }
 
 // ─── 卡片派生数据 ─────────────────────────────────────────────
@@ -521,7 +533,7 @@ onMounted(async () => {
           </div>
         </SheetHeader>
 
-        <ScrollArea class="flex-1">
+        <div class="flex-1 min-h-0 overflow-y-auto">
           <div v-if="detailLoading" class="flex h-40 items-center justify-center">
             <Loader2 class="size-4 animate-spin text-muted-foreground" />
           </div>
@@ -556,15 +568,21 @@ onMounted(async () => {
               <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
                 涉及项目
               </h4>
-              <ul class="mt-2 space-y-1">
+              <ul class="mt-2 space-y-1.5">
                 <li
                   v-for="p in selectedThread!.projects"
                   :key="p"
-                  class="flex items-center gap-2 text-[12px]"
+                  class="flex items-start gap-2"
                 >
-                  <FolderGit2 class="size-3 text-muted-foreground" />
-                  <span class="truncate">{{ lastProjectName(p) }}</span>
-                  <span class="ml-auto truncate text-[10.5px] text-muted-foreground">{{ p }}</span>
+                  <FolderGit2 class="mt-[3px] size-3.5 shrink-0 text-muted-foreground" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-[12.5px] font-medium">
+                      {{ lastProjectName(p) }}
+                    </div>
+                    <div class="truncate text-[10.5px] text-muted-foreground">
+                      {{ p }}
+                    </div>
+                  </div>
                 </li>
               </ul>
             </section>
@@ -597,7 +615,7 @@ onMounted(async () => {
                   v-for="row in detailSessions"
                   :key="row.id"
                   class="cursor-pointer px-3 py-2.5 transition-colors hover:bg-accent/40"
-                  @click="emit('open', rowToSession(row))"
+                  @click="onOpenSession(row)"
                 >
                   <div class="flex items-start justify-between gap-2">
                     <span class="line-clamp-1 text-[12.5px] font-medium">
@@ -631,7 +649,7 @@ onMounted(async () => {
               </Button>
             </section>
           </div>
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
 
