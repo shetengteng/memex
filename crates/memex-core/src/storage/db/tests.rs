@@ -683,6 +683,44 @@ fn test_delete_thread_cascades_thread_sessions() {
     assert_eq!(count, 0);
 }
 
+/// list_threads_paged 必须一次返回卡片视图需要的聚合字段：
+/// first_session_at / last_session_at / projects / adapters。
+#[test]
+fn test_list_threads_returns_aggregate_fields() {
+    let db = Db::open_in_memory().unwrap();
+    // 准备 2 个 session，分别属于不同项目 + 不同适配器，覆盖去重和分隔符。
+    db.insert_session("s_a", "cursor", Some("/proj-a"), "/f", 0, 0).unwrap();
+    db.insert_session("s_b", "claude_code", Some("/proj-b"), "/f", 0, 0).unwrap();
+
+    db.upsert_thread_with_sessions(&ThreadDraft {
+        name: "mixed".into(),
+        summary: String::new(),
+        session_ids: vec!["s_a".into(), "s_b".into()],
+    })
+    .unwrap();
+
+    let rows = db.list_threads_paged(10, 0).unwrap();
+    assert_eq!(rows.len(), 1);
+    let r = &rows[0];
+
+    // 时间字段应在
+    assert!(r.first_session_at.is_some(), "first_session_at 必须非空");
+    assert!(r.last_session_at.is_some(), "last_session_at 必须非空");
+
+    // 项目 / 适配器去重后应该有 2 个，按字母序
+    assert_eq!(r.projects.len(), 2);
+    assert!(r.projects.contains(&"/proj-a".to_string()));
+    assert!(r.projects.contains(&"/proj-b".to_string()));
+    assert_eq!(r.adapters.len(), 2);
+    assert!(r.adapters.contains(&"claude_code".to_string()));
+    assert!(r.adapters.contains(&"cursor".to_string()));
+
+    // detail 通路也应一致
+    let detail = db.get_thread_detail(r.id).unwrap().unwrap();
+    assert_eq!(detail.thread.projects.len(), 2);
+    assert_eq!(detail.thread.adapters.len(), 2);
+}
+
 /// v10 回归：把版本回拨到 9，再 open，应该自动建表。
 #[test]
 fn test_v10_migration_creates_threads_tables() {
