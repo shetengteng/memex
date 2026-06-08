@@ -66,22 +66,37 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
         None => return,
     };
 
-    try_l1_chunk_summaries(db, provider.as_ref());
-    try_l2_session_summaries(db, provider.as_ref(), config.llm.summary_cooldown_secs);
+    let throttle_ms = config.llm.summarize_interval_ms;
+
+    // L1（每个 chunk 一次 LLM 调用）和 L2（每个 session 一次 LLM 调用）
+    // 都是"短时间高频"路径——在大库上自动 ingest 一次会触发几十次 HTTP 调用。
+    // 不节流的话本地 Ollama 会被压到 100% GPU/CPU、风扇拉满、UI 卡顿。
+    // 与手动 batch_summarize 共用同一个配置 `llm.summarize_interval_ms`，
+    // 默认 2000ms（在 LlmConfig::default 里设置）。
+    try_l1_chunk_summaries(db, provider.as_ref(), throttle_ms);
+    try_l2_session_summaries(db, provider.as_ref(), config.llm.summary_cooldown_secs, throttle_ms);
+
+    // L3 / L4 都是「整库一次性聚合」，每个 scope 只跑一次 LLM，
+    // 不构成"短时间高频"压力，不需要节流。
     try_l3_project_summaries(db, provider.as_ref());
     try_l4_periodic_summaries(db, provider.as_ref());
     try_l4_weekly_summaries(db, provider.as_ref());
     try_l4_monthly_summaries(db, provider.as_ref());
 }
 
-fn try_l1_chunk_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvider) {
+fn try_l1_chunk_summaries(
+    db: &Db,
+    provider: &dyn crate::llm::provider::LlmProvider,
+    throttle_ms: u64,
+) {
     let min_tokens = (summarize::min_chunk_chars() / 4) as u32;
     let chunks = match db.chunks_without_summary(min_tokens, summarize::l1_batch_size()) {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    for (chunk_id, content, _) in chunks {
+    let total = chunks.len();
+    for (i, (chunk_id, content, _)) in chunks.into_iter().enumerate() {
         match summarize::summarize_chunk(provider, &content) {
             Ok(s) => {
                 let _ = db.update_chunk_summary(chunk_id, &s);
@@ -89,6 +104,14 @@ fn try_l1_chunk_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmProvi
             Err(e) => {
                 warn!("L1 summarize failed for chunk {}: {}", chunk_id, e);
             }
+        }
+
+        // 节流：除最后一条外，每次 LLM 调用后 sleep 配置的 throttle 时长。
+        // 这避免在大库上自动 ingest 一口气发出几十次 LLM 请求，把本地 Ollama
+        // 压到 GPU/CPU 100%、风扇拉满、UI 卡顿的尴尬场景。
+        let is_last = i + 1 == total;
+        if !is_last && throttle_ms > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(throttle_ms));
         }
     }
 }
@@ -523,6 +546,7 @@ fn try_l2_session_summaries(
     db: &Db,
     provider: &dyn crate::llm::provider::LlmProvider,
     cool_down_secs: u64,
+    throttle_ms: u64,
 ) {
     // 同时使用方案 A（过期检测）+ 方案 B（会话冷却）：
     //   - 没有 L2 摘要的会话 → 新建；
@@ -534,8 +558,17 @@ fn try_l2_session_summaries(
         Err(_) => return,
     };
 
-    for session_id in session_ids {
-        summarize_session_by_id(db, provider, &session_id);
+    let total = session_ids.len();
+    for (i, session_id) in session_ids.iter().enumerate() {
+        summarize_session_by_id(db, provider, session_id);
+
+        // 节流：每次 LLM 调用后 sleep（最后一条除外）。
+        // 与 batch_summarize 共用 llm.summarize_interval_ms 配置。
+        // throttle_ms = 0 时退化为旧行为（不 sleep）。
+        let is_last = i + 1 == total;
+        if !is_last && throttle_ms > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(throttle_ms));
+        }
     }
 }
 
@@ -765,5 +798,158 @@ mod tests {
         let (a, b) = month_range(2026, 2).unwrap();
         assert_eq!(a, "2026-02-01T00:00:00+00:00");
         assert_eq!(b, "2026-03-01T00:00:00+00:00");
+    }
+
+    /// 节流（throttle）回归：
+    /// 自动模式的 `try_l1_chunk_summaries` 和 `try_l2_session_summaries` 应该
+    /// 在每两次 LLM 调用之间 sleep `llm.summarize_interval_ms`。
+    /// 我们用一个会记录调用时刻的 mock provider 验证间隔确实 ≥ throttle。
+    ///
+    /// 为了让测试跑得快，throttle 设 50ms，调用 3 次 → 至少 100ms 间隔。
+    /// 真实运行时配置为 2000ms，行为相同。
+    #[test]
+    fn throttle_inserts_sleep_between_l1_chunk_summaries() {
+        use crate::llm::provider::{LlmProvider, LlmRequest, LlmResponse};
+        use crate::storage::db::Db;
+        use crate::storage::models::{Chunk, ChunkMetadata, ChunkType};
+        use std::sync::Mutex;
+        use std::time::Instant;
+
+        struct TickProvider {
+            ticks: Mutex<Vec<Instant>>,
+        }
+        impl LlmProvider for TickProvider {
+            fn name(&self) -> &str { "tick" }
+            fn is_available(&self) -> bool { true }
+            fn generate(&self, _req: &LlmRequest) -> anyhow::Result<LlmResponse> {
+                self.ticks.lock().unwrap().push(Instant::now());
+                Ok(LlmResponse {
+                    text: "summary".into(),
+                    model: "tick".into(),
+                    tokens_used: 1,
+                })
+            }
+        }
+
+        let db = Db::open_in_memory().unwrap();
+        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0).unwrap();
+        // 插 3 条 chunk，每条都有足够大的 token_count 触发 summarize（min 阈值是
+        // min_chunk_chars / 4 ≈ 50/4 ≈ 12 → 我们给 50）。
+        for i in 0..3 {
+            db.insert_message(
+                &format!("m{i}"),
+                "s1",
+                "user",
+                &format!("message {i} with enough content to summarize lalalalala"),
+                None,
+                i,
+                &blake3::hash(format!("msg{i}").as_bytes()).to_hex().to_string(),
+            ).unwrap();
+            // 内容必须 ≥ 200 字符（MIN_CHUNK_CHARS_FOR_SUMMARY），否则
+            // summarize_chunk 走 fallback 路径不调用 provider.generate。
+            let long_content = "x".repeat(220);
+            db.insert_chunk(&Chunk {
+                id: None,
+                message_id: format!("m{i}"),
+                session_id: "s1".into(),
+                chunk_type: ChunkType::Text,
+                content: long_content,
+                redacted_content: None,
+                position: i as u32,
+                token_count: 60,
+                metadata: ChunkMetadata::default(),
+            }).unwrap();
+        }
+
+        let provider = TickProvider { ticks: Mutex::new(Vec::new()) };
+
+        // throttle=50ms 跑 3 个 chunk → 至少 2 个间隔，间隔 ≥ 50ms
+        let start = Instant::now();
+        try_l1_chunk_summaries(&db, &provider, /* throttle_ms = */ 50);
+        let elapsed = start.elapsed();
+
+        let ticks = provider.ticks.lock().unwrap();
+        assert_eq!(ticks.len(), 3, "应该跑了 3 次 LLM 调用");
+
+        // 间隔 0→1, 1→2 都应该 ≥ 50ms
+        for i in 1..ticks.len() {
+            let gap = ticks[i].duration_since(ticks[i - 1]);
+            assert!(
+                gap.as_millis() >= 45, // 留一点点容差，主要确认 sleep 真的发生
+                "第 {} 次和第 {} 次 LLM 调用间隔应该 ≥ 50ms，实际 {:?}",
+                i - 1, i, gap
+            );
+        }
+        // 整体至少要 100ms（两个间隔）
+        assert!(
+            elapsed.as_millis() >= 90,
+            "3 次调用应该至少 100ms，实际 {:?}",
+            elapsed
+        );
+    }
+
+    /// 节流 = 0 时退化为旧行为（不 sleep），确保我们不破坏现有用户配置。
+    #[test]
+    fn throttle_zero_disables_sleep() {
+        use crate::llm::provider::{LlmProvider, LlmRequest, LlmResponse};
+        use crate::storage::db::Db;
+        use crate::storage::models::{Chunk, ChunkMetadata, ChunkType};
+        use std::sync::Mutex;
+        use std::time::Instant;
+
+        struct FastProvider {
+            count: Mutex<usize>,
+        }
+        impl LlmProvider for FastProvider {
+            fn name(&self) -> &str { "fast" }
+            fn is_available(&self) -> bool { true }
+            fn generate(&self, _req: &LlmRequest) -> anyhow::Result<LlmResponse> {
+                *self.count.lock().unwrap() += 1;
+                Ok(LlmResponse {
+                    text: "s".into(),
+                    model: "fast".into(),
+                    tokens_used: 1,
+                })
+            }
+        }
+
+        let db = Db::open_in_memory().unwrap();
+        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0).unwrap();
+        for i in 0..5 {
+            db.insert_message(
+                &format!("m{i}"),
+                "s1", "user",
+                &format!("hello {i}"),
+                None, i,
+                &blake3::hash(format!("h{i}").as_bytes()).to_hex().to_string(),
+            ).unwrap();
+            // 见上文：内容必须 ≥ 200 字符才会调用 provider
+            let long_content = "y".repeat(220);
+            db.insert_chunk(&Chunk {
+                id: None,
+                message_id: format!("m{i}"),
+                session_id: "s1".into(),
+                chunk_type: ChunkType::Text,
+                content: long_content,
+                redacted_content: None,
+                position: i as u32,
+                token_count: 60,
+                metadata: ChunkMetadata::default(),
+            }).unwrap();
+        }
+
+        let provider = FastProvider { count: Mutex::new(0) };
+
+        let start = Instant::now();
+        try_l1_chunk_summaries(&db, &provider, /* throttle_ms = */ 0);
+        let elapsed = start.elapsed();
+
+        assert_eq!(*provider.count.lock().unwrap(), 5, "应跑 5 个 chunk");
+        // 5 次内存调用（无 sleep）应该远低于 100ms
+        assert!(
+            elapsed.as_millis() < 200,
+            "throttle=0 时 5 次调用不应该花太久，实际 {:?}",
+            elapsed
+        );
     }
 }
