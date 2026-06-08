@@ -25,6 +25,7 @@ import {
   Cloud,
   Eye,
   EyeOff,
+  Loader2,
   RefreshCw,
   Server,
   Sparkles,
@@ -46,8 +47,12 @@ const memex = useMemex()
 const isEdit = computed(() => Boolean(props.editing.id))
 const showApiKey = ref(false)
 const testing = ref(false)
-const listingModels = ref(false)
-const availableModels = ref<string[]>([])
+
+// 模型目录（从 provider 的 /v1/models 或 /api/tags 拉取）。
+// 单 Input + 下方 chip 横排：点 chip 直接填回 Input。
+const models = ref<string[]>([])
+const modelsLoading = ref(false)
+const modelsError = ref<string | null>(null)
 
 const providerTemplates = [
   { name: 'DeepSeek', kind: 'openai_compat' as const, baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', icon: Sparkles },
@@ -64,14 +69,93 @@ function update(key: keyof Provider, value: unknown) {
   emit('update:editing', { ...props.editing, [key]: value })
 }
 
+// 从模板填充：name / kind / baseUrl 必填，model 留空引导用户从下方 chip 选。
+// 与 DiskMind 一致——避免预填的 model 跟模板默认值脱节后给用户错觉。
 function pickTemplate(tpl: (typeof providerTemplates)[number]) {
   emit('update:editing', {
     ...props.editing,
     name: props.editing.name?.trim() ? props.editing.name : tpl.name,
     kind: tpl.kind,
     baseUrl: tpl.baseUrl,
-    model: props.editing.model?.trim() ? props.editing.model : tpl.model,
+    model: props.editing.model?.trim() ? props.editing.model : '',
   })
+}
+
+// 表单是否已有足够信息可调模型目录接口：
+//   - Ollama 风格 endpoint（11434 / /api/tags）无需 key
+//   - 其它类型需 baseUrl + apiKey 都有
+const canFetchModels = computed(() => {
+  const e = props.editing
+  const baseUrl = (e.baseUrl || '').trim()
+  const kind = (e.kind || '').trim().toLowerCase()
+  if (!baseUrl || !kind) return false
+  const looksLikeOllama = baseUrl.includes('11434') || baseUrl.includes('/api/tags')
+  if (looksLikeOllama) return true
+  return Boolean((e.apiKey || '').trim()) || kind.includes('local')
+})
+
+async function fetchModels(quiet = false) {
+  if (modelsLoading.value) return
+  const e = props.editing
+  const kind = (e.kind || 'openai_compat').trim()
+  const baseUrl = (e.baseUrl || '').trim()
+  const apiKey = (e.apiKey || '').trim()
+  if (!baseUrl) {
+    if (!quiet) toast.error('请先填写 Base URL')
+    return
+  }
+  modelsLoading.value = true
+  modelsError.value = null
+  try {
+    const ids = await memex.llmListModels(kind, baseUrl, apiKey)
+    models.value = ids
+    if (!quiet) {
+      if (ids.length === 0) toast.info('未查到模型清单')
+      else toast.success(`发现 ${ids.length} 个可用模型`)
+    }
+  } catch (err) {
+    const fe = humanizeBackendError(err)
+    modelsError.value = fe.friendly
+    models.value = []
+    if (!quiet) toast.error('拉取模型失败', { description: fe.friendly, duration: 8000 })
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+// 自动 debounce 拉取：watch kind / baseUrl / apiKey，停止输入 600ms 后静默重拉。
+// 关闭 dialog 时清掉 timer 与状态，避免下次打开看到陈旧的 chip 清单。
+let autoFetchTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => [props.editing.baseUrl, props.editing.apiKey, props.editing.kind] as const,
+  () => {
+    if (autoFetchTimer) clearTimeout(autoFetchTimer)
+    if (!props.open) return
+    if (!canFetchModels.value) return
+    autoFetchTimer = setTimeout(() => {
+      autoFetchTimer = null
+      void fetchModels(/* quiet */ true)
+    }, 600)
+  },
+)
+
+watch(
+  () => props.open,
+  (v) => {
+    if (!v) {
+      if (autoFetchTimer) {
+        clearTimeout(autoFetchTimer)
+        autoFetchTimer = null
+      }
+      models.value = []
+      modelsError.value = null
+      showApiKey.value = false
+    }
+  },
+)
+
+function pickModel(id: string) {
+  update('model', id)
 }
 
 // 草稿测试：不依赖 provider.id，直接拿当前表单值传给后端
@@ -85,7 +169,6 @@ async function testDraft() {
   const model = (e.model || '').trim()
   const apiKey = (e.apiKey || '').trim()
 
-  // Ollama 不需要 apiKey；其它类型必填 name / baseUrl / model
   if (!name || !baseUrl || !model) {
     toast.error('请先填写 名称 / Base URL / 模型 再测试')
     return
@@ -96,7 +179,6 @@ async function testDraft() {
   }
 
   testing.value = true
-  // 立刻给视觉反馈，避免 ureq 阻塞期间用户以为没反应
   const loadingId = toast.loading(`正在测试 ${name}…`)
   try {
     const r = await memex.llmProviderTestDraft(name, kind, baseUrl, model, apiKey)
@@ -107,119 +189,31 @@ async function testDraft() {
       })
     } else {
       const fe = humanizeBackendError(r.error || 'unknown')
-      toast.error('测试失败', {
-        description: fe.friendly,
-        duration: 8000,
-      })
+      toast.error('测试失败', { description: fe.friendly, duration: 8000 })
     }
   } catch (err) {
     toast.dismiss(loadingId)
     const fe = humanizeBackendError(err)
-    toast.error('测试失败', {
-      description: fe.friendly,
-      duration: 8000,
-    })
+    toast.error('测试失败', { description: fe.friendly, duration: 8000 })
   } finally {
     testing.value = false
   }
 }
-
-// 抽出核心拉取逻辑。`silent=true` 时不弹 toast、不报错，用于自动 debounce 调用。
-async function performFetchModels(opts: { silent?: boolean } = {}): Promise<boolean> {
-  const silent = opts.silent === true
-  if (listingModels.value) return false
-  const e = props.editing
-  const kind = (e.kind || 'openai_compat').trim()
-  const baseUrl = (e.baseUrl || '').trim()
-  const apiKey = (e.apiKey || '').trim()
-  if (!baseUrl) {
-    if (!silent) toast.error('请先填写 Base URL')
-    return false
-  }
-  if (kind !== 'ollama' && !apiKey) {
-    if (!silent) toast.error('请先填写 API Key')
-    return false
-  }
-  listingModels.value = true
-  try {
-    const models = await memex.llmListModels(kind, baseUrl, apiKey)
-    if (!models.length) {
-      availableModels.value = []
-      if (!silent) toast.info('未查到模型清单')
-      return false
-    }
-    availableModels.value = models
-    if (!props.editing.model?.trim()) {
-      emit('update:editing', { ...props.editing, model: models[0] })
-    }
-    if (!silent) {
-      toast.success(`发现 ${models.length} 个可用模型`, {
-        description: '可在下拉中切换或在输入框搜索',
-      })
-    }
-    return true
-  } catch (err) {
-    if (!silent) {
-      toast.error('拉取模型失败', {
-        description: String(err),
-        duration: 8000,
-      })
-    }
-    return false
-  } finally {
-    listingModels.value = false
-  }
-}
-
-async function fetchModels() {
-  await performFetchModels()
-}
-
-// 自动拉取：当 kind / baseUrl / apiKey 变化时 debounce 500ms 后静默重拉。
-// 只在三个字段都有值且 dialog 已打开时触发。
-let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null
-watch(
-  () => [props.open, props.editing.kind, props.editing.baseUrl, props.editing.apiKey] as const,
-  ([isOpen, kind, baseUrl, apiKey]) => {
-    if (autoRefreshTimer) {
-      clearTimeout(autoRefreshTimer)
-      autoRefreshTimer = null
-    }
-    if (!isOpen) return
-    const baseTrim = (baseUrl || '').trim()
-    const keyTrim = (apiKey || '').trim()
-    if (!baseTrim) return
-    if (kind !== 'ollama' && !keyTrim) return
-    autoRefreshTimer = setTimeout(() => {
-      void performFetchModels({ silent: true })
-    }, 500)
-  },
-)
-
-// 下拉框内的模型搜索过滤
-const modelSearch = ref('')
-const filteredAvailableModels = computed(() => {
-  const q = modelSearch.value.trim().toLowerCase()
-  if (!q) return availableModels.value
-  return availableModels.value.filter((m) => m.toLowerCase().includes(q))
-})
 </script>
 
 <template>
   <Dialog :open="open" @update:open="(v) => emit('update:open', v)">
     <DialogContent
-      class="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-[720px] lg:max-w-[860px]"
+      class="sm:max-w-[720px] lg:max-w-[860px]"
     >
-      <!-- 固定头部：标题 + 描述。不滚动 -->
-      <DialogHeader class="shrink-0 border-b px-5 py-4">
+      <DialogHeader>
         <DialogTitle>{{ isEdit ? '编辑 Provider' : '添加 Provider' }}</DialogTitle>
         <DialogDescription>
           配置 LLM 服务商：从模板快速填充，或手动输入 Base URL 与 API Key
         </DialogDescription>
       </DialogHeader>
 
-      <!-- 中间滚动区：弹框高度不够时只滚动这一段，不影响 header / footer -->
-      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      <div class="-mx-4 min-h-0 flex-1 space-y-4 overflow-y-auto px-4">
 
       <div v-if="!isEdit" class="space-y-2">
         <Label class="text-xs">从模板新建</Label>
@@ -300,64 +294,52 @@ const filteredAvailableModels = computed(() => {
               variant="ghost"
               size="sm"
               class="h-7 px-2 text-[11px]"
-              :disabled="listingModels"
-              @click="fetchModels"
+              :disabled="!canFetchModels || modelsLoading"
+              @click="fetchModels(false)"
             >
-              <RefreshCw :class="['mr-1 size-3', listingModels && 'animate-spin']" />
-              {{ listingModels ? '拉取中…' : '拉取可用模型' }}
+              <Loader2 v-if="modelsLoading" class="mr-1 size-3 animate-spin" />
+              <RefreshCw v-else class="mr-1 size-3" />
+              {{ modelsLoading ? '拉取中…' : '拉取可用模型' }}
             </Button>
           </div>
-          <div class="flex gap-2">
-            <Input
-              :model-value="editing.model"
-              @update:model-value="(v) => update('model', v)"
-              placeholder="deepseek-chat / gpt-4o-mini / qwen2.5:3b"
-              class="h-9 flex-1 font-mono text-xs"
-            />
-            <Select
-              v-if="availableModels.length"
-              :model-value="editing.model && availableModels.includes(editing.model) ? editing.model : ''"
-              @update:model-value="(v) => update('model', v)"
+          <!-- 单 Input；下方紧跟 chip 标签横排（DiskMind 同款）：点 chip 直接填入 Input -->
+          <Input
+            :model-value="editing.model"
+            @update:model-value="(v) => update('model', v)"
+            placeholder="deepseek-chat / gpt-4o-mini / qwen2.5:3b"
+            class="h-9 font-mono text-xs"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div v-if="models.length > 0" class="flex flex-wrap gap-1 pt-1">
+            <button
+              v-for="m in models.slice(0, 12)"
+              :key="m"
+              type="button"
+              class="rounded-md border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:bg-accent"
+              :class="{ 'border-primary/40 bg-primary/10 text-primary': editing.model === m }"
+              @click="pickModel(m)"
             >
-              <SelectTrigger class="h-9 w-44 shrink-0 font-mono text-xs">
-                <SelectValue placeholder="从清单选" />
-              </SelectTrigger>
-              <SelectContent class="max-h-72">
-                <div class="sticky top-0 z-10 border-b bg-popover p-1.5">
-                  <Input
-                    v-model="modelSearch"
-                    placeholder="搜索模型…"
-                    class="h-7 font-mono text-xs"
-                    autofocus
-                  />
-                </div>
-                <SelectItem
-                  v-for="m in filteredAvailableModels"
-                  :key="m"
-                  :value="m"
-                  class="font-mono text-xs"
-                >
-                  {{ m }}
-                </SelectItem>
-                <div
-                  v-if="filteredAvailableModels.length === 0"
-                  class="px-2 py-3 text-center text-[11px] text-muted-foreground"
-                >
-                  无匹配
-                </div>
-              </SelectContent>
-            </Select>
+              {{ m }}
+            </button>
+            <span v-if="models.length > 12" class="px-1 py-0.5 text-[10px] text-muted-foreground">
+              +{{ models.length - 12 }} 个未展示，可直接在输入框搜索
+            </span>
           </div>
-          <p class="text-[10px] text-muted-foreground">
-            <span v-if="listingModels">
-              正在拉取可用模型…
-            </span>
-            <span v-else-if="availableModels.length">
-              共 {{ availableModels.length }} 个可用模型，下拉选择或手动输入。修改 URL/Key 时会自动重新拉取
-            </span>
-            <span v-else>
-              填好 Base URL 与 API Key，会自动拉取该 Provider 支持的模型清单
-            </span>
+          <p v-if="modelsError" class="text-[10px] text-rose-500">
+            拉取失败：{{ modelsError }}
+          </p>
+          <p v-else-if="modelsLoading" class="text-[10px] text-muted-foreground">
+            正在拉取可用模型…
+          </p>
+          <p v-else-if="!canFetchModels" class="text-[10px] text-muted-foreground">
+            填好 Base URL 与 API Key 后会自动拉取该 Provider 支持的模型
+          </p>
+          <p v-else-if="models.length === 0" class="text-[10px] text-muted-foreground">
+            未发现模型，可点上方「拉取可用模型」或直接手动输入
+          </p>
+          <p v-else class="text-[10px] text-muted-foreground">
+            共 {{ models.length }} 个可用模型 · 点击下方 chip 填入或手动编辑
           </p>
         </div>
         <div class="flex items-center justify-between rounded-md border px-3 py-2 md:col-span-2">
@@ -375,8 +357,7 @@ const filteredAvailableModels = computed(() => {
       </div>
       </div>
 
-      <!-- 固定底部：测试 / 取消 / 保存。不滚动 -->
-      <DialogFooter class="shrink-0 border-t px-5 py-3">
+      <DialogFooter>
         <Button
           variant="outline"
           class="mr-auto"
