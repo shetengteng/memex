@@ -9,7 +9,9 @@
  *   - 自动聚类开关（UI 占位，定时调度由 daemon 后续接入） + 手动「全量聚类」按钮
  *
  * 严格使用 shadcn-vue 组件：Card / Badge / Button / Input / Switch /
- * Sheet / ScrollArea / Separator / Dialog（删除二次确认）。
+ * Sheet / Separator / Dialog（删除二次确认）。外层滚动条参考 Today 页面，
+ * 用 `flex-1 min-h-0 overflow-y-auto` 而不是 ScrollArea，避免 flex 高度链断裂。
+ * Sheet 内部保留 ScrollArea（SheetContent 自身高度受控）。
  */
 import { computed, onMounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
@@ -25,7 +27,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
@@ -353,7 +354,7 @@ onMounted(async () => {
     </section>
 
     <!-- 卡片网格 / 空状态 -->
-    <ScrollArea class="flex-1">
+    <div class="flex-1 min-h-0 overflow-y-auto">
       <!-- 真的没有任何线索 -->
       <div
         v-if="threads.length === 0"
@@ -404,7 +405,7 @@ onMounted(async () => {
           v-for="t in filteredThreads"
           :key="t.id"
           size="sm"
-          class="group/card relative cursor-pointer transition-all hover:border-foreground/40 hover:shadow-sm"
+          class="group/card relative h-full cursor-pointer transition-all hover:border-foreground/40 hover:shadow-sm"
           @click="openThread(t)"
         >
           <CardHeader class="px-4">
@@ -423,7 +424,7 @@ onMounted(async () => {
             </div>
           </CardHeader>
 
-          <CardContent class="space-y-3 px-4">
+          <CardContent class="flex-1 space-y-3 px-4">
             <p
               v-if="t.summary"
               class="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground"
@@ -472,7 +473,7 @@ onMounted(async () => {
             </div>
           </CardContent>
 
-          <CardFooter class="flex items-center justify-between px-4 text-[10.5px] text-muted-foreground/80">
+          <CardFooter class="mt-auto flex items-center justify-between px-4 text-[10.5px] text-muted-foreground/80">
             <span class="tabular-nums">{{ t.session_count }} 个会话</span>
             <span class="tabular-nums">{{ timeFmt(t.updated_at) }}</span>
           </CardFooter>
@@ -488,7 +489,7 @@ onMounted(async () => {
           <span class="mt-1.5 text-[12px]">检索一个新主题</span>
         </button>
       </ul>
-    </ScrollArea>
+    </div>
 
     <!-- 详情侧栏 -->
     <Sheet :open="sheetOpen" @update:open="(v: boolean) => (sheetOpen = v)">

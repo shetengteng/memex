@@ -389,7 +389,7 @@ onBeforeUnmount(() => {
         @dblclick="resetFacets"
       />
 
-      <section class="flex flex-1 min-w-0 flex-col overflow-hidden">
+      <section class="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
         <div
           v-if="tab === 'sessions'"
           class="flex shrink-0 items-center gap-2 px-5 pt-3 pb-2"
