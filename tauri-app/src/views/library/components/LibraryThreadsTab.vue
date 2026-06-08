@@ -12,17 +12,37 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import LibrarySessionListItem from './LibrarySessionListItem.vue'
-import { GitBranch, Loader2, RefreshCw, Search, Sparkles } from 'lucide-vue-next'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { toast } from 'vue-sonner'
+import LibrarySessionListItem from './LibrarySessionListItem.vue'
+import {
+  GitBranch,
+  Loader2,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Trash2,
+  Wand2,
+} from 'lucide-vue-next'
+import {
+  deleteThread,
   fetchThreadDetail,
   refreshThreads,
   regenerateThreads,
   rowToSession,
+  searchThreadByQuery,
   threads,
   type Session,
 } from '@/stores/memex'
 import type { SessionRow, ThreadRow } from '@/types'
+import { humanizeBackendError } from '@/lib/utils'
 
 const emit = defineEmits<{ open: [Session] }>()
 
@@ -32,6 +52,14 @@ const detailSessions = ref<SessionRow[]>([])
 const detailLoading = ref(false)
 const regenerating = ref(false)
 const regenerateError = ref<string | null>(null)
+
+// 关键词 LLM 检索
+const llmQuery = ref('')
+const llmSearching = ref(false)
+
+// 删除确认
+const deleteTarget = ref<ThreadRow | null>(null)
+const deleting = ref(false)
 
 // 左侧线索列表宽度（像素）。用户可以拖动中间分隔条改变。
 // 上下界限：240..560，避免拖到太窄或挤掉右侧。
@@ -141,6 +169,48 @@ async function onRegenerate() {
 
 const openSession = (s: Session) => emit('open', s)
 
+async function onLlmSearch() {
+  const q = llmQuery.value.trim()
+  if (!q) return
+  llmSearching.value = true
+  try {
+    const id = await searchThreadByQuery(q)
+    llmQuery.value = ''
+    // 新线索往往出现在列表顶部（updated_at 是 now），选中它让用户看到结果
+    if (id) {
+      await selectThread(id)
+    }
+    toast.success(`已为「${q}」生成线索`)
+  } catch (e) {
+    toast.error(humanizeBackendError(e).friendly)
+  } finally {
+    llmSearching.value = false
+  }
+}
+
+function requestDelete(t: ThreadRow) {
+  deleteTarget.value = t
+}
+
+async function confirmDelete() {
+  const t = deleteTarget.value
+  if (!t) return
+  deleting.value = true
+  try {
+    await deleteThread(t.id)
+    if (selectedThreadId.value === t.id) {
+      selectedThreadId.value = null
+      detailSessions.value = []
+    }
+    toast.success(`已删除线索「${t.name}」`)
+  } catch (e) {
+    toast.error(humanizeBackendError(e).friendly)
+  } finally {
+    deleting.value = false
+    deleteTarget.value = null
+  }
+}
+
 onMounted(async () => {
   await refreshThreads()
   // 首次默认选中第一条，让右侧不空
@@ -168,27 +238,53 @@ watch(
       class="flex shrink-0 flex-col border-r border-border/60"
       :style="{ width: `${leftWidth}px` }"
     >
-      <div class="flex items-center gap-2 border-b border-border/60 px-4 py-3">
-        <div class="relative flex-1">
-          <Search
-            class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            v-model="threadQuery"
-            class="h-9 pl-9"
-            placeholder="搜索线索…"
-          />
+      <div class="space-y-2 border-b border-border/60 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <Search
+              class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              v-model="threadQuery"
+              class="h-9 pl-9"
+              placeholder="搜索已有线索…"
+            />
+          </div>
+          <Button
+            variant="outline"
+            :disabled="regenerating"
+            class="h-9 px-3"
+            @click="onRegenerate"
+          >
+            <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
+            <RefreshCw v-else class="size-3.5" />
+            <span class="ml-1.5 text-[12px]">重新聚类</span>
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          :disabled="regenerating"
-          class="h-9 px-3"
-          @click="onRegenerate"
-        >
-          <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
-          <RefreshCw v-else class="size-3.5" />
-          <span class="ml-1.5 text-[12px]">重新聚类</span>
-        </Button>
+        <!-- 按关键词让 LLM 在历史会话里挑相关 session 生成新线索 -->
+        <form class="flex items-center gap-2" @submit.prevent="onLlmSearch">
+          <div class="relative flex-1">
+            <Wand2
+              class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              v-model="llmQuery"
+              class="h-9 pl-9"
+              placeholder="按关键词让 LLM 找相关线索…"
+              :disabled="llmSearching"
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="secondary"
+            :disabled="llmSearching || !llmQuery.trim()"
+            class="h-9 px-3"
+          >
+            <Loader2 v-if="llmSearching" class="size-3.5 animate-spin" />
+            <Wand2 v-else class="size-3.5" />
+            <span class="ml-1.5 text-[12px]">检索</span>
+          </Button>
+        </form>
       </div>
 
       <div v-if="regenerateError" class="px-4 py-2 text-[11px] text-destructive">
@@ -201,7 +297,7 @@ watch(
             v-for="t in filteredThreads"
             :key="t.id"
             :data-active="t.id === selectedThreadId"
-            class="cursor-pointer border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/40 data-[active=true]:bg-accent/40"
+            class="group/thread-row relative cursor-pointer border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/40 data-[active=true]:bg-accent/40"
             @click="selectThread(t.id)"
           >
             <div class="flex items-center justify-between gap-2">
@@ -209,9 +305,20 @@ watch(
                 <GitBranch class="size-3.5 shrink-0 text-muted-foreground" />
                 <span class="truncate text-[13px] font-semibold">{{ t.name }}</span>
               </div>
-              <Badge variant="secondary" class="shrink-0 tabular-nums text-[10px]">
-                {{ t.session_count }}
-              </Badge>
+              <div class="flex shrink-0 items-center gap-1">
+                <Badge variant="secondary" class="tabular-nums text-[10px]">
+                  {{ t.session_count }}
+                </Badge>
+                <!-- hover 时才出现的删除按钮：列表里默认 opacity-0 不抢注意力 -->
+                <button
+                  type="button"
+                  aria-label="删除线索"
+                  class="flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/thread-row:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
+                  @click.stop="requestDelete(t)"
+                >
+                  <Trash2 class="size-3" />
+                </button>
+              </div>
             </div>
             <p
               v-if="t.summary"
@@ -305,5 +412,45 @@ watch(
         </div>
       </template>
     </section>
+
+    <!-- 删除确认。线索删除不影响下面的 session 本体，只断开 thread_sessions 关联，
+         所以风险低。但仍弹个确认避免误删。-->
+    <Dialog
+      :open="deleteTarget !== null"
+      @update:open="(v: boolean) => { if (!v) deleteTarget = null }"
+    >
+      <DialogContent class="w-[92vw] !max-w-md">
+        <DialogHeader>
+          <DialogTitle>删除线索</DialogTitle>
+          <DialogDescription>
+            将删除线索「{{ deleteTarget?.name }}」（包含
+            {{ deleteTarget?.session_count }} 个会话的关联）。
+            <br />
+            <span class="text-muted-foreground">
+              这只会断开线索 ↔ 会话的关联，不会删除会话本身。下次"重新聚类"可能会再生成同名线索。
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="deleting"
+            @click="deleteTarget = null"
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleting"
+            @click="confirmDelete"
+          >
+            <Loader2 v-if="deleting" class="mr-1.5 size-3.5 animate-spin" />
+            删除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

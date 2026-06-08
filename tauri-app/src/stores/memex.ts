@@ -458,3 +458,29 @@ export async function regenerateThreads(): Promise<number> {
     throw e instanceof Error ? e : new Error(String(e))
   }
 }
+
+/** 删除一条线索（及其 thread_sessions 关联）。失败时重抛，调用方可 toast 报错。 */
+export async function deleteThread(threadId: number): Promise<void> {
+  try {
+    await invoke<void>('delete_thread', { threadId })
+    // 从本地数组里同步移除，避免等下次 refresh 的延迟。
+    const idx = threads.findIndex((t) => t.id === threadId)
+    if (idx >= 0) threads.splice(idx, 1)
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
+  }
+}
+
+/**
+ * 按关键词让 LLM 在所有 L2 摘要里挑出相关 session，作为新线索落库。
+ * 返回新线索的 thread_id（调用方一般会再 refreshThreads 并自动选中它）。
+ */
+export async function searchThreadByQuery(query: string): Promise<number> {
+  try {
+    const id = await invoke<number>('search_thread_by_query', { query })
+    await refreshThreads()
+    return id
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
+  }
+}

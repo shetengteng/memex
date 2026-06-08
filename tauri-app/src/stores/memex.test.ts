@@ -13,6 +13,7 @@ import {
   computeDurationMin,
   daemon,
   daemonStatus,
+  deleteThread,
   fetchThreadDetail,
   initMemexStore,
   loadMoreSessions,
@@ -22,6 +23,7 @@ import {
   refreshSessions,
   refreshThreads,
   regenerateThreads,
+  searchThreadByQuery,
   sessions,
   stats,
   threads,
@@ -472,6 +474,83 @@ describe('stores/memex', () => {
         throw new Error('LLM not configured')
       })
       await expect(regenerateThreads()).rejects.toThrow('LLM not configured')
+    })
+
+    it('deleteThread removes the thread from the reactive list', async () => {
+      threads.push(
+        {
+          id: 1,
+          name: 'keep',
+          summary: '',
+          session_count: 0,
+          created_at: '',
+          updated_at: '',
+        },
+        {
+          id: 2,
+          name: 'remove',
+          summary: '',
+          session_count: 0,
+          created_at: '',
+          updated_at: '',
+        },
+      )
+      mockedInvoke.mockImplementation(
+        async (cmd: string, args?: { threadId?: number }) => {
+          if (cmd === 'delete_thread') {
+            expect(args?.threadId).toBe(2)
+            return undefined
+          }
+          return undefined
+        },
+      )
+      await deleteThread(2)
+      expect(threads.length).toBe(1)
+      expect(threads[0].id).toBe(1)
+    })
+
+    it('deleteThread rethrows backend errors', async () => {
+      mockedInvoke.mockImplementation(async () => {
+        throw new Error('not found')
+      })
+      await expect(deleteThread(99)).rejects.toThrow('not found')
+    })
+
+    it('searchThreadByQuery invokes backend with query and refreshes list', async () => {
+      let listCalls = 0
+      mockedInvoke.mockImplementation(
+        async (cmd: string, args?: { query?: string }) => {
+          if (cmd === 'search_thread_by_query') {
+            expect(args?.query).toBe('Tauri 多窗口')
+            return 42
+          }
+          if (cmd === 'list_threads') {
+            listCalls += 1
+            return [
+              {
+                id: 42,
+                name: 'Tauri 多窗口',
+                summary: '',
+                session_count: 3,
+                created_at: '',
+                updated_at: '',
+              },
+            ]
+          }
+          return null
+        },
+      )
+      const id = await searchThreadByQuery('Tauri 多窗口')
+      expect(id).toBe(42)
+      expect(listCalls).toBe(1)
+      expect(threads[0].name).toBe('Tauri 多窗口')
+    })
+
+    it('searchThreadByQuery rethrows backend errors', async () => {
+      mockedInvoke.mockImplementation(async () => {
+        throw new Error('未找到与「foo」相关的会话')
+      })
+      await expect(searchThreadByQuery('foo')).rejects.toThrow('未找到')
     })
   })
 
