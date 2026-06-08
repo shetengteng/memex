@@ -5,7 +5,9 @@ import {
   cn,
   formatNumber,
   humanizeBackendError,
+  isNoisePrompt,
   isPlaceholderTitle,
+  meaningfulPrompt,
   meaningfulTitle,
 } from './utils'
 
@@ -62,6 +64,33 @@ describe('placeholder title detection', () => {
     expect(meaningfulTitle('  hello  ')).toBe('hello')
     expect(meaningfulTitle('New session')).toBeNull()
     expect(meaningfulTitle(null)).toBeNull()
+  })
+})
+
+describe('noise prompt detection', () => {
+  it('recognises claude_code agent role templates as noise', () => {
+    expect(isNoisePrompt('=== Role ===\n你是 xxx agent')).toBe(true)
+    expect(isNoisePrompt('  === Task ===  body')).toBe(true)
+    expect(isNoisePrompt('=== Skills (advisory) ===')).toBe(true)
+    expect(isNoisePrompt('=== System ===\n...')).toBe(true)
+  })
+
+  it('accepts real user prompts', () => {
+    expect(isNoisePrompt('修一下登录')).toBe(false)
+    expect(isNoisePrompt('帮我设计 schema')).toBe(false)
+  })
+
+  it('treats empty / whitespace-only as noise', () => {
+    expect(isNoisePrompt(null)).toBe(true)
+    expect(isNoisePrompt(undefined)).toBe(true)
+    expect(isNoisePrompt('')).toBe(true)
+    expect(isNoisePrompt('   ')).toBe(true)
+  })
+
+  it('meaningfulPrompt returns trimmed value or null', () => {
+    expect(meaningfulPrompt('  hi there ')).toBe('hi there')
+    expect(meaningfulPrompt('=== Role ===\nfoo')).toBeNull()
+    expect(meaningfulPrompt(null)).toBeNull()
   })
 })
 

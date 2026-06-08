@@ -26,6 +26,7 @@ import type {
   ThreadRow,
 } from '@/types'
 import { useMemex } from '@/composables/useMemex'
+import { meaningfulPrompt } from '@/lib/utils'
 
 // ============================================================
 // Adapter 静态元信息（暂时沿用原型）
@@ -102,16 +103,20 @@ export function rowToSession(row: SessionRow): Session {
   const projName = row.project_path
     ? row.project_path.split('/').filter(Boolean).pop() ?? row.project_path
     : '(未知项目)'
+  // claude_code 等 IDE 的 workflow agent 框架会把 `=== Role === ...` 这种
+  // system prompt 模板写进第一条 user message。这种内容做标题 / intent fallback
+  // 完全是噪音，必须过滤掉。
+  const cleanFirstPrompt = meaningfulPrompt(row.first_user_message)
   const title =
     (row.summary_title && row.summary_title.trim()) ||
     (row.title && row.title.trim()) ||
-    (row.first_user_message && row.first_user_message.trim().slice(0, 60)) ||
+    (cleanFirstPrompt && cleanFirstPrompt.slice(0, 60)) ||
     '(无标题)'
   // intent 优先取 LLM 摘要里推断出来的；摘要还没生成时退到第一条 user 消息预览，
   // 让列表行依然有第二行有意义的辅助文字（LibrarySessionListItem 会读 session.intent）。
   const intent =
     (row.intent && row.intent.trim()) ||
-    (row.first_user_message && row.first_user_message.trim().slice(0, 120)) ||
+    (cleanFirstPrompt && cleanFirstPrompt.slice(0, 120)) ||
     undefined
   return {
     id: row.id,

@@ -156,6 +156,38 @@ describe('stores/memex', () => {
       expect(sessions[0].title).toBe('how do I')
     })
 
+    // claude_code workflow agent 把 `=== Role === ...` 这种 system prompt 模板
+    // 写到第一条 user message。store 在做 title / intent fallback 时必须把它
+    // 当作"没值"，否则 UI 上会出现一堆挂着 === Role === 的会话卡。
+    it('rowToSession strips noise (=== Role ===) from title and intent fallback', async () => {
+      mockedInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === 'list_recent') {
+          return [
+            {
+              id: 's-noise',
+              source: 'claude_code',
+              project_path: '/me/repo',
+              title: '',
+              message_count: 1,
+              created_at: '',
+              updated_at: '',
+              summary_title: null,
+              first_user_message: '=== Role ===\n你是 agent。\n=== Task ===\n做事。',
+              intent: null,
+            },
+          ]
+        }
+        return []
+      })
+      await initMemexStore(true)
+      // title 不能被设置为 === Role === 片段
+      expect(sessions[0].title.includes('=== Role')).toBe(false)
+      // 既然 noise 被过滤，title fallback 链最终拿到 "(无标题)"
+      expect(sessions[0].title).toBe('(无标题)')
+      // intent 也不应被 noise 污染
+      expect(sessions[0].intent).toBeUndefined()
+    })
+
     it('rowToSession maps summary intent into session.intent', async () => {
       mockedInvoke.mockImplementation(async (cmd: string) => {
         if (cmd === 'list_recent') {

@@ -97,6 +97,41 @@ export function meaningfulTitle(s: string | null | undefined): string | null {
 }
 
 /**
+ * 识别"第一条 user 消息"里 IDE agent 框架塞进来的 system prompt 模板。
+ *
+ * 典型来源：claude_code workflow agent 把整段
+ * `=== Role === / === Skills === / === Task ===` 写进 user message 的 content
+ * 字段。这类内容对用户无意义，不能当 fallback 标题或 intent 展示。
+ *
+ * 后端 `crates/memex-core/src/context/builder.rs::is_noise_prompt` 有等价逻辑，
+ * 任何一边变动都建议同步另一边。
+ */
+const NOISE_PROMPT_PREFIXES = [
+  '=== Role',
+  '=== Task',
+  '=== Skills',
+  '=== System',
+  '=== Goal',
+]
+
+export function isNoisePrompt(s: string | null | undefined): boolean {
+  if (!s) return true
+  const trimmed = s.trimStart()
+  if (NOISE_PROMPT_PREFIXES.some((p) => trimmed.startsWith(p))) {
+    return true
+  }
+  // 极短或只有标点 / 空白的 fallback。
+  const visible = trimmed.replace(/\s+/g, '')
+  return visible.length < 2
+}
+
+/** 返回干净有意义的 user prompt 预览；匹配 noise 模板时返回 null。 */
+export function meaningfulPrompt(s: string | null | undefined): string | null {
+  if (isNoisePrompt(s)) return null
+  return s!.trim()
+}
+
+/**
  * 后端错误（Rust `Result::Err(String)`）原文常常是英文工程化的，对终端用户不友好。
  * 这里把已知的几类常见错误匹配成中文友好版本，并附带提示用户怎么解决。
  *
