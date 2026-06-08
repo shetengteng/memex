@@ -786,6 +786,12 @@ pub fn regenerate_threads(
             Ok(Some(r)) => r,
             _ => continue,
         };
+        // 把 project_path 末段作为 project_name 喂给聚类 LLM。
+        // 这是防止跨项目错聚类（例如 memex 的 prompts.txt 讨论 + tt-qimen 的
+        // prompts.txt 讨论被合到同一条线索）的关键信号。
+        let project_name = s.project_path.as_deref().and_then(|p| {
+            p.rsplit('/').find(|seg| !seg.is_empty()).map(|s| s.to_string())
+        });
         batch.push((
             s.id.clone(),
             summarize::SessionSummary {
@@ -793,7 +799,7 @@ pub fn regenerate_threads(
                 summary: row.summary,
                 topics: row.topics,
                 decisions: row.decisions,
-                project_name: None,
+                project_name,
                 intent: None,
             },
         ));

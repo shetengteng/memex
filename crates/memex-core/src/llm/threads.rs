@@ -31,10 +31,10 @@ const MAX_SESSIONS_PER_THREAD: usize = 40;
 const MAX_OUTPUT_TOKENS: usize = 4096;
 
 const THREAD_CLUSTERING_SYSTEM: &str = "\
-你是一位资深技术工作流分析师。输入是若干条编程会话的摘要，每条带一个编号。\
-你的任务是把它们聚类成若干条「主题线索（Thread）」——同一线索内的会话\
-应该围绕同一个高层目标或问题域展开（例如「memex 桌面化迁移」、「cursor 适配器调研」、\
-「LLM 摘要 prompt 优化」）。
+你是一位资深技术工作流分析师。输入是若干条编程会话的摘要，每条带一个编号\
+和所属项目名。你的任务是把它们聚类成若干条「主题线索（Thread）」——同一线索内\
+的会话应该围绕同一个高层目标或问题域展开（例如「memex 桌面化迁移」、\
+「cursor 适配器调研」、「LLM 摘要 prompt 优化」）。
 
 输出严格合法的 JSON（不带 ```json 标记），结构如下：
 
@@ -51,12 +51,15 @@ const THREAD_CLUSTERING_SYSTEM: &str = "\
 硬性要求：
 1. 输出的 threads 数组长度不超过 12 个
 2. 每个 thread 的 session_indices 长度不超过 40，且必须是 1-based 整数，对应输入序号
-3. 不要让所有 session 挤在一个 thread；单一主题强行拆分也不要——\
+3. **不同 project 的 session 默认不能聚到同一个 thread**。只有当两个项目\
+   讨论的是完全相同的主题（如同一个跨项目的库重构）时才可以跨项目合并；\
+   仅仅「都讨论了 prompts.txt」、「都在讨论 markdown 渲染」这种弱相关不算\
+4. 不要让所有 session 挤在一个 thread；单一主题强行拆分也不要——\
    宁可少一些 thread，每个聚焦
-4. 同一个 session 可以属于多个 thread（如 'memex 桌面化' + 'Tauri 多窗口'）
-5. 偶尔出现的边缘会话可以不归属任何 thread——直接不出现在任何 session_indices 即可
-6. 不要复述输入的 session 标题，要抽象出更高层的主题
-7. 所有自然语言用简体中文。技术标识保持原样
+5. 同一个 session 可以属于多个 thread（如 'memex 桌面化' + 'Tauri 多窗口'）
+6. 偶尔出现的边缘会话可以不归属任何 thread——直接不出现在任何 session_indices 即可
+7. 不要复述输入的 session 标题，要抽象出更高层的主题
+8. 所有自然语言用简体中文。技术标识保持原样
 
 只输出 JSON，不要解释。";
 
@@ -104,30 +107,36 @@ pub fn cluster_threads(
 }
 
 /// 当 LLM 不可用或解析失败时的确定性 fallback：
-/// 按 SessionSummary.topics 第一项作为桶 key，把 session 分桶。
-/// 不会产生跨 session 智能合并（同一主题但 topic 字段不一致的会被分开），
-/// 但保证 UI 至少有线索可看。
+/// 按 (project_name, topics[0]) 作为桶 key 分桶。把 project 放进 key 是为了
+/// 避免跨项目错聚类——同样讨论"prompts.txt"的两个 session 来自不同项目时
+/// 应该是两条独立线索。
 pub fn fallback_cluster(sessions: &[(String, SessionSummary)]) -> Vec<ThreadDraft> {
     use std::collections::BTreeMap;
-    let mut by_topic: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut by_bucket: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
 
     for (sid, summary) in sessions {
-        let key = summary
+        let project = summary
+            .project_name
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "未知项目".to_string());
+        let topic = summary
             .topics
             .first()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "未分类".to_string());
-        by_topic.entry(key).or_default().push(sid.clone());
+        by_bucket.entry((project, topic)).or_default().push(sid.clone());
     }
 
     // 只保留 session_count >= 2 的桶（单 session 的"线索"没有意义）。
-    by_topic
+    by_bucket
         .into_iter()
         .filter(|(_, ids)| ids.len() >= 2)
         .take(MAX_THREADS_PER_RESPONSE)
-        .map(|(name, ids)| ThreadDraft {
-            name,
+        .map(|((project, topic), ids)| ThreadDraft {
+            name: format!("{} · {}", project, topic),
             summary: String::new(),
             session_ids: ids,
         })
@@ -136,7 +145,7 @@ pub fn fallback_cluster(sessions: &[(String, SessionSummary)]) -> Vec<ThreadDraf
 
 fn build_clustering_prompt(batch: &[(String, SessionSummary)]) -> String {
     let mut prompt = String::with_capacity(8000);
-    prompt.push_str("以下是若干条编程会话的摘要，每条带一个 1-based 编号：\n\n");
+    prompt.push_str("以下是若干条编程会话的摘要，每条带一个 1-based 编号和所属项目：\n\n");
     for (i, (_, summary)) in batch.iter().enumerate() {
         let n = i + 1;
         let title = if summary.title.is_empty() {
@@ -156,9 +165,21 @@ fn build_clustering_prompt(batch: &[(String, SessionSummary)]) -> String {
         } else {
             format!("（主题：{}）", summary.topics.join("、"))
         };
-        prompt.push_str(&format!("[{}] {}{}\n  {}\n\n", n, title, topics, body));
+        // 把 project_name 单独高亮一行，让 LLM 第一眼就能看到归属信号。
+        let project = summary
+            .project_name
+            .as_deref()
+            .filter(|p| !p.trim().is_empty())
+            .unwrap_or("(未知项目)");
+        prompt.push_str(&format!(
+            "[{}] project={} | {}{}\n  {}\n\n",
+            n, project, title, topics, body,
+        ));
     }
-    prompt.push_str("请把上面的会话聚类成主题线索，按要求输出 JSON。");
+    prompt.push_str(
+        "请把上面的会话聚类成主题线索，按要求输出 JSON。\
+         记住：不同 project 的 session 默认不能聚到同一个 thread。",
+    );
     prompt
 }
 
@@ -232,6 +253,17 @@ mod tests {
             topics: topics.iter().map(|t| (*t).into()).collect(),
             decisions: vec![],
             project_name: None,
+            intent: None,
+        }
+    }
+
+    fn sp(title: &str, summary: &str, topics: &[&str], project: &str) -> SessionSummary {
+        SessionSummary {
+            title: title.into(),
+            summary: summary.into(),
+            topics: topics.iter().map(|t| (*t).into()).collect(),
+            decisions: vec![],
+            project_name: Some(project.into()),
             intent: None,
         }
     }
@@ -317,7 +349,8 @@ mod tests {
         let drafts = fallback_cluster(&sessions);
         // 只有"桌面化"有 2 个 session，独立主题只有 1 个被过滤掉
         assert_eq!(drafts.len(), 1);
-        assert_eq!(drafts[0].name, "桌面化");
+        // project_name 缺失时桶 key 是 (未知项目, 桌面化)
+        assert_eq!(drafts[0].name, "未知项目 · 桌面化");
         assert_eq!(drafts[0].session_ids.len(), 2);
     }
 
@@ -329,6 +362,38 @@ mod tests {
         ];
         let drafts = fallback_cluster(&sessions);
         assert_eq!(drafts.len(), 1);
-        assert_eq!(drafts[0].name, "未分类");
+        assert_eq!(drafts[0].name, "未知项目 · 未分类");
+    }
+
+    /// 同样的 topic 来自不同项目，fallback 必须分成两条独立线索
+    /// （这是用户反馈的 tt-qimen 误聚类问题的回归用例）。
+    #[test]
+    fn fallback_does_not_merge_across_projects() {
+        let sessions = vec![
+            ("s1".into(), sp("a", "x", &["prompts.txt"], "memex")),
+            ("s2".into(), sp("b", "y", &["prompts.txt"], "memex")),
+            ("s3".into(), sp("c", "z", &["prompts.txt"], "tt-qimen")),
+            ("s4".into(), sp("d", "w", &["prompts.txt"], "tt-qimen")),
+        ];
+        let drafts = fallback_cluster(&sessions);
+        // 两个项目，每个 2 session，应该产生 2 条线索
+        assert_eq!(drafts.len(), 2);
+        let names: Vec<_> = drafts.iter().map(|d| d.name.clone()).collect();
+        assert!(names.iter().any(|n| n.contains("memex")));
+        assert!(names.iter().any(|n| n.contains("tt-qimen")));
+        // memex 线索只包含 memex 的 session
+        let memex_draft = drafts.iter().find(|d| d.name.contains("memex")).unwrap();
+        assert_eq!(memex_draft.session_ids, vec!["s1".to_string(), "s2".to_string()]);
+    }
+
+    #[test]
+    fn build_prompt_includes_project_signal() {
+        let batch = vec![
+            ("s1".into(), sp("写文档", "做文档相关工作", &["docs"], "memex")),
+            ("s2".into(), sp("跑命盘", "排八字", &["命理"], "tt-qimen")),
+        ];
+        let prompt = build_clustering_prompt(&batch);
+        assert!(prompt.contains("project=memex"), "应包含 project=memex 信号:\n{}", prompt);
+        assert!(prompt.contains("project=tt-qimen"), "应包含 project=tt-qimen 信号:\n{}", prompt);
     }
 }
