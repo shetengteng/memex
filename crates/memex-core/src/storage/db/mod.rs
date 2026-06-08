@@ -222,6 +222,28 @@ impl Db {
                 params![8u32],
             )?;
         }
+        if from < 9 {
+            // v9：补齐两个本来应该早就在的热路径索引。
+            //   (a) idx_chunks_has_summary：v6 migration 里加过，但 SCHEMA_SQL
+            //       一直没加，导致从 v6 之后新装的库 / v6→v8 跳级升级的库
+            //       都没有这个索引。后果是「摘要进度百分比」展示
+            //       (chunks_with_summary_count) 在 70w+ chunks 真实库上要 15+ 秒。
+            //   (b) idx_messages_content_dedup：ingest 每条消息 dedup 查询
+            //       `WHERE content_hash = ? AND session_id = ?` 没有复合索引，
+            //       退化为按 session 全扫比对 hash，大 session 上一次 50+ ms。
+            // 这两个索引现在都已经写入 SCHEMA_SQL；这里 migration 只是给老库
+            // 兜底补建。`CREATE INDEX IF NOT EXISTS` 是幂等的。
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_chunks_has_summary
+                    ON chunks(id) WHERE summary IS NOT NULL;
+                 CREATE INDEX IF NOT EXISTS idx_messages_content_dedup
+                    ON messages(content_hash, session_id);",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![9u32],
+            )?;
+        }
         Ok(())
     }
 }

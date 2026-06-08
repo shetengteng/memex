@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 8;
+pub(super) const SCHEMA_VERSION: u32 = 9;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -164,6 +164,26 @@ CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 CREATE INDEX IF NOT EXISTS idx_messages_timestamp
     ON messages(timestamp)
     WHERE timestamp IS NOT NULL;
+
+-- v9: 把 v6 加进来过、但只在 migration 里建过的两个 hot path 索引
+-- 也放到 SCHEMA_SQL 里——这样新装库会自动有，老库 v9 migration 也会补建。
+--
+-- (a) idx_chunks_has_summary：chunks_with_summary_count 用于「摘要进度
+--     百分比」展示。chunks 表 70w+ 行，无索引时 COUNT(*) 要 15+ 秒；
+--     局部索引只覆盖 summary IS NOT NULL 的行（实际只占 ~0.03%），
+--     COUNT 降到 ~500ms（~30× 提速）。
+--
+-- (b) idx_messages_content_dedup：ingest 每条新消息都跑
+--     `EXISTS(SELECT 1 FROM messages WHERE content_hash = ?1 AND session_id = ?2)`
+--     做幂等去重。原本只有 (session_id, role, source_offset)，dedup
+--     退化为「按 session 全扫比对 content_hash」，大 session（3000+ 条）
+--     上一次 dedup 50+ ms，一次 ingest 1000 条消息要 1 分钟。
+--     加 (content_hash, session_id) 复合索引后单次 dedup ~17 ms（3× 提速）。
+CREATE INDEX IF NOT EXISTS idx_chunks_has_summary
+    ON chunks(id) WHERE summary IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_messages_content_dedup
+    ON messages(content_hash, session_id);
 
 -- v4: generic LLM provider registry
 CREATE TABLE IF NOT EXISTS llm_providers (
