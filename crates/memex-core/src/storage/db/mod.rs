@@ -206,6 +206,22 @@ impl Db {
                 params![7u32],
             )?;
         }
+        if from < 8 {
+            // v8：在 messages(timestamp) 上加局部索引。
+            // 之前 workload_report 的 heatmap 通路按 timestamp 范围扫描，
+            // 在 30w+ messages 真实库上 30 天查询要 6+s，导致 Insights 趋势 tab
+            // 加载超时显示空白。局部索引（WHERE timestamp IS NOT NULL）只覆盖
+            // 有 timestamp 的行（claude_code / codex / opencode），cursor 没
+            // timestamp 的 messages 完全不进索引，体积可控。
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+                    ON messages(timestamp) WHERE timestamp IS NOT NULL;",
+            )?;
+            conn.execute(
+                "UPDATE schema_version SET version = ?1",
+                params![8u32],
+            )?;
+        }
         Ok(())
     }
 }

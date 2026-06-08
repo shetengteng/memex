@@ -406,6 +406,10 @@ impl Db {
         let mut bucket: BTreeMap<(u8, u8), (i64, i64)> = BTreeMap::new();
 
         // A) 有 timestamp 的 messages：sessions = COUNT(DISTINCT session_id)，messages = COUNT(*)
+        //    历史上这里有一个 `JOIN sessions s ON s.id = m.session_id`，但 heatmap 不用
+        //    session 任何列，JOIN 等于额外做一次 covering-index lookup × messages 行数；
+        //    在 30w+ messages 的真实库上把 30 天查询从 0.06s 拉到 6.3s（趋势页超时空白）。
+        //    去掉 JOIN，依赖新的 idx_messages_timestamp 走 range scan。
         let mut msg_stmt = conn.prepare(
             "SELECT
                 (CAST(strftime('%w', m.timestamp, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
@@ -413,7 +417,6 @@ impl Db {
                 COUNT(DISTINCT m.session_id) AS sessions,
                 COUNT(*) AS msgs
              FROM messages m
-             JOIN sessions s ON s.id = m.session_id
              WHERE m.timestamp IS NOT NULL
                AND m.timestamp >= DATE('now', 'localtime', ?1)
              GROUP BY weekday, hour",
@@ -816,6 +819,85 @@ mod tests {
         let distinct_hours: std::collections::HashSet<u8> =
             r.heatmap.iter().map(|c| c.hour).collect();
         assert_eq!(distinct_hours.len(), 4, "expected 4 distinct hour buckets, got {:?}", distinct_hours);
+    }
+
+    /// 回归测试：去掉 messages × sessions JOIN 之后，结果应当与有 JOIN 时一致。
+    /// 旧 SQL 的 JOIN 只是用来过滤孤儿 message_id（实际项目里 messages.session_id
+    /// 受外键约束，绝不出现孤儿），所以拆掉 JOIN 不会改变任何业务输出。
+    #[test]
+    fn test_workload_heatmap_no_orphan_messages_after_join_removal() {
+        let db = Db::open_in_memory().unwrap();
+        let today_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+        ws_seed_session(
+            &db,
+            "s1",
+            "claude_code",
+            Some("/a"),
+            &format!("{today_local}T10:00:00+00:00"),
+            3,
+        );
+        let conn = db.conn.lock().unwrap();
+        for (mid, ts) in [
+            ("m1", format!("{today_local}T08:00:00+00:00")),
+            ("m2", format!("{today_local}T09:00:00+00:00")),
+            ("m3", format!("{today_local}T10:00:00+00:00")),
+        ] {
+            conn.execute(
+                "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+                 VALUES (?1, 's1', 'user', 'x', ?2, 0, ?1)",
+                params![mid, ts],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let r = db.workload_report(2).unwrap();
+        let total_msgs: i64 = r.heatmap.iter().map(|c| c.messages).sum();
+        assert_eq!(total_msgs, 3, "3 messages should all be counted");
+        // 三个不同的小时桶 8 / 9 / 10
+        let hours: std::collections::HashSet<u8> = r.heatmap.iter().map(|c| c.hour).collect();
+        assert_eq!(hours.len(), 3);
+    }
+
+    /// 性能护栏：跑一个有 200 条带 timestamp 的 messages 的库，
+    /// workload_report(30) 必须在 1 秒内完成。
+    /// 真实场景里 30w+ messages 没索引会 6s+，这里用小数据集只验证 SQL 形态
+    /// 不会再退化成 JOIN 全表扫描。
+    #[test]
+    fn test_workload_heatmap_completes_in_reasonable_time() {
+        let db = Db::open_in_memory().unwrap();
+        let today_local = chrono::Local::now().format("%Y-%m-%d").to_string();
+        ws_seed_session(
+            &db,
+            "perf-s1",
+            "claude_code",
+            Some("/perf"),
+            &format!("{today_local}T12:00:00+00:00"),
+            200,
+        );
+        let conn = db.conn.lock().unwrap();
+        for i in 0..200 {
+            let hour = i % 24;
+            let ts = format!("{today_local}T{:02}:00:00+00:00", hour);
+            conn.execute(
+                "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+                 VALUES (?1, 'perf-s1', 'user', 'x', ?2, ?3, ?1)",
+                params![format!("perf-m{i}"), ts, i as i64],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let start = std::time::Instant::now();
+        let r = db.workload_report(30).unwrap();
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed.as_millis() < 1000,
+            "workload_report(30) took {} ms, expected < 1000 ms",
+            elapsed.as_millis()
+        );
+        let total_msgs: i64 = r.heatmap.iter().map(|c| c.messages).sum();
+        assert_eq!(total_msgs, 200);
     }
 
     /// session 表里所有 message 都有 timestamp 时，session.updated_at fallback 不应

@@ -12,7 +12,7 @@
 //! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
 //!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
 
-pub(super) const SCHEMA_VERSION: u32 = 7;
+pub(super) const SCHEMA_VERSION: u32 = 8;
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (
@@ -155,6 +155,15 @@ CREATE INDEX IF NOT EXISTS idx_summaries_session_level
 
 CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
     ON sessions(updated_at DESC);
+
+-- v8: 给 workload_report 的 heatmap message 通路加索引。
+-- 之前 messages 表上仅有 (session_id, role, source_offset) 索引，
+-- 按 timestamp 做范围扫描会全表扫 30w+ 行，30 天查询要 6+ 秒，
+-- 导致 Insights 趋势 tab 在大库上加载超时显示空白。
+-- 局部索引（partial index）只覆盖非空 timestamp，体积小，命中率高。
+CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+    ON messages(timestamp)
+    WHERE timestamp IS NOT NULL;
 
 -- v4: generic LLM provider registry
 CREATE TABLE IF NOT EXISTS llm_providers (
