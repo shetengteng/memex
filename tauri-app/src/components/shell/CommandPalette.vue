@@ -73,7 +73,12 @@ const tFmt = (iso: string) => {
     class="w-[92vw] !max-w-2xl !top-1/2 !-translate-y-1/2"
   >
     <CommandInput placeholder="搜索任何东西…" />
-    <CommandList class="!max-h-[60vh]">
+    <!--
+      Scrollbar: CommandList 默认 `no-scrollbar`（彻底隐藏 webkit + firefox 滚动条），
+      列表项很多时用户感知不到能滚。用 cmd-palette-scroll class 显式恢复滚动条
+      （样式在 style.css 里定义为 6px 细滚动条，与全站一致）。
+    -->
+    <CommandList class="cmd-palette-scroll !max-h-[60vh]">
       <CommandEmpty>没有匹配的结果</CommandEmpty>
 
       <CommandGroup heading="搜索结果">

@@ -165,6 +165,37 @@
   background: transparent;
 }
 
+/*
+  ⌘K 命令面板的列表区域：shadcn-vue 的 CommandList 默认带 `no-scrollbar`，
+  把 webkit + firefox 的滚动条都隐藏掉，列表项一多用户感知不到能滚。
+  在调用点加 .cmd-palette-scroll 类显式恢复滚动条样式，与全站滚动条保持一致。
+  注意：!important 是必须的——`no-scrollbar` 用 `scrollbar-width: none` 与
+  `::-webkit-scrollbar { display: none }` 设到 element 上，优先级很高。
+*/
+.cmd-palette-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+.cmd-palette-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 6px;
+  height: 6px;
+}
+
+.cmd-palette-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cmd-palette-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+
+.cmd-palette-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
 @layer components {
   .ide-dot {
     display: inline-block;
