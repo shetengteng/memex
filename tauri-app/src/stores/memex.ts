@@ -117,13 +117,29 @@ function rowToSession(row: SessionRow): Session {
     workspace: projName,
     project: projName,
     startedAt: row.created_at,
-    durationMin: 0, // 后端暂未提供，UI 容错
+    durationMin: computeDurationMin(row.created_at, row.updated_at),
     messages: row.message_count,
     title,
     topics: [],
     l2Done: !!row.summary_title,
     intent,
   }
+}
+
+// 后端 sessions 表里的 created_at / updated_at 都直接来自 adapter（claude /
+// cursor / codex 的 session 文件 ctime/mtime），所以两者差值就是会话的实际持续
+// 时长。失败兜底返回 0，避免 NaN 漏到 UI 上。
+export function computeDurationMin(
+  createdAt: string | null | undefined,
+  updatedAt: string | null | undefined,
+): number {
+  if (!createdAt || !updatedAt) return 0
+  const start = Date.parse(createdAt)
+  const end = Date.parse(updatedAt)
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0
+  const diffMs = end - start
+  if (diffMs <= 0) return 0
+  return Math.max(1, Math.round(diffMs / 60_000))
 }
 
 // ============================================================

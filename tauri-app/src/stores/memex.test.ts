@@ -10,6 +10,7 @@ import {
   adapters,
   ADAPTER_MAP,
   breakdownByAdapter,
+  computeDurationMin,
   daemon,
   daemonStatus,
   initMemexStore,
@@ -328,6 +329,55 @@ describe('stores/memex', () => {
       })
       const r = await loadMoreSessions()
       expect(r).toEqual({ loaded: 0, hasMore: false })
+    })
+  })
+
+  describe('computeDurationMin', () => {
+    it('returns minutes for a normal positive interval', () => {
+      const out = computeDurationMin(
+        '2026-06-08T10:00:00+00:00',
+        '2026-06-08T10:42:00+00:00',
+      )
+      expect(out).toBe(42)
+    })
+
+    it('rounds sub-minute intervals up to 1m so列表里"有数据但不到 1 分钟"也能看到', () => {
+      const out = computeDurationMin(
+        '2026-06-08T10:00:00+00:00',
+        '2026-06-08T10:00:30+00:00',
+      )
+      expect(out).toBe(1)
+    })
+
+    it('returns 0 when timestamps are equal', () => {
+      const t = '2026-06-08T10:00:00+00:00'
+      expect(computeDurationMin(t, t)).toBe(0)
+    })
+
+    it('returns 0 when updated_at is earlier than created_at (会话数据脏，不能给负值)', () => {
+      const out = computeDurationMin(
+        '2026-06-08T11:00:00+00:00',
+        '2026-06-08T10:00:00+00:00',
+      )
+      expect(out).toBe(0)
+    })
+
+    it('returns 0 for empty or null inputs', () => {
+      expect(computeDurationMin('', '')).toBe(0)
+      expect(computeDurationMin(null, '2026-06-08T10:00:00+00:00')).toBe(0)
+      expect(computeDurationMin('2026-06-08T10:00:00+00:00', undefined)).toBe(0)
+    })
+
+    it('returns 0 for unparsable strings', () => {
+      expect(computeDurationMin('not-a-date', 'also-bad')).toBe(0)
+    })
+
+    it('handles multi-hour sessions correctly', () => {
+      const out = computeDurationMin(
+        '2026-06-08T08:00:00+00:00',
+        '2026-06-08T11:30:00+00:00',
+      )
+      expect(out).toBe(210)
     })
   })
 })
