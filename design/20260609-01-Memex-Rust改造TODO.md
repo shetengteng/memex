@@ -10,6 +10,10 @@
 ## 进度跟踪
 
 - 2026-06-09 e2ec778 — 修复 today stats double-count bug（与 TODO 无直接对应，属 §7.2 路径之外的业务缺陷）。详见 commit message。
+- 2026-06-09 2288b15 — **P0-5 完成**：`cargo fmt --all` 一次扫平 76 个文件。
+- 2026-06-09 a9c865d — **P0-6 完成**：新增 `rust-toolchain.toml`（channel=1.95.0）+ workspace `rust-version="1.95"`。MSRV 提到 1.95 是事实需求（`floor_char_boundary` 在 1.95 stabilize，crates/memex-core/src/llm/summarize.rs 已用）。
+- 2026-06-09 7a47779 — **P0-3 完成**：`tokio = features = ["full"]` 改为最小集。workspace = `rt-multi-thread,macros,sync,net,signal,time`；menubar = `rt-multi-thread,macros,sync,time`。
+- 2026-06-09 d8b944b — **P0-2 完成**：`commands/mod.rs` 去掉 19 个 `pub use xxx::*`，改为 `pub mod xxx`；lib.rs handler 列表全部改为 `commands::xxx::yyy` 完整路径（Tauri `generate_handler!` 不支持 re-export）。
 
 ---
 
@@ -58,31 +62,13 @@
 **影响**：所有前端 IPC 调用的 catch
 **估时**：4-6h
 
-### P0-2 `pub use module::*;` → 明确符号列表
+### ✅ P0-2 `pub use module::*;` → 明确符号列表（d8b944b）
 
-- [ ] `tauri-app/src-tauri/src/commands/mod.rs` 把 19 个 `pub use xxx::*;` 改为：
-  ```rust
-  pub use backup::{backup_now, ensure_backup_dir, memex_data_dir, BackupResult};
-  pub use daemon::{daemon_log_path, daemon_restart, daemon_status, DaemonStatus};
-  // ...
-  ```
-- [ ] `pub(crate) mod daemon;` 中需要保留 `stop_daemon_blocking` 跨 module 可访问
-- [ ] 顺手把不必要的 pub 改为 pub(crate)
+> 实施细节：Tauri `generate_handler!` 不支持 re-export（依赖 `__cmd__<name>` 隐藏宏符号），所以最终采用 `pub mod xxx` + lib.rs 全部 `commands::xxx::yyy` 完整路径，而非 `pub use xxx::{...}`。effect 等价（无 `*`、API 表面显式），但路径更长。
 
-**规约依据**：§7.3 / §6.4
-**影响**：无（编译期）
-**估时**：30 min
+### ✅ P0-3 `tokio features = ["full"]` → 最小集（7a47779）
 
-### P0-3 `tokio features = ["full"]` → 最小集
-
-- [ ] 扫描 `crates/`、`tauri-app/src-tauri/` 实际用到的 tokio 模块：
-  - `rt-multi-thread`、`macros`、`sync`、`time`、`fs`、`process`、`io-util`、`signal`
-- [ ] 替换 `Cargo.toml`（workspace）+ `tauri-app/src-tauri/Cargo.toml`
-- [ ] `cargo check --all` 确认编译
-
-**规约依据**：§12.2
-**影响**：编译能验证，减小依赖编译时间
-**估时**：30 min
+> 最终 features：workspace = `rt-multi-thread,macros,sync,net,signal,time`；menubar = `rt-multi-thread,macros,sync,time`。无 io-util / fs / process。
 
 ### P0-4 clippy 42 个 error 修复
 
@@ -102,28 +88,13 @@
 **规约依据**：§12.4 必须通过
 **估时**：1-2h
 
-### P0-5 `cargo fmt --all -- --check` 修复
+### ✅ P0-5 `cargo fmt --all -- --check` 修复（2288b15）
 
-- [ ] `cargo fmt --all` 一次执行
-- [ ] 单独 commit（fmt-only diff）
+> 76 个文件 fmt，单独 commit。
 
-**规约依据**：§12.4
-**估时**：5 min
+### ✅ P0-6 `rust-toolchain.toml` 锁工具链（a9c865d）
 
-### P0-6 `rust-toolchain.toml` 锁工具链
-
-- [ ] 在仓库根新建 `rust-toolchain.toml`：
-  ```toml
-  [toolchain]
-  channel = "1.83.0"
-  components = ["rustfmt", "clippy"]
-  profile = "default"
-  ```
-- [ ] 各 `Cargo.toml` 添加 `rust-version = "1.83"`
-- [ ] CI 配置确认使用此版本
-
-**规约依据**：§12.3
-**估时**：15 min
+> channel = 1.95.0；workspace rust-version = "1.95"（实测因 `floor_char_boundary` 必须 1.95+，1.83/1.88/1.90 都编译失败）。
 
 ---
 
