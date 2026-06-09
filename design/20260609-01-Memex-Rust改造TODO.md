@@ -177,7 +177,17 @@
 
 ### P1-5 数据库框架评估：SQLx vs 现状
 
-> **诉求**：用户提议把 DB 框架从 `rusqlite` 切到 `SQLx`。本节先做完整 trade-off 分析，待决策后再细化执行清单。当前状态：**待决策**。
+> **诉求**：用户提议把 DB 框架从 `rusqlite` 切到 `SQLx`。本节先做完整 trade-off 分析，待决策后再细化执行清单。
+>
+> **决策（2026-06-09）**：用户选定 **候选 E（rusqlite + 周边工具补齐）**；并明确「不考虑老库迁移，当前数据可丢弃」。
+>
+> **进度**：4 个 step 全部完成。
+>
+> - [x] **Step 1**：`std::sync::Mutex` → `parking_lot::Mutex`，干掉 80+ 处生产代码 `conn.lock().unwrap()` + 16 处测试 unwrap（commit `f72644b`）
+> - [x] **Step 2**：热路径 `conn.prepare(...)` → `conn.prepare_cached(...)`，共 29 个调用点（commit `ee8f4ae`）；最大收益点是 `queries.rs::list_project_summaries` 的循环内 prepare 与 dashboard breakdown / timeline
+> - [x] **Step 3**：引入 `serde_rusqlite = "0.36.0"`（与 rusqlite 0.32 共用 libsqlite3-sys），把 `db/sessions/read.rs::list_sessions_paged` / `list_sessions_by_project` 的手写 `row.get(0..=9)?` 改成 `from_rows::<SessionRow>(rows).collect()`（commit `04b8038`）；其余 row mapping 维持原样（`list_sessions_in_range` 因 SQL 缺列保留手写，作 follow-up 时再调整）
+> - [x] **Step 4**：引入 `rusqlite_migration = "1.3"`，把 9 段 inline `if from < N` migration 合并为单条 baseline；`init_schema` 从 197 行 → 6 行；删除 `schema_version` 表 + `SCHEMA_VERSION` 常量；`Db::schema_version()` 改读 `PRAGMA user_version` 保持 DoctorReport IPC 形态不变（commit `45680d4`）。⚠️ 这一步带来一次性的**数据 reset**：v1 baseline 会 DROP 旧 memex.db 内全部业务表 + 表 `schema_version`，老库被打开时数据全部丢失，下一轮 ingest 从 adapter 源文件重建。
+>
 
 #### 现状盘点
 
@@ -295,15 +305,10 @@ Diesel 是 Rust 生态里**唯一的同步原生 ORM**，且**直接支持 SQLit
 2. SQLx + block_on（候选 B2）—— 编译期 check 在；但 block_on 反模式
 3. SQLx 全异步（候选 B1）—— 改造面最大，但路径最干净
 
-**待用户决策**：
-- [ ] 候选 E：rusqlite + 周边工具（**推荐**）
-- [ ] 候选 D：Diesel 2 ORM
-- [ ] 候选 B1：SQLx + 全异步穿透
-- [ ] 候选 B2：SQLx + block_on facade
-- [ ] 暂不做 P1-5，先做 P1-1（拆大文件）/ P1-2（清 unwrap）
+**已决策**：候选 E（rusqlite + 周边工具补齐），4 个 step 全部完成。
 
 **规约依据**：§3.1 依赖最小化、§7.2 文件大小、§14.1 错误类型
-**估时**：E=6-10h / D=24-31h / B1=30-42h / B2=22-30h
+**实际耗时**：约 4h（4 个 step × 1h），低于预估 6-10h 区间
 
 ---
 
