@@ -175,6 +175,81 @@
 **规约依据**：§11.4
 **估时**：1h（含初次启用后的 doc 补全）
 
+### P1-5 数据库框架评估：SQLx vs 现状
+
+> **诉求**：用户提议把 DB 框架从 `rusqlite` 切到 `SQLx`。本节先做完整 trade-off 分析，待决策后再细化执行清单。当前状态：**待决策**。
+
+#### 现状盘点
+
+- DB：SQLite（`~/.memex/memex.db`），WAL 模式，单文件 + 文件锁，无服务端
+- 驱动：`rusqlite 0.32 features = ["bundled", "modern_sqlite"]`
+- 调用面：`crates/memex-core/src` 共 14 个文件，约 130 处 `conn.execute / query_row / prepare / execute_batch / transaction / query_map`
+- 主战场：`storage/db/*.rs`（8 文件）+ `storage/queries.rs`（1138 行，已超规约 §7.2 上限，本身是 P1-1 待拆）+ `storage/metrics.rs`
+- 旁路战场：`collector/cursor/sqlite.rs`、`collector/opencode.rs` 直接读 **外部应用** 的 SQLite（Cursor / OpenCode 各自的 db），**这部分不是 memex.db、不属于本节范围**
+- 同步语义：整层 `Db { conn: Mutex<Connection> }` 顺序执行，所有 `#[tauri::command]` 已经是 `tokio::async_runtime::spawn_blocking`/`tokio::task::spawn_blocking` 包裹后调用
+- Schema：DDL 集中在 `storage/db/schema.rs::SCHEMA_SQL`，10 个 migrations 写在 `db/mod.rs::run_migrations` 里，靠 `schema_version` 表手动推进版本
+
+#### 候选 A：保持 `rusqlite`，补强短板（推荐）
+
+| 改造项 | 估时 |
+|---|---|
+| 引入 `rusqlite_migration` 把 10 个 inline migration 提到 `migrations/V01__*.sql` 文件 | 2h |
+| 给热路径 query 加 `Connection::prepare_cached`（已有部分用了 `prepare`，没缓存） | 1h |
+| 抽 `Db::with_read<F>()` / `Db::with_write<F>()` helper，把 130 处 `conn.lock().unwrap()` 收敛 | 2h |
+| `DbError` 包装成 `thiserror`，对接 `CmdError::Db` 路径 | 1h |
+| 可选：用 `rusqlite::types::FromSql + ToSql` 派生（手写已不少），用 `serde_rusqlite` 统一 | 2h |
+
+**总估时**：~6-8h，**风险低**，符合 [Rust ORMs in 2026](https://aarambhdevhub.medium.com/rust-orms-in-2026...) 业界对桌面 + SQLite 场景的共识："If it's SQLite, use Rusqlite"。
+
+#### 候选 B：切换 `SQLx 0.8` + SQLite driver
+
+| 改造项 | 估时 |
+|---|---|
+| `Cargo.toml`：rusqlite → sqlx 0.8 features=["sqlite", "macros", "migrate", "runtime-tokio-rustls"] | 30min |
+| `Db` 重写：`SqlitePool`（max_connections=1 单 writer，+ 可选 reader pool） | 1h |
+| schema migrations 拆到 `migrations/<timestamp>__*.sql`，用 `sqlx::migrate!()` | 2h |
+| 8 个 `db/*.rs` 文件全部改 `sqlx::query!/query_as!` | 6-8h |
+| `queries.rs` 1138 行（同 P1-1 拆分一起做） | 8-10h |
+| `metrics.rs` 改 SQLx | 30min |
+| **关键决策：异步穿透 vs `block_on` facade**（详见下方分析） | **见下** |
+| 编译期 query check：装 `sqlx-cli`，配 `DATABASE_URL`，`cargo sqlx prepare` 生成 `.sqlx/` 入仓 | 1h |
+| `db/tests.rs` 全部改 `#[sqlx::test]` 或 `SqlitePool::connect(":memory:")` | 2h |
+| `commands/error.rs` 把 `From<rusqlite::Error>` 替换为 `From<sqlx::Error>`（如果引入 Db variant） | 30min |
+
+**总估时**：~22-30h，**风险中-高**。
+
+#### 候选 B 的 async/sync 决策（关键）
+
+SQLx 是 **async-only**（即便 SQLite driver 也走后台 worker thread + channels；[docs.rs/sqlx SqliteConnection](https://docs.rs/sqlx/latest/sqlx/struct.SqliteConnection.html)）。Memex 当前 storage 层 100% 同步，要在 SQLx 上跑出来必须二选一：
+
+- **B1. 异步穿透**：`Db` 全部方法改 `async fn`，`memex-core` 几乎所有调用点（ingest / collector / retriever / context / llm/summarize / llm/threads / mcp/server / memex-cli / memex-daemon）的方法签名都要染上 `async`。**额外估时 8-12h**，影响面极大，commits 难以拆细。
+- **B2. `block_on` 同步 facade**：在 `Db` 内部 `tokio::runtime::Handle::current().block_on(pool.execute(...))` 包裹，对外保持同步签名。**问题**：必须保证调用上下文里有 tokio runtime 跑着，否则 panic；在 `tauri::command` 已 `spawn_blocking` 的路径上调 `block_on` 是 [anti-pattern](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)（在 blocking 线程里再次进入 runtime），一旦哪天换 runtime 或 sync 调用从 daemon 后台触发，会出现死锁/panic。
+
+二者都不优雅。SQLx 的 async 优势在 web 服务端（多请求并发等 IO）才显著；桌面单用户场景里 IPC 已经在 `spawn_blocking` 池里跑，再嵌一层 async 收益约等于零。
+
+#### 候选 C：混合（不推荐，但记录）
+
+memex.db 切 SQLx，外部 db（cursor / opencode）继续 rusqlite。同时引入两个 SQLite 绑定，binary 体积 +2-3 MB，dev 心智成本翻倍。
+
+#### 决策建议
+
+**强烈倾向候选 A**（保持 rusqlite + 补强）。判断依据：
+
+1. **业务场景错配**：memex 是 local-first 桌面应用，无网络 DB / 无并发请求 / 无多租户，SQLx 的 async + 编译期 query check 价值都被打折扣。
+2. **改造成本失衡**：候选 A 6-8h，候选 B 22-30h（不含测试回归），收益（编译期 query check 减少错误）无法对冲风险（async 穿透 / block_on 反模式）。
+3. **业界共识**：2026 年 Rust ORM 综述明确 "CLI tools, desktop apps, embedded systems → Rusqlite"。
+4. **rusqlite 的痛点可补**：migration 用 `rusqlite_migration`，编译期检查可以用 `sqlite_macros` 或 `cargo sqlite-static-analyzer`，不需要换框架。
+
+**若坚持候选 B**：建议至少先做 P1-1（拆 1138 行的 `queries.rs`）+ P1-2（unwrap 清零），确保 storage 层稳态后再切；切换时只做 B2（block_on facade）保持调用方不动，最后再渐进 async 化。
+
+**待用户决策**：
+- [ ] 候选 A：rusqlite 补强（推荐）
+- [ ] 候选 B1：SQLx + 全异步穿透
+- [ ] 候选 B2：SQLx + block_on facade
+
+**规约依据**：§3.1 依赖最小化、§7.2 文件大小、§14.1 错误类型
+**估时**：A=6-8h / B1=30-42h / B2=22-30h
+
 ---
 
 ## P2 — 渐进改造（每次接触到时顺手做）
