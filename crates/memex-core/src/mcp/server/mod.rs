@@ -8,8 +8,8 @@
 //!     / list_recent / stats / get_project_context / list_sessions_by_range）。
 
 mod dispatch;
-mod transport;
 mod tools;
+mod transport;
 
 pub use transport::run_stdio;
 
