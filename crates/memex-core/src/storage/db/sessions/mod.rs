@@ -9,9 +9,12 @@
 mod read;
 mod write;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+/// `Deserialize` 是为了 `serde_rusqlite::from_rows` 的 row mapping —— SQL
+/// 里 SELECT 出的列名必须和这里的字段名对齐（`summary_title` /
+/// `first_user_message` 都已经在 SQL 里 `AS` 成了同名 alias）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRow {
     pub id: String,
     pub source: String,

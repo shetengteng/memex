@@ -225,7 +225,8 @@ impl Db {
         let conn = self.conn.lock();
         let mut by_adapter = std::collections::BTreeMap::new();
         {
-            let mut stmt = conn.prepare_cached("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
+            let mut stmt =
+                conn.prepare_cached("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
             let rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
             })?;

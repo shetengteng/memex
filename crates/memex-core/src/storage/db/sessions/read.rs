@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use rusqlite::params;
+use serde_rusqlite::from_rows;
 
 use super::{MessageRow, SessionDetail, SessionRow};
 use crate::storage::db::Db;
@@ -30,23 +31,10 @@ impl Db {
              ORDER BY s.updated_at DESC
              LIMIT ?1 OFFSET ?2",
         )?;
-        let rows = stmt
-            .query_map(params![limit as i64, offset as i64], |row| {
-                Ok(SessionRow {
-                    id: row.get(0)?,
-                    source: row.get(1)?,
-                    project_path: row.get(2)?,
-                    title: row.get(3)?,
-                    message_count: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
-                    summary_title: row.get(7)?,
-                    first_user_message: row.get(8)?,
-                    intent: row.get(9)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(rows)
+        let rows = stmt.query(params![limit as i64, offset as i64])?;
+        let out: Vec<SessionRow> =
+            from_rows::<SessionRow>(rows).collect::<std::result::Result<_, _>>()?;
+        Ok(out)
     }
 
     pub fn get_session_detail(&self, session_id: &str) -> Result<Option<SessionDetail>> {
@@ -168,23 +156,10 @@ impl Db {
                         AND s.created_at < datetime('now', '-1 day'))
              ORDER BY s.updated_at DESC",
         )?;
-        let rows = stmt
-            .query_map(params![project_path], |row| {
-                Ok(SessionRow {
-                    id: row.get(0)?,
-                    source: row.get(1)?,
-                    project_path: row.get(2)?,
-                    title: row.get(3)?,
-                    message_count: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
-                    summary_title: row.get(7)?,
-                    first_user_message: row.get(8)?,
-                    intent: row.get(9)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(rows)
+        let rows = stmt.query(params![project_path])?;
+        let out: Vec<SessionRow> =
+            from_rows::<SessionRow>(rows).collect::<std::result::Result<_, _>>()?;
+        Ok(out)
     }
 
     pub fn distinct_projects(&self) -> Result<Vec<String>> {

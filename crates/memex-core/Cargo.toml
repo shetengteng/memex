@@ -21,6 +21,7 @@ walkdir.workspace = true
 dirs = "6"
 serde_yaml_ng = "0.10"
 ureq = { version = "3", features = ["json"] }
+serde_rusqlite = "0.36.0"
 
 [dev-dependencies]
 tempfile = "3"
