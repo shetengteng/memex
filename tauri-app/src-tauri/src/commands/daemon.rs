@@ -4,6 +4,8 @@ use std::process::{Command, Stdio};
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockInfo {
     pub pid: u32,
@@ -124,7 +126,7 @@ pub fn daemon_log_path() -> String {
 }
 
 #[tauri::command]
-pub async fn daemon_status() -> Result<DaemonStatus, String> {
+pub async fn daemon_status() -> CmdResult<DaemonStatus> {
     let info = read_lock();
     let mut status = DaemonStatus {
         running: false,
@@ -150,20 +152,20 @@ pub async fn daemon_status() -> Result<DaemonStatus, String> {
 }
 
 #[tauri::command]
-pub async fn daemon_restart() -> Result<DaemonStatus, String> {
+pub async fn daemon_restart() -> CmdResult<DaemonStatus> {
     // 复用 stop_daemon_blocking：保证停 daemon 的 TERM → KILL 顺序、超时、
     // lock 清理逻辑只有一份实现。
     stop_daemon_blocking();
 
-    let bin = find_daemon_binary()
-        .ok_or_else(|| "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string())?;
+    let bin = find_daemon_binary().ok_or_else(|| {
+        CmdError::NotFound("在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".into())
+    })?;
 
     Command::new(&bin)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("启动 daemon 失败（{}）：{}", bin.display(), e))?;
+        .spawn()?;
 
     // 等 daemon 写 lock 文件、绑端口。
     for _ in 0..20 {
