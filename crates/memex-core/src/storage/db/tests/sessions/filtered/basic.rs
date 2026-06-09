@@ -97,7 +97,49 @@ fn filtered_paged_adapters_multi_select() {
 }
 
 #[test]
-fn filtered_paged_projects_endsegment_does_not_match_similarly_named_paths() {
+fn filtered_paged_projects_exact_path_does_not_cross_match_same_endsegment() {
+    // 关键回归：facet 行的语义 = 单个 (project_path, count) 元组。
+    // 勾选 `/A/src` 不应该捎带 `/B/src`，否则就回到了"末段串扰"老 bug。
+    // 旧实现用 LIKE '%/src' 一并命中所有 *.src 路径，导致 facet 计数与
+    // 勾选后列表数差异巨大；现在改成 IN (?) 精确匹配，这里固化语义。
+    let db = Db::open_in_memory().unwrap();
+    for (id, project_path) in [
+        ("a_src", "/repo/A/src"),
+        ("b_src", "/repo/B/src"),
+        ("a_root", "/repo/A"),
+    ] {
+        seed_filtered_session(
+            &db,
+            SessionSeed {
+                id,
+                source: "cursor",
+                project_path: Some(project_path),
+                title: None,
+                created_at: "2026-06-01 10:00:00",
+                updated_at: "2026-06-01 10:00:00",
+                message_count: 1,
+            },
+        );
+    }
+
+    let rows = db
+        .list_sessions_filtered_paged(
+            &SessionListFilter {
+                projects: Some(vec!["/repo/A/src".into()]),
+                ..Default::default()
+            },
+            10,
+            0,
+        )
+        .unwrap();
+    let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, vec!["a_src"]);
+}
+
+#[test]
+fn filtered_paged_projects_exact_path_rejects_prefix_collisions() {
+    // 防止误把"完整 path"当成"前缀"：选 `/repo/memex` 不能匹配 `/repo/memex-clone`。
+    // LIKE '/repo/memex%' 会回到老 bug；IN (?) 走值相等，天然安全。
     let db = Db::open_in_memory().unwrap();
     for (id, project_path) in [
         ("real_memex", "/Users/me/repo/memex"),
@@ -121,7 +163,7 @@ fn filtered_paged_projects_endsegment_does_not_match_similarly_named_paths() {
     let rows = db
         .list_sessions_filtered_paged(
             &SessionListFilter {
-                projects: Some(vec!["memex".into()]),
+                projects: Some(vec!["/Users/me/repo/memex".into()]),
                 ..Default::default()
             },
             10,
@@ -129,9 +171,7 @@ fn filtered_paged_projects_endsegment_does_not_match_similarly_named_paths() {
         )
         .unwrap();
     let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"real_memex"));
-    assert!(ids.contains(&"memex_nested"));
-    assert!(!ids.contains(&"memex_clone"));
+    assert_eq!(ids, vec!["real_memex"]);
 }
 
 #[test]

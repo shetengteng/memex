@@ -149,4 +149,40 @@ describe('LibraryFacets', () => {
     expect(events![0][0]).toContain('/workspace/proj-7')
     expect(events![0][0]).not.toContain('proj-0')
   })
+
+  it('勾选单个项目 checkbox emit toggleProject 带完整 path', async () => {
+    // 这条用例直接对应用户报的「点击项目名没反应」：
+    // checkbox @update:model-value 必须 emit toggleProject(p.path)，
+    // 父组件 library/index.vue 才能把 path 压入 fProjects → 触发 reload。
+    // 任何回归（如错传 p.name / 错传 boolean）都会让查询沉默失败。
+    const wrapper = mount(LibraryFacets, { props: baseProps, global: { stubs } })
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    // 前 2 个 checkbox 属于 adapter 区（cursor / claude_code），项目区从 index=2 开始
+    const firstProjectCheckbox = checkboxes[2]
+    expect(firstProjectCheckbox).toBeTruthy()
+    await firstProjectCheckbox.trigger('change')
+
+    const events = wrapper.emitted('toggleProject')
+    expect(events).toBeTruthy()
+    expect(events!.length).toBe(1)
+    // payload 必须是完整 path，不能退化成 name（proj-0）或 boolean
+    expect(events![0][0]).toBe('/workspace/proj-0')
+  })
+
+  it('再次勾选已选中项目 emit toggleProject 同一个 path（父组件负责反选）', async () => {
+    const wrapper = mount(LibraryFacets, {
+      props: { ...baseProps, fProjects: ['/workspace/proj-0'] },
+      global: { stubs },
+    })
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    // 已选中态下，checkbox 应该是 checked=true
+    const firstProjectCheckbox = checkboxes[2]
+    expect((firstProjectCheckbox.element as HTMLInputElement).checked).toBe(true)
+    await firstProjectCheckbox.trigger('change')
+
+    const events = wrapper.emitted('toggleProject')
+    expect(events).toBeTruthy()
+    // 反选时 emit 出来的还是 path，由父组件的 toggleProject 决定增删
+    expect(events![0][0]).toBe('/workspace/proj-0')
+  })
 })

@@ -22,9 +22,7 @@ impl Db {
     ///   * `time` 字段直接用 SQLite 的 `datetime('now', '-N days', 'start of day')`
     ///     —— 跟前端 `computeTimeLowerBound` 的"含今天的 N 个日历日"语义一致，
     ///     不需要把当前时间从 Rust 传进来。
-    ///   * `projects` 不做 path == name 的精确比较——前端只持有 path 末段名
-    ///     （如 "memex"），后端用 `LIKE '%/<name>'` 做尾段匹配，避免误命中
-    ///     `memex-clone` 这种同前缀目录。
+    ///   * `projects` 走完整 `project_path` 精确匹配（`IN (?, ?, ...)`）。
     ///     旧实现用 `LIKE '%/<name>'` 末段匹配会把所有同末段不同前缀的
     ///     路径混算（如 `/A/src` 和 `/B/src` 都被算成 "src"），导致 facet
     ///     上某行写 42、勾选后却命中所有 src 合计 56。前端
@@ -102,10 +100,10 @@ fn push_projects_clause(
     let Some(projects) = filter.projects.as_ref().filter(|v| !v.is_empty()) else {
         return;
     };
-    let parts = vec!["s.project_path LIKE ?"; projects.len()].join(" OR ");
-    where_clauses.push(format!("({parts})"));
+    let placeholders = vec!["?"; projects.len()].join(",");
+    where_clauses.push(format!("s.project_path IN ({placeholders})"));
     for p in projects {
-        binds.push(SqlValue::Text(format!("%/{p}")));
+        binds.push(SqlValue::Text(p.clone()));
     }
 }
 

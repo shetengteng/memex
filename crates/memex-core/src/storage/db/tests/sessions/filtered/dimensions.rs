@@ -189,7 +189,7 @@ fn filtered_paged_composite_adapter_project_time_query() {
         .list_sessions_filtered_paged(
             &SessionListFilter {
                 adapters: Some(vec!["cursor".into()]),
-                projects: Some(vec!["memex".into()]),
+                projects: Some(vec!["/repo/memex".into()]),
                 time: Some("7d".into()),
                 query: Some("redis".into()),
                 ..Default::default()
