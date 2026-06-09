@@ -12,6 +12,8 @@ use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 use memex_core::storage::queries::DoctorReport;
 
+use super::error::CmdResult;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum CursorProbeDto {
@@ -62,22 +64,22 @@ pub struct DoctorRunResult {
 }
 
 #[tauri::command]
-pub async fn doctor_run() -> Result<DoctorRunResult, String> {
+pub async fn doctor_run() -> CmdResult<DoctorRunResult> {
     let memex = memex_dir();
     let db_path = memex.join("memex.db");
     let config_path = memex.join("config.toml");
 
     let report = if db_path.exists() {
-        let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+        let db = Db::open(&db_path)?;
         DoctorReport {
             db_exists: true,
-            schema_version: db.schema_version().map_err(|e| e.to_string())?,
-            session_count: db.session_count().map_err(|e| e.to_string())?,
-            message_count: db.message_count().map_err(|e| e.to_string())?,
-            chunk_count: db.chunk_count().map_err(|e| e.to_string())?,
-            source_count: db.source_count().map_err(|e| e.to_string())?,
+            schema_version: db.schema_version()?,
+            session_count: db.session_count()?,
+            message_count: db.message_count()?,
+            chunk_count: db.chunk_count()?,
+            source_count: db.source_count()?,
             fts_ok: db.fts_health_check(),
-            adapters: db.adapter_statuses().map_err(|e| e.to_string())?,
+            adapters: db.adapter_statuses()?,
         }
     } else {
         DoctorReport {
