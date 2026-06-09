@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.package]
 version = "0.3.4"
 edition = "2024"
+rust-version = "1.95"
 license = "MIT"
 authors = ["Terrell She"]
 

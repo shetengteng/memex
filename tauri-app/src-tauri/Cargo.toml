@@ -4,6 +4,7 @@ version.workspace = true
 description = "Memex menubar — local-first cross-LLM session memory"
 authors = ["Terrell She"]
 edition = "2024"
+rust-version = "1.95"
 
 [lib]
 name = "memex_menubar_lib"
