@@ -4,6 +4,7 @@
 //! breaking renames before they ship. Keep these assertions in lock-step
 //! with `tauri-app/src/types/index.ts`.
 
+use memex_core::storage::db::SessionListFilter;
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
 use memex_menubar_lib::commands::daemon::{DaemonStatus, LockInfo};
 use memex_menubar_lib::commands::sessions::SummaryProgress;
@@ -177,6 +178,55 @@ fn daemon_status_handles_null_fields() {
     assert!(v["pid"].is_null());
     assert!(v["port"].is_null());
     assert!(v["started_at"].is_null());
+}
+
+#[test]
+fn session_list_filter_camel_or_snake_roundtrip() {
+    // 前端只提供已知字段。`deny_unknown_fields` 让任何拼写错误（如
+    // `adapter`、`projct`、`tiem`）在反序列化阶段就抛错，避免后端静默
+    // 当作 `None` 然后返回全表把 UI 撑爆。
+    let json = serde_json::json!({
+        "adapters": ["cursor", "claude_code"],
+        "projects": ["memex"],
+        "time": "7d",
+        "summary": "done",
+        "query": "redis",
+        "sort": "messages"
+    });
+    let filter: SessionListFilter = serde_json::from_value(json).unwrap();
+    assert_eq!(
+        filter.adapters.as_deref(),
+        Some(&["cursor".to_string(), "claude_code".to_string()][..])
+    );
+    assert_eq!(filter.projects.as_deref(), Some(&["memex".to_string()][..]));
+    assert_eq!(filter.time.as_deref(), Some("7d"));
+    assert_eq!(filter.summary.as_deref(), Some("done"));
+    assert_eq!(filter.query.as_deref(), Some("redis"));
+    assert_eq!(filter.sort.as_deref(), Some("messages"));
+}
+
+#[test]
+fn session_list_filter_all_optional() {
+    // 前端不勾任何 facet 时整个 JSON 是空对象，等价于"不过滤"。
+    let filter: SessionListFilter = serde_json::from_value(serde_json::json!({})).unwrap();
+    assert!(filter.adapters.is_none());
+    assert!(filter.projects.is_none());
+    assert!(filter.time.is_none());
+    assert!(filter.summary.is_none());
+    assert!(filter.query.is_none());
+    assert!(filter.sort.is_none());
+}
+
+#[test]
+fn session_list_filter_rejects_unknown_field() {
+    let err = serde_json::from_value::<SessionListFilter>(serde_json::json!({
+        "adapter": ["typo"],
+    }))
+    .expect_err("typo `adapter` should be rejected by deny_unknown_fields");
+    assert!(
+        err.to_string().contains("adapter"),
+        "error should mention the offending field, got: {err}"
+    );
 }
 
 #[test]

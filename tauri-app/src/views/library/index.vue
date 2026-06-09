@@ -24,13 +24,15 @@ import {
 } from 'lucide-vue-next'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  sessions,
+  librarySessions,
+  libraryHasMore,
   totals,
-  refreshSessions,
+  reloadLibrarySessions,
+  loadMoreLibrarySessions,
   refreshProjects,
-  loadMoreSessions,
   type Session,
 } from '@/stores/memex'
+import type { SessionListFilter } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { startScanning, stopScanning } from '@/composables/useScanState'
 import { toast } from 'vue-sonner'
@@ -40,7 +42,6 @@ import LibrarySessionDrawer from './components/LibrarySessionDrawer.vue'
 import LibraryThreadsTab from './components/LibraryThreadsTab.vue'
 import LibraryProjectsGrid from './components/LibraryProjectsGrid.vue'
 import {
-  filterAndSortSessions,
   groupSessionsByDate,
   type SortKey,
   type SummaryFilter,
@@ -50,8 +51,6 @@ import {
 const memex = useMemex()
 const ingesting = ref(false)
 const loadingMore = ref(false)
-// 后端返回小于 pageSize 时即认为已加载完；首屏 200 条若返回 < 200 则一开始就 false
-const hasMoreSessions = ref(true)
 const LOAD_MORE_PAGE_SIZE = 100
 
 async function runIngest() {
@@ -61,9 +60,7 @@ async function runIngest() {
   try {
     const r = await memex.triggerIngest()
     toast.success(`采集完成：新消息 ${r.messages_ingested} 条，新片段 ${r.chunks_created} 块`)
-    await Promise.all([refreshSessions(), refreshProjects()])
-    // 重新拉了 200 条，hasMore 取决于后端总数；保守置 true，让用户能继续点
-    hasMoreSessions.value = true
+    await Promise.all([reloadLibrarySessions(currentFilter.value), refreshProjects()])
   } catch (e) {
     toast.error(`采集失败：${String(e)}`)
   } finally {
@@ -73,11 +70,10 @@ async function runIngest() {
 }
 
 async function onLoadMore() {
-  if (loadingMore.value || !hasMoreSessions.value) return
+  if (loadingMore.value || !libraryHasMore.value) return
   loadingMore.value = true
   try {
-    const r = await loadMoreSessions(LOAD_MORE_PAGE_SIZE)
-    hasMoreSessions.value = r.hasMore
+    const r = await loadMoreLibrarySessions(currentFilter.value, LOAD_MORE_PAGE_SIZE)
     if (r.loaded === 0) {
       toast.info('已加载全部会话')
     }
@@ -96,7 +92,7 @@ function setupInfiniteScroll() {
   loadMoreObserver = new IntersectionObserver(
     (entries) => {
       const hit = entries.some((e) => e.isIntersecting)
-      if (hit && hasMoreSessions.value && !loadingMore.value) {
+      if (hit && libraryHasMore.value && !loadingMore.value) {
         onLoadMore()
       }
     },
@@ -122,15 +118,6 @@ watch(loadMoreSentinel, (el) => {
 
 onBeforeUnmount(teardownInfiniteScroll)
 
-// 已加载全部时主动关闭 hasMore（首屏 200 条；后端总数 ≤ 已加载 → 没有更多）
-watch(
-  [() => sessions.length, () => totals.sessions],
-  ([loaded, total]) => {
-    if (total > 0 && loaded >= total) hasMoreSessions.value = false
-  },
-  { immediate: true },
-)
-
 const formatCount = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
@@ -145,6 +132,10 @@ const sort = ref<SortKey>('recent')
 
 const query = ref('')
 const fAdapters = ref<string[]>([])
+// fProjects 存的是**完整 project_path** 数组（不是末段名）。后端按
+// `project_path IN (?, ?, ...)` 精确匹配，与项目 facet 上的计数一一对齐。
+// 之前用末段名 + `LIKE '%/<name>'` 会把同末段的多个不同项目混算，导致
+// 顶部"显示 X / 总 Y"跟左侧 facet 单行计数对不上。
 const fProjects = ref<string[]>([])
 const fTime = ref<TimeFilter>('7d')
 const fSummary = ref<SummaryFilter>('all')
@@ -154,10 +145,10 @@ const toggleAdapter = (a: string) => {
   if (i >= 0) fAdapters.value.splice(i, 1)
   else fAdapters.value.push(a)
 }
-const toggleProject = (p: string) => {
-  const i = fProjects.value.indexOf(p)
+const toggleProject = (path: string) => {
+  const i = fProjects.value.indexOf(path)
   if (i >= 0) fProjects.value.splice(i, 1)
-  else fProjects.value.push(p)
+  else fProjects.value.push(path)
 }
 const clearFilters = () => {
   fAdapters.value = []
@@ -167,18 +158,37 @@ const clearFilters = () => {
   query.value = ''
 }
 
-const filtered = computed(() =>
-  filterAndSortSessions(sessions, {
-    adapters: fAdapters.value,
-    projects: fProjects.value,
-    summary: fSummary.value,
-    query: query.value,
-    time: fTime.value,
-    sort: sort.value,
-  }),
-)
+// 注意：分组用真实当前时间（today/yesterday/week/earlier），跟后端 SQL
+// 时间窗口（'today' / '7d' / '30d' / '90d'）正交——前者是"如何分块展示"，
+// 后者是"是否纳入结果集"。所以列表已经被后端按 fTime 过滤一遍后，仍然
+// 用本地时间做分组，让"今天 / 昨天 / 本周"在 UI 上始终可读。
+const groupedFiltered = computed(() => groupSessionsByDate(librarySessions))
 
-const groupedFiltered = computed(() => groupSessionsByDate(filtered.value))
+// 当前过滤态打包成后端 DTO（None / 不传字段 = 不过滤）。
+// 注意 7d/all 等 default 值仍然传给后端，让 SQL WHERE 显式过滤；这跟前端
+// `activeFilterCount` 把 '7d' 视为"默认"是两套语义。
+const currentFilter = computed<SessionListFilter>(() => {
+  const q = query.value.trim()
+  return {
+    adapters: fAdapters.value.length ? fAdapters.value : undefined,
+    projects: fProjects.value.length ? fProjects.value : undefined,
+    time: fTime.value,
+    summary: fSummary.value,
+    query: q || undefined,
+    sort: sort.value,
+  }
+})
+
+// 任何 filter 变化都触发一次后端重拉。{ immediate: true } 让首屏直接生效；
+// `flush: 'post'` 等 UI 状态全部 settle 再走 IPC，避免连续点 facet 起多次
+// 飞行中的请求叠加返回乱序问题（最后一个 await 决定的最终 sessions[]）。
+watch(
+  currentFilter,
+  async (filter) => {
+    await reloadLibrarySessions(filter)
+  },
+  { immediate: true, flush: 'post' },
+)
 
 const drawerSession = ref<Session | null>(null)
 const drawerOpen = computed({
@@ -198,8 +208,8 @@ const openSession = (s: Session) => {
   router.replace({ query: { ...route.query, session: s.id } })
 }
 
-const openProject = (name: string) => {
-  fProjects.value = [name]
+const openProject = (path: string) => {
+  fProjects.value = [path]
   fAdapters.value = []
   fSummary.value = 'all'
   fTime.value = 'all'
@@ -214,9 +224,10 @@ watch(
       drawerSession.value = null
       return
     }
-    // 跨 tab 打开会话时（如线索 tab 点条目），`sessions` 数组可能不包含该 id，
-    // 此时保留 drawerSession（由调用方提前 set 的实例），避免被覆盖为 null。
-    const found = sessions.find((x) => x.id === id)
+    // 跨 tab 打开会话时（如线索 tab 点条目），`librarySessions` 数组可能不包含该 id
+    //（被当前 filter 筛掉，或还没拉到这一页），此时保留 drawerSession
+    //（由调用方提前 set 的实例），避免被覆盖为 null。
+    const found = librarySessions.find((x) => x.id === id)
     if (found) {
       drawerSession.value = found
     } else if (drawerSession.value?.id !== id) {
@@ -369,7 +380,7 @@ onBeforeUnmount(() => {
           </div>
           <span class="hidden whitespace-nowrap text-[11px] text-muted-foreground md:inline">
             {{ activeFilterCount }} 个筛选 · 显示
-            <span class="font-medium text-foreground tabular-nums">{{ filtered.length }}</span>
+            <span class="font-medium text-foreground tabular-nums">{{ librarySessions.length }}</span>
             /
             <Tooltip :delay-duration="120">
               <TooltipTrigger as-child>
@@ -423,7 +434,7 @@ onBeforeUnmount(() => {
           </template>
 
           <div
-            v-if="!filtered.length"
+            v-if="!librarySessions.length"
             class="flex flex-col items-center gap-2 py-12 text-center text-[12px] text-muted-foreground"
           >
             <MessagesSquare class="size-8 text-muted-foreground/40" />
@@ -436,7 +447,7 @@ onBeforeUnmount(() => {
             class="flex flex-col items-center gap-1.5 py-6 text-[12px] text-muted-foreground"
           >
             <div
-              v-if="hasMoreSessions"
+              v-if="libraryHasMore"
               ref="loadMoreSentinel"
               class="flex items-center gap-2 py-1"
             >
@@ -445,7 +456,7 @@ onBeforeUnmount(() => {
             </div>
             <span v-else>
               已显示全部
-              <span class="font-medium text-foreground tabular-nums">{{ filtered.length }}</span>
+              <span class="font-medium text-foreground tabular-nums">{{ librarySessions.length }}</span>
               个会话
             </span>
           </div>

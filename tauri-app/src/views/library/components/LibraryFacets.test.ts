@@ -9,10 +9,12 @@ vi.mock('@/stores/memex', () => ({
     { id: 'claude_code', label: 'Claude Code', status: 'active', path: '~/y', sessions: 50 },
   ],
   breakdownByAdapter: { cursor: 100, claude_code: 50 },
-  // 12 个项目，触发 "+ N 更多" 按钮（PROJECT_DEFAULT_LIMIT = 8）
+  // 12 个项目，触发 "+ N 更多" 按钮（PROJECT_DEFAULT_LIMIT = 8）。
+  // path 字段各不相同 → disambiguation 后显示就是末段名 `proj-N`。
   projects: Array.from({ length: 12 }, (_, i) => ({
     id: `p${i}`,
     name: `proj-${i}`,
+    path: `/workspace/proj-${i}`,
     sessions: 30 - i, // 倒序
     messages: 100,
     lastActive: '',
@@ -131,7 +133,7 @@ describe('LibraryFacets', () => {
     expect(events![0][0]).toEqual([])
   })
 
-  it('点击项目区"全选"emit update:fProjects 当前可见项', async () => {
+  it('点击项目区"全选"emit update:fProjects 当前可见项（用完整 path）', async () => {
     const wrapper = mount(LibraryFacets, { props: baseProps, global: { stubs } })
     const selectAllBtns = wrapper.findAll('button').filter((b) => b.text() === '全选')
     // 第二个"全选"是项目区的
@@ -141,9 +143,10 @@ describe('LibraryFacets', () => {
 
     const events = wrapper.emitted('update:fProjects')
     expect(events).toBeTruthy()
-    // 默认只 visible 8 个
+    // 默认只 visible 8 个；emit 出来的应是 path 而非 name
     expect((events![0][0] as string[]).length).toBe(8)
-    expect(events![0][0]).toContain('proj-0')
-    expect(events![0][0]).toContain('proj-7')
+    expect(events![0][0]).toContain('/workspace/proj-0')
+    expect(events![0][0]).toContain('/workspace/proj-7')
+    expect(events![0][0]).not.toContain('proj-0')
   })
 })

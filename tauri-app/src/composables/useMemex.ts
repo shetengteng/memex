@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, SessionListFilter, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -16,6 +16,19 @@ export function useMemex() {
 
   async function listRecent(limit = 20, offset = 0): Promise<SessionRow[]> {
     return invoke<SessionRow[]>('list_recent', { limit, offset })
+  }
+
+  /**
+   * 资料库复合过滤查询。adapters / projects / time / summary / query / sort
+   * 全部下推到后端 SQL 一次完成，避免前端在 in-memory 200 条窗口里再筛一遍
+   * 跟全表 stats counts 对不上的情况（详见 SessionListFilter 注释）。
+   */
+  async function listSessionsFiltered(
+    filter: SessionListFilter,
+    limit = 200,
+    offset = 0,
+  ): Promise<SessionRow[]> {
+    return invoke<SessionRow[]>('list_sessions_filtered', { filter, limit, offset })
   }
 
   async function searchMemex(query: string, limit = 20, offset = 0): Promise<SearchResult[]> {
@@ -187,7 +200,7 @@ export function useMemex() {
   }
 
   return {
-    getStats, getBreakdown, getTimeline, listRecent, searchMemex, getSession,
+    getStats, getBreakdown, getTimeline, listRecent, listSessionsFiltered, searchMemex, getSession,
     retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
     triggerIngest, runDoctor, cliStatus, cliInstall, cliUninstall,

@@ -241,6 +241,7 @@ pub fn run() {
             commands::stats::list_projects,
             commands::stats::get_workload,
             commands::sessions::list_recent,
+            commands::sessions::list_sessions_filtered,
             commands::sessions::get_session,
             commands::sessions::retry_summary,
             commands::sessions::batch_summarize,

@@ -29,7 +29,7 @@ use parking_lot::Mutex;
 use rusqlite::Connection;
 
 pub use providers::LlmProviderRow;
-pub use sessions::{MessageRow, NewSession, SessionDetail, SessionRow};
+pub use sessions::{MessageRow, NewSession, SessionDetail, SessionListFilter, SessionRow};
 pub use summaries::{AggregateSummaryRow, AggregateSummaryUpsert, SummaryRow, SummaryUpsert};
 pub use threads::{ThreadDetail, ThreadDraft, ThreadRow};
 

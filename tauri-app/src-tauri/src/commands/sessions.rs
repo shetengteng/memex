@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter};
 
 use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
-use memex_core::storage::db::{Db, SessionDetail, SessionRow};
+use memex_core::storage::db::{Db, SessionDetail, SessionListFilter, SessionRow};
 
 use super::error::{CmdError, CmdResult};
 
@@ -37,6 +37,25 @@ pub async fn list_recent(
 
     let db = Db::open(&db_path)?;
     Ok(db.list_sessions_paged(limit.unwrap_or(20), offset.unwrap_or(0))?)
+}
+
+/// 资料库列表的复合过滤分页查询。前端 Library facets 上的 adapter / project /
+/// time / summary / query / sort 全部下推到 SQL 一次完成，避免 `list_recent`
+/// 只能返回最近 200 条、与全表 `stats_breakdown` counts 对不上的 facet 矛盾。
+#[tauri::command]
+pub async fn list_sessions_filtered(
+    filter: Option<SessionListFilter>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> CmdResult<Vec<SessionRow>> {
+    let db_path = memex_dir().join("memex.db");
+    if !db_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let db = Db::open(&db_path)?;
+    let filter = filter.unwrap_or_default();
+    Ok(db.list_sessions_filtered_paged(&filter, limit.unwrap_or(20), offset.unwrap_or(0))?)
 }
 
 #[tauri::command]

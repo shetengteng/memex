@@ -58,7 +58,7 @@ const tFmt = (iso: string) =>
           v-for="p in filteredProjects"
           :key="p.id"
           class="group rounded-xl border bg-card p-4 text-left transition hover:border-primary/40 hover:bg-accent/40 hover:shadow-sm"
-          @click="$emit('open', p.name)"
+          @click="$emit('open', p.path)"
         >
           <div class="mb-2 flex items-center justify-between">
             <div class="flex items-center gap-2">

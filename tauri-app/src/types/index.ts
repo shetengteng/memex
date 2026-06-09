@@ -85,6 +85,22 @@ export interface MessageRow {
   timestamp: string | null
 }
 
+/**
+ * 资料库列表多维过滤（对齐后端 SessionListFilter）。
+ *
+ * 所有字段都是可选；后端把 None / 空数组 / 无法识别的字符串都视作"不过滤"。
+ * 注意：后端用 `#[serde(deny_unknown_fields)]`，前端传任何笔误（如 `adapter`
+ * 单数）都会让 invoke 立即报错——这是设计上的早失败，避免 UI 静默拿到错误结果。
+ */
+export interface SessionListFilter {
+  adapters?: string[]
+  projects?: string[]
+  time?: 'today' | '7d' | '30d' | '90d' | 'all'
+  summary?: 'all' | 'done' | 'pending'
+  query?: string
+  sort?: 'recent' | 'duration' | 'messages'
+}
+
 export interface StatsBreakdown {
   by_adapter: Record<string, number>
   by_project: Record<string, number>

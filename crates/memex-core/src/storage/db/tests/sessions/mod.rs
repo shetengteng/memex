@@ -1,4 +1,9 @@
 //! sessions_needing_summary 的方案 A / B 闸门 + intent + session detail。
+//!
+//! `list_sessions_filtered_paged` 复合过滤的 8 个测试拆到子模块 `filtered`，
+//! 避免本文件被资料库 facets 那一大块测试推过 300 行规约上限。
+
+mod filtered;
 
 use crate::storage::db::{self, Db};
 

@@ -1,10 +1,17 @@
 //! 会话读取：分页列表、详情、按 project / 时间窗口的查询，以及全局计数。
+//!
+//! 子模块：
+//!   * `filter` —— `list_sessions_filtered_paged` 的动态 SQL builder，单独
+//!     拆开是因为它把 adapter/project/time/summary/query/sort 6 个维度的
+//!     WHERE 拼接放在一起，跟"基础读取"语义不同。
+
+mod filter;
 
 use anyhow::Result;
 use rusqlite::params;
 use serde_rusqlite::from_rows;
 
-use super::{MessageRow, SessionDetail, SessionRow};
+use super::{MessageRow, SessionDetail, SessionListFilter, SessionRow};
 use crate::storage::db::Db;
 
 impl Db {
@@ -13,28 +20,7 @@ impl Db {
     }
 
     pub fn list_sessions_paged(&self, limit: usize, offset: usize) -> Result<Vec<SessionRow>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare_cached(
-            "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
-                    s.created_at, s.updated_at,
-                    sm.title AS summary_title,
-                    (SELECT substr(m.content, 1, 120)
-                     FROM messages m
-                     WHERE m.session_id = s.id AND m.role = 'user'
-                     ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
-                    s.intent
-             FROM sessions s
-             LEFT JOIN summaries sm
-                ON sm.session_id = s.id AND sm.level = 'L2_session'
-             WHERE NOT (s.message_count = 0
-                        AND s.created_at < datetime('now', '-1 day'))
-             ORDER BY s.updated_at DESC
-             LIMIT ?1 OFFSET ?2",
-        )?;
-        let rows = stmt.query(params![limit as i64, offset as i64])?;
-        let out: Vec<SessionRow> =
-            from_rows::<SessionRow>(rows).collect::<std::result::Result<_, _>>()?;
-        Ok(out)
+        self.list_sessions_filtered_paged(&SessionListFilter::default(), limit, offset)
     }
 
     pub fn get_session_detail(&self, session_id: &str) -> Result<Option<SessionDetail>> {

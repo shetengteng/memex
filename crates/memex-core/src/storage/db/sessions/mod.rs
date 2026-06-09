@@ -61,6 +61,32 @@ pub struct MessageRow {
     pub timestamp: Option<String>,
 }
 
+/// 资料库列表多维筛选。所有字段都是可选——None / 空 Vec / 无法识别的字符串
+/// 都按"不过滤"处理，绝不会回退到"删空集"，避免前端因为传错值看到 0 行而
+/// 误以为是 bug。
+///
+/// 字段命名对齐前端 `LibraryFacets.vue` + `sessionFilters.ts`：
+///   * `adapters` — 多选 source 值（如 "claude_code" / "cursor"）
+///   * `projects` — 多选完整 `project_path`（如 "/Users/me/repo/memex"），
+///     后端用 `IN (?, ?, ...)` 精确匹配；前端 `LibraryFacets.vue` 持有完整
+///     路径并对同末段路径做去歧义显示，避免不同前缀的同名子目录被混算
+///     （如 `/A/src` 和 `/B/src` 都被视作 "src"）
+///   * `time` — "today" / "7d" / "30d" / "90d" / "all"
+///   * `summary` — "all" / "done" / "pending"（done = 已生成 L2 摘要）
+///   * `query` — 在 title / intent / L2 summary title / 首条 user message
+///     上做 `LIKE %q%`
+///   * `sort` — "recent" (默认) / "duration" / "messages"
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionListFilter {
+    pub adapters: Option<Vec<String>>,
+    pub projects: Option<Vec<String>>,
+    pub time: Option<String>,
+    pub summary: Option<String>,
+    pub query: Option<String>,
+    pub sort: Option<String>,
+}
+
 /// 新 session 的写入 payload。比起 7 个零散参数（`clippy::too_many_arguments`
 /// 触发，规约 §6.2 也建议 builder/struct）显式构造一次，更便于 caller
 /// 阅读与未来扩展（例如新增 `is_pinned` / `priority` 等元数据）。

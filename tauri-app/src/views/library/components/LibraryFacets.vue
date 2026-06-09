@@ -9,11 +9,17 @@ import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import IdeDot from '@/components/shell/IdeDot.vue'
 import { Search, X } from 'lucide-vue-next'
-import { adapters, breakdownByAdapter, projects } from '@/stores/memex'
+import { adapters, breakdownByAdapter, projects, type Project } from '@/stores/memex'
 import { formatNumber } from '@/lib/utils'
 import type { SummaryFilter, TimeFilter } from '../composables/sessionFilters'
+import { buildDisambiguatedNames } from '../composables/projectDisambiguation'
 
 const adapterCount = (id: string): number => breakdownByAdapter[id] ?? 0
+
+// 同末段路径自动加最短父目录前缀（如 `tt-demo/src` / `metadata-server/src`），
+// 让 facet 多行 "src" 在 UI 上能分辨。算法 + 单测见 `projectDisambiguation.ts`。
+const projectDisplayNames = computed(() => buildDisambiguatedNames(projects))
+const displayNameOf = (p: Project): string => projectDisplayNames.value.get(p.id) ?? p.name
 
 const TIME_FILTERS = ['today', '7d', '30d', '90d', 'all'] as const
 const SUMMARY_FILTERS = ['all', 'done', 'pending'] as const
@@ -59,10 +65,15 @@ const projectsLimit = ref(PROJECT_DEFAULT_LIMIT)
 const sortedProjects = computed(() =>
   [...projects].sort((a, b) => b.sessions - a.sessions),
 )
+// 搜索同时命中 disambiguated display name 与完整 path 末段，让用户既能
+// 按 `tt-demo/src` 这种带前缀的展示名搜索，也能直接输 path 片段筛选。
 const filteredProjects = computed(() => {
   const q = projectQuery.value.trim().toLowerCase()
   if (!q) return sortedProjects.value
-  return sortedProjects.value.filter((p) => p.name.toLowerCase().includes(q))
+  return sortedProjects.value.filter((p) => {
+    const display = displayNameOf(p).toLowerCase()
+    return display.includes(q) || p.path.toLowerCase().includes(q)
+  })
 })
 // 搜索时 → 全部命中；未搜索 → 当前 limit
 const visibleProjects = computed(() => {
@@ -101,20 +112,18 @@ function toggleSelectAllAdapters() {
 // 项目"全选"指：全选当前 visible 集合（搜索时仅筛选结果，未搜索时仅默认 N 条 + 已展开后全部）
 const allVisibleProjectsSelected = computed(() => {
   if (visibleProjects.value.length === 0) return false
-  return visibleProjects.value.every((p) => props.fProjects.includes(p.name))
+  return visibleProjects.value.every((p) => props.fProjects.includes(p.path))
 })
 function toggleSelectAllProjects() {
   if (allVisibleProjectsSelected.value) {
-    // 取消可见集合中的所有选中
-    const visibleNames = new Set(visibleProjects.value.map((p) => p.name))
+    const visiblePaths = new Set(visibleProjects.value.map((p) => p.path))
     emit(
       'update:fProjects',
-      props.fProjects.filter((n) => !visibleNames.has(n)),
+      props.fProjects.filter((p) => !visiblePaths.has(p)),
     )
   } else {
-    // 把可见集合的项目全部加入 selected（保留原有的不在 visible 中的选中）
     const merged = new Set(props.fProjects)
-    for (const p of visibleProjects.value) merged.add(p.name)
+    for (const p of visibleProjects.value) merged.add(p.path)
     emit('update:fProjects', [...merged])
   }
 }
@@ -206,10 +215,17 @@ function toggleSelectAllProjects() {
               class="cursor-pointer text-[13px] font-normal"
             >
               <Checkbox
-                :model-value="fProjects.includes(p.name)"
-                @update:model-value="emit('toggleProject', p.name)"
+                :model-value="fProjects.includes(p.path)"
+                @update:model-value="emit('toggleProject', p.path)"
               />
-              <span class="flex-1 truncate">{{ p.name }}</span>
+              <Tooltip :delay-duration="120">
+                <TooltipTrigger as-child>
+                  <span class="flex-1 cursor-default truncate">{{ displayNameOf(p) }}</span>
+                </TooltipTrigger>
+                <TooltipContent side="right" :side-offset="6" class="px-2 py-1 text-[11px]">
+                  <span class="font-mono">{{ p.path }}</span>
+                </TooltipContent>
+              </Tooltip>
               <Tooltip :delay-duration="120">
                 <TooltipTrigger as-child>
                   <span class="cursor-default text-[11px] tabular-nums text-muted-foreground">

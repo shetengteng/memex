@@ -391,6 +391,16 @@ export async function loadMoreSessions(pageSize = 100): Promise<{ loaded: number
   }
 }
 
+// 资料库视图的独立会话列表 + filter pushdown 已抽到 `./library.ts`。
+// 这里 re-export 以保持 `import { librarySessions } from '@/stores/memex'`
+// 之类的旧调用点零改动；新代码应直接 `from '@/stores/library'`。
+export {
+  librarySessions,
+  libraryHasMore,
+  reloadLibrarySessions,
+  loadMoreLibrarySessions,
+} from './library'
+
 /** 主动重拉 projects */
 export async function refreshProjects(): Promise<void> {
   const memex = useMemex()
