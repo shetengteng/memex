@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MemexConfig {
     #[serde(default = "default_data_dir")]
     pub data_dir: String,
@@ -23,6 +24,7 @@ pub struct MemexConfig {
 
 /// 数据源适配器默认全部关闭，用户在 Settings 页面按需开启。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AdaptersConfig {
     #[serde(default)]
     pub claude_code: bool,
@@ -47,6 +49,7 @@ pub struct AdaptersConfig {
 /// 仅保留 Ollama 老配置作为「快捷开关」入口；其他云端 provider
 /// （OpenAI 兼容 / Anthropic）一律走 DB 中的 llm_providers。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LlmConfig {
     #[serde(default)]
     pub ollama_enabled: bool,
@@ -84,6 +87,7 @@ impl Default for LlmConfig {
 
 /// 同上：`redaction_enabled` 必须默认 true。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PrivacyConfig {
     #[serde(default = "default_true")]
     pub redaction_enabled: bool,
@@ -137,4 +141,46 @@ fn default_summary_cooldown_secs() -> u64 {
 
 fn default_summarize_interval_ms() -> u64 {
     2000
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memex_config_rejects_unknown_top_level_fields() {
+        // Regression guard for #[serde(deny_unknown_fields)]: typos in the
+        // top-level config.toml must error out instead of being silently
+        // dropped into defaults.
+        let toml = "data_dir = \"~/.memex\"\ntelemetry = true\n";
+        let err = toml::from_str::<MemexConfig>(toml)
+            .expect_err("unknown key `telemetry` must be rejected");
+        assert!(
+            err.to_string().contains("telemetry"),
+            "error should mention the offending field, got: {err}"
+        );
+    }
+
+    #[test]
+    fn llm_config_rejects_unknown_fields() {
+        // Regression guard against #[serde(deny_unknown_fields)] being silently
+        // removed from LlmConfig. The common typo is to drop the trailing `s`
+        // from `summarize_interval_ms`.
+        let toml = "[llm]\nollama_enabled = true\nsummarize_intervall_ms = 1000\n";
+        let err = toml::from_str::<MemexConfig>(toml)
+            .expect_err("typo `summarize_intervall_ms` must be rejected");
+        assert!(
+            err.to_string().contains("summarize_intervall_ms"),
+            "error should mention the offending field, got: {err}"
+        );
+    }
+
+    #[test]
+    fn memex_config_accepts_known_fields_with_defaults() {
+        // Sanity check that #[serde(default)] still works alongside
+        // deny_unknown_fields — missing keys must populate from defaults.
+        let cfg: MemexConfig = toml::from_str("").expect("empty toml must parse");
+        assert_eq!(cfg.data_dir, default_data_dir());
+        assert!(cfg.llm.ollama_url.starts_with("http"));
+    }
 }

@@ -10,13 +10,27 @@ struct RedactionRule {
     label: String,
 }
 
+// The on-disk `redactions.yaml` is a *shared* file that is read independently
+// by both `processor::redact` (rules) and `processor::privacy` (private_paths /
+// private_keywords). Listing the sibling keys here as ignored placeholders
+// allows `deny_unknown_fields` to still flag genuine typos in `rules:` /
+// `pattern:` / `label:` without rejecting the legitimate privacy keys this
+// module doesn't care about.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RedactionsFile {
     #[serde(default)]
     rules: Vec<CustomRule>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    private_paths: Vec<serde::de::IgnoredAny>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    private_keywords: Vec<serde::de::IgnoredAny>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CustomRule {
     pattern: String,
     label: String,
@@ -200,6 +214,33 @@ mod tests {
         let input = "Keys: sk-ant-xxxxxxxxxxxxxxxxxxxx and sk-ant-yyyyyyyyyyyyyyyyyyyy";
         let output = redact(input);
         assert_eq!(output.matches("[REDACTED:api_key]").count(), 2);
+    }
+
+    #[test]
+    fn redactions_file_rejects_unknown_fields() {
+        // Regression guard for #[serde(deny_unknown_fields)] on RedactionsFile:
+        // sibling keys consumed by `processor::privacy` (`private_paths`,
+        // `private_keywords`) must still parse, but a typo anywhere else must
+        // surface immediately instead of being silently dropped.
+        let yaml = "rules: []\nprivate_paths: []\nprivate_keywords: []\nrulesss: []\n";
+        let err = serde_yaml_ng::from_str::<RedactionsFile>(yaml)
+            .expect_err("typo `rulesss` must be rejected");
+        assert!(
+            err.to_string().contains("rulesss"),
+            "error should mention the offending field, got: {err}"
+        );
+    }
+
+    #[test]
+    fn custom_rule_rejects_unknown_fields() {
+        // Regression guard for #[serde(deny_unknown_fields)] on CustomRule.
+        let yaml = "rules:\n  - pattern: foo\n    label: bar\n    extra: baz\n";
+        let err = serde_yaml_ng::from_str::<RedactionsFile>(yaml)
+            .expect_err("typo `extra` inside a rule must be rejected");
+        assert!(
+            err.to_string().contains("extra"),
+            "error should mention the offending field, got: {err}"
+        );
     }
 
     #[test]

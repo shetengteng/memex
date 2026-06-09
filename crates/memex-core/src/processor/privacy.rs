@@ -5,12 +5,21 @@ use std::sync::LazyLock;
 use parking_lot::Mutex;
 use serde::Deserialize;
 
+// The on-disk `redactions.yaml` is a *shared* file that is read independently
+// by both `processor::privacy` (private_paths / private_keywords) and
+// `processor::redact` (rules). Listing `rules` here as an ignored placeholder
+// allows `deny_unknown_fields` to still flag genuine typos in the privacy
+// keys without rejecting the redact rules this module doesn't care about.
 #[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 struct PrivacyConfig {
     #[serde(default)]
     private_paths: Vec<String>,
     #[serde(default)]
     private_keywords: Vec<String>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    rules: Vec<serde::de::IgnoredAny>,
 }
 
 // parking_lot::Mutex 不会 poison —— 这里的 lock() 永远不会返回 Err，
@@ -97,6 +106,20 @@ mod tests {
         assert!(is_private_content("This is CONFIDENTIAL information"));
         assert!(is_private_content("Classified as top-secret"));
         assert!(!is_private_content("Normal conversation about code"));
+    }
+
+    #[test]
+    fn privacy_config_rejects_unknown_fields() {
+        // Regression guard for #[serde(deny_unknown_fields)] on PrivacyConfig:
+        // genuine typos in `private_paths` / `private_keywords` must surface as
+        // parse errors instead of being silently dropped into defaults.
+        let yaml = "private_paths:\n  - /foo\nprivate_path:\n  - /typo\n";
+        let err = serde_yaml_ng::from_str::<PrivacyConfig>(yaml)
+            .expect_err("typo `private_path` must be rejected");
+        assert!(
+            err.to_string().contains("private_path"),
+            "error should mention the offending field, got: {err}"
+        );
     }
 
     #[test]
