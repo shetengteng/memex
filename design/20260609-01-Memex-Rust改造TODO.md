@@ -9,6 +9,7 @@
 
 ## 进度跟踪
 
+- 2026-06-09 fa67b9f — **P1-1 全部完成**：第二轮 13 个 303-375 行文件全部拆掉（config/mod.rs、cursor/tests.rs、setup.rs、claude_code/mod.rs、aider.rs、summaries.rs、opencode.rs、threads.rs、providers.rs、matcher.rs、rebuild.rs、retriever/mod.rs、cline.rs），全部以「按职责子模块 + 抽 tests」收口。workspace 现已无 > 300 行 Rust 源文件（最大 summaries/mod.rs 294 行）。`cargo fmt --all` + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo test --workspace` 全绿（284 tests）。
 - 2026-06-09 44b3785 — **P0-1 完成 + cursor pre-existing bug**：19 个 commands 文件全部迁到 `CmdError`（`Result<T, String>` 在 commands/ 下零残留）。前端 `humanizeBackendError` 同步加上 `{kind, message}` 解析，向下兼容旧 string 错误，新增 10 条单测。整体 19 commit（1 基础 + 18 文件 + 1 cursor fix）。顺便修了 main 上 silently-failing 的 `test_sqlite_scan_multifolder_workspace_yields_no_project_path`（multi-folder workspace 不再误用 `.code-workspace` 父目录当 cwd，与 sqlite.rs 自带注释契约一致）。
 - 2026-06-09 0865a3e — **library Today bug 修复**：`fTime` 过滤未生效 + "Today" 分组以最新 session 日期当锚点 → 抽出 `sessionFilters.ts` 纯函数 composable（filter / group），用绝对 `new Date()` 锚定，库视图从 503 行减到 470 行；新增 16 条单测覆盖时间边界、分组、组合过滤。`LibraryFacets.vue` 强类型化 `TimeFilter` / `SummaryFilter`，emit 前加 runtime guard 防非法值。
 - 2026-06-09 — **rust.mdc §2.6 新增**：增加「卫语句优先 / Happy Path 居中」章节 + §15 提交前清单加项「函数体嵌套 ≤ 3 层」。
@@ -107,7 +108,7 @@
 
 ## P1 — 重要违规（影响代码质量与可维护性）
 
-### P1-1 拆分 > 300 行的 Rust 文件
+### ✅ P1-1 拆分 > 300 行的 Rust 文件（2026-06-09 全部完成）
 
 按规约 §7.2，每个文件按职责拆，**禁止** structs.rs / impls.rs 这种按代码类型拆分。
 
@@ -138,28 +139,31 @@
 - `collector/cursor/sqlite.rs` 670 行 → `sqlite/{mod,types,scan,collect,probe,project_path}.rs`（最大 scan 167 行；待提交）
 - `storage/db/tests.rs` 832 行 → `tests/{mod,basic,summaries,sessions,schema,threads}.rs`（最大 sessions 249 行；29 PASS；待提交）
 
-**当前剩余 > 300 行文件（全部为 303-375 行，未拆）**：
-| 文件 | 行 |
-|---|---|
-| `config/mod.rs` | 375 |
-| `collector/cursor/tests.rs` | 375 |
-| `collector/aider.rs` | 355 |
-| `memex-cli/commands/setup.rs` | 351 |
-| `collector/claude_code/mod.rs` | 350 |
-| `storage/db/summaries.rs` | 345 |
-| `collector/opencode.rs` | 341 |
-| `storage/db/threads.rs` | 327 |
-| `context/matcher.rs` | 311 |
-| `storage/db/providers.rs` | 309 |
-| `storage/rebuild.rs` | 308 |
-| `retriever/mod.rs` | 305 |
-| `collector/cline.rs` | 303 |
+**2026-06-09 第二轮 — 13 个 303-375 行剩余文件全部拆完**：
 
-这一批 13 个最多超 75 行，优先级低于 P2 的功能性工作，可在童子军规则下随手拆。
+| 文件 | 旧行数 | 拆分结果 | commit |
+|---|---|---|---|
+| `config/mod.rs` | 375 | `config/{mod, types, io, tests}.rs`（最大 io 151） | (cf README) |
+| `collector/cursor/tests.rs` | 375 | `tests/{mod, jsonl, sqlite_backend}.rs`（最大 sqlite_backend 279） | — |
+| `collector/aider.rs` | 355 | `aider/{mod, parser, tests}.rs`（mod 157） | — |
+| `memex-cli/commands/setup.rs` | 351 | `setup/{mod, io, json_backends, codex_backend}.rs`（mod 181） | — |
+| `collector/claude_code/mod.rs` | 350 | `claude_code/{mod, tests}.rs`（mod 225） | — |
+| `storage/db/summaries.rs` | 345 | `summaries/{mod, dto}.rs`（mod 294） | — |
+| `collector/opencode.rs` | 341 | `opencode/{mod, tests}.rs`（mod 228） | — |
+| `storage/db/threads.rs` | 327 | `threads/{mod, dto}.rs`（mod 286） | — |
+| `context/matcher.rs` | 311 | `matcher/{mod, tests}.rs`（mod 145） | — |
+| `storage/db/providers.rs` | 309 | `providers/{mod, tests}.rs`（mod 173） | — |
+| `storage/rebuild.rs` | 308 | `rebuild/{mod, tests}.rs`（mod 241） | — |
+| `retriever/mod.rs` | 305 | `retriever/{mod, tests}.rs`（mod 206） | 8e506b2 |
+| `collector/cline.rs` | 303 | `cline/{mod, tests}.rs`（mod 255） | a838a43 |
+
+**第二轮所有 commit 都附 `cargo check --tests` 验证**。最终一次 `cargo fmt --all` + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo test --workspace` 全绿（284 tests pass）→ commit fa67b9f。
+
+**全 workspace 现已无 > 300 行的 Rust 源文件**（最大为 `summaries/mod.rs` 294 行，`storage/queries/workload.rs` 291 行）。
 
 **规约依据**：§7.2
-**风险**：拆分会影响 `git blame`；建议每个文件一个独立 commit
-**估时**：每个文件 30 min-2h；剩余预估 6-10h
+**实际成本**：第二轮 ~3h（13 个 file × 平均 13 min 拆分 + verify + commit）
+**总计 P1-1 commit 数**：~25 个（含第一轮 5 个 + 第二轮 13 个 + 各类 README/TODO/fmt 维护 commit）
 
 ### P1-6 把 `mcp` 模块独立为 `memex-mcp` crate
 
