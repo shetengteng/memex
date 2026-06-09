@@ -635,63 +635,8 @@ fn test_chunks_with_summary_count_uses_partial_index() {
     );
 }
 
-/// v9 回归：老库从 v8 升到 v9 时，migration 必须补建那两个索引。
-/// 模拟方法：手动 INSERT schema_version=8 然后 open，进 migration 路径。
-#[test]
-fn test_v9_migration_creates_missing_indexes() {
-    use rusqlite::params;
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("v8.db");
-
-    // 第一步：建一个「假的 v8 老库」——
-    // 我们没法真的回到 v8 schema，但可以模拟"丢了那两个索引"的状态：
-    // 正常 open（已是 v9），然后手动 DROP 索引 + 把 version 回拨到 8，
-    // 再次 open 时 migration 应该重新建出来。
-    {
-        let db = Db::open(&path).unwrap();
-        let conn = db.conn.lock();
-        conn.execute("DROP INDEX IF EXISTS idx_chunks_has_summary", [])
-            .unwrap();
-        conn.execute("DROP INDEX IF EXISTS idx_messages_content_dedup", [])
-            .unwrap();
-        conn.execute("UPDATE schema_version SET version = ?1", params![8u32])
-            .unwrap();
-    }
-
-    // 第二步：再 open 一次，触发 from=8 → 9 的 migration。
-    let db = Db::open(&path).unwrap();
-    let conn = db.conn.lock();
-    let names: Vec<String> = conn
-        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
-        .unwrap()
-        .query_map([], |row| row.get::<_, String>(0))
-        .unwrap()
-        .filter_map(|r| r.ok())
-        .collect();
-    assert!(
-        names.iter().any(|n| n == "idx_chunks_has_summary"),
-        "v8→v9 migration 应补建 idx_chunks_has_summary"
-    );
-    assert!(
-        names.iter().any(|n| n == "idx_messages_content_dedup"),
-        "v8→v9 migration 应补建 idx_messages_content_dedup"
-    );
-    let version: u32 = conn
-        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
-            row.get(0)
-        })
-        .unwrap();
-    // v9 → 之后版本号会一路升到当前最新（v10 之后还可能继续上涨）。
-    // 这里只断言"升到了至少 9"——v9 migration 跑过即可。
-    assert!(
-        version >= 9,
-        "migration 后版本号应至少升到 9，实际 {}",
-        version
-    );
-}
-
 // ============================================================
-// v10 / L5 「主题线索」回归测试
+// L5 「主题线索」回归测试
 // ============================================================
 
 use crate::storage::db::ThreadDraft;
@@ -884,40 +829,4 @@ fn test_list_threads_returns_aggregate_fields() {
     let detail = db.get_thread_detail(r.id).unwrap().unwrap();
     assert_eq!(detail.thread.projects.len(), 2);
     assert_eq!(detail.thread.adapters.len(), 2);
-}
-
-/// v10 回归：把版本回拨到 9，再 open，应该自动建表。
-#[test]
-fn test_v10_migration_creates_threads_tables() {
-    use rusqlite::params;
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("v9.db");
-
-    {
-        let db = Db::open(&path).unwrap();
-        let conn = db.conn.lock();
-        conn.execute("DROP TABLE IF EXISTS thread_sessions", [])
-            .unwrap();
-        conn.execute("DROP TABLE IF EXISTS threads", []).unwrap();
-        conn.execute("UPDATE schema_version SET version = ?1", params![9u32])
-            .unwrap();
-    }
-
-    let db = Db::open(&path).unwrap();
-    let conn = db.conn.lock();
-    let tables: Vec<String> = conn
-        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-        .unwrap()
-        .query_map([], |row| row.get::<_, String>(0))
-        .unwrap()
-        .filter_map(|r| r.ok())
-        .collect();
-    assert!(tables.contains(&"threads".to_string()));
-    assert!(tables.contains(&"thread_sessions".to_string()));
-    let version: u32 = conn
-        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
-            row.get(0)
-        })
-        .unwrap();
-    assert_eq!(version, 10);
 }

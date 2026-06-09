@@ -22,6 +22,7 @@ dirs = "6"
 serde_yaml_ng = "0.10"
 ureq = { version = "3", features = ["json"] }
 serde_rusqlite = "0.36.0"
+rusqlite_migration = "1.3"
 
 [dev-dependencies]
 tempfile = "3"

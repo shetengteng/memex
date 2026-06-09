@@ -1,18 +1,17 @@
-//! SQLite schema（v3）。表结构、FTS5 虚拟表，以及把 `chunks` 上的
-//! INSERT / UPDATE / DELETE 同步到 `chunks_fts` 的影子触发器。
+//! Memex SQLite baseline schema.
 //!
-//! v2 新增：
-//! - `chunks.summary` 列，用来存 L1 的一句话摘要。
-//! - `aggregate_summaries` 表，用来存 L3（项目）/ L4（周期）摘要。
+//! This is the source of truth for the latest table / index / FTS5 /
+//! trigger shape. [`super::migrations::build_migrations`] embeds it as
+//! the only `M::up(...)` entry, so a fresh DB ends up with exactly this
+//! layout and a pre-existing DB is reset to the same layout
+//! (`rusqlite_migration` tracks the applied version via PRAGMA
+//! `user_version`).
 //!
-//! v3 新增：
-//! - 索引 `idx_messages_session_role_offset` 在 `messages(session_id, role,
-//!   source_offset)` 上 —— popup / dashboard 的"首条 user 消息预览"
-//!   子查询必须用到它，否则会做全表扫描（实际数据库上有 ≥10× 加速）。
-//! - 索引 `idx_summaries_session_level` 在 `summaries(session_id, level)` 上，
-//!   能加速 `list_sessions_paged` 中的 `LEFT JOIN summaries`。
-
-pub(super) const SCHEMA_VERSION: u32 = 10;
+//! When the schema changes:
+//! * append the additive DDL (`ALTER TABLE …`, `CREATE INDEX …`) as a
+//!   **new** `M::up(...)` in `migrations.rs`, and
+//! * mirror the same final state into the constant below so a fresh
+//!   install does not need to replay every historical migration.
 
 pub(super) const SCHEMA_SQL: &str = "
 CREATE TABLE IF NOT EXISTS sources (

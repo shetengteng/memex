@@ -148,13 +148,18 @@ impl Db {
         Ok(count)
     }
 
+    /// Returns the applied schema version as tracked by SQLite's
+    /// `PRAGMA user_version` (managed by `rusqlite_migration`).
+    ///
+    /// Returns `Ok(None)` only for a never-initialized DB (user_version
+    /// = 0), which in practice should never reach this code path
+    /// because [`Db::open`] always runs `to_latest()` first. The
+    /// `Option` is kept for backwards-compat with the `DoctorReport`
+    /// IPC contract (frontend renders "未知" on `null`).
     pub fn schema_version(&self) -> Result<Option<u32>> {
         let conn = self.conn.lock();
-        Ok(conn
-            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
-                row.get(0)
-            })
-            .ok())
+        let v: u32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        Ok(if v == 0 { None } else { Some(v) })
     }
 
     pub fn fts_health_check(&self) -> bool {
