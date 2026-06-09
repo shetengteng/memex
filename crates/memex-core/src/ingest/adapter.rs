@@ -151,12 +151,19 @@ fn ingest_message_batch(
             db.insert_chunk(&pc.chunk)?;
             chunk_count += 1;
             for hit in &pc.redaction_hits {
-                let _ = db.insert_redaction(
+                if let Err(e) = db.insert_redaction(
                     &pc.chunk.message_id,
                     &pc.chunk.session_id,
                     &hit.redaction_type,
                     hit.original_length,
-                );
+                ) {
+                    tracing::warn!(
+                        message_id = %pc.chunk.message_id,
+                        redaction_type = %hit.redaction_type,
+                        error = %e,
+                        "failed to record redaction hit",
+                    );
+                }
             }
         }
     }

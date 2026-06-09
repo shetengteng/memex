@@ -23,7 +23,9 @@ pub(super) fn try_l1_chunk_summaries(db: &Db, provider: &dyn LlmProvider, thrott
     for (i, (chunk_id, content, _)) in chunks.into_iter().enumerate() {
         match summarize::summarize_chunk(provider, &content) {
             Ok(s) => {
-                let _ = db.update_chunk_summary(chunk_id, &s);
+                if let Err(e) = db.update_chunk_summary(chunk_id, &s) {
+                    warn!(chunk_id, error = %e, "failed to persist L1 chunk summary");
+                }
             }
             Err(e) => {
                 warn!("L1 summarize failed for chunk {}: {}", chunk_id, e);
@@ -94,7 +96,7 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
 
     match summarize::summarize_session(provider, &msgs) {
         Ok(summary) => {
-            let _ = db.upsert_summary(crate::storage::db::SummaryUpsert {
+            if let Err(e) = db.upsert_summary(crate::storage::db::SummaryUpsert {
                 session_id,
                 level: "L2_session",
                 title: Some(&summary.title),
@@ -102,13 +104,32 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
                 topics: &summary.topics,
                 decisions: &summary.decisions,
                 message_count_at_creation,
-            });
-            if let Some(ref name) = summary.project_name {
-                let _ = db.update_session_project_path(session_id, name);
+            }) {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %e,
+                    "failed to persist L2 session summary"
+                );
+                return false;
+            }
+            if let Some(ref name) = summary.project_name
+                && let Err(e) = db.update_session_project_path(session_id, name)
+            {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %e,
+                    "failed to persist session project_path"
+                );
             }
             // 每次重生成都覆盖 sessions.intent，None 时显式写入 NULL，
             // 避免「重新生成后旧 intent 文本继续留在 UI 上」的脏数据。
-            let _ = db.update_session_intent(session_id, summary.intent.as_deref());
+            if let Err(e) = db.update_session_intent(session_id, summary.intent.as_deref()) {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %e,
+                    "failed to persist session intent"
+                );
+            }
             true
         }
         Err(e) => {

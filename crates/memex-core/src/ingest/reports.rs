@@ -17,15 +17,21 @@ use crate::storage::db::{AggregateSummaryRow, AggregateSummaryUpsert, Db};
 // ---- Auto-triggered (from `try_summarize_new_sessions`) -------------
 
 pub(super) fn try_l4_weekly_summaries(db: &Db, provider: &dyn LlmProvider) {
-    let _ = regenerate_weekly_report_inner(db, provider, /* force = */ false);
+    if let Err(e) = regenerate_weekly_report_inner(db, provider, /* force = */ false) {
+        warn!(error = %e, "auto L4 weekly report generation failed");
+    }
 }
 
 pub(super) fn try_l4_monthly_summaries(db: &Db, provider: &dyn LlmProvider) {
-    let _ = regenerate_monthly_report_inner(db, provider, /* force = */ false);
+    if let Err(e) = regenerate_monthly_report_inner(db, provider, /* force = */ false) {
+        warn!(error = %e, "auto L4 monthly report generation failed");
+    }
 }
 
 pub(super) fn try_l4_periodic_summaries(db: &Db, provider: &dyn LlmProvider) {
-    let _ = regenerate_daily_report_inner(db, provider, /* force = */ false);
+    if let Err(e) = regenerate_daily_report_inner(db, provider, /* force = */ false) {
+        warn!(error = %e, "auto L4 daily report generation failed");
+    }
 }
 
 // ---- Public regenerate_* (manual UI / CLI buttons) ------------------

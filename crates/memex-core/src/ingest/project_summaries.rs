@@ -54,15 +54,19 @@ pub(super) fn try_l3_project_summaries(db: &Db, provider: &dyn LlmProvider) {
 
         match summarize::summarize_project(provider, &l2_summaries) {
             Ok(summary) => {
-                let _ = db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
-                    scope_type: "project",
-                    scope_key: &project,
-                    title: Some(&summary.title),
-                    summary: &summary.summary,
-                    topics: &summary.topics,
-                    decisions: &summary.decisions,
-                    session_count: sessions.len() as i64,
-                });
+                if let Err(e) =
+                    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+                        scope_type: "project",
+                        scope_key: &project,
+                        title: Some(&summary.title),
+                        summary: &summary.summary,
+                        topics: &summary.topics,
+                        decisions: &summary.decisions,
+                        session_count: sessions.len() as i64,
+                    })
+                {
+                    warn!(project = %project, error = %e, "failed to persist L3 project summary");
+                }
             }
             Err(e) => {
                 warn!("L3 project summarize failed for {}: {}", project, e);
