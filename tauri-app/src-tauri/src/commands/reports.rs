@@ -7,18 +7,20 @@ use memex_core::llm::select_provider_unified;
 use memex_core::memex_dir;
 use memex_core::storage::db::{AggregateSummaryRow, Db};
 
+use super::error::{CmdError, CmdResult};
+
 #[tauri::command]
 pub async fn list_reports(
     scope: String,
     limit: Option<u32>,
-) -> Result<Vec<AggregateSummaryRow>, String> {
+) -> CmdResult<Vec<AggregateSummaryRow>> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
     }
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.list_aggregate_summaries(&scope, limit.unwrap_or(60))
-        .map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    let rows = db.list_aggregate_summaries(&scope, limit.unwrap_or(60))?;
+    Ok(rows)
 }
 
 /// scope: "daily" | "weekly" | "monthly" — 生成最新的
@@ -27,26 +29,31 @@ pub async fn list_reports(
 pub async fn regenerate_report(
     scope: String,
     scope_key: Option<String>,
-) -> Result<Option<AggregateSummaryRow>, String> {
+) -> CmdResult<Option<AggregateSummaryRow>> {
     let memex = memex_dir();
     let db_path = memex.join("memex.db");
     if !db_path.exists() {
-        return Err("memex.db 不存在，请先运行 memex ingest".to_string());
+        return Err(CmdError::NotFound(
+            "memex.db 不存在，请先运行 memex ingest".into(),
+        ));
     }
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
+    let db = Db::open(&db_path)?;
+    let cfg = MemexConfig::load(&memex)?;
     let provider = select_provider_unified(&db, &cfg.llm, &memex).ok_or_else(|| {
-        "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string()
+        CmdError::Backend("未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".into())
     })?;
 
     if let Some(key) = scope_key {
-        return regenerate_report_by_key(&db, provider.as_ref(), &key).map_err(|e| e.to_string());
+        return Ok(regenerate_report_by_key(&db, provider.as_ref(), &key)?);
     }
 
-    match scope.as_str() {
-        "daily" => regenerate_daily_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
-        "weekly" => regenerate_weekly_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
-        "monthly" => regenerate_monthly_report(&db, provider.as_ref()).map_err(|e| e.to_string()),
-        other => Err(format!("不支持的报告类型：{}", other)),
-    }
+    let row = match scope.as_str() {
+        "daily" => regenerate_daily_report(&db, provider.as_ref())?,
+        "weekly" => regenerate_weekly_report(&db, provider.as_ref())?,
+        "monthly" => regenerate_monthly_report(&db, provider.as_ref())?,
+        other => {
+            return Err(CmdError::Validation(format!("不支持的报告类型：{}", other)));
+        }
+    };
+    Ok(row)
 }
