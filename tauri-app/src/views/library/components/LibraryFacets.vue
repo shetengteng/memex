@@ -11,14 +11,18 @@ import IdeDot from '@/components/shell/IdeDot.vue'
 import { Search, X } from 'lucide-vue-next'
 import { adapters, breakdownByAdapter, projects } from '@/stores/memex'
 import { formatNumber } from '@/lib/utils'
+import type { SummaryFilter, TimeFilter } from '../composables/sessionFilters'
 
 const adapterCount = (id: string): number => breakdownByAdapter[id] ?? 0
+
+const TIME_FILTERS = ['today', '7d', '30d', '90d', 'all'] as const
+const SUMMARY_FILTERS = ['all', 'done', 'pending'] as const
 
 const props = defineProps<{
   fAdapters: string[]
   fProjects: string[]
-  fTime: string
-  fSummary: string
+  fTime: TimeFilter
+  fSummary: SummaryFilter
   activeFilterCount: number
   hasActiveFilters: boolean
 }>()
@@ -28,10 +32,24 @@ const emit = defineEmits<{
   toggleProject: [string]
   'update:fAdapters': [string[]]
   'update:fProjects': [string[]]
-  'update:fTime': [string]
-  'update:fSummary': [string]
+  'update:fTime': [TimeFilter]
+  'update:fSummary': [SummaryFilter]
   clear: []
 }>()
+
+function emitTimeFilter(v: unknown): void {
+  const s = String(v ?? '')
+  if ((TIME_FILTERS as readonly string[]).includes(s)) {
+    emit('update:fTime', s as TimeFilter)
+  }
+}
+
+function emitSummaryFilter(v: unknown): void {
+  const s = String(v ?? '')
+  if ((SUMMARY_FILTERS as readonly string[]).includes(s)) {
+    emit('update:fSummary', s as SummaryFilter)
+  }
+}
 
 const PROJECT_DEFAULT_LIMIT = 8
 const PROJECT_PAGE_STEP = 10
@@ -236,7 +254,7 @@ function toggleSelectAllProjects() {
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             时间
           </div>
-          <RadioGroup :model-value="fTime" @update:model-value="(v) => emit('update:fTime', String(v ?? ''))" class="gap-1.5">
+          <RadioGroup :model-value="fTime" @update:model-value="emitTimeFilter" class="gap-1.5">
             <Label class="cursor-pointer text-[13px] font-normal">
               <RadioGroupItem value="today" />今天
             </Label>
@@ -262,7 +280,7 @@ function toggleSelectAllProjects() {
           </div>
           <RadioGroup
             :model-value="fSummary"
-            @update:model-value="(v) => emit('update:fSummary', String(v ?? ''))"
+            @update:model-value="emitSummaryFilter"
             class="gap-1.5"
           >
             <Label class="cursor-pointer text-[13px] font-normal">

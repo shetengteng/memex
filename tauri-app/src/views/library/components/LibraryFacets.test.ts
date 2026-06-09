@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import LibraryFacets from './LibraryFacets.vue'
+import type { SummaryFilter, TimeFilter } from '../composables/sessionFilters'
 
 vi.mock('@/stores/memex', () => ({
   adapters: [
@@ -19,10 +20,10 @@ vi.mock('@/stores/memex', () => ({
 }))
 
 const baseProps = {
-  fAdapters: [],
-  fProjects: [],
-  fTime: '7d',
-  fSummary: 'all',
+  fAdapters: [] as string[],
+  fProjects: [] as string[],
+  fTime: '7d' as TimeFilter,
+  fSummary: 'all' as SummaryFilter,
   activeFilterCount: 0,
   hasActiveFilters: false,
 }

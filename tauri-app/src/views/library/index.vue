@@ -39,6 +39,13 @@ import LibrarySessionListItem from './components/LibrarySessionListItem.vue'
 import LibrarySessionDrawer from './components/LibrarySessionDrawer.vue'
 import LibraryThreadsTab from './components/LibraryThreadsTab.vue'
 import LibraryProjectsGrid from './components/LibraryProjectsGrid.vue'
+import {
+  filterAndSortSessions,
+  groupSessionsByDate,
+  type SortKey,
+  type SummaryFilter,
+  type TimeFilter,
+} from './composables/sessionFilters'
 
 const memex = useMemex()
 const ingesting = ref(false)
@@ -134,13 +141,13 @@ const route = useRoute()
 const router = useRouter()
 
 const tab = ref<'sessions' | 'projects' | 'threads'>('sessions')
-const sort = ref<'recent' | 'duration' | 'messages'>('recent')
+const sort = ref<SortKey>('recent')
 
 const query = ref('')
 const fAdapters = ref<string[]>([])
 const fProjects = ref<string[]>([])
-const fTime = ref<string>('7d')
-const fSummary = ref<string>('all')
+const fTime = ref<TimeFilter>('7d')
+const fSummary = ref<SummaryFilter>('all')
 
 const toggleAdapter = (a: string) => {
   const i = fAdapters.value.indexOf(a)
@@ -160,58 +167,18 @@ const clearFilters = () => {
   query.value = ''
 }
 
-const filtered = computed(() => {
-  let xs = sessions.slice()
-  if (fAdapters.value.length) xs = xs.filter((s) => fAdapters.value.includes(s.adapter))
-  if (fProjects.value.length) xs = xs.filter((s) => fProjects.value.includes(s.project))
-  if (fSummary.value === 'done') xs = xs.filter((s) => s.l2Done)
-  else if (fSummary.value === 'pending') xs = xs.filter((s) => !s.l2Done)
-  if (query.value)
-    xs = xs.filter((s) =>
-      `${s.title} ${s.project} ${s.topics.join(' ')} ${s.intent ?? ''}`
-        .toLowerCase()
-        .includes(query.value.toLowerCase()),
-    )
-  if (sort.value === 'duration') xs.sort((a, b) => b.durationMin - a.durationMin)
-  else if (sort.value === 'messages') xs.sort((a, b) => b.messages - a.messages)
-  else xs.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-  return xs
-})
+const filtered = computed(() =>
+  filterAndSortSessions(sessions, {
+    adapters: fAdapters.value,
+    projects: fProjects.value,
+    summary: fSummary.value,
+    query: query.value,
+    time: fTime.value,
+    sort: sort.value,
+  }),
+)
 
-const groupedFiltered = computed(() => {
-  if (!filtered.value.length) return []
-  const maxIso = filtered.value.reduce(
-    (acc, s) => (s.startedAt > acc ? s.startedAt : acc),
-    filtered.value[0].startedAt,
-  )
-  const ref0 = new Date(maxIso)
-  ref0.setHours(0, 0, 0, 0)
-  const yest = new Date(ref0)
-  yest.setDate(yest.getDate() - 1)
-  const week = new Date(ref0)
-  week.setDate(week.getDate() - 6)
-  const buckets = {
-    today: [] as Session[],
-    yesterday: [] as Session[],
-    week: [] as Session[],
-    earlier: [] as Session[],
-  }
-  for (const s of filtered.value) {
-    const d = new Date(s.startedAt)
-    if (d >= ref0) buckets.today.push(s)
-    else if (d >= yest) buckets.yesterday.push(s)
-    else if (d >= week) buckets.week.push(s)
-    else buckets.earlier.push(s)
-  }
-  const groups: { key: string; label: string; sessions: Session[] }[] = []
-  if (buckets.today.length) groups.push({ key: 'today', label: '今天', sessions: buckets.today })
-  if (buckets.yesterday.length)
-    groups.push({ key: 'yesterday', label: '昨天', sessions: buckets.yesterday })
-  if (buckets.week.length) groups.push({ key: 'week', label: '本周', sessions: buckets.week })
-  if (buckets.earlier.length)
-    groups.push({ key: 'earlier', label: '更早', sessions: buckets.earlier })
-  return groups
-})
+const groupedFiltered = computed(() => groupSessionsByDate(filtered.value))
 
 const drawerSession = ref<Session | null>(null)
 const drawerOpen = computed({
