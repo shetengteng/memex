@@ -36,7 +36,12 @@ pub fn load_custom_rules(path: &Path) {
         Ok(p) => p,
         Err(_) => return,
     };
-    let mut rules = CUSTOM_RULES.lock().unwrap();
+    let Ok(mut rules) = CUSTOM_RULES.lock() else {
+        // poisoned mutex (another thread panicked while holding it) — drop the
+        // new rules silently rather than propagating the panic. redact() also
+        // tolerates a poisoned lock and just skips custom rules.
+        return;
+    };
     rules.clear();
     for rule in parsed.rules {
         if let Ok(re) = Regex::new(&rule.pattern) {
@@ -48,37 +53,47 @@ pub fn load_custom_rules(path: &Path) {
     }
 }
 
+// INVARIANT: every regex below is a hardcoded literal that must compile
+// successfully at startup. A failure here is a programmer error, not a runtime
+// condition — `.expect` makes that intent explicit and identifies which rule
+// broke if the compile ever does fail.
 static RULES: LazyLock<Vec<RedactionRule>> = LazyLock::new(|| {
     vec![
         RedactionRule {
-            pattern: Regex::new(r"sk-[a-zA-Z0-9_-]{20,}").unwrap(),
+            pattern: Regex::new(r"sk-[a-zA-Z0-9_-]{20,}")
+                .expect("INVARIANT: api_key regex must compile"),
             label: "api_key".to_string(),
         },
         RedactionRule {
             pattern: Regex::new(
                 r#"(?i)(api[_\-]?key|token|secret)[:\s=]+['"]?([a-zA-Z0-9_\-/.]{16,})['"]?"#,
             )
-            .unwrap(),
+            .expect("INVARIANT: token regex must compile"),
             label: "token".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap(),
+            pattern: Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+                .expect("INVARIANT: email regex must compile"),
             label: "email".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r"(\+?86[-\s]?)?1[3-9]\d{9}").unwrap(),
+            pattern: Regex::new(r"(\+?86[-\s]?)?1[3-9]\d{9}")
+                .expect("INVARIANT: phone regex must compile"),
             label: "phone".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap(),
+            pattern: Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
+                .expect("INVARIANT: ip regex must compile"),
             label: "ip".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r"\b[3-6]\d{3}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b").unwrap(),
+            pattern: Regex::new(r"\b[3-6]\d{3}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b")
+                .expect("INVARIANT: bank_card regex must compile"),
             label: "bank_card".to_string(),
         },
         RedactionRule {
-            pattern: Regex::new(r"(?i)password\s*(is|=|:)\s*\S+").unwrap(),
+            pattern: Regex::new(r"(?i)password\s*(is|=|:)\s*\S+")
+                .expect("INVARIANT: password regex must compile"),
             label: "password".to_string(),
         },
     ]
