@@ -160,14 +160,14 @@ impl CursorSqliteAdapter {
 
         let mut out = HashMap::with_capacity(envelope.all_composers.len());
         for header in envelope.all_composers {
+            // Multi-folder workspace（只有 configPath 没有 uri）→ 不还原 cwd：
+            // .code-workspace 的父目录可能完全不是工程 cwd（用户常把 workspace
+            // 文件丢在 ~/Documents 或 Desktop，而项目在别处）。保留原始字段
+            // 不丢，但 project_path 留空，等以后引入 workspace.folders 解析再补。
             let project_path = match header.workspace_identifier {
                 Some(WorkspaceIdentifier { uri: Some(u), .. }) => {
                     u.fs_path.or(u.path).filter(|s| !s.is_empty())
                 }
-                Some(WorkspaceIdentifier {
-                    config_path: Some(ref cp),
-                    ..
-                }) => config_path_to_project(cp),
                 _ => None,
             };
             out.insert(
@@ -635,31 +635,6 @@ fn find_common_ancestor(dirs: &[String]) -> Option<String> {
     } else {
         Some(s)
     }
-}
-
-/// Extract a project path from a multi-folder workspace `configPath`.
-/// The value may be a JSON string (`"/path/to/foo.code-workspace"`)
-/// or an object with `fsPath`/`path` fields.
-/// Returns the parent directory of the `.code-workspace` file.
-/// Skips Cursor-internal workspace.json paths (under `Cursor/Workspaces/`).
-fn config_path_to_project(val: &serde_json::Value) -> Option<String> {
-    let raw = match val {
-        serde_json::Value::String(s) => Some(s.clone()),
-        serde_json::Value::Object(obj) => obj
-            .get("fsPath")
-            .or_else(|| obj.get("path"))
-            .and_then(|v| v.as_str())
-            .map(String::from),
-        _ => None,
-    };
-    let raw = raw.filter(|s| !s.is_empty())?;
-    if raw.contains("Cursor/Workspaces/") || raw.contains("Cursor\\Workspaces\\") {
-        return None;
-    }
-    let p = std::path::Path::new(&raw);
-    p.parent()
-        .map(|d| d.to_string_lossy().to_string())
-        .filter(|s| !s.is_empty())
 }
 
 fn bubble_content(bubble: &Bubble) -> Option<String> {
