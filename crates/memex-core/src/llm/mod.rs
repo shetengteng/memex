@@ -18,10 +18,10 @@ use provider::LlmProvider;
 pub fn select_provider_from_db(db: &Db) -> Option<Box<dyn LlmProvider>> {
     let rows = db.provider_list().ok()?;
     for row in rows.iter().filter(|r| r.enabled) {
-        if let Some(p) = build_provider_from_row(row) {
-            if p.is_available() {
-                return Some(p);
-            }
+        if let Some(p) = build_provider_from_row(row)
+            && p.is_available()
+        {
+            return Some(p);
         }
     }
     None
@@ -65,10 +65,10 @@ pub fn select_provider_unified(
     config: &LlmConfig,
     memex_dir: &Path,
 ) -> Option<Box<dyn LlmProvider>> {
-    if let Ok(rows) = db.provider_list() {
-        if rows.iter().any(|r| r.enabled) {
-            return select_provider_from_db(db);
-        }
+    if let Ok(rows) = db.provider_list()
+        && rows.iter().any(|r| r.enabled)
+    {
+        return select_provider_from_db(db);
     }
     select_provider(config, memex_dir)
 }

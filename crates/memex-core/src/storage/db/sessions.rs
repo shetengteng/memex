@@ -55,6 +55,22 @@ pub struct MessageRow {
     pub timestamp: Option<String>,
 }
 
+/// 新 session 的写入 payload。比起 7 个零散参数（`clippy::too_many_arguments`
+/// 触发，规约 §6.2 也建议 builder/struct）显式构造一次，更便于 caller
+/// 阅读与未来扩展（例如新增 `is_pinned` / `priority` 等元数据）。
+pub struct NewSession<'a> {
+    pub id: &'a str,
+    pub source: &'a str,
+    pub project_path: Option<&'a str>,
+    pub file_path: &'a str,
+    pub session_created_secs: u64,
+    pub session_mtime_secs: u64,
+    /// adapter 提供的"原始对话标题"（如 cursor composer.name、codex thread_name）。
+    /// **仅在 sessions.title 当前为 NULL 时写入**：L2 摘要后续生成的更优 title
+    /// 不会被这里覆盖。
+    pub title: Option<&'a str>,
+}
+
 impl Db {
     pub fn insert_session(
         &self,
@@ -65,30 +81,27 @@ impl Db {
         session_created_secs: u64,
         session_mtime_secs: u64,
     ) -> Result<()> {
-        self.insert_session_with_title(
+        self.insert_session_with_title(NewSession {
             id,
             source,
             project_path,
             file_path,
             session_created_secs,
             session_mtime_secs,
-            None,
-        )
+            title: None,
+        })
     }
 
-    /// `title` 是 adapter 提供的"原始对话标题"（如 cursor composer.name、
-    /// codex thread_name）。**仅在 sessions.title 当前为 NULL 时写入**：
-    /// L2 摘要后续生成的更优 title 不会被这里覆盖。
-    pub fn insert_session_with_title(
-        &self,
-        id: &str,
-        source: &str,
-        project_path: Option<&str>,
-        file_path: &str,
-        session_created_secs: u64,
-        session_mtime_secs: u64,
-        title: Option<&str>,
-    ) -> Result<()> {
+    pub fn insert_session_with_title(&self, opts: NewSession<'_>) -> Result<()> {
+        let NewSession {
+            id,
+            source,
+            project_path,
+            file_path,
+            session_created_secs,
+            session_mtime_secs,
+            title,
+        } = opts;
         let conn = self.conn.lock().unwrap();
         let now = chrono::Utc::now();
         let now_str = now.to_rfc3339();

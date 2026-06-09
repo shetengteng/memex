@@ -71,15 +71,15 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
     let watcher_tx = tx.clone();
     let mut watcher: RecommendedWatcher =
         notify::recommended_watcher(move |res: notify::Result<Event>| {
-            if let Ok(event) = res {
-                if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
-                    let dominated = event.paths.iter().any(|p| {
-                        p.extension()
-                            .is_some_and(|ext| ext == "jsonl" || ext == "json")
-                    });
-                    if dominated {
-                        let _ = watcher_tx.blocking_send(());
-                    }
+            if let Ok(event) = res
+                && matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_))
+            {
+                let dominated = event.paths.iter().any(|p| {
+                    p.extension()
+                        .is_some_and(|ext| ext == "jsonl" || ext == "json")
+                });
+                if dominated {
+                    let _ = watcher_tx.blocking_send(());
                 }
             }
         })?;

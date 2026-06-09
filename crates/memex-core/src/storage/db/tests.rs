@@ -150,15 +150,15 @@ fn test_summary_upsert_and_get() {
     let db = Db::open_in_memory().unwrap();
     db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
         .unwrap();
-    db.upsert_summary(
-        "s1",
-        "L2_session",
-        Some("Fix auth bug"),
-        "Fixed JWT parsing issue.",
-        &["auth".into()],
-        &["use RS256".into()],
-        10,
-    )
+    db.upsert_summary(super::SummaryUpsert {
+        session_id: "s1",
+        level: "L2_session",
+        title: Some("Fix auth bug"),
+        summary: "Fixed JWT parsing issue.",
+        topics: &["auth".into()],
+        decisions: &["use RS256".into()],
+        message_count_at_creation: 10,
+    })
     .unwrap();
 
     let summary = db.get_summary("s1", "L2_session").unwrap().unwrap();
@@ -166,15 +166,15 @@ fn test_summary_upsert_and_get() {
     assert_eq!(summary.topics, vec!["auth"]);
     assert_eq!(summary.decisions, vec!["use RS256"]);
 
-    db.upsert_summary(
-        "s1",
-        "L2_session",
-        Some("Updated title"),
-        "Updated summary.",
-        &["auth".into(), "jwt".into()],
-        &[],
-        20,
-    )
+    db.upsert_summary(super::SummaryUpsert {
+        session_id: "s1",
+        level: "L2_session",
+        title: Some("Updated title"),
+        summary: "Updated summary.",
+        topics: &["auth".into(), "jwt".into()],
+        decisions: &[],
+        message_count_at_creation: 20,
+    })
     .unwrap();
     let updated = db.get_summary("s1", "L2_session").unwrap().unwrap();
     assert_eq!(updated.title.as_deref(), Some("Updated title"));
@@ -250,15 +250,15 @@ fn test_chunks_without_summary_respects_min_tokens() {
 #[test]
 fn test_aggregate_summary_upsert_and_get() {
     let db = Db::open_in_memory().unwrap();
-    db.upsert_aggregate_summary(
-        "project",
-        "/my/project",
-        Some("My Project"),
-        "Project-level summary.",
-        &["rust".into()],
-        &["use FTS5".into()],
-        3,
-    )
+    db.upsert_aggregate_summary(super::AggregateSummaryUpsert {
+        scope_type: "project",
+        scope_key: "/my/project",
+        title: Some("My Project"),
+        summary: "Project-level summary.",
+        topics: &["rust".into()],
+        decisions: &["use FTS5".into()],
+        session_count: 3,
+    })
     .unwrap();
 
     let s = db
@@ -268,15 +268,15 @@ fn test_aggregate_summary_upsert_and_get() {
     assert_eq!(s.title.as_deref(), Some("My Project"));
     assert_eq!(s.session_count, 3);
 
-    db.upsert_aggregate_summary(
-        "project",
-        "/my/project",
-        Some("Updated Project"),
-        "Updated summary.",
-        &["rust".into(), "search".into()],
-        &[],
-        5,
-    )
+    db.upsert_aggregate_summary(super::AggregateSummaryUpsert {
+        scope_type: "project",
+        scope_key: "/my/project",
+        title: Some("Updated Project"),
+        summary: "Updated summary.",
+        topics: &["rust".into(), "search".into()],
+        decisions: &[],
+        session_count: 5,
+    })
     .unwrap();
     let updated = db
         .get_aggregate_summary("project", "/my/project")
@@ -311,15 +311,15 @@ fn test_sessions_needing_summary_detects_stale_summary() {
     db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2"))
         .unwrap();
 
-    db.upsert_summary(
-        "s1",
-        "L2_session",
-        Some("title"),
-        "summary",
-        &[],
-        &[],
-        /* message_count_at_creation = */ 2,
-    )
+    db.upsert_summary(super::SummaryUpsert {
+        session_id: "s1",
+        level: "L2_session",
+        title: Some("title"),
+        summary: "summary",
+        topics: &[],
+        decisions: &[],
+        message_count_at_creation: 2,
+    })
     .unwrap();
 
     // 此刻 message_count(=2) == message_count_at_creation(=2)：未过期。
@@ -397,8 +397,16 @@ fn test_sessions_needing_summary_cooldown_gates_stale_too() {
         .unwrap();
     db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2"))
         .unwrap();
-    db.upsert_summary("s1", "L2_session", Some("t"), "s", &[], &[], 2)
-        .unwrap();
+    db.upsert_summary(super::SummaryUpsert {
+        session_id: "s1",
+        level: "L2_session",
+        title: Some("t"),
+        summary: "s",
+        topics: &[],
+        decisions: &[],
+        message_count_at_creation: 2,
+    })
+    .unwrap();
 
     // 新消息进来 → 过期；同时 updated_at = now() → 在冷却窗口。
     db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3"))

@@ -68,7 +68,7 @@ pub async fn list_daemon_log_files() -> Result<Vec<DaemonLogFile>, String> {
             modified_secs,
         });
     }
-    files.sort_by(|a, b| b.modified_secs.cmp(&a.modified_secs));
+    files.sort_by_key(|f| std::cmp::Reverse(f.modified_secs));
     Ok(files)
 }
 
@@ -93,7 +93,7 @@ pub async fn read_daemon_log(
             .next()
             .ok_or_else(|| "日志目录为空（daemon 可能尚未写入日志）".to_string())?,
     };
-    let want_lines = lines.unwrap_or(500).min(MAX_TAIL_LINES).max(1);
+    let want_lines = lines.unwrap_or(500).clamp(1, MAX_TAIL_LINES);
 
     let path = std::path::PathBuf::from(&target.path);
     let mut file = fs::File::open(&path).map_err(|e| format!("打开日志失败：{e}"))?;

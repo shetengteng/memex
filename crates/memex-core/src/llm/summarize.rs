@@ -377,17 +377,17 @@ fn parse_summary(text: &str) -> Result<SessionSummary> {
 
     let cleaned = strip_code_fences(text);
 
-    if let Ok(mut summary) = serde_json::from_str::<SessionSummary>(&cleaned) {
-        if !summary.summary.is_empty() {
-            // 即便走快速分支，也把 intent 的空白 / 空字符串规范化成 None，
-            // 与 extract_summary_from_value 的行为保持一致 —— 否则
-            // UI 会出现 intent === "" 这种意义不明的脏数据。
-            summary.intent = summary
-                .intent
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty());
-            return Ok(summary);
-        }
+    if let Ok(mut summary) = serde_json::from_str::<SessionSummary>(&cleaned)
+        && !summary.summary.is_empty()
+    {
+        // 即便走快速分支，也把 intent 的空白 / 空字符串规范化成 None，
+        // 与 extract_summary_from_value 的行为保持一致 —— 否则
+        // UI 会出现 intent === "" 这种意义不明的脏数据。
+        summary.intent = summary
+            .intent
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        return Ok(summary);
     }
 
     if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cleaned) {

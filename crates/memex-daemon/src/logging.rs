@@ -61,11 +61,9 @@ pub fn rotate_old_logs(memex_dir: &Path) {
 
     for (path, modified, size) in &files {
         let should_delete = *modified < cutoff || total_size > MAX_LOG_SIZE_BYTES;
-        if should_delete {
-            if fs::remove_file(path).is_ok() {
-                total_size = total_size.saturating_sub(*size);
-                info!("rotated old log: {}", path.display());
-            }
+        if should_delete && fs::remove_file(path).is_ok() {
+            total_size = total_size.saturating_sub(*size);
+            info!("rotated old log: {}", path.display());
         }
     }
 }

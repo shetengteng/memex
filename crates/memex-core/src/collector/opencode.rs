@@ -163,14 +163,12 @@ impl Adapter for OpenCodeAdapter {
 
             let mut text_parts = Vec::new();
             for part_json in &parts {
-                if let Ok(pd) = serde_json::from_str::<PartData>(part_json) {
-                    if pd.part_type.as_deref() == Some("text") {
-                        if let Some(t) = pd.text {
-                            if !t.trim().is_empty() {
-                                text_parts.push(t);
-                            }
-                        }
-                    }
+                if let Ok(pd) = serde_json::from_str::<PartData>(part_json)
+                    && pd.part_type.as_deref() == Some("text")
+                    && let Some(t) = pd.text
+                    && !t.trim().is_empty()
+                {
+                    text_parts.push(t);
                 }
             }
 

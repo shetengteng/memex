@@ -85,10 +85,10 @@ pub(crate) fn normalize_workspace_name(raw: &str) -> String {
             "ws:{}",
             &name[idx + "-Library-Application-Support-Cursor-Workspaces-".len()..]
         );
-    } else if let Some(start) = name.find("Users-") {
-        if let Some(sep) = name[start + "Users-".len()..].find('-') {
-            name = name[start + "Users-".len() + sep + 1..].to_string();
-        }
+    } else if let Some(start) = name.find("Users-")
+        && let Some(sep) = name[start + "Users-".len()..].find('-')
+    {
+        name = name[start + "Users-".len() + sep + 1..].to_string();
     }
     name
 }

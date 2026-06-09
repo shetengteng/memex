@@ -156,13 +156,12 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
 
     for line in body.lines() {
         if let Some(role) = detect_message_header(line) {
-            if let Some(prev_role) = current_role.take() {
-                if let Some(msg) =
+            if let Some(prev_role) = current_role.take()
+                && let Some(msg) =
                     build_rebuild_message(session_id, prev_role, &current_content, msg_index)
-                {
-                    messages.push(msg);
-                    msg_index += 1;
-                }
+            {
+                messages.push(msg);
+                msg_index += 1;
             }
             current_role = Some(role);
             current_content.clear();
@@ -174,10 +173,10 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
         }
     }
 
-    if let Some(role) = current_role {
-        if let Some(msg) = build_rebuild_message(session_id, role, &current_content, msg_index) {
-            messages.push(msg);
-        }
+    if let Some(role) = current_role
+        && let Some(msg) = build_rebuild_message(session_id, role, &current_content, msg_index)
+    {
+        messages.push(msg);
     }
 
     messages

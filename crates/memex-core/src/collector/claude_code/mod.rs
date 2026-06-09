@@ -104,10 +104,10 @@ fn probe_cwd_in_jsonl(file_path: &Path) -> Option<String> {
         if trimmed.is_empty() {
             continue;
         }
-        if let Ok(probe) = serde_json::from_str::<CwdProbe>(trimmed) {
-            if let Some(cwd) = probe.cwd.filter(|s| !s.is_empty()) {
-                return Some(cwd);
-            }
+        if let Ok(probe) = serde_json::from_str::<CwdProbe>(trimmed)
+            && let Some(cwd) = probe.cwd.filter(|s| !s.is_empty())
+        {
+            return Some(cwd);
         }
     }
     None
@@ -120,8 +120,7 @@ fn probe_cwd_in_jsonl(file_path: &Path) -> Option<String> {
 /// （无法在这层无损还原），此时返回的字符串看起来像绝对路径，
 /// 但与真实 cwd 可能不完全一致。优先用 `probe_cwd_in_jsonl`。
 fn dash_decode_to_absolute(encoded: &str) -> String {
-    if encoded.starts_with('-') {
-        let body = &encoded[1..];
+    if let Some(body) = encoded.strip_prefix('-') {
         format!("/{}", body.replace('-', "/"))
     } else {
         // 不带前导 `-` 的（理论上 Claude Code 不会这样存），原样返回。

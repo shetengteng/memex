@@ -196,20 +196,20 @@ fn deep_link_for_session(session_id: &str) -> String {
 }
 
 fn enrich_session_value(value: &mut serde_json::Value) {
-    if let Some(obj) = value.as_object_mut() {
-        if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
-            let dl = deep_link_for_session(id);
-            obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
-        }
+    if let Some(obj) = value.as_object_mut()
+        && let Some(id) = obj.get("id").and_then(|v| v.as_str())
+    {
+        let dl = deep_link_for_session(id);
+        obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
     }
 }
 
 fn enrich_search_result(value: &mut serde_json::Value) {
-    if let Some(obj) = value.as_object_mut() {
-        if let Some(id) = obj.get("session_id").and_then(|v| v.as_str()) {
-            let dl = deep_link_for_session(id);
-            obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
-        }
+    if let Some(obj) = value.as_object_mut()
+        && let Some(id) = obj.get("session_id").and_then(|v| v.as_str())
+    {
+        let dl = deep_link_for_session(id);
+        obj.insert("deep_link".to_string(), serde_json::Value::String(dl));
     }
 }
 

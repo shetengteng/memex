@@ -177,8 +177,10 @@ pub fn ensure_memex_dir(memex_dir: &Path) -> Result<()> {
 
     let config_path = memex_dir.join("config.toml");
     if !config_path.exists() {
-        let mut default_config = MemexConfig::default();
-        default_config.adapters = detect_installed_adapters();
+        let default_config = MemexConfig {
+            adapters: detect_installed_adapters(),
+            ..MemexConfig::default()
+        };
         let content = toml::to_string_pretty(&default_config)?;
         fs::write(&config_path, content)?;
     }

@@ -19,12 +19,12 @@ pub struct HookStatus {
 }
 
 fn locate_memex_cli() -> Option<PathBuf> {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p = parent.join("memex");
-            if p.exists() {
-                return Some(p);
-            }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let p = parent.join("memex");
+        if p.exists() {
+            return Some(p);
         }
     }
     if let Ok(out) = Command::new("which").arg("memex").output() {

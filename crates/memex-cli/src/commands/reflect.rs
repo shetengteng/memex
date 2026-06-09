@@ -120,8 +120,8 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
     }
 
     println!(
-        "{:<26} {:<6}  {:<32}  {}",
-        "SCOPE_KEY", "DIGEST", "TITLE", "CREATED"
+        "{:<26} {:<6}  {:<32}  CREATED",
+        "SCOPE_KEY", "DIGEST", "TITLE"
     );
     println!("{}", "-".repeat(100));
     for r in &rows {

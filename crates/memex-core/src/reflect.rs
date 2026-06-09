@@ -163,15 +163,15 @@ pub fn run_reflect(
     // 1. 存进 aggregate_summaries（scope_type='reflect'）
     //    summary 直接塞 markdown 整体，topics 借用 patterns，decisions 借用 open_loops
     //    （reflect 内部的"决策"语义就是"未闭合事项"，借用 decisions 字段不至于歧义）
-    db.upsert_aggregate_summary(
-        "reflect",
-        &scope_key,
-        Some(&period_label),
-        &markdown,
-        &output.patterns,
-        &output.open_loops,
-        digests.len() as i64,
-    )?;
+    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+        scope_type: "reflect",
+        scope_key: &scope_key,
+        title: Some(&period_label),
+        summary: &markdown,
+        topics: &output.patterns,
+        decisions: &output.open_loops,
+        session_count: digests.len() as i64,
+    })?;
 
     // 2. 落地 markdown
     let mut path = None;
@@ -192,6 +192,11 @@ pub fn run_reflect(
         markdown,
         markdown_path: path,
     })
+}
+
+// 让 Utc::now() 之类的代码在外部可用；CLI 那边会拿当天日期传进来。
+pub fn today_utc() -> NaiveDate {
+    Utc::now().date_naive()
 }
 
 #[cfg(test)]
@@ -261,9 +266,4 @@ mod tests {
         assert!(month_label.contains("Last 30 days"));
         assert!(month_label.contains("2026-06-04"));
     }
-}
-
-// 让 Utc::now() 之类的代码在外部可用；CLI 那边会拿当天日期传进来。
-pub fn today_utc() -> NaiveDate {
-    Utc::now().date_naive()
 }

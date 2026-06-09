@@ -95,12 +95,12 @@ fn http_health_ok(port: u16) -> bool {
 fn find_daemon_binary() -> Option<PathBuf> {
     // 优先用跟 menubar 主程序同目录的二进制；
     // bundle 打包出来的目录结构就是这样放的。
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p = parent.join("memex-daemon");
-            if p.exists() {
-                return Some(p);
-            }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let p = parent.join("memex-daemon");
+        if p.exists() {
+            return Some(p);
         }
     }
     // 退而求其次：从 PATH 里找。
@@ -153,7 +153,7 @@ pub async fn daemon_status() -> Result<DaemonStatus, String> {
 pub async fn daemon_restart() -> Result<DaemonStatus, String> {
     // 复用 stop_daemon_blocking：保证停 daemon 的 TERM → KILL 顺序、超时、
     // lock 清理逻辑只有一份实现。
-    let _ = stop_daemon_blocking();
+    stop_daemon_blocking();
 
     let bin = find_daemon_binary()
         .ok_or_else(|| "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string())?;
@@ -168,16 +168,17 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
     // 等 daemon 写 lock 文件、绑端口。
     for _ in 0..20 {
         std::thread::sleep(std::time::Duration::from_millis(150));
-        if let Some(info) = read_lock() {
-            if is_process_alive(info.pid) && http_health_ok(info.port) {
-                return Ok(DaemonStatus {
-                    running: true,
-                    pid: Some(info.pid),
-                    port: Some(info.port),
-                    http_ok: true,
-                    started_at: Some(info.started_at),
-                });
-            }
+        if let Some(info) = read_lock()
+            && is_process_alive(info.pid)
+            && http_health_ok(info.port)
+        {
+            return Ok(DaemonStatus {
+                running: true,
+                pid: Some(info.pid),
+                port: Some(info.port),
+                http_ok: true,
+                started_at: Some(info.started_at),
+            });
         }
     }
     // 即使 HTTP 还没就绪，也把已知的状态返回给 UI，

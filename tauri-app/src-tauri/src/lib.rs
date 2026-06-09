@@ -40,10 +40,10 @@ fn show_main_window(app: AppHandle, navigate: Option<String>) {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
-        if let Some(path) = navigate.as_deref() {
-            if !path.is_empty() {
-                let _ = win.emit("navigate", path);
-            }
+        if let Some(path) = navigate.as_deref()
+            && !path.is_empty()
+        {
+            let _ = win.emit("navigate", path);
         }
     }
     update_activation_policy(&app);
@@ -55,10 +55,10 @@ fn forward_deep_links(app: &AppHandle, urls: &[url::Url]) {
         let url_str = url.as_str().to_string();
         tracing::info!("deep link received: {}", url_str);
 
-        if let Some(state) = app.try_state::<DeepLinkState>() {
-            if let Ok(mut g) = state.pending.lock() {
-                *g = Some(url_str.clone());
-            }
+        if let Some(state) = app.try_state::<DeepLinkState>()
+            && let Ok(mut g) = state.pending.lock()
+        {
+            *g = Some(url_str.clone());
         }
 
         if let Some(main) = app.get_webview_window("main") {
@@ -126,10 +126,10 @@ pub fn run() {
                 let _ = win.set_focus();
             }
             for arg in args.iter().skip(1) {
-                if let Ok(parsed) = url::Url::parse(arg) {
-                    if parsed.scheme() == "memex" {
-                        forward_deep_links(app, &[parsed]);
-                    }
+                if let Ok(parsed) = url::Url::parse(arg)
+                    && parsed.scheme() == "memex"
+                {
+                    forward_deep_links(app, &[parsed]);
                 }
             }
         }))

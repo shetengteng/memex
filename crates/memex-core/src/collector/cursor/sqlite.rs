@@ -582,12 +582,13 @@ fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(byte);
-                i += 3;
-                continue;
-            }
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16)
+        {
+            out.push(byte);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;
@@ -662,29 +663,29 @@ fn config_path_to_project(val: &serde_json::Value) -> Option<String> {
 }
 
 fn bubble_content(bubble: &Bubble) -> Option<String> {
-    if let Some(text) = bubble.text.as_ref() {
-        if !text.trim().is_empty() {
-            return Some(text.clone());
-        }
+    if let Some(text) = bubble.text.as_ref()
+        && !text.trim().is_empty()
+    {
+        return Some(text.clone());
     }
-    if let Some(rich) = bubble.rich_text.as_ref() {
-        if !rich.trim().is_empty() {
-            return Some(rich.clone());
-        }
+    if let Some(rich) = bubble.rich_text.as_ref()
+        && !rich.trim().is_empty()
+    {
+        return Some(rich.clone());
     }
     if let Some(tool) = bubble.tool_former_data.as_ref() {
         let name = tool.name.as_deref().unwrap_or("tool");
         let mut parts = Vec::new();
         parts.push(format!("[tool: {}]", name));
-        if let Some(args) = &tool.raw_args {
-            if !args.trim().is_empty() {
-                parts.push(format!("args: {}", args));
-            }
+        if let Some(args) = &tool.raw_args
+            && !args.trim().is_empty()
+        {
+            parts.push(format!("args: {}", args));
         }
-        if let Some(result) = &tool.result {
-            if !result.trim().is_empty() {
-                parts.push(format!("result: {}", result));
-            }
+        if let Some(result) = &tool.result
+            && !result.trim().is_empty()
+        {
+            parts.push(format!("result: {}", result));
         }
         if parts.len() > 1 {
             return Some(parts.join("\n"));

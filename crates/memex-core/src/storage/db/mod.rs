@@ -28,8 +28,8 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 
 pub use providers::LlmProviderRow;
-pub use sessions::{MessageRow, SessionDetail, SessionRow};
-pub use summaries::{AggregateSummaryRow, SummaryRow};
+pub use sessions::{MessageRow, NewSession, SessionDetail, SessionRow};
+pub use summaries::{AggregateSummaryRow, AggregateSummaryUpsert, SummaryRow, SummaryUpsert};
 pub use threads::{ThreadDetail, ThreadDraft, ThreadRow};
 
 pub struct Db {

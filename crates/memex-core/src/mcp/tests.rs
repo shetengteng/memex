@@ -171,15 +171,15 @@ fn test_tool_get_project_context_with_explicit_project() {
     let hash = blake3::hash(b"ack").to_hex().to_string();
     db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash)
         .unwrap();
-    db.upsert_summary(
-        "sess-001",
-        "L2_session",
-        Some("Redis pipeline talk"),
-        "Discussion of using redis pipeline for batching",
-        &["redis".into()],
-        &["batch writes via pipeline".into()],
-        2,
-    )
+    db.upsert_summary(crate::storage::db::SummaryUpsert {
+        session_id: "sess-001",
+        level: "L2_session",
+        title: Some("Redis pipeline talk"),
+        summary: "Discussion of using redis pipeline for batching",
+        topics: &["redis".into()],
+        decisions: &["batch writes via pipeline".into()],
+        message_count_at_creation: 2,
+    })
     .unwrap();
 
     let req = make_request(

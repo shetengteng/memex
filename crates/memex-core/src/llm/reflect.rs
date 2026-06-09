@@ -33,7 +33,7 @@ const REFLECTION_SYSTEM: &str = "\
 严格只输出 JSON，不要加 markdown 围栏，不要前言后语。\
 ";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ReflectionOutput {
     #[serde(default)]
     pub shipped: Vec<String>,
@@ -150,12 +150,11 @@ fn parse_reflection(text: &str) -> Result<ReflectionOutput> {
     }
 
     // 容错：LLM 可能在 JSON 外加了寒暄。截取第一个 `{` 到最后一个 `}` 再尝试。
-    if let (Some(start), Some(end)) = (cleaned.find('{'), cleaned.rfind('}')) {
-        if end > start {
-            if let Ok(r) = serde_json::from_str::<ReflectionOutput>(&cleaned[start..=end]) {
-                return Ok(r);
-            }
-        }
+    if let (Some(start), Some(end)) = (cleaned.find('{'), cleaned.rfind('}'))
+        && end > start
+        && let Ok(r) = serde_json::from_str::<ReflectionOutput>(&cleaned[start..=end])
+    {
+        return Ok(r);
     }
 
     // 最终兜底：把整段文本塞进 patterns，保证不丢失信息
@@ -216,16 +215,6 @@ mod tests {
         assert!(md.contains("没有识别到明显的交付动作"));
         assert!(md.contains("暂未识别到值得反思的反复模式"));
         assert!(md.contains("暂未识别到未闭合的事项"));
-    }
-
-    impl Default for ReflectionOutput {
-        fn default() -> Self {
-            ReflectionOutput {
-                shipped: Vec::new(),
-                patterns: Vec::new(),
-                open_loops: Vec::new(),
-            }
-        }
     }
 
     #[test]

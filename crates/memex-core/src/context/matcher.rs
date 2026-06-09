@@ -96,30 +96,30 @@ pub fn search_by_project_in_counted_candidates(
     // Tier 2: project name —— cwd 的 basename 等于某 project 的 basename。
     //   场景：项目仓库在不同机器上被 clone 到不同位置，但都叫 `memex`。
     let cwd_base = basename(&cwd_norm);
-    if !cwd_base.is_empty() {
-        if let Some(p) = eligible.iter().copied().find(|p| {
+    if !cwd_base.is_empty()
+        && let Some(p) = eligible.iter().copied().find(|p| {
             let cand = normalize(Path::new(p));
             basename(&cand) == cwd_base
-        }) {
-            return Some(ProjectMatch {
-                project_path: p.clone(),
-                tier: MatchTier::ProjectName,
-            });
-        }
+        })
+    {
+        return Some(ProjectMatch {
+            project_path: p.clone(),
+            tier: MatchTier::ProjectName,
+        });
     }
 
     // Tier 3: 子串模糊匹配 —— 仅对 ≥ 4 字符的 basename 启用，避免
     //   "a"、"src" 这种太短的目录名误命中一堆项目。
-    if cwd_base.len() >= 4 {
-        if let Some(p) = eligible.iter().copied().find(|p| {
+    if cwd_base.len() >= 4
+        && let Some(p) = eligible.iter().copied().find(|p| {
             let cand_base = basename(&normalize(Path::new(p)));
             cand_base.contains(&cwd_base) || cwd_base.contains(&cand_base)
-        }) {
-            return Some(ProjectMatch {
-                project_path: p.clone(),
-                tier: MatchTier::FuzzySubstring,
-            });
-        }
+        })
+    {
+        return Some(ProjectMatch {
+            project_path: p.clone(),
+            tier: MatchTier::FuzzySubstring,
+        });
     }
 
     None

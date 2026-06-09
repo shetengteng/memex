@@ -161,15 +161,15 @@ fn try_l3_project_summaries(db: &Db, provider: &dyn crate::llm::provider::LlmPro
 
         match summarize::summarize_project(provider, &l2_summaries) {
             Ok(summary) => {
-                let _ = db.upsert_aggregate_summary(
-                    "project",
-                    &project,
-                    Some(&summary.title),
-                    &summary.summary,
-                    &summary.topics,
-                    &summary.decisions,
-                    sessions.len() as i64,
-                );
+                let _ = db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+                    scope_type: "project",
+                    scope_key: &project,
+                    title: Some(&summary.title),
+                    summary: &summary.summary,
+                    topics: &summary.topics,
+                    decisions: &summary.decisions,
+                    session_count: sessions.len() as i64,
+                });
             }
             Err(e) => {
                 warn!("L3 project summarize failed for {}: {}", project, e);
@@ -251,16 +251,16 @@ fn regenerate_monthly_report_inner(
             warn!("L4 monthly summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
-    db.upsert_aggregate_summary(
-        "monthly",
-        &scope_key,
-        Some(&fixed_title),
-        &summary.summary,
-        &summary.topics,
-        &summary.decisions,
-        sessions.len() as i64,
-    )?;
-    Ok(db.get_aggregate_summary("monthly", &scope_key)?)
+    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+        scope_type: "monthly",
+        scope_key: &scope_key,
+        title: Some(&fixed_title),
+        summary: &summary.summary,
+        topics: &summary.topics,
+        decisions: &summary.decisions,
+        session_count: sessions.len() as i64,
+    })?;
+    db.get_aggregate_summary("monthly", &scope_key)
 }
 
 /// 返回 `year-month` 自然月的 ISO 8601 起止区间字符串
@@ -350,16 +350,16 @@ fn regenerate_weekly_report_inner(
             warn!("L4 weekly summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
-    db.upsert_aggregate_summary(
-        "weekly",
-        &scope_key,
-        Some(&fixed_title),
-        &summary.summary,
-        &summary.topics,
-        &summary.decisions,
-        sessions.len() as i64,
-    )?;
-    Ok(db.get_aggregate_summary("weekly", &scope_key)?)
+    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+        scope_type: "weekly",
+        scope_key: &scope_key,
+        title: Some(&fixed_title),
+        summary: &summary.summary,
+        topics: &summary.topics,
+        decisions: &summary.decisions,
+        session_count: sessions.len() as i64,
+    })?;
+    db.get_aggregate_summary("weekly", &scope_key)
 }
 
 /// 根据 scope_key 重新生成指定的日报或周报。
@@ -456,16 +456,16 @@ pub fn regenerate_report_by_key(
         summary.summary.len(),
         fixed_title
     );
-    db.upsert_aggregate_summary(
+    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
         scope_type,
         scope_key,
-        Some(&fixed_title),
-        &summary.summary,
-        &summary.topics,
-        &summary.decisions,
-        sessions.len() as i64,
-    )?;
-    Ok(db.get_aggregate_summary(scope_type, scope_key)?)
+        title: Some(&fixed_title),
+        summary: &summary.summary,
+        topics: &summary.topics,
+        decisions: &summary.decisions,
+        session_count: sessions.len() as i64,
+    })?;
+    db.get_aggregate_summary(scope_type, scope_key)
 }
 
 fn parse_iso_week(s: &str) -> anyhow::Result<(i32, u32)> {
@@ -556,16 +556,16 @@ fn regenerate_daily_report_inner(
             warn!("L4 daily summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
-    db.upsert_aggregate_summary(
-        "daily",
-        &scope_key,
-        Some(&fixed_title),
-        &summary.summary,
-        &summary.topics,
-        &summary.decisions,
-        sessions.len() as i64,
-    )?;
-    Ok(db.get_aggregate_summary("daily", &scope_key)?)
+    db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+        scope_type: "daily",
+        scope_key: &scope_key,
+        title: Some(&fixed_title),
+        summary: &summary.summary,
+        topics: &summary.topics,
+        decisions: &summary.decisions,
+        session_count: sessions.len() as i64,
+    })?;
+    db.get_aggregate_summary("daily", &scope_key)
 }
 
 fn try_l2_session_summaries(
@@ -621,15 +621,15 @@ pub fn summarize_session_by_id(
 
     match summarize::summarize_session(provider, &msgs) {
         Ok(summary) => {
-            let _ = db.upsert_summary(
+            let _ = db.upsert_summary(crate::storage::db::SummaryUpsert {
                 session_id,
-                "L2_session",
-                Some(&summary.title),
-                &summary.summary,
-                &summary.topics,
-                &summary.decisions,
+                level: "L2_session",
+                title: Some(&summary.title),
+                summary: &summary.summary,
+                topics: &summary.topics,
+                decisions: &summary.decisions,
                 message_count_at_creation,
-            );
+            });
             if let Some(ref name) = summary.project_name {
                 let _ = db.update_session_project_path(session_id, name);
             }
@@ -679,15 +679,15 @@ fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Result<(u64, 
         // 永远先 upsert session 行，这样即便会话没有新消息，updated_at
         // 也能跟 adapter 的 mtime 同步刷新。
         // 这是后续 ingest 把历史时间戳逐步修正回真实活动时间的关键。
-        db.insert_session_with_title(
-            &session.id,
-            adapter.name(),
-            session.project_path.as_deref(),
-            &session.file_path,
-            session.created_secs,
-            session.mtime,
-            session.title.as_deref(),
-        )?;
+        db.insert_session_with_title(crate::storage::db::NewSession {
+            id: &session.id,
+            source: adapter.name(),
+            project_path: session.project_path.as_deref(),
+            file_path: &session.file_path,
+            session_created_secs: session.created_secs,
+            session_mtime_secs: session.mtime,
+            title: session.title.as_deref(),
+        })?;
 
         if messages.is_empty() {
             continue;
@@ -1019,9 +1019,7 @@ mod tests {
                 &format!("message {i} with enough content to summarize lalalalala"),
                 None,
                 i,
-                &blake3::hash(format!("msg{i}").as_bytes())
-                    .to_hex()
-                    .to_string(),
+                blake3::hash(format!("msg{i}").as_bytes()).to_hex().as_str(),
             )
             .unwrap();
             // 内容必须 ≥ 200 字符（MIN_CHUNK_CHARS_FOR_SUMMARY），否则
@@ -1112,9 +1110,7 @@ mod tests {
                 &format!("hello {i}"),
                 None,
                 i,
-                &blake3::hash(format!("h{i}").as_bytes())
-                    .to_hex()
-                    .to_string(),
+                blake3::hash(format!("h{i}").as_bytes()).to_hex().as_str(),
             )
             .unwrap();
             // 见上文：内容必须 ≥ 200 字符才会调用 provider

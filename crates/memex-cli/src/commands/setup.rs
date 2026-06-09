@@ -292,10 +292,10 @@ fn upsert_codex_toml(path: &Path, server_name: &str, memex_bin: &Path) -> Result
 
 fn remove_codex_toml(path: &Path, server_name: &str) -> Result<()> {
     let mut doc = read_toml_or_empty(path)?;
-    if let Some(root) = doc.as_table_mut() {
-        if let Some(servers) = root.get_mut("mcp_servers").and_then(|v| v.as_table_mut()) {
-            servers.remove(server_name);
-        }
+    if let Some(root) = doc.as_table_mut()
+        && let Some(servers) = root.get_mut("mcp_servers").and_then(|v| v.as_table_mut())
+    {
+        servers.remove(server_name);
     }
     write_toml(path, &doc)
 }

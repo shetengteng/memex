@@ -96,13 +96,10 @@ impl ClineAdapter {
             serde_json::Value::Array(arr) => arr
                 .iter()
                 .filter_map(|item| {
-                    if let Some(t) = item.get("text").and_then(|t| t.as_str()) {
-                        Some(t.to_string())
-                    } else if let Some(t) = item.get("content").and_then(|c| c.as_str()) {
-                        Some(t.to_string())
-                    } else {
-                        None
-                    }
+                    item.get("text")
+                        .and_then(|t| t.as_str())
+                        .or_else(|| item.get("content").and_then(|c| c.as_str()))
+                        .map(str::to_string)
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -112,12 +109,11 @@ impl ClineAdapter {
 
     fn read_task_prompt(task_dir: &Path) -> Option<String> {
         let meta_path = task_dir.join("task_metadata.json");
-        if meta_path.exists() {
-            if let Ok(content) = fs::read_to_string(&meta_path) {
-                if let Ok(meta) = serde_json::from_str::<TaskMetadata>(&content) {
-                    return meta.task;
-                }
-            }
+        if meta_path.exists()
+            && let Ok(content) = fs::read_to_string(&meta_path)
+            && let Ok(meta) = serde_json::from_str::<TaskMetadata>(&content)
+        {
+            return meta.task;
         }
         None
     }

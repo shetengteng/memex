@@ -18,10 +18,10 @@ use std::path::PathBuf;
 /// 或者在同一台机器上并排跑多个 Memex 实例）。
 /// 否则回退到 `~/.memex`。
 pub fn memex_dir() -> PathBuf {
-    if let Ok(custom) = std::env::var("MEMEX_HOME") {
-        if !custom.trim().is_empty() {
-            return PathBuf::from(custom);
-        }
+    if let Ok(custom) = std::env::var("MEMEX_HOME")
+        && !custom.trim().is_empty()
+    {
+        return PathBuf::from(custom);
     }
     dirs::home_dir().expect("无法确定 home 目录").join(".memex")
 }

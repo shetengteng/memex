@@ -19,6 +19,36 @@ pub struct SummaryRow {
     pub created_at: String,
 }
 
+/// 写入会话摘要的 payload。把 7 个零散参数收敛成一个 struct 是为了
+/// 满足 `clippy::too_many_arguments`（规约 §6.2 同建议）：调用方使用
+/// 字段名构造，比按位置传 7 个参数更不容易写错顺序。
+pub struct SummaryUpsert<'a> {
+    pub session_id: &'a str,
+    /// `L1_chunk` / `L2_session` / `L3_project` / `L4_period`
+    pub level: &'a str,
+    pub title: Option<&'a str>,
+    pub summary: &'a str,
+    pub topics: &'a [String],
+    pub decisions: &'a [String],
+    /// 写入时刻 `sessions.message_count` 的快照。仅 `L2_session` 用到（方案 A
+    /// 过期检测）；其他层级填 0 即可。
+    pub message_count_at_creation: i64,
+}
+
+/// 写入"跨 session 聚合摘要"（项目 / 周 / 月 / 反思）的 payload。同
+/// `SummaryUpsert`，把 7 个零散参数收敛成 struct。
+pub struct AggregateSummaryUpsert<'a> {
+    /// `project` / `weekly` / `monthly` / `daily` / `reflect`
+    pub scope_type: &'a str,
+    /// 配合 `scope_type` 的唯一 key（如 `project=/path`、`weekly=2026-W23`）。
+    pub scope_key: &'a str,
+    pub title: Option<&'a str>,
+    pub summary: &'a str,
+    pub topics: &'a [String],
+    pub decisions: &'a [String],
+    pub session_count: i64,
+}
+
 impl Db {
     /// 写入 / 更新一条会话摘要。
     ///
@@ -27,16 +57,16 @@ impl Db {
     /// 已经超过此值，说明摘要生成后又有新消息写入，需要重新生成摘要。
     ///
     /// 非 L2_session 层级（L1/L3/L4）由其他写入路径管理，本字段记 0 即可。
-    pub fn upsert_summary(
-        &self,
-        session_id: &str,
-        level: &str,
-        title: Option<&str>,
-        summary: &str,
-        topics: &[String],
-        decisions: &[String],
-        message_count_at_creation: i64,
-    ) -> Result<()> {
+    pub fn upsert_summary(&self, opts: SummaryUpsert<'_>) -> Result<()> {
+        let SummaryUpsert {
+            session_id,
+            level,
+            title,
+            summary,
+            topics,
+            decisions,
+            message_count_at_creation,
+        } = opts;
         let conn = self.conn.lock().unwrap();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
@@ -53,13 +83,13 @@ impl Db {
                 message_count_at_creation = excluded.message_count_at_creation",
             params![session_id, level, title, summary, topics_json, decisions_json, now, message_count_at_creation],
         )?;
-        if level == "L2_session" {
-            if let Some(t) = title {
-                conn.execute(
-                    "UPDATE sessions SET title = ?1 WHERE id = ?2 AND (title IS NULL OR title = '')",
-                    params![t, session_id],
-                )?;
-            }
+        if level == "L2_session"
+            && let Some(t) = title
+        {
+            conn.execute(
+                "UPDATE sessions SET title = ?1 WHERE id = ?2 AND (title IS NULL OR title = '')",
+                params![t, session_id],
+            )?;
         }
         Ok(())
     }
@@ -209,16 +239,16 @@ impl Db {
         )?)
     }
 
-    pub fn upsert_aggregate_summary(
-        &self,
-        scope_type: &str,
-        scope_key: &str,
-        title: Option<&str>,
-        summary: &str,
-        topics: &[String],
-        decisions: &[String],
-        session_count: i64,
-    ) -> Result<()> {
+    pub fn upsert_aggregate_summary(&self, opts: AggregateSummaryUpsert<'_>) -> Result<()> {
+        let AggregateSummaryUpsert {
+            scope_type,
+            scope_key,
+            title,
+            summary,
+            topics,
+            decisions,
+            session_count,
+        } = opts;
         let conn = self.conn.lock().unwrap();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;

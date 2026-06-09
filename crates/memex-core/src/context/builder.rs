@@ -366,26 +366,26 @@ mod tests {
         db.insert_message("m4", "s2", "assistant", "ack", None, 1, &h("d"))
             .unwrap();
 
-        db.upsert_summary(
-            "s1",
-            "L2_session",
-            Some("Fix login bug"),
-            "Fixed the JWT parser when audience claim is missing.",
-            &["auth".into(), "jwt".into()],
-            &["use RS256".into()],
-            /* message_count_at_creation */ 2,
-        )
+        db.upsert_summary(crate::storage::db::SummaryUpsert {
+            session_id: "s1",
+            level: "L2_session",
+            title: Some("Fix login bug"),
+            summary: "Fixed the JWT parser when audience claim is missing.",
+            topics: &["auth".into(), "jwt".into()],
+            decisions: &["use RS256".into()],
+            message_count_at_creation: 2,
+        })
         .unwrap();
 
-        db.upsert_aggregate_summary(
-            "project",
-            project_path,
-            Some("My Project"),
-            "Project-wide work on Memex —— Rust + Tauri + Vue.",
-            &["memex".into(), "rust".into()],
-            &[],
-            5,
-        )
+        db.upsert_aggregate_summary(crate::storage::db::AggregateSummaryUpsert {
+            scope_type: "project",
+            scope_key: project_path,
+            title: Some("My Project"),
+            summary: "Project-wide work on Memex —— Rust + Tauri + Vue.",
+            topics: &["memex".into(), "rust".into()],
+            decisions: &[],
+            session_count: 5,
+        })
         .unwrap();
     }
 
@@ -468,15 +468,15 @@ mod tests {
             &h,
         )
         .unwrap();
-        db.upsert_summary(
-            "s1",
-            "L2_session",
-            Some("推进 JIRA 状态"),
-            "对 ZOOM-1269895 做 In Progress → Ready for Review 推进。",
-            &["jira".into()],
-            &[],
-            2,
-        )
+        db.upsert_summary(crate::storage::db::SummaryUpsert {
+            session_id: "s1",
+            level: "L2_session",
+            title: Some("推进 JIRA 状态"),
+            summary: "对 ZOOM-1269895 做 In Progress → Ready for Review 推进。",
+            topics: &["jira".into()],
+            decisions: &[],
+            message_count_at_creation: 2,
+        })
         .unwrap();
 
         let md = build_context(
@@ -532,15 +532,15 @@ mod tests {
         let h2 = blake3::hash(b"b").to_hex().to_string();
         db.insert_message("m2", "s2", "user", "real question", None, 0, &h2)
             .unwrap();
-        db.upsert_summary(
-            "s2",
-            "L2_session",
-            Some("有标题的 session"),
-            "summary",
-            &[],
-            &[],
-            1,
-        )
+        db.upsert_summary(crate::storage::db::SummaryUpsert {
+            session_id: "s2",
+            level: "L2_session",
+            title: Some("有标题的 session"),
+            summary: "summary",
+            topics: &[],
+            decisions: &[],
+            message_count_at_creation: 1,
+        })
         .unwrap();
 
         let md = build_context(
@@ -568,15 +568,15 @@ mod tests {
         let h = blake3::hash(b"x").to_hex().to_string();
         db.insert_message("m1", "s1", "user", "原始提问相对啰嗦的版本", None, 0, &h)
             .unwrap();
-        db.upsert_summary(
-            "s1",
-            "L2_session",
-            Some("修 bug"),
-            "做事的 summary",
-            &[],
-            &[],
-            1,
-        )
+        db.upsert_summary(crate::storage::db::SummaryUpsert {
+            session_id: "s1",
+            level: "L2_session",
+            title: Some("修 bug"),
+            summary: "做事的 summary",
+            topics: &[],
+            decisions: &[],
+            message_count_at_creation: 1,
+        })
         .unwrap();
         db.update_session_intent("s1", Some("修复登录 bug"))
             .unwrap();

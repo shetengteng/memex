@@ -74,12 +74,8 @@ pub(super) fn probe_hook(content: &str) -> bool {
     else {
         return false;
     };
-    arr.iter().any(|group| {
-        group
-            .get("hooks")
-            .map(|inner| has_memex_command(inner))
-            .unwrap_or(false)
-    })
+    arr.iter()
+        .any(|group| group.get("hooks").map(has_memex_command).unwrap_or(false))
 }
 
 /// Claude Code wrapper:

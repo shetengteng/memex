@@ -236,14 +236,8 @@ impl Adapter for AiderAdapter {
             let project = Self::project_path_from_file(&file_path);
 
             for (i, (ts, _block)) in sess_blocks.iter().enumerate() {
-                let sid = format!(
-                    "aider-{}-{}",
-                    blake3::hash(file_path.to_string_lossy().as_bytes())
-                        .to_hex()
-                        .to_string()[..12]
-                        .to_string(),
-                    i
-                );
+                let hash_hex = blake3::hash(file_path.to_string_lossy().as_bytes()).to_hex();
+                let sid = format!("aider-{}-{}", &hash_hex[..12], i);
                 sessions.push(SessionMeta {
                     id: sid,
                     source: "aider".to_string(),

@@ -15,12 +15,12 @@ pub struct IdeStatus {
 
 fn locate_memex_cli() -> Option<PathBuf> {
     // bundle 里跟 menubar 同目录的 memex。
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p = parent.join("memex");
-            if p.exists() {
-                return Some(p);
-            }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let p = parent.join("memex");
+        if p.exists() {
+            return Some(p);
         }
     }
     // PATH 兜底，方便 dev 模式直接跑。
