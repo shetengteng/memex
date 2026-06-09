@@ -4,6 +4,8 @@ use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 use serde::Serialize;
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Serialize)]
 pub struct IngestResult {
     pub messages_ingested: u64,
@@ -18,7 +20,7 @@ pub struct IngestResult {
 /// 但 collector 自己的 name() 是 `"continue"`（见 `collector/continue_dev.rs`）。
 /// 这里做一次映射，避免把映射逻辑下沉到 ingest 层。
 #[tauri::command]
-pub async fn trigger_ingest(adapter: Option<String>) -> Result<IngestResult, String> {
+pub async fn trigger_ingest(adapter: Option<String>) -> CmdResult<IngestResult> {
     let mapped = adapter.map(|a| {
         if a == "continue_dev" {
             "continue".to_string()
@@ -26,19 +28,19 @@ pub async fn trigger_ingest(adapter: Option<String>) -> Result<IngestResult, Str
             a
         }
     });
-    tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || -> CmdResult<IngestResult> {
         let memex = memex_dir();
-        ensure_memex_dir(&memex).map_err(|e| e.to_string())?;
+        ensure_memex_dir(&memex)?;
 
         let db_path = memex.join("memex.db");
-        let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+        let db = Db::open(&db_path)?;
 
-        let result = run_ingest(&db, &memex, mapped.as_deref()).map_err(|e| e.to_string())?;
+        let result = run_ingest(&db, &memex, mapped.as_deref())?;
         Ok(IngestResult {
             messages_ingested: result.messages_ingested,
             chunks_created: result.chunks_created,
         })
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))?
 }
