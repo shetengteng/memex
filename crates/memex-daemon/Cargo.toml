@@ -10,7 +10,7 @@ name = "memex-daemon"
 path = "src/main.rs"
 
 [dependencies]
-memex-core = { path = "../memex-core" }
+memex-core = { path = "../memex-core", version = "0.3" }
 axum = "0.8"
 tokio.workspace = true
 notify = { version = "7", features = ["macos_kqueue"] }

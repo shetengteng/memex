@@ -2444,7 +2444,6 @@ name = "memex-cli"
 version = "0.3.4"
 dependencies = [
  "anyhow",
- "blake3",
  "chrono",
  "clap",
  "dirs",
@@ -2480,7 +2479,6 @@ dependencies = [
  "serde_rusqlite",
  "serde_yaml_ng",
  "tempfile",
- "thiserror 2.0.18",
  "toml 0.8.2",
  "tracing",
  "ureq",
@@ -2521,7 +2519,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "tracing",
 ]
 
 [[package]]

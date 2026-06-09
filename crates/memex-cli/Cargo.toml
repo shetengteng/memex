@@ -10,8 +10,8 @@ name = "memex"
 path = "src/main.rs"
 
 [dependencies]
-memex-core = { path = "../memex-core" }
-memex-mcp = { path = "../memex-mcp" }
+memex-core = { path = "../memex-core", version = "0.3" }
+memex-mcp = { path = "../memex-mcp", version = "0.3" }
 clap = { version = "4", features = ["derive"] }
 anyhow.workspace = true
 serde.workspace = true
@@ -20,7 +20,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 toml.workspace = true
 chrono.workspace = true
-blake3.workspace = true
 walkdir.workspace = true
 flate2 = "1"
 tar = "0.4"
