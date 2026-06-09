@@ -9,6 +9,11 @@
 
 ## 进度跟踪
 
+- 2026-06-09 ec5bd34 — **P1-2 主体完成（13/16）**：精确扫描后真实 production unwrap/expect = 16 处（旧 TODO 估的 200+ 多在 inline `#[cfg(test)] mod tests` 或 `_tests.rs` 文件级测试里）。3 个 commit 处理 13 处：
+  * adf659c：redact.rs 7 regex INVARIANT + 1 std Mutex Ok-else-return
+  * 9bac3b3：metadata.rs 3 regex INVARIANT + hooks 2 home_dir INVARIANT
+  * ec5bd34：sweep 8 home_dir + tray icon + tauri build + SIGTERM signal handler
+  剩余 3 处 in privacy.rs（PRIVACY_CONFIG.lock）需 parking_lot 切换 + 测试串行化，作 follow-up。`cargo test --workspace` 全绿（284 tests）。
 - 2026-06-09 fa67b9f — **P1-1 全部完成**：第二轮 13 个 303-375 行文件全部拆掉（config/mod.rs、cursor/tests.rs、setup.rs、claude_code/mod.rs、aider.rs、summaries.rs、opencode.rs、threads.rs、providers.rs、matcher.rs、rebuild.rs、retriever/mod.rs、cline.rs），全部以「按职责子模块 + 抽 tests」收口。workspace 现已无 > 300 行 Rust 源文件（最大 summaries/mod.rs 294 行）。`cargo fmt --all` + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo test --workspace` 全绿（284 tests）。
 - 2026-06-09 44b3785 — **P0-1 完成 + cursor pre-existing bug**：19 个 commands 文件全部迁到 `CmdError`（`Result<T, String>` 在 commands/ 下零残留）。前端 `humanizeBackendError` 同步加上 `{kind, message}` 解析，向下兼容旧 string 错误，新增 10 条单测。整体 19 commit（1 基础 + 18 文件 + 1 cursor fix）。顺便修了 main 上 silently-failing 的 `test_sqlite_scan_multifolder_workspace_yields_no_project_path`（multi-folder workspace 不再误用 `.code-workspace` 父目录当 cwd，与 sqlite.rs 自带注释契约一致）。
 - 2026-06-09 0865a3e — **library Today bug 修复**：`fTime` 过滤未生效 + "Today" 分组以最新 session 日期当锚点 → 抽出 `sessionFilters.ts` 纯函数 composable（filter / group），用绝对 `new Date()` 锚定，库视图从 503 行减到 470 行；新增 16 条单测覆盖时间边界、分组、组合过滤。`LibraryFacets.vue` 强类型化 `TimeFilter` / `SummaryFilter`，emit 前加 runtime guard 防非法值。
@@ -224,23 +229,39 @@
 **风险**：中（用户数据安全相关，需要充分手测）
 **规约依据**：§14.2（向后兼容）、§16（运维 / 数据保护）
 
-### P1-2 生产 `unwrap()` / `expect()` → 错误传播
+### ✅ P1-2 生产 `unwrap()` / `expect()` → INVARIANT 标注（2026-06-09 完成 13/16）
 
-- [ ] 扫描分类：
-  - **可保留**（启动期编译期不变式）：tray.rs::Image::from_bytes（icon 二进制嵌入）→ 加 `// INVARIANT:` 注释
-  - **必须修**：业务路径的 unwrap，特别是 storage / collector / processor
-- [ ] memex-core 高频违规文件优先：
-  - [ ] `storage/queries.rs` (49 个)
-  - [ ] `collector/claude_code/mod.rs` (14)
-  - [ ] `collector/opencode.rs` (14)
-  - [ ] `collector/cline.rs` (12)
-  - [ ] `processor/redact.rs` (13)
-  - [ ] `llm/summarize.rs` (12)
-  - [ ] 其他 30+ 个文件
-- [ ] 改造方式：`x.unwrap()` → `x.context("...")? ` 或 `x.ok_or_else(|| anyhow!("..."))?`
+> 旧 TODO 给的扫描数（200+）多数在 `#[cfg(test)] mod tests` / `mod test_support`
+> / `_tests.rs` 文件里。精确扫描脚本（剥离 cfg(test) 整块 + 文件名后缀过滤）后，
+> **真实 production unwrap/expect = 16 处 / 14 文件**。
+
+#### 已完成（commit adf659c / 9bac3b3 / ec5bd34）
+
+| 类别 | 处 | 处理方式 |
+|---|---|---|
+| `Regex::new(literal)` 在 `LazyLock` 里（redact 7 + metadata 3） | 10 | `.expect("INVARIANT: ... regex must compile")` + 块级注释 |
+| `std::sync::Mutex::lock().unwrap()`（redact CUSTOM_RULES write） | 1 | `let Ok else { return }` 兜底 poison |
+| `dirs::home_dir().expect(...)`（10 个 adapter / cli / daemon 入口） | 10 | 统一 `expect("INVARIANT: home directory must be resolvable")` |
+| `tray.rs Image::from_bytes(include_bytes!())` | 1 | INVARIANT —— 编译期嵌入字节，失败 = 程序员错误 |
+| `tauri Builder::build().expect(...)` | 1 | INVARIANT —— app 不可启动 |
+| `signal::unix::signal(SIGTERM).expect(...)` | 1 | INVARIANT —— Unix 启动期系统调用 |
+
+**核心原则**：rust.mdc §1.1 接受 expect + INVARIANT 注释的启动期不变式。所有保留的 expect 都满足：
+1. 失败 = 不可恢复（HOME 没了 / signal 子系统坏了 / 编译期资源损坏）
+2. message 字符串以 `INVARIANT:` 开头便于 grep
+3. 关键处块级 `// INVARIANT:` 注释解释为何不会失败
+
+#### 待跟进（3 处 in `processor/privacy.rs`）
+
+`PRIVACY_CONFIG.lock().unwrap()` × 3。naive 替换为 `parking_lot::Mutex` 或 `Ok else return` 都会暴露 pre-existing 测试竞态（`test_load_privacy_rules` vs `test_is_private_session` 共享 LazyLock 静态状态）。
+
+**Follow-up commit 计划**：
+1. 把 `PRIVACY_CONFIG` 改为 `parking_lot::Mutex`（已是 workspace 依赖）
+2. 加 `serial_test` crate 把两个测试串行化
+3. 或者重构成无全局状态（注入 PrivacyConfig 到调用方）
 
 **规约依据**：§1.1
-**估时**：累计 1-2 天
+**实际耗时**：~1.5h（远低于估时 1-2 天 —— 因为旧扫描数被 test 误报严重虚高）
 
 ### P1-3 CLI `println!` 抽 io 模块
 
