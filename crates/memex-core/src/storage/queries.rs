@@ -129,7 +129,7 @@ impl Db {
         result_count: usize,
         latency_ms: u64,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO access_log (query, result_count, latency_ms, created_at) VALUES (?1, ?2, ?3, ?4)",
             params![
@@ -143,13 +143,13 @@ impl Db {
     }
 
     pub fn source_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let count: u64 = conn.query_row("SELECT COUNT(*) FROM sources", [], |row| row.get(0))?;
         Ok(count)
     }
 
     pub fn schema_version(&self) -> Result<Option<u32>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         Ok(conn
             .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
                 row.get(0)
@@ -158,7 +158,7 @@ impl Db {
     }
 
     pub fn fts_health_check(&self) -> bool {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.query_row("SELECT COUNT(*) FROM chunks_fts", [], |row| {
             row.get::<_, i64>(0)
         })
@@ -166,7 +166,7 @@ impl Db {
     }
 
     pub fn adapter_statuses(&self) -> Result<Vec<AdapterStatus>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT adapter, COUNT(*) as cnt, MAX(last_scan) as ls
              FROM sources GROUP BY adapter",
@@ -185,7 +185,7 @@ impl Db {
     }
 
     pub fn find_session_by_prefix(&self, prefix: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let pattern = format!("{}%", prefix);
         Ok(conn
             .query_row(
@@ -197,7 +197,7 @@ impl Db {
     }
 
     pub fn timeline(&self, days: u32) -> Result<Vec<TimelineEntry>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
         // 按本地时间分桶，让用户看到的是自己时区的日期
         //（跨 UTC 0 点的会话特别需要这样处理）。
@@ -222,7 +222,7 @@ impl Db {
     }
 
     pub fn stats_breakdown(&self) -> Result<StatsBreakdown> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut by_adapter = std::collections::BTreeMap::new();
         {
             let mut stmt = conn.prepare("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
@@ -271,7 +271,7 @@ impl Db {
     }
 
     pub fn list_project_summaries(&self) -> Result<Vec<ProjectSummary>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT project_path,
                     COUNT(*) as cnt,
@@ -330,7 +330,7 @@ impl Db {
     }
 
     pub fn daily_session_counts(&self, days: u32) -> Result<Vec<TimelineEntry>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let offset = format!("-{days} days");
         let mut stmt = conn.prepare(
             "SELECT DATE(updated_at, 'localtime') as day, source, COUNT(*) as cnt,
@@ -366,7 +366,7 @@ impl Db {
     /// 导致跨天长会话每次活动就把整个生命周期的消息再"算"一遍今天。
     /// 现在两条通路 union，与 heatmap stat 同步。
     pub fn workload_report(&self, days: u32) -> Result<WorkloadReport> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         // 语义：days=N 表示「包含今天在内、向前 N 天」的窗口。
         //   days=1  → 仅今天
         //   days=7  → 今天 + 前 6 天 = 一周
@@ -708,7 +708,7 @@ mod tests {
         updated_at: &str,
         message_count: i64,
     ) {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute(
             "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)",
@@ -864,7 +864,7 @@ mod tests {
         );
 
         // 给 s1 / s3 插带 timestamp 的 message，s2 不插（模拟 cursor 没 timestamp）
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         for (mid, sid, ts) in [
             ("m1", "s1", format!("{today_local}T09:00:00+00:00")),
             ("m2", "s1", format!("{today_local}T13:00:00+00:00")),
@@ -924,7 +924,7 @@ mod tests {
             &format!("{today_local}T10:00:00+00:00"),
             3,
         );
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         for (mid, ts) in [
             ("m1", format!("{today_local}T08:00:00+00:00")),
             ("m2", format!("{today_local}T09:00:00+00:00")),
@@ -963,7 +963,7 @@ mod tests {
             &format!("{today_local}T12:00:00+00:00"),
             200,
         );
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         for i in 0..200 {
             let hour = i % 24;
             let ts = format!("{today_local}T{:02}:00:00+00:00", hour);
@@ -1010,7 +1010,7 @@ mod tests {
             &format!("{today_local}T10:00:00+00:00"),
             1000, // ← session 生命周期累计 1000 条消息（bug 时会被算进今天）
         );
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         for (mid, ts) in [
             ("m1", format!("{today_local}T08:00:00+00:00")),
             ("m2", format!("{today_local}T09:00:00+00:00")),
@@ -1069,7 +1069,7 @@ mod tests {
             &format!("{today_local}T13:00:00+00:00"),
             7,
         );
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         for (mid, ts) in [
             ("m1", format!("{today_local}T11:00:00+00:00")),
             ("m2", format!("{today_local}T12:00:00+00:00")),
@@ -1117,7 +1117,7 @@ mod tests {
             // 故意把 session.message_count 设成 99 —— 如果 fallback 误触发就会被加上
             99,
         );
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
              VALUES ('m1', 's1', 'user', 'x', ?1, 0, 'h1')",

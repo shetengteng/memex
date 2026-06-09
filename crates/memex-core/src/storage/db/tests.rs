@@ -46,7 +46,7 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
     .unwrap();
 
     let updated_before: String = {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.query_row(
             "SELECT updated_at FROM sessions WHERE id = ?1",
             params!["s1"],
@@ -69,7 +69,7 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
         .unwrap();
 
     let updated_after: String = {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.query_row(
             "SELECT updated_at FROM sessions WHERE id = ?1",
             params!["s1"],
@@ -85,7 +85,7 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
 
     // message_count 仍应正常自增。
     let count: i64 = {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.query_row(
             "SELECT message_count FROM sessions WHERE id = ?1",
             params!["s1"],
@@ -370,7 +370,7 @@ fn test_sessions_needing_summary_respects_cooldown() {
     // 把 updated_at 拨回 2 小时前 → 通过冷却（方案 B 命中）。
     let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
     {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute(
             "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
             rusqlite::params![old],
@@ -420,7 +420,7 @@ fn test_sessions_needing_summary_cooldown_gates_stale_too() {
     // 把 updated_at 拨老 → 同时通过冷却 + 过期检测。
     let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
     {
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute(
             "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
             rusqlite::params![old],
@@ -498,7 +498,7 @@ fn test_get_session_detail_falls_back_to_session_updated_at_for_null_message_ts(
     let session_updated_at = "2026-06-01 10:00:00";
 
     // 直接 INSERT，避免 insert_session/insert_message 改写 updated_at
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     conn.execute(
         "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
          VALUES ('s1', 'cursor', '/p', '/f.jsonl', ?1, ?1, 0)",
@@ -534,7 +534,7 @@ fn test_get_session_detail_keeps_real_message_timestamp() {
     let m1_ts = "2026-06-01 09:01:23";
     let m2_ts = "2026-06-01 09:05:00";
 
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     conn.execute(
         "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
          VALUES ('s1', 'claude_code', '/p', '/f.jsonl', ?1, ?1, 0)",
@@ -562,7 +562,7 @@ fn test_get_session_detail_keeps_real_message_timestamp() {
 #[test]
 fn test_schema_sql_creates_all_hot_path_indexes() {
     let db = Db::open_in_memory().unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let mut stmt = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
         .unwrap();
@@ -598,7 +598,7 @@ fn test_schema_sql_creates_all_hot_path_indexes() {
 #[test]
 fn test_message_dedup_uses_composite_index() {
     let db = Db::open_in_memory().unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let plan: String = conn
         .query_row(
             "EXPLAIN QUERY PLAN SELECT 1 FROM messages WHERE content_hash = 'x' AND session_id = 'y'",
@@ -621,7 +621,7 @@ fn test_message_dedup_uses_composite_index() {
 #[test]
 fn test_chunks_with_summary_count_uses_partial_index() {
     let db = Db::open_in_memory().unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let plan: String = conn
         .query_row(
             "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM chunks WHERE summary IS NOT NULL",
@@ -649,7 +649,7 @@ fn test_v9_migration_creates_missing_indexes() {
     // 再次 open 时 migration 应该重新建出来。
     {
         let db = Db::open(&path).unwrap();
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute("DROP INDEX IF EXISTS idx_chunks_has_summary", [])
             .unwrap();
         conn.execute("DROP INDEX IF EXISTS idx_messages_content_dedup", [])
@@ -660,7 +660,7 @@ fn test_v9_migration_creates_missing_indexes() {
 
     // 第二步：再 open 一次，触发 from=8 → 9 的 migration。
     let db = Db::open(&path).unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let names: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
         .unwrap()
@@ -706,7 +706,7 @@ fn seed_sessions(db: &Db, ids: &[&str]) {
 #[test]
 fn test_v10_schema_has_threads_tables_and_indexes() {
     let db = Db::open_in_memory().unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
 
     let tables: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -835,7 +835,7 @@ fn test_delete_thread_cascades_thread_sessions() {
 
     assert!(db.get_thread_detail(id).unwrap().is_none());
     // thread_sessions 也应被 ON DELETE CASCADE 清掉
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let count: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM thread_sessions WHERE thread_id = ?1",
@@ -895,7 +895,7 @@ fn test_v10_migration_creates_threads_tables() {
 
     {
         let db = Db::open(&path).unwrap();
-        let conn = db.conn.lock().unwrap();
+        let conn = db.conn.lock();
         conn.execute("DROP TABLE IF EXISTS thread_sessions", [])
             .unwrap();
         conn.execute("DROP TABLE IF EXISTS threads", []).unwrap();
@@ -904,7 +904,7 @@ fn test_v10_migration_creates_threads_tables() {
     }
 
     let db = Db::open(&path).unwrap();
-    let conn = db.conn.lock().unwrap();
+    let conn = db.conn.lock();
     let tables: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
         .unwrap()

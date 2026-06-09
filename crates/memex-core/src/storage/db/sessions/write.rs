@@ -37,7 +37,7 @@ impl Db {
             session_mtime_secs,
             title,
         } = opts;
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let now = chrono::Utc::now();
         let now_str = now.to_rfc3339();
 
@@ -112,7 +112,7 @@ impl Db {
     }
 
     pub fn update_session_project_path(&self, session_id: &str, project_path: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE sessions SET project_path = ?1 WHERE id = ?2 AND (project_path IS NULL OR project_path = '')",
             params![project_path, session_id],
@@ -124,7 +124,7 @@ impl Db {
     /// 每次摘要重生成都覆盖这一列（即便从有值变成 None，也写入 None，
     /// 保证 UI 能反映最新摘要结果，不会出现"重新生成后旧 intent 留在那里"的尴尬）。
     pub fn update_session_intent(&self, session_id: &str, intent: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE sessions SET intent = ?1 WHERE id = ?2",
             params![intent, session_id],

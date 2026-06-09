@@ -8,7 +8,7 @@ use super::Db;
 
 impl Db {
     pub fn kv_get(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let val = conn
             .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
                 row.get(0)
@@ -18,7 +18,7 @@ impl Db {
     }
 
     pub fn kv_set(&self, key: &str, value: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO kv (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -34,7 +34,7 @@ impl Db {
         redaction_type: &str,
         original_length: usize,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO redactions (message_id, session_id, redaction_type, original_length, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",

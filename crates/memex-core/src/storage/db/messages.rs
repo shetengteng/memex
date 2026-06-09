@@ -29,7 +29,7 @@ impl Db {
         source_offset: u64,
         content_hash: &str,
     ) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let exists: bool = conn
             .query_row(
                 "SELECT EXISTS(SELECT 1 FROM messages WHERE content_hash = ?1 AND session_id = ?2)",

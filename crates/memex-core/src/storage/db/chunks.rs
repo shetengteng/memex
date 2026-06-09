@@ -10,7 +10,7 @@ use crate::storage::models::{Chunk, SearchResult};
 
 impl Db {
     pub fn insert_chunk(&self, chunk: &Chunk) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let metadata_json = serde_json::to_string(&chunk.metadata)?;
         conn.execute(
             "INSERT INTO chunks (message_id, session_id, chunk_type, content, redacted_content, position, token_count, metadata_json)
@@ -30,7 +30,7 @@ impl Db {
     }
 
     pub fn chunk_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         // AUTOINCREMENT seq is a fast O(1) approximation; exact COUNT(*) scans 700K+ rows (~11s).
         let fast: Result<u64, _> = conn.query_row(
             "SELECT seq FROM sqlite_sequence WHERE name='chunks'",
@@ -44,7 +44,7 @@ impl Db {
     }
 
     pub fn update_chunk_summary(&self, chunk_id: i64, summary: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE chunks SET summary = ?1 WHERE id = ?2",
             params![summary, chunk_id],
@@ -57,7 +57,7 @@ impl Db {
         min_token_count: u32,
         limit: usize,
     ) -> Result<Vec<(i64, String, String)>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, content, redacted_content FROM chunks
              WHERE summary IS NULL AND token_count >= ?1
@@ -75,7 +75,7 @@ impl Db {
     }
 
     pub fn fts_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT c.id, c.session_id, c.message_id, c.chunk_type, c.content,
                     snippet(chunks_fts, 0, '<mark>', '</mark>', '...', 32) as snip, rank,

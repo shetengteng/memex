@@ -2470,6 +2470,7 @@ dependencies = [
  "blake3",
  "chrono",
  "dirs",
+ "parking_lot",
  "regex",
  "rusqlite",
  "serde",

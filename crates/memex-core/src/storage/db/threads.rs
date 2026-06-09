@@ -69,7 +69,7 @@ impl Db {
     ///   并把旧的 `thread_sessions` 全部删掉再重插，避免漂移。
     /// - `session_ids` 中的 session 必须真实存在（外键），不存在的会被静默跳过。
     pub fn upsert_thread_with_sessions(&self, draft: &ThreadDraft) -> Result<i64> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let now = Utc::now().to_rfc3339();
 
@@ -154,7 +154,7 @@ impl Db {
     ///   GROUP_CONCAT 默认逗号分隔，这里用 `CHAR(10)` 作分隔符避免与 project_path
     ///   中的逗号冲突；DISTINCT 去重在子查询内做。
     pub fn list_threads_paged(&self, limit: usize, offset: usize) -> Result<Vec<ThreadRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT t.id, t.name, t.summary, t.session_count, t.created_at, t.updated_at,
                     (SELECT MIN(s.created_at) FROM thread_sessions ts
@@ -207,7 +207,7 @@ impl Db {
     /// 取一个 thread 的详情 + 它命中的 session 列表（按 sessions.updated_at DESC）。
     /// session 列表复用 SessionRow，前端就能直接复用 LibrarySessionListItem。
     pub fn get_thread_detail(&self, thread_id: i64) -> Result<Option<ThreadDetail>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
 
         // detail 不分页，所以即使 thread 命中 100 个 session，子查询代价也可接受。
         let thread = conn
@@ -300,14 +300,14 @@ impl Db {
 
     /// 删除一个 thread（含所有 link，靠 ON DELETE CASCADE）。
     pub fn delete_thread(&self, thread_id: i64) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute("DELETE FROM threads WHERE id = ?1", params![thread_id])?;
         Ok(())
     }
 
     /// thread 总数（用于「N 条线索」展示）。
     pub fn count_threads(&self) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM threads", [], |row| row.get(0))?;
         Ok(n)
     }

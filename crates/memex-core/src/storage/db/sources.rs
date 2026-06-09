@@ -9,7 +9,7 @@ use crate::storage::models::SourceState;
 
 impl Db {
     pub fn upsert_source(&self, state: &SourceState) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO sources (adapter, file_path, last_offset, last_mtime, last_scan)
              VALUES (?1, ?2, ?3, ?4, ?5)
@@ -29,7 +29,7 @@ impl Db {
     }
 
     pub fn get_source_offset(&self, file_path: &str) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let offset = conn
             .query_row(
                 "SELECT last_offset FROM sources WHERE file_path = ?1",

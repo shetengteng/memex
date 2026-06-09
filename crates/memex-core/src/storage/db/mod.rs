@@ -22,9 +22,9 @@ mod tests;
 mod threads;
 
 use std::path::Path;
-use std::sync::Mutex;
 
 use anyhow::{Context, Result};
+use parking_lot::Mutex;
 use rusqlite::{Connection, params};
 
 pub use providers::LlmProviderRow;
@@ -57,7 +57,7 @@ impl Db {
     }
 
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 

@@ -47,7 +47,7 @@ fn now_iso() -> String {
 
 impl Db {
     pub fn provider_list(&self) -> Result<Vec<LlmProviderRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, name, kind, base_url, model, api_key, enabled, is_default, \
                     status, latency_ms, updated_at \
@@ -76,7 +76,7 @@ impl Db {
     }
 
     pub fn provider_get(&self, id: &str) -> Result<Option<LlmProviderRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, name, kind, base_url, model, api_key, enabled, is_default, \
                     status, latency_ms, updated_at \
@@ -103,7 +103,7 @@ impl Db {
     }
 
     pub fn provider_upsert(&self, p: LlmProviderUpsert) -> Result<LlmProviderRow> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let now = now_iso();
 
         if p.is_default {
@@ -144,7 +144,7 @@ impl Db {
     }
 
     pub fn provider_delete(&self, id: &str) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let n = conn.execute("DELETE FROM llm_providers WHERE id = ?1", params![id])?;
         Ok(n as u64)
     }
@@ -155,7 +155,7 @@ impl Db {
         status: &str,
         latency_ms: Option<i64>,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE llm_providers SET status = ?1, latency_ms = ?2, updated_at = ?3 WHERE id = ?4",
             params![status, latency_ms, now_iso(), id],

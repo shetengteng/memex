@@ -16,7 +16,7 @@ const SLOW_QUERY_THRESHOLD_MS: u64 = 500;
 impl Db {
     pub fn increment_metric(&self, name: &str) -> Result<()> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO metrics (date, metric_name, metric_value) VALUES (?1, ?2, 1)
              ON CONFLICT(date, metric_name) DO UPDATE SET metric_value = metric_value + 1",
@@ -27,7 +27,7 @@ impl Db {
 
     pub fn increment_metric_by(&self, name: &str, amount: i64) -> Result<()> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO metrics (date, metric_name, metric_value) VALUES (?1, ?2, ?3)
              ON CONFLICT(date, metric_name) DO UPDATE SET metric_value = metric_value + ?3",
@@ -42,7 +42,7 @@ impl Db {
     }
 
     pub fn get_metrics_for_date(&self, date: &str) -> Result<Vec<MetricEntry>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT metric_name, metric_value FROM metrics WHERE date = ?1 ORDER BY metric_name",
         )?;
@@ -58,7 +58,7 @@ impl Db {
     }
 
     pub fn get_metrics_range(&self, days: u32) -> Result<Vec<DailyMetrics>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT date, metric_name, metric_value FROM metrics
              WHERE date >= date('now', ?1)

@@ -67,7 +67,7 @@ impl Db {
             decisions,
             message_count_at_creation,
         } = opts;
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -95,7 +95,7 @@ impl Db {
     }
 
     pub fn get_summary(&self, session_id: &str, level: &str) -> Result<Option<SummaryRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let row = conn.query_row(
             "SELECT id, session_id, level, title, summary, topics_json, decisions_json, created_at
              FROM summaries WHERE session_id = ?1 AND level = ?2",
@@ -119,7 +119,7 @@ impl Db {
     }
 
     pub fn list_summaries(&self, session_id: &str) -> Result<Vec<SummaryRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, session_id, level, title, summary, topics_json, decisions_json, created_at
              FROM summaries WHERE session_id = ?1 ORDER BY created_at DESC",
@@ -144,7 +144,7 @@ impl Db {
     }
 
     pub fn delete_summary(&self, session_id: &str, level: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let deleted = conn.execute(
             "DELETE FROM summaries WHERE session_id = ?1 AND level = ?2",
             params![session_id, level],
@@ -176,7 +176,7 @@ impl Db {
         limit: usize,
         cool_down_secs: u64,
     ) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         // SQLite 接受 ISO 8601 字符串比较（按字典序等价于时间序）。
         // 用 cutoff = now - cool_down_secs，selector 选 updated_at <= cutoff 的会话。
         let cutoff = if cool_down_secs == 0 {
@@ -213,7 +213,7 @@ impl Db {
     }
 
     pub fn summary_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         Ok(conn.query_row("SELECT COUNT(*) FROM summaries", [], |row| row.get(0))?)
     }
 
@@ -222,7 +222,7 @@ impl Db {
     /// 只有 0 / 1 条消息的会话客观上拿不到摘要，不应计入「待生成」进度的分母，
     /// 否则会卡在永远凑不齐 100% 的尴尬数字（例如 919 个会话里有 19 个只有 1 条 → 上限 97.93%）。
     pub fn sessions_eligible_for_summary_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         Ok(conn.query_row(
             "SELECT COUNT(*) FROM sessions WHERE message_count >= 2",
             [],
@@ -231,7 +231,7 @@ impl Db {
     }
 
     pub fn chunks_with_summary_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         Ok(conn.query_row(
             "SELECT COUNT(*) FROM chunks WHERE summary IS NOT NULL",
             [],
@@ -249,7 +249,7 @@ impl Db {
             decisions,
             session_count,
         } = opts;
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -273,7 +273,7 @@ impl Db {
         scope_type: &str,
         limit: u32,
     ) -> Result<Vec<AggregateSummaryRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at
              FROM aggregate_summaries
@@ -306,7 +306,7 @@ impl Db {
         scope_type: &str,
         scope_key: &str,
     ) -> Result<Option<AggregateSummaryRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let row = conn.query_row(
             "SELECT id, scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at
              FROM aggregate_summaries WHERE scope_type = ?1 AND scope_key = ?2",
