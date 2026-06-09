@@ -2,14 +2,21 @@ use crate::storage::models::ChunkMetadata;
 use regex::Regex;
 use std::sync::LazyLock;
 
-static CODE_LANG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"```(\w+)").unwrap());
+// INVARIANT: all three regex strings are compile-time const literals; failure
+// to compile is a programmer error caught immediately in test, not a runtime
+// condition. `.expect` makes that contract explicit.
+static CODE_LANG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"```(\w+)").expect("INVARIANT: CODE_LANG_RE must compile")
+});
 
 static ERROR_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(error|panic|exception|failed|traceback|fatal)\b").unwrap()
+    Regex::new(r"(?i)\b(error|panic|exception|failed|traceback|fatal)\b")
+        .expect("INVARIANT: ERROR_RE must compile")
 });
 
 static TOOL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(Read|Write|Shell|Grep|Search|Delete|StrReplace|Glob)\b").unwrap()
+    Regex::new(r"(?i)\b(Read|Write|Shell|Grep|Search|Delete|StrReplace|Glob)\b")
+        .expect("INVARIANT: TOOL_RE must compile")
 });
 
 pub fn extract(content: &str) -> ChunkMetadata {
