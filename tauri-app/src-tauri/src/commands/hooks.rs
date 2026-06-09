@@ -9,6 +9,8 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookStatus {
     pub ide: String,
@@ -36,36 +38,34 @@ fn locate_memex_cli() -> Option<PathBuf> {
     None
 }
 
-fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> Result<T, String> {
-    let bin = locate_memex_cli()
-        .ok_or_else(|| "找不到 memex CLI（既不在 app 同目录，也不在 PATH）".to_string())?;
-    let output = Command::new(&bin)
-        .args(args)
-        .output()
-        .map_err(|e| format!("调用 {} 失败：{}", bin.display(), e))?;
+fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
+    let bin = locate_memex_cli().ok_or_else(|| {
+        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
+    })?;
+    let output = Command::new(&bin).args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
+        return Err(CmdError::Backend(format!(
             "memex {:?} 返回非零（{}）：{}",
             args, output.status, stderr
-        ));
+        )));
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("无法解析 CLI 输出（{}）：{}", e, stdout))
+        .map_err(|e| CmdError::Backend(format!("无法解析 CLI 输出（{}）：{}", e, stdout)))
 }
 
 #[tauri::command]
-pub async fn hook_list_status() -> Result<Vec<HookStatus>, String> {
+pub async fn hook_list_status() -> CmdResult<Vec<HookStatus>> {
     run_cli_json::<Vec<HookStatus>>(&["--json", "hooks", "all"])
 }
 
 #[tauri::command]
-pub async fn hook_install(ide: String) -> Result<HookStatus, String> {
+pub async fn hook_install(ide: String) -> CmdResult<HookStatus> {
     run_cli_json::<HookStatus>(&["--json", "hooks", "install", &ide])
 }
 
 #[tauri::command]
-pub async fn hook_uninstall(ide: String) -> Result<HookStatus, String> {
+pub async fn hook_uninstall(ide: String) -> CmdResult<HookStatus> {
     run_cli_json::<HookStatus>(&["--json", "hooks", "uninstall", &ide])
 }
