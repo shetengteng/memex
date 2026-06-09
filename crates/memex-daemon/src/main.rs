@@ -1,3 +1,8 @@
+//! `memex-daemon` 二进制入口 —— 解析端口参数后调到 [`memex_daemon::run`]。
+
+#![warn(rust_2018_idioms)]
+#![warn(clippy::all)]
+
 use anyhow::Result;
 
 #[tokio::main]

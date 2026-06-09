@@ -1,3 +1,12 @@
+//! Memex 后台守护进程 —— 提供 HTTP API（search / hooks / summary），
+//! 周期性触发 ingest，监听 IDE 历史变动，向 menubar 推送通知。
+//!
+//! 这是 `memex-daemon` binary 的 library 入口；二进制 main.rs 只负责把
+//! [`Args`] 解析后调到 [`run_with_args`]。
+
+#![warn(rust_2018_idioms)]
+#![warn(clippy::all)]
+
 pub mod launchd;
 pub mod lockfile;
 pub mod logging;

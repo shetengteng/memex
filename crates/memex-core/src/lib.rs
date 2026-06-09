@@ -1,3 +1,19 @@
+//! Memex 本地优先跨 LLM 会话记忆中枢的核心库。
+//!
+//! 这个 crate 提供：
+//! - 多 IDE 会话采集（Claude Code / Cursor / Codex / OpenCode / Aider / Cline /
+//!   Continue Dev 等，见 [`collector`]）
+//! - SQLite 持久化与 FTS5 全文检索（[`storage`] / [`retriever`]）
+//! - LLM 驱动的会话摘要 / 反思 / 聚类（[`llm`] / [`reflect`]）
+//! - MCP server 实现，把记忆 expose 给 AI agent（[`mcp`]）
+//! - 上下文渲染、会话脱敏、隐私过滤（[`context`] / [`processor`]）
+//!
+//! 这是一个 library，不会自己运行。可执行入口在 `memex-cli` / `memex-daemon`
+//! / `memex-menubar` 三个 binary crate 里。
+
+#![warn(rust_2018_idioms)]
+#![warn(clippy::all)]
+
 pub mod collector;
 pub mod config;
 pub mod context;

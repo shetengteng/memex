@@ -1,3 +1,15 @@
+//! Memex Tauri menubar 应用的 backend。
+//!
+//! 这里只暴露 `run()` 给同 crate 下的 `main.rs`，并通过 `#[tauri::command]`
+//! 把 [`commands`] 子模块的 IPC handler 注册到 Tauri runtime。webview 渲染
+//! 在 `tauri-app/src/` 下的 Vue3 前端。
+//!
+//! 这是 desktop app crate —— 比纯 library crate 更宽松（webview / 系统集成
+//! 等会触发 pedantic clippy 误报），所以只启 `clippy::all`（默认级别），
+//! 不启 `rust_2018_idioms`（idiom lint 与 Tauri macro 展开偶有冲突）。
+
+#![warn(clippy::all)]
+
 pub mod commands;
 mod tray;
 
