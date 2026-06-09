@@ -9,6 +9,7 @@ import {
   isPlaceholderTitle,
   meaningfulPrompt,
   meaningfulTitle,
+  parseBackendError,
 } from './utils'
 
 describe('cn', () => {
@@ -131,5 +132,63 @@ describe('humanizeBackendError', () => {
     expect(humanizeBackendError(null).friendly).toBe('未知错误')
     expect(humanizeBackendError(undefined).friendly).toBe('未知错误')
     expect(humanizeBackendError('').friendly).toBe('未知错误')
+  })
+
+  it('结构化 not_found 错误转中文 "未找到：xxx"', () => {
+    const r = humanizeBackendError({ kind: 'not_found', message: 'session abc' })
+    expect(r.friendly).toBe('未找到：session abc')
+    expect(r.action).toBeUndefined()
+  })
+
+  it('结构化 not_found 空 message 兜底', () => {
+    const r = humanizeBackendError({ kind: 'not_found', message: '' })
+    expect(r.friendly).toBe('未找到所需的资源。')
+  })
+
+  it('结构化 validation 错误转中文', () => {
+    const r = humanizeBackendError({ kind: 'validation', message: 'limit must be > 0' })
+    expect(r.friendly).toBe('输入有误：limit must be > 0')
+  })
+
+  it('结构化 backend 错误的 message 走正则匹配（保留旧文案）', () => {
+    const r = humanizeBackendError({
+      kind: 'backend',
+      message: 'No LLM provider available. Enable Ollama or configure a custom LLM provider.',
+    })
+    expect(r.friendly).toContain('LLM 服务')
+    expect(r.action?.route).toBe('/settings')
+  })
+
+  it('结构化 io 错误未命中正则时返回原 message 兜底', () => {
+    const r = humanizeBackendError({ kind: 'io', message: 'permission denied' })
+    expect(r.friendly).toBe('permission denied')
+    expect(r.action).toBeUndefined()
+  })
+
+  it('未知 kind 字段降级为 backend', () => {
+    const r = humanizeBackendError({ kind: 'mystery', message: 'something' })
+    expect(r.friendly).toBe('something')
+  })
+})
+
+describe('parseBackendError', () => {
+  it('结构化对象 → 原样返回', () => {
+    const r = parseBackendError({ kind: 'io', message: 'bad disk' })
+    expect(r).toEqual({ kind: 'io', message: 'bad disk' })
+  })
+
+  it('字符串错误 → kind 默认 backend', () => {
+    const r = parseBackendError('something failed')
+    expect(r).toEqual({ kind: 'backend', message: 'something failed' })
+  })
+
+  it('null / undefined 兜底为空 message + backend kind', () => {
+    expect(parseBackendError(null)).toEqual({ kind: 'backend', message: '' })
+    expect(parseBackendError(undefined)).toEqual({ kind: 'backend', message: '' })
+  })
+
+  it('未知 kind 自动降级为 backend', () => {
+    const r = parseBackendError({ kind: 'wat', message: 'm' })
+    expect(r.kind).toBe('backend')
   })
 })

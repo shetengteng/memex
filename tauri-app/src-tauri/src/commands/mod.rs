@@ -7,6 +7,8 @@
 //! 列每个 handler；DTO struct/enum 由各业务模块按需 `use commands::backup::BackupResult`
 //! 引入，不再走顶层 re-export。
 
+pub mod error;
+
 pub mod backup;
 pub mod cli_path;
 pub mod config;

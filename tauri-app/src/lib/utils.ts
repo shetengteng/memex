@@ -132,51 +132,100 @@ export function meaningfulPrompt(s: string | null | undefined): string | null {
 }
 
 /**
- * 后端错误（Rust `Result::Err(String)`）原文常常是英文工程化的，对终端用户不友好。
- * 这里把已知的几类常见错误匹配成中文友好版本，并附带提示用户怎么解决。
+ * 后端错误友好化。
  *
- * 设计：
- * - 匹配命中：返回 { friendly: 中文提示, action?: { label, route } }
- * - 不命中：返回 { friendly: 原文 } 兜底
+ * Tauri 后端在迁移到结构化错误（`CmdError`）后，invoke catch 拿到的是
+ * `{ kind: "io" | "db" | "config" | "not_found" | "validation" | "backend", message: string }`
+ * 形态的对象。同一个函数同时兼容老的字符串错误（迁移过渡期，部分 commands 仍返回
+ * `Result<T, String>`），所以入参类型仍然是 `unknown`。
  *
- * 调用方在 toast.error / 错误面板里直接展示 friendly，可选的 action 给"去设置"按钮。
+ * 处理优先级：
+ *  1. `kind` 命中（`not_found` / `validation`）→ 直接返回中文提示 + 后端 message
+ *  2. `kind` 是 `backend` / `io` / `db` / `config` 或老 string → 对 message 走正则
+ *     匹配（保留 4 条已知文案：no llm provider / Ollama 连不上 / 401 / 消息太少）
+ *  3. 都没命中 → 返回 message 兜底
  */
 export interface FriendlyBackendError {
   friendly: string
   action?: { label: string; route: string }
 }
 
-export function humanizeBackendError(e: unknown): FriendlyBackendError {
-  const raw = String(e ?? '').trim()
+/**
+ * 把 `unknown` 错误统一规整成 `{ kind, message }` 形态。
+ *
+ * - 后端结构化错误：`{ kind, message }` 直接返回（kind 限定为已知白名单）
+ * - 字符串错误：归到 `kind: 'backend'`（默认兜底类别）
+ * - 其他类型：用 `String(e)` 兜底
+ */
+export type BackendErrorKind =
+  | 'io'
+  | 'db'
+  | 'config'
+  | 'not_found'
+  | 'validation'
+  | 'backend'
 
-  // No LLM provider available. Enable Ollama or configure a custom LLM provider.
-  if (/no llm provider available/i.test(raw)) {
+const KNOWN_KINDS: ReadonlySet<BackendErrorKind> = new Set([
+  'io',
+  'db',
+  'config',
+  'not_found',
+  'validation',
+  'backend',
+])
+
+export interface ParsedBackendError {
+  kind: BackendErrorKind
+  message: string
+}
+
+export function parseBackendError(e: unknown): ParsedBackendError {
+  if (e && typeof e === 'object' && 'kind' in e && 'message' in e) {
+    const obj = e as { kind: unknown; message: unknown }
+    const kind =
+      typeof obj.kind === 'string' && KNOWN_KINDS.has(obj.kind as BackendErrorKind)
+        ? (obj.kind as BackendErrorKind)
+        : 'backend'
+    const message = typeof obj.message === 'string' ? obj.message : String(obj.message ?? '')
+    return { kind, message: message.trim() }
+  }
+  return { kind: 'backend', message: String(e ?? '').trim() }
+}
+
+export function humanizeBackendError(e: unknown): FriendlyBackendError {
+  const { kind, message } = parseBackendError(e)
+
+  if (kind === 'not_found') {
+    return { friendly: message ? `未找到：${message}` : '未找到所需的资源。' }
+  }
+  if (kind === 'validation') {
+    return { friendly: message ? `输入有误：${message}` : '输入有误，请检查后重试。' }
+  }
+
+  if (/no llm provider available/i.test(message)) {
     return {
       friendly: '当前没有可用的 LLM 服务。请先在设置中启用 Ollama 或配置 Claude API。',
       action: { label: '去设置', route: '/settings' },
     }
   }
 
-  // Ollama not running / connection refused
-  if (/connection refused|ollama.*(unreachable|not running|not found)/i.test(raw)) {
+  if (/connection refused|ollama.*(unreachable|not running|not found)/i.test(message)) {
     return {
       friendly: '无法连接 Ollama 服务，请确认 ollama serve 已启动。',
       action: { label: '去设置', route: '/settings' },
     }
   }
 
-  // 401 / 403 — API key 无效
-  if (/401|403|unauthorized|forbidden|invalid.*api.*key/i.test(raw)) {
+  if (/401|403|unauthorized|forbidden|invalid.*api.*key/i.test(message)) {
     return {
       friendly: 'LLM API Key 无效或权限不足，请在设置中重新配置。',
       action: { label: '去设置', route: '/settings' },
     }
   }
 
-  // 至少需要 N 条消息
-  if (/at least \d+ messages?|too few messages/i.test(raw)) {
+  if (/at least \d+ messages?|too few messages/i.test(message)) {
     return { friendly: '会话消息太少，至少需要 2 条消息才能生成摘要。' }
   }
 
-  return { friendly: raw || '未知错误' }
+  return { friendly: message || '未知错误' }
 }
