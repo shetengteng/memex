@@ -7,12 +7,12 @@
 
 use std::time::Instant;
 
-use crate::mcp::protocol::{
+use crate::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
     TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
 };
-use crate::retriever::{Retriever, SearchFilter};
-use crate::storage::db::Db;
+use memex_core::retriever::{Retriever, SearchFilter};
+use memex_core::storage::db::Db;
 
 pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
     let tool_name = req
@@ -26,7 +26,7 @@ pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse
         .cloned()
         .unwrap_or(serde_json::json!({}));
 
-    let _ = db.increment_metric(crate::storage::metrics::METRIC_MCP_CALLS);
+    let _ = db.increment_metric(memex_core::storage::metrics::METRIC_MCP_CALLS);
 
     let result = match tool_name {
         TOOL_SEARCH_MEMORY => tool_search(db, &args),
@@ -98,7 +98,7 @@ fn tool_search(db: &Db, args: &serde_json::Value) -> std::result::Result<String,
         .search_filtered(query, limit * 2, &filter)
         .map_err(|e| e.to_string())?;
     results.retain(|r| {
-        !crate::processor::privacy::is_private_session(&r.session_id, r.project.as_deref())
+        !memex_core::processor::privacy::is_private_session(&r.session_id, r.project.as_deref())
     });
     results.truncate(limit);
 
@@ -144,7 +144,7 @@ fn tool_list_recent(db: &Db, args: &serde_json::Value) -> std::result::Result<St
     let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
     let mut sessions = db.list_sessions(limit * 2).map_err(|e| e.to_string())?;
     sessions.retain(|s| {
-        !crate::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
+        !memex_core::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
     });
     sessions.truncate(limit);
     let mut value = serde_json::to_value(&sessions).map_err(|e| e.to_string())?;
@@ -175,7 +175,7 @@ fn tool_get_project_context(
     db: &Db,
     args: &serde_json::Value,
 ) -> std::result::Result<String, String> {
-    use crate::context::{ContextOptions, build_context, search_by_project};
+    use memex_core::context::{ContextOptions, build_context, search_by_project};
     use std::path::PathBuf;
 
     let top = args.get("top").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
@@ -233,7 +233,7 @@ fn tool_list_sessions_by_range(
         .map_err(|e| e.to_string())?;
 
     sessions.retain(|s| {
-        !crate::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
+        !memex_core::processor::privacy::is_private_session(&s.id, s.project_path.as_deref())
     });
     if let Some(proj) = project_filter {
         sessions.retain(|s| s.project_path.as_deref() == Some(proj));

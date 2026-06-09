@@ -1,8 +1,8 @@
 use anyhow::Result;
 use memex_core::config::ensure_memex_dir;
-use memex_core::mcp::server;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
+use memex_mcp::server;
 
 pub fn run() -> Result<()> {
     let memex = memex_dir();

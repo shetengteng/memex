@@ -2,8 +2,8 @@
 
 use super::protocol::*;
 use super::server::handle_request_for_test;
-use crate::storage::db::Db;
-use crate::storage::models::{Chunk, ChunkMetadata, ChunkType};
+use memex_core::storage::db::Db;
+use memex_core::storage::models::{Chunk, ChunkMetadata, ChunkType};
 
 fn setup_db() -> Db {
     let db = Db::open_in_memory().unwrap();
@@ -171,7 +171,7 @@ fn test_tool_get_project_context_with_explicit_project() {
     let hash = blake3::hash(b"ack").to_hex().to_string();
     db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash)
         .unwrap();
-    db.upsert_summary(crate::storage::db::SummaryUpsert {
+    db.upsert_summary(memex_core::storage::db::SummaryUpsert {
         session_id: "sess-001",
         level: "L2_session",
         title: Some("Redis pipeline talk"),

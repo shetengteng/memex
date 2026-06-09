@@ -5,8 +5,8 @@ use std::io::{self, BufRead, Write};
 use anyhow::Result;
 
 use super::dispatch::handle_request;
-use crate::mcp::protocol::{JsonRpcRequest, JsonRpcResponse};
-use crate::storage::db::Db;
+use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
+use memex_core::storage::db::Db;
 
 pub fn run_stdio(db: &Db) -> Result<()> {
     let stdin = io::stdin();

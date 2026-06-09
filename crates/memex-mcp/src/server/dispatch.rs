@@ -3,11 +3,11 @@
 //! `tools/call` 的具体工具实现见 [`super::tools`]。
 
 use super::tools;
-use crate::mcp::protocol::{
+use crate::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
     TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
 };
-use crate::storage::db::Db;
+use memex_core::storage::db::Db;
 
 pub(super) fn handle_request(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
     match req.method.as_str() {

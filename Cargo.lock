@@ -2451,6 +2451,7 @@ dependencies = [
  "flate2",
  "libc",
  "memex-core",
+ "memex-mcp",
  "serde",
  "serde_json",
  "tar",
@@ -2508,6 +2509,19 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "memex-mcp"
+version = "0.3.4"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "memex-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

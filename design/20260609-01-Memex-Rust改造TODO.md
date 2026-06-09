@@ -9,6 +9,7 @@
 
 ## 进度跟踪
 
+- 2026-06-09 — **P1-6 完成**：`memex-core::mcp` 抽到独立的 `memex-mcp` crate（4 个源文件 + tests = 781 行用 `git mv` 保 blame；`crate::storage|retriever|processor|context::*` 一律改为 `memex_core::*`，`crate::mcp::*` 改为 `crate::*`）。`memex-cli` 加 `memex-mcp` 依赖、`commands/mcp.rs` 改 import；root `Cargo.toml` workspace.members 加进去；`memex-core/src/lib.rs` 删 `pub mod mcp`。memex-mcp Cargo.toml 拉 `serde`/`serde_json`/`anyhow`/`tracing`/`memex-core`，dev 拉 `tempfile`/`blake3`。`cargo fmt --all --check` + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo test --workspace` 全绿（283 tests），手工烟测 `memex mcp` `initialize` 返回正常 protocol 0x2024-11-05。mcp 改动从此只重编 memex-mcp + cli，core 测试不再被牵连。
 - 2026-06-09 f9a1d7f — **P1-2 follow-up 完成**：privacy.rs 3 处 `PRIVACY_CONFIG.lock().unwrap()` 收尾。生产换 `parking_lot::Mutex` 消除 poison 风险；两个共写测试用 `static TEST_LOCK: Mutex<()>` 串行化（不引入 serial_test crate）。production unwrap/expect 扫描结果：0/0。
 - 2026-06-09 32bb2ad — **P1-4 完成**：5 个 crate root 加上 `#![warn(rust_2018_idioms)]` + `#![warn(clippy::all)]` 与 crate-level doc。`missing_docs` 推迟到 P2 boy-scout（避免一次阻塞 40+ 文件）。`cargo clippy --workspace --all-targets -- -D warnings` 一次过。
 - 2026-06-09 1cf99f4 — **P1-3 完成**：新增 `crates/memex-cli/src/io.rs` (142 行) 作为 CLI 输出单一控制点（`init`/`out!`/`err!`/`json`），134 处 `println!`/`eprintln!` 跨 15 文件全部迁移，14 处旧 `crate::out!("{}", serde_json::*())` 直接走 `io::json()` —— 顺手修了 `--json` 模式静默 bug。烟测 `memex --json stats` 输出合法可解析 JSON，`memex stats` 保持人类格式。287/287 tests pass。
@@ -189,17 +190,17 @@
 
 **结论**：值得做，风险低。
 
-#### 实施清单
+#### 实施清单（全部完成 ✅）
 
-- [ ] 新建 `crates/memex-mcp/{Cargo.toml, src/lib.rs}`，依赖 `memex-core` + `serde_json` + `anyhow`
-- [ ] `git mv crates/memex-core/src/mcp/* crates/memex-mcp/src/`（保留 commit 历史）
-- [ ] 把内部 `use crate::storage::db::Db` 等改成 `use memex_core::storage::db::Db`
-- [ ] 把 memex-core 内 `storage::models::{Chunk, ChunkMetadata, ChunkType}` / `retriever::{Retriever, SearchFilter}` 确认为 `pub` 导出
-- [ ] 删除 `memex-core/src/mcp/` 与 `lib.rs` 里的 `pub mod mcp;`
-- [ ] `memex-cli` Cargo.toml 加 `memex-mcp = { path = "../memex-mcp" }`；`commands/mcp.rs` 改 import
-- [ ] root `Cargo.toml` `[workspace.members]` 加 `crates/memex-mcp`
-- [ ] cargo check / clippy / test / fmt / `cargo test --doc` 全过
-- [ ] commit `refactor(mcp): extract memex-core::mcp into memex-mcp crate`
+- [x] 新建 `crates/memex-mcp/{Cargo.toml, src/lib.rs}`，依赖 `memex-core` + `serde` + `serde_json` + `anyhow` + `tracing`
+- [x] `git mv crates/memex-core/src/mcp/* crates/memex-mcp/src/`（保留 commit 历史；mod.rs 直接 git rm）
+- [x] 把内部 `use crate::storage::db::Db` 等改成 `use memex_core::storage::db::Db`（含 retriever / processor::privacy / context / storage::{models, metrics}）
+- [x] 把 memex-core 内 `storage::models::{Chunk, ChunkMetadata, ChunkType}` / `retriever::{Retriever, SearchFilter}` / `context::{ContextOptions, build_context, search_by_project}` 确认为 `pub` 导出（已是 pub，零改动）
+- [x] 删除 `memex-core/src/mcp/mod.rs` 与 `lib.rs` 里的 `pub mod mcp;`
+- [x] `memex-cli` Cargo.toml 加 `memex-mcp = { path = "../memex-mcp" }`；`commands/mcp.rs` 把 `use memex_core::mcp::server` 改为 `use memex_mcp::server`
+- [x] root `Cargo.toml` `[workspace.members]` 加 `crates/memex-mcp`
+- [x] cargo check / clippy --all-targets -D warnings / test --workspace（283 tests） / fmt --check 全过
+- [x] 烟测：`echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | memex mcp` 返回合法 protocol 0x2024-11-05
 
 **估时**：1.5-2h（机械化重构 + 全量 quality gate）
 **风险**：低；唯一注意是确保 core 把 mcp 需要的 internal API 提升为 pub（无需破坏现有 ergonomics，只是让模块边界更显式）
