@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateInfo {
     pub latest_tag: String,
@@ -31,24 +33,25 @@ fn parse_latest_tag(xml: &str) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn check_for_updates() -> Result<UpdateInfo, String> {
-    let body = tauri::async_runtime::spawn_blocking(|| -> Result<String, String> {
+pub async fn check_for_updates() -> CmdResult<UpdateInfo> {
+    let body = tauri::async_runtime::spawn_blocking(|| -> CmdResult<String> {
         let mut resp = ureq::get(ATOM_URL)
             .header("Accept", "application/atom+xml")
             .header("User-Agent", "memex-menubar")
             .call()
-            .map_err(|e| format!("request failed: {e}"))?;
+            .map_err(|e| CmdError::Backend(format!("request failed: {e}")))?;
         if resp.status() != 200 {
-            return Err(format!("HTTP {}", resp.status()));
+            return Err(CmdError::Backend(format!("HTTP {}", resp.status())));
         }
         resp.body_mut()
             .read_to_string()
-            .map_err(|e| format!("read body failed: {e}"))
+            .map_err(|e| CmdError::Backend(format!("read body failed: {e}")))
     })
     .await
-    .map_err(|e| format!("join error: {e}"))??;
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))??;
 
-    let tag = parse_latest_tag(&body).ok_or_else(|| "no release entry in feed".to_string())?;
+    let tag = parse_latest_tag(&body)
+        .ok_or_else(|| CmdError::NotFound("no release entry in feed".into()))?;
     let html_url = format!("{RELEASES_PAGE}/tag/{tag}");
     Ok(UpdateInfo {
         latest_tag: tag,
