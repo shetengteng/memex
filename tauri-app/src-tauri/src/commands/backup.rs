@@ -89,54 +89,47 @@ pub async fn backup_now() -> Result<BackupResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
-    /// `ensure_backup_dir` 在文件夹不存在时应该把它建出来，并返回完整路径。
-    /// 用 `MEMEX_HOME` 环境变量把 memex_dir() 重定向到一个临时目录，避免污染
-    /// 用户真实 `~/.memex`。
-    ///
-    /// 注意：env::set_var 进程级，本测试不能与其他 memex_dir() 测试并行；
-    /// cargo 默认顺序串行执行单元测试，问题不大。
-    #[test]
-    fn ensure_backup_dir_creates_and_returns_path() {
+    fn with_temp_memex<F: FnOnce(&std::path::Path)>(f: F) {
         let tmp = tempfile::tempdir().expect("temp dir");
         let prev = std::env::var("MEMEX_HOME").ok();
-        // SAFETY: tests are single-threaded by default
+        // SAFETY: 由 #[serial(memex_home)] 串行化。
         unsafe { std::env::set_var("MEMEX_HOME", tmp.path()) };
-
-        let path_str = ensure_backup_dir().expect("ensure_backup_dir ok");
-        let p = std::path::Path::new(&path_str);
-        assert!(p.exists(), "backup dir should exist after call");
-        assert!(p.is_dir(), "should be a directory");
-        assert!(
-            p.ends_with("backups"),
-            "must end with `backups`, got {}",
-            path_str,
-        );
-
-        // 重新跑一遍应该是幂等的，不报错
-        let path_str_2 = ensure_backup_dir().expect("idempotent");
-        assert_eq!(path_str, path_str_2);
-
+        f(tmp.path());
         match prev {
-            // SAFETY: see above
             Some(v) => unsafe { std::env::set_var("MEMEX_HOME", v) },
             None => unsafe { std::env::remove_var("MEMEX_HOME") },
         }
     }
 
+    /// `ensure_backup_dir` 在文件夹不存在时应该把它建出来，并返回完整路径。
+    #[test]
+    #[serial(memex_home)]
+    fn ensure_backup_dir_creates_and_returns_path() {
+        with_temp_memex(|_| {
+            let path_str = ensure_backup_dir().expect("ensure_backup_dir ok");
+            let p = std::path::Path::new(&path_str);
+            assert!(p.exists(), "backup dir should exist after call");
+            assert!(p.is_dir(), "should be a directory");
+            assert!(
+                p.ends_with("backups"),
+                "must end with `backups`, got {}",
+                path_str,
+            );
+
+            let path_str_2 = ensure_backup_dir().expect("idempotent");
+            assert_eq!(path_str, path_str_2);
+        });
+    }
+
     /// `memex_data_dir` 应返回 memex_dir 的绝对路径字符串，不带后缀。
     #[test]
+    #[serial(memex_home)]
     fn memex_data_dir_returns_root() {
-        let tmp = tempfile::tempdir().expect("temp dir");
-        let prev = std::env::var("MEMEX_HOME").ok();
-        unsafe { std::env::set_var("MEMEX_HOME", tmp.path()) };
-
-        let got = memex_data_dir();
-        assert_eq!(got, tmp.path().to_string_lossy());
-
-        match prev {
-            Some(v) => unsafe { std::env::set_var("MEMEX_HOME", v) },
-            None => unsafe { std::env::remove_var("MEMEX_HOME") },
-        }
+        with_temp_memex(|dir| {
+            let got = memex_data_dir();
+            assert_eq!(got, dir.to_string_lossy());
+        });
     }
 }

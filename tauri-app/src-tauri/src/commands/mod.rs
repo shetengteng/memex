@@ -1,7 +1,7 @@
 mod backup;
 mod cli_path;
 mod config;
-mod daemon;
+pub(crate) mod daemon;
 mod doctor;
 mod hooks;
 mod ide_integration;

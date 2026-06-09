@@ -48,6 +48,30 @@ fn is_process_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+/// 优雅地停止 daemon：先 SIGTERM 等 800ms，仍存活则 SIGKILL。最后清掉
+/// 过期 lock 文件。Quit 流程、`daemon_restart` 都复用这条路径，确保单一事实源。
+///
+/// fire-and-forget：信号发了 + lock 清了即可，不阻塞等内核 reap zombie。
+pub(crate) fn stop_daemon_blocking() {
+    let Some(info) = read_lock() else {
+        return;
+    };
+    if !is_process_alive(info.pid) {
+        let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
+        return;
+    }
+    let _ = Command::new("kill")
+        .args(["-TERM", &info.pid.to_string()])
+        .status();
+    std::thread::sleep(std::time::Duration::from_millis(800));
+    if is_process_alive(info.pid) {
+        let _ = Command::new("kill")
+            .args(["-KILL", &info.pid.to_string()])
+            .status();
+    }
+    let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
+}
+
 fn http_health_ok(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
     Command::new("curl")
@@ -114,22 +138,9 @@ pub async fn daemon_status() -> Result<DaemonStatus, String> {
 
 #[tauri::command]
 pub async fn daemon_restart() -> Result<DaemonStatus, String> {
-    // 不管当前是不是过期 lock，先把存活的进程杀掉。
-    if let Some(info) = read_lock() {
-        if is_process_alive(info.pid) {
-            let _ = Command::new("kill")
-                .args(["-TERM", &info.pid.to_string()])
-                .status();
-            std::thread::sleep(std::time::Duration::from_millis(800));
-            if is_process_alive(info.pid) {
-                let _ = Command::new("kill")
-                    .args(["-KILL", &info.pid.to_string()])
-                    .status();
-                std::thread::sleep(std::time::Duration::from_millis(200));
-            }
-        }
-    }
-    let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
+    // 复用 stop_daemon_blocking：保证停 daemon 的 TERM → KILL 顺序、超时、
+    // lock 清理逻辑只有一份实现。
+    let _ = stop_daemon_blocking();
 
     let bin = find_daemon_binary().ok_or_else(|| {
         "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string()
@@ -166,4 +177,92 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
         http_ok: false,
         started_at: None,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    /// 把 `MEMEX_HOME` 重定向到临时目录，避免污染真实 ~/.memex。
+    /// 调用方需用 #[serial(memex_home)] 标记测试，serial_test 会在所有共用
+    /// 此 key 的测试间串行化（跨 module 也有效）。
+    fn with_temp_memex<F: FnOnce(&std::path::Path)>(f: F) {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let prev = std::env::var("MEMEX_HOME").ok();
+        // SAFETY: 由 #[serial(memex_home)] 串行化。
+        unsafe { std::env::set_var("MEMEX_HOME", tmp.path()) };
+        f(tmp.path());
+        match prev {
+            Some(v) => unsafe { std::env::set_var("MEMEX_HOME", v) },
+            None => unsafe { std::env::remove_var("MEMEX_HOME") },
+        }
+    }
+
+    fn write_lock(dir: &std::path::Path, pid: u32) {
+        let info = LockInfo {
+            pid,
+            port: 0,
+            started_at: "2026-06-09T00:00:00Z".into(),
+        };
+        std::fs::write(
+            dir.join("daemon.lock"),
+            serde_json::to_string(&info).unwrap(),
+        )
+        .unwrap();
+    }
+
+    /// lock 文件不存在时 stop 是纯 no-op，不应 panic。
+    #[test]
+    #[serial(memex_home)]
+    fn stop_no_op_when_no_lock() {
+        with_temp_memex(|dir| {
+            stop_daemon_blocking();
+            assert!(!dir.join("daemon.lock").exists());
+        });
+    }
+
+    /// lock 存在但 pid 已死时，应该把过期 lock 清掉，不向不存在进程发信号。
+    /// 用 PID 999999（macOS PID_MAX 是 99999，远超此值 → kill -0 必定失败）。
+    #[test]
+    #[serial(memex_home)]
+    fn stop_cleans_stale_lock() {
+        with_temp_memex(|dir| {
+            write_lock(dir, 999_999);
+            let lock = dir.join("daemon.lock");
+            assert!(lock.exists());
+            stop_daemon_blocking();
+            assert!(!lock.exists(), "stale lock should be deleted");
+        });
+    }
+
+    /// 启动一个 `sleep 30` 子进程，写 lock 指向它，调 stop_daemon_blocking
+    /// 应该 SIGTERM 把它杀掉，并清 lock。这里只 assert lock 被清 + 信号已
+    /// 到（用 wait_timeout 验证子进程已退出），不去看 zombie 状态。
+    #[test]
+    #[serial(memex_home)]
+    fn stop_signals_running_child_and_cleans_lock() {
+        with_temp_memex(|dir| {
+            let mut child = Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .expect("spawn sleep");
+            let pid = child.id();
+            write_lock(dir, pid);
+
+            stop_daemon_blocking();
+
+            // wait 一定要回收 child 否则它在测试结束后成 zombie。stop 内部
+            // 已经发了 SIGTERM / SIGKILL，wait 应快速返回。
+            let exit_status = child.wait().expect("wait child");
+            assert!(
+                !exit_status.success(),
+                "killed child should not exit cleanly",
+            );
+            assert!(
+                !dir.join("daemon.lock").exists(),
+                "lock should be removed after stop",
+            );
+        });
+    }
 }

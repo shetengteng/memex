@@ -280,6 +280,16 @@ pub fn run() {
             commands::system_reset_index,
             commands::system_reset_all,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running memex menubar");
+        .build(tauri::generate_context!())
+        .expect("error while building memex menubar")
+        .run(|_app_handle, event| {
+            // 兜底：托盘 quit 已显式调用 stop_daemon_blocking；但其他退出路径
+            // （`app.exit(0)` 来自其他模块、菜单 Cmd+Q、`launchctl bootout`）
+            // 同样应该清理 daemon，避免后台游离进程。RunEvent::ExitRequested
+            // 在 `app.exit()` 即将真正退出前触发，是最后一道闸口。
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                tracing::info!("exit requested: stopping daemon");
+                commands::daemon::stop_daemon_blocking();
+            }
+        });
 }

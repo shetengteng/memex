@@ -127,7 +127,15 @@ fn handle_menu_event(app: &AppHandle<Wry>, ev: tauri::menu::MenuEvent) {
                 let _ = a.emit("navigate", "/settings");
             });
         }
-        "quit" => app.exit(0),
+        "quit" => {
+            // 用户从托盘主动退出 → 同步杀掉 memex-daemon 子进程，避免它继续在
+            // 后台占着端口 / 写 lock。stop_daemon_blocking 是 TERM→KILL 两段
+            // 式，最坏 ~1s 内完成；放在 exit 前调用，保证 ~/.memex/daemon.lock
+            // 在 menubar 退出时已被清理。
+            tracing::info!("tray quit: stopping daemon before exit");
+            crate::commands::daemon::stop_daemon_blocking();
+            app.exit(0);
+        }
         _ => {}
     }
 }
