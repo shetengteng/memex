@@ -5,7 +5,9 @@
 //! with `tauri-app/src/types/index.ts`.
 
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
-use memex_menubar_lib::commands::{DaemonStatus, LockInfo, Stats, SummaryProgress};
+use memex_menubar_lib::commands::daemon::{DaemonStatus, LockInfo};
+use memex_menubar_lib::commands::sessions::SummaryProgress;
+use memex_menubar_lib::commands::stats::Stats;
 
 fn assert_object_keys(value: &serde_json::Value, expected: &[&str]) {
     let obj = value
