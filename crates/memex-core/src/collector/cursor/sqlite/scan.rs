@@ -10,7 +10,9 @@ use anyhow::{Context, Result};
 use rusqlite::params;
 use tracing::{debug, warn};
 
-use super::project_path::infer_project_from_raw_json;
+use std::path::PathBuf;
+
+use super::project_path::{infer_project_from_raw_json, walkup_to_project_root};
 use super::types::{
     COMPOSER_KEY_PREFIX, ComposerData, ComposerEnrichment, ComposerHeadersEnvelope, HEADERS_KEY,
     WorkspaceIdentifier, value_ref_to_string,
@@ -76,10 +78,20 @@ pub(super) fn scan_sessions(adapter: &CursorSqliteAdapter) -> Result<Vec<Session
         // 新版 Cursor 把它和 workspaceIdentifier 都搬去了 composerHeaders，
         // 所以这里以 enrichment 为准；enrichment 缺失时退回 composer.name
         // 当 title（至少给 UI 留下可读字符串），project_path 留空。
+        //
+        // LCA fallback 容易落到 `src/views/chat` 等子目录（每次会话引用的
+        // 文件集中度不同），让同一个项目在 UI facet 上被切成多行。所以
+        // 走 fallback 时再做一次 marker walkup，把 LCA 上推到含 `.git` /
+        // `Cargo.toml` / `package.json` 等的真实项目根。enrichment 路径
+        // 已经是 workspace 根，不需要也不应再 walkup。
         let enrichment = enrichments.get(&composer_id).cloned().unwrap_or_default();
-        let project_path = enrichment
-            .project_path
-            .or_else(|| infer_project_from_raw_json(&text));
+        let project_path = enrichment.project_path.or_else(|| {
+            infer_project_from_raw_json(&text).map(|p| {
+                walkup_to_project_root(&PathBuf::from(&p))
+                    .to_string_lossy()
+                    .into_owned()
+            })
+        });
         let title = enrichment.title.or_else(|| {
             composer
                 .name
