@@ -2,23 +2,26 @@ use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 
-fn open_db() -> Result<Db, String> {
+use super::error::{CmdError, CmdResult};
+
+fn open_db() -> CmdResult<Db> {
     let db_path = memex_dir().join("memex.db");
-    Db::open(&db_path).map_err(|e| e.to_string())
+    Ok(Db::open(&db_path)?)
 }
 
-fn load_config() -> Result<MemexConfig, String> {
-    MemexConfig::load(&memex_dir()).map_err(|e| e.to_string())
+fn load_config() -> CmdResult<MemexConfig> {
+    Ok(MemexConfig::load(&memex_dir())?)
 }
 
-fn save_config(config: &MemexConfig) -> Result<(), String> {
-    let content = toml::to_string_pretty(config).map_err(|e| e.to_string())?;
+fn save_config(config: &MemexConfig) -> CmdResult<()> {
+    let content = toml::to_string_pretty(config).map_err(|e| CmdError::Config(e.to_string()))?;
     let config_path = memex_dir().join("config.toml");
-    std::fs::write(config_path, content).map_err(|e| e.to_string())
+    std::fs::write(config_path, content)?;
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn get_config(key: String) -> Result<Option<String>, String> {
+pub async fn get_config(key: String) -> CmdResult<Option<String>> {
     let config = load_config()?;
     let val = match key.as_str() {
         "llm.ollama_enabled" => Some(config.llm.ollama_enabled.to_string()),
@@ -43,14 +46,14 @@ pub async fn get_config(key: String) -> Result<Option<String>, String> {
         }
         _ => {
             let db = open_db()?;
-            return db.kv_get(&key).map_err(|e| e.to_string());
+            return Ok(db.kv_get(&key)?);
         }
     };
     Ok(val)
 }
 
 #[tauri::command]
-pub async fn set_config(key: String, value: String) -> Result<(), String> {
+pub async fn set_config(key: String, value: String) -> CmdResult<()> {
     let mut config = load_config()?;
     let is_true = value == "true";
     match key.as_str() {
@@ -75,14 +78,15 @@ pub async fn set_config(key: String, value: String) -> Result<(), String> {
         "privacy.private_from_mcp" => config.privacy.skip_private_sessions = is_true,
         _ => {
             let db = open_db()?;
-            return db.kv_set(&key, &value).map_err(|e| e.to_string());
+            db.kv_set(&key, &value)?;
+            return Ok(());
         }
     }
     save_config(&config)
 }
 
 #[tauri::command]
-pub async fn toggle_adapter(adapter: String, enabled: bool) -> Result<(), String> {
+pub async fn toggle_adapter(adapter: String, enabled: bool) -> CmdResult<()> {
     let mut config = load_config()?;
     match adapter.as_str() {
         "claude_code" => config.adapters.claude_code = enabled,
@@ -92,7 +96,12 @@ pub async fn toggle_adapter(adapter: String, enabled: bool) -> Result<(), String
         "aider" => config.adapters.aider = enabled,
         "continue_dev" => config.adapters.continue_dev = enabled,
         "cline" => config.adapters.cline = enabled,
-        _ => return Err(format!("unknown adapter: {}", adapter)),
+        _ => {
+            return Err(CmdError::Validation(format!(
+                "unknown adapter: {}",
+                adapter
+            )));
+        }
     }
     save_config(&config)
 }
