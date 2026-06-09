@@ -19,6 +19,7 @@
 
 mod collect;
 mod render;
+mod text;
 
 use serde::{Deserialize, Serialize};
 

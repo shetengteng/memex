@@ -4,7 +4,8 @@
 
 use anyhow::Result;
 
-use super::render::{render_markdown, short_date};
+use super::render::render_markdown;
+use super::text::short_date;
 use super::{ContextOptions, ProjectContext, SessionContext};
 use crate::storage::db::Db;
 
