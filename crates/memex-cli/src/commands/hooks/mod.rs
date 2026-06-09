@@ -163,8 +163,8 @@ fn wrapper_path_for(ide: Ide) -> PathBuf {
     // (no Docker / no systemd-nspawn), and dirs crate falls back to passwd
     // entries on POSIX. If this ever fails, the whole CLI is unusable —
     // panic'ing here is honest about that.
-    let home = dirs::home_dir()
-        .expect("INVARIANT: home directory must be resolvable for memex CLI");
+    let home =
+        dirs::home_dir().expect("INVARIANT: home directory must be resolvable for memex CLI");
     let hooks_dir = home.join(".memex").join(wrapper::HOOK_DIRNAME);
     let name = match ide {
         Ide::Cursor => "cursor-session-start.sh",
@@ -200,8 +200,8 @@ fn supports(ide: Ide) -> bool {
 /// `~/.claude.json`，给 MCP servers 用）。Hook 走 `~/.claude/settings.json`。
 fn hook_config_path(ide: Ide) -> PathBuf {
     // INVARIANT: see `wrapper_path_for` — HOME must be resolvable for CLI.
-    let home = dirs::home_dir()
-        .expect("INVARIANT: home directory must be resolvable for memex CLI");
+    let home =
+        dirs::home_dir().expect("INVARIANT: home directory must be resolvable for memex CLI");
     match ide {
         Ide::Cursor => home.join(".cursor").join("hooks.json"),
         Ide::ClaudeCode => home.join(".claude").join("settings.json"),

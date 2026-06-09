@@ -32,7 +32,7 @@ pub struct CursorSqliteAdapter {
 impl CursorSqliteAdapter {
     pub fn new() -> Self {
         let db_path = dirs::home_dir()
-            .expect("cannot determine home directory")
+            .expect("INVARIANT: home directory must be resolvable")
             .join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
         Self { db_path }
     }

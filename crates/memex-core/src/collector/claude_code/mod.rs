@@ -27,7 +27,7 @@ pub struct ClaudeCodeAdapter {
 impl ClaudeCodeAdapter {
     pub fn new() -> Self {
         let base_dir = dirs::home_dir()
-            .expect("cannot determine home directory")
+            .expect("INVARIANT: home directory must be resolvable")
             .join(".claude")
             .join("projects");
         Self { base_dir }

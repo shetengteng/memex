@@ -78,7 +78,7 @@ pub struct CodexAdapter {
 impl CodexAdapter {
     pub fn new() -> Self {
         let base_dir = dirs::home_dir()
-            .expect("cannot determine home directory")
+            .expect("INVARIANT: home directory must be resolvable")
             .join(".codex");
         Self { base_dir }
     }

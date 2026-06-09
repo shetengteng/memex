@@ -23,5 +23,10 @@ pub fn memex_dir() -> PathBuf {
     {
         return PathBuf::from(custom);
     }
-    dirs::home_dir().expect("无法确定 home 目录").join(".memex")
+    // INVARIANT: HOME (or platform equivalent) is always set in the
+    // environments memex targets (macOS, Linux, Windows desktop). The CLI is
+    // unusable without it, so panicking here is honest.
+    dirs::home_dir()
+        .expect("INVARIANT: home directory must be resolvable")
+        .join(".memex")
 }

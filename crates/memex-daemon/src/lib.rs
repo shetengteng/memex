@@ -109,7 +109,7 @@ async fn shutdown_signal() {
     #[cfg(unix)]
     let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
+            .expect("INVARIANT: SIGTERM handler must install on Unix")
             .recv()
             .await;
     };

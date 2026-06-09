@@ -57,7 +57,7 @@ impl Ide {
     /// 该 IDE 的「主」MCP 配置文件路径。
     /// 不要带 ~，永远 absolute。
     pub fn primary_config(&self) -> PathBuf {
-        let home = dirs::home_dir().expect("cannot determine home directory");
+        let home = dirs::home_dir().expect("INVARIANT: home directory must be resolvable");
         match self {
             Self::Cursor => home.join(".cursor").join("mcp.json"),
             // Claude Code CLI 真正读的是 ~/.claude.json，不是

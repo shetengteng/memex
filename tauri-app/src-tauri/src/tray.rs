@@ -43,7 +43,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Memex — Local AI Memory Hub")
-        .icon(tauri::image::Image::from_bytes(include_bytes!("../icons/tray-22x22.png")).unwrap())
+        .icon(
+            tauri::image::Image::from_bytes(include_bytes!("../icons/tray-22x22.png"))
+                .expect("INVARIANT: tray-22x22.png is embedded at compile time and must decode"),
+        )
         .icon_as_template(true)
         .title("")
         .on_tray_icon_event(|tray, event| {

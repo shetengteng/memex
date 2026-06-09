@@ -281,7 +281,7 @@ pub fn run() {
             commands::maintenance::system_reset_all,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building memex menubar")
+        .expect("INVARIANT: tauri Builder::build() failed — app is unstartable")
         .run(|_app_handle, event| {
             // 兜底：托盘 quit 已显式调用 stop_daemon_blocking；但其他退出路径
             // （`app.exit(0)` 来自其他模块、菜单 Cmd+Q、`launchctl bootout`）

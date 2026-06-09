@@ -36,7 +36,7 @@ impl Default for AiderAdapter {
 
 impl AiderAdapter {
     pub fn new() -> Self {
-        let home = dirs::home_dir().expect("cannot determine home directory");
+        let home = dirs::home_dir().expect("INVARIANT: home directory must be resolvable");
         let scan_dirs: Vec<PathBuf> = [
             "Documents",
             "Projects",

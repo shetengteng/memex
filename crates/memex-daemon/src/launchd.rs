@@ -6,8 +6,11 @@ use anyhow::{Context, Result};
 const LABEL: &str = "com.memex.daemon";
 
 pub fn plist_path() -> PathBuf {
+    // INVARIANT: launchd integration only runs on macOS where $HOME is
+    // guaranteed by the OS. Panicking on a missing HOME is correct — there is
+    // no reasonable fallback for a per-user LaunchAgent plist.
     dirs::home_dir()
-        .expect("cannot determine home directory")
+        .expect("INVARIANT: home directory must be resolvable on macOS")
         .join("Library/LaunchAgents")
         .join(format!("{}.plist", LABEL))
 }

@@ -43,7 +43,7 @@ impl Default for OpenCodeAdapter {
 
 impl OpenCodeAdapter {
     pub fn new() -> Self {
-        let home = dirs::home_dir().expect("cannot determine home directory");
+        let home = dirs::home_dir().expect("INVARIANT: home directory must be resolvable");
         let xdg_data = home.join(".local/share");
         let db_path = if xdg_data.join("opencode/opencode.db").exists() {
             xdg_data.join("opencode/opencode.db")

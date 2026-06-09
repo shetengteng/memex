@@ -47,7 +47,7 @@ impl Default for ContinueAdapter {
 impl ContinueAdapter {
     pub fn new() -> Self {
         let base_dir = dirs::home_dir()
-            .expect("cannot determine home directory")
+            .expect("INVARIANT: home directory must be resolvable")
             .join(".continue")
             .join("sessions");
         Self { base_dir }

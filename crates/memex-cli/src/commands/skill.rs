@@ -28,7 +28,7 @@ pub struct SkillStatus {
 }
 
 fn dest_path(ide: Ide) -> PathBuf {
-    let home = dirs::home_dir().expect("cannot determine home directory");
+    let home = dirs::home_dir().expect("INVARIANT: home directory must be resolvable");
     match ide {
         // Cursor / Claude Code 都用 skills/<name>/SKILL.md 约定。
         Ide::Cursor => home
