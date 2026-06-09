@@ -9,6 +9,7 @@
 
 ## 进度跟踪
 
+- 2026-06-09 32bb2ad — **P1-4 完成**：5 个 crate root 加上 `#![warn(rust_2018_idioms)]` + `#![warn(clippy::all)]` 与 crate-level doc。`missing_docs` 推迟到 P2 boy-scout（避免一次阻塞 40+ 文件）。`cargo clippy --workspace --all-targets -- -D warnings` 一次过。
 - 2026-06-09 1cf99f4 — **P1-3 完成**：新增 `crates/memex-cli/src/io.rs` (142 行) 作为 CLI 输出单一控制点（`init`/`out!`/`err!`/`json`），134 处 `println!`/`eprintln!` 跨 15 文件全部迁移，14 处旧 `crate::out!("{}", serde_json::*())` 直接走 `io::json()` —— 顺手修了 `--json` 模式静默 bug。烟测 `memex --json stats` 输出合法可解析 JSON，`memex stats` 保持人类格式。287/287 tests pass。
 - 2026-06-09 ec5bd34 — **P1-2 主体完成（13/16）**：精确扫描后真实 production unwrap/expect = 16 处（旧 TODO 估的 200+ 多在 inline `#[cfg(test)] mod tests` 或 `_tests.rs` 文件级测试里）。3 个 commit 处理 13 处：
   * adf659c：redact.rs 7 regex INVARIANT + 1 std Mutex Ok-else-return
@@ -290,19 +291,21 @@
 **规约依据**：§9.1
 **实际工时**：~1h（远低于估时 3-4h —— 大头是 sed 机械替换）
 
-### P1-4 启用 crate 级 lint
+### ✅ P1-4 启用 crate 级 lint（2026-06-09 32bb2ad，~30 min）
 
-- [ ] `crates/memex-core/src/lib.rs` 顶部：
-  ```rust
-  #![warn(rust_2018_idioms)]
-  #![warn(clippy::all)]
-  #![warn(missing_docs)]  // 或 deny
-  ```
-- [ ] 各 binary crate（cli / daemon）启用
-- [ ] tauri-menubar 由于嵌入 webview 等场景可允许 pedantic 局部 allow
+- [x] `crates/memex-core/src/lib.rs`：`#![warn(rust_2018_idioms)]` + `#![warn(clippy::all)]` + crate-level doc
+- [x] `crates/memex-cli/src/main.rs`：同上
+- [x] `crates/memex-daemon/{lib.rs, main.rs}`：同上
+- [x] `tauri-app/src-tauri/src/lib.rs`：只 `clippy::all`（webview / Tauri macro 偶尔触发 idiom false-positive），main.rs 几乎为空保持现状
+- [ ] **deferred `missing_docs`**：40+ 模块尚无 doc，硬启会阻塞所有 commit，违反「最小化变更」。boy-scout 渐进补齐，记为 P2 任务
+
+#### 验证
+
+- `cargo clippy --workspace --all-targets -- -D warnings`：全绿（一次就过，说明 P0-4 阶段已经做掉大部分 lint 债）
+- `cargo test --workspace`：287/287
 
 **规约依据**：§11.4
-**估时**：1h（含初次启用后的 doc 补全）
+**实际工时**：~30 min
 
 ### P1-5 数据库框架评估：SQLx vs 现状
 
