@@ -9,6 +9,7 @@
 
 ## 进度跟踪
 
+- 2026-06-09 f9a1d7f — **P1-2 follow-up 完成**：privacy.rs 3 处 `PRIVACY_CONFIG.lock().unwrap()` 收尾。生产换 `parking_lot::Mutex` 消除 poison 风险；两个共写测试用 `static TEST_LOCK: Mutex<()>` 串行化（不引入 serial_test crate）。production unwrap/expect 扫描结果：0/0。
 - 2026-06-09 32bb2ad — **P1-4 完成**：5 个 crate root 加上 `#![warn(rust_2018_idioms)]` + `#![warn(clippy::all)]` 与 crate-level doc。`missing_docs` 推迟到 P2 boy-scout（避免一次阻塞 40+ 文件）。`cargo clippy --workspace --all-targets -- -D warnings` 一次过。
 - 2026-06-09 1cf99f4 — **P1-3 完成**：新增 `crates/memex-cli/src/io.rs` (142 行) 作为 CLI 输出单一控制点（`init`/`out!`/`err!`/`json`），134 处 `println!`/`eprintln!` 跨 15 文件全部迁移，14 处旧 `crate::out!("{}", serde_json::*())` 直接走 `io::json()` —— 顺手修了 `--json` 模式静默 bug。烟测 `memex --json stats` 输出合法可解析 JSON，`memex stats` 保持人类格式。287/287 tests pass。
 - 2026-06-09 ec5bd34 — **P1-2 主体完成（13/16）**：精确扫描后真实 production unwrap/expect = 16 处（旧 TODO 估的 200+ 多在 inline `#[cfg(test)] mod tests` 或 `_tests.rs` 文件级测试里）。3 个 commit 处理 13 处：
@@ -231,7 +232,7 @@
 **风险**：中（用户数据安全相关，需要充分手测）
 **规约依据**：§14.2（向后兼容）、§16（运维 / 数据保护）
 
-### ✅ P1-2 生产 `unwrap()` / `expect()` → INVARIANT 标注（2026-06-09 完成 13/16）
+### ✅ P1-2 生产 `unwrap()` / `expect()` → INVARIANT 标注（2026-06-09 完成 16/16）
 
 > 旧 TODO 给的扫描数（200+）多数在 `#[cfg(test)] mod tests` / `mod test_support`
 > / `_tests.rs` 文件里。精确扫描脚本（剥离 cfg(test) 整块 + 文件名后缀过滤）后，
@@ -253,17 +254,16 @@
 2. message 字符串以 `INVARIANT:` 开头便于 grep
 3. 关键处块级 `// INVARIANT:` 注释解释为何不会失败
 
-#### 待跟进（3 处 in `processor/privacy.rs`）
+#### Follow-up 完成（commit f9a1d7f）
 
-`PRIVACY_CONFIG.lock().unwrap()` × 3。naive 替换为 `parking_lot::Mutex` 或 `Ok else return` 都会暴露 pre-existing 测试竞态（`test_load_privacy_rules` vs `test_is_private_session` 共享 LazyLock 静态状态）。
+`processor/privacy.rs` 3 处 `PRIVACY_CONFIG.lock().unwrap()`：
+1. 生产：`std::sync::Mutex` → `parking_lot::Mutex`（不会 poison，3 处 `.lock()` 直接拿 guard）
+2. 测试：两个共写 PRIVACY_CONFIG 的 test 通过 `static TEST_LOCK: std::sync::Mutex<()>` 显式串行（不引入 `serial_test` 依赖）
 
-**Follow-up commit 计划**：
-1. 把 `PRIVACY_CONFIG` 改为 `parking_lot::Mutex`（已是 workspace 依赖）
-2. 加 `serial_test` crate 把两个测试串行化
-3. 或者重构成无全局状态（注入 PrivacyConfig 到调用方）
+3 次重跑 privacy 测试全 PASS（之前 flaky）。production unwrap/expect 扫描结果：**0 处**。
 
 **规约依据**：§1.1
-**实际耗时**：~1.5h（远低于估时 1-2 天 —— 因为旧扫描数被 test 误报严重虚高）
+**实际耗时**：~2h（含 follow-up；远低于估时 1-2 天 —— 旧 TODO 估的 200+ 处多在 inline test blocks 里）
 
 ### ✅ P1-3 CLI `println!` 抽 io 模块（2026-06-09 完成，~1h）
 
