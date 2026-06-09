@@ -45,10 +45,10 @@ pub fn run(json: bool) -> Result<()> {
             .map(|m| m.value)
             .unwrap_or(0);
         if adapter_errors > 0 {
-            println!("\n⚠️  Adapter errors today: {}", adapter_errors);
+            crate::out!("\n⚠️  Adapter errors today: {}", adapter_errors);
         }
 
-        println!("\nConfig:");
+        crate::out!("\nConfig:");
         if config_path.exists() {
             let config = MemexConfig::load(&memex)?;
             let adapters = [
@@ -59,16 +59,16 @@ pub fn run(json: bool) -> Result<()> {
             ];
             for (name, enabled) in &adapters {
                 let status = if *enabled { "enabled" } else { "disabled" };
-                println!("  adapter.{}: {}", name, status);
+                crate::out!("  adapter.{}: {}", name, status);
             }
             let llm = if config.llm.ollama_enabled {
                 "ollama"
             } else {
                 "none (use Settings → LLM Providers to register one)"
             };
-            println!("  llm: {}", llm);
+            crate::out!("  llm: {}", llm);
         } else {
-            println!("  config.toml not found (using defaults)");
+            crate::out!("  config.toml not found (using defaults)");
         }
     }
 
@@ -77,49 +77,51 @@ pub fn run(json: bool) -> Result<()> {
 
 fn print_report(report: &DoctorReport, memex: &std::path::Path, json: bool) -> Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(report)?);
+        crate::io::json(report)?;
         return Ok(());
     }
 
-    println!("Memex Doctor Report");
-    println!("===================");
-    println!("Data dir:  {}", memex.display());
-    println!(
+    crate::out!("Memex Doctor Report");
+    crate::out!("===================");
+    crate::out!("Data dir:  {}", memex.display());
+    crate::out!(
         "Database:  {}",
         if report.db_exists { "OK" } else { "NOT FOUND" }
     );
 
     if !report.db_exists {
-        println!("\nRun `memex ingest` to initialize the database.");
+        crate::out!("\nRun `memex ingest` to initialize the database.");
         return Ok(());
     }
 
-    println!(
+    crate::out!(
         "Schema:    v{}",
         report
             .schema_version
             .map_or("?".to_string(), |v| v.to_string())
     );
-    println!("FTS5:      {}", if report.fts_ok { "OK" } else { "ERROR" });
-    println!("\nData:");
-    println!("  Sessions:  {}", report.session_count);
-    println!("  Messages:  {}", report.message_count);
-    println!("  Chunks:    {}", report.chunk_count);
-    println!("  Sources:   {}", report.source_count);
+    crate::out!("FTS5:      {}", if report.fts_ok { "OK" } else { "ERROR" });
+    crate::out!("\nData:");
+    crate::out!("  Sessions:  {}", report.session_count);
+    crate::out!("  Messages:  {}", report.message_count);
+    crate::out!("  Chunks:    {}", report.chunk_count);
+    crate::out!("  Sources:   {}", report.source_count);
 
     if !report.adapters.is_empty() {
-        println!("\nAdapter Sources:");
+        crate::out!("\nAdapter Sources:");
         for a in &report.adapters {
             let scan = a.last_scan.as_deref().unwrap_or("never");
-            println!(
+            crate::out!(
                 "  {}: {} file(s), last scan: {}",
-                a.name, a.file_count, scan
+                a.name,
+                a.file_count,
+                scan
             );
         }
     }
 
-    println!("\nAdapter Health:");
-    println!("  cursor (SQLite): {}", check_cursor_sqlite());
+    crate::out!("\nAdapter Health:");
+    crate::out!("  cursor (SQLite): {}", check_cursor_sqlite());
 
     Ok(())
 }

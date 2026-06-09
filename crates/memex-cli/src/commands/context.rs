@@ -56,7 +56,7 @@ pub fn run(args: ContextArgs) -> Result<()> {
             // Tier 1 / 2 都比较可靠；Tier 3 在 stderr 提示一下，方便用户在
             // hook 日志里发现"匹配错项目"的情况，但不打到 stdout 污染上下文。
             if matches!(m.tier, MatchTier::FuzzySubstring) {
-                eprintln!(
+                crate::err!(
                     "[memex] using fuzzy-substring match for project {} (cwd={})",
                     m.project_path,
                     cwd.display()
@@ -92,10 +92,10 @@ pub fn run(args: ContextArgs) -> Result<()> {
             "project_path": project_path,
             "markdown": md,
         });
-        println!("{}", serde_json::to_string(&v)?);
+        crate::io::json(&v)?;
     } else {
         // 注意：stdout 不带额外修饰，让 wrapper / 直接输出场景都能拿到干净内容
-        print!("{}", md);
+        crate::out!("{}", md);
     }
     Ok(())
 }
@@ -106,11 +106,9 @@ fn emit_empty(args: &ContextArgs, banner: &str) {
             "project_path": serde_json::Value::Null,
             "markdown": format!("**Memex 工作记忆**\n\n{}\n", banner),
         });
-        if let Ok(s) = serde_json::to_string(&v) {
-            println!("{}", s);
-        }
+        let _ = crate::io::json(&v);
     } else {
-        println!("**Memex 工作记忆**\n");
-        println!("{}", banner);
+        crate::out!("**Memex 工作记忆**\n");
+        crate::out!("{}", banner);
     }
 }

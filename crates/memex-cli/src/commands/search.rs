@@ -73,12 +73,12 @@ fn run_via_http(
         Ok(body) => {
             let latency = start.elapsed().as_millis();
             if json {
-                println!("{}", serde_json::to_string_pretty(&body)?);
+                crate::io::json(&body)?;
             } else if let Some(results) = body.get("results").and_then(|v| v.as_array()) {
                 if results.is_empty() {
-                    println!("No results for \"{}\"", query);
+                    crate::out!("No results for \"{}\"", query);
                 } else {
-                    println!(
+                    crate::out!(
                         "Found {} result(s) for \"{}\" ({} ms, via daemon):\n",
                         results.len(),
                         query,
@@ -91,9 +91,9 @@ fn run_via_http(
                         let src = r.get("adapter").and_then(|v| v.as_str()).unwrap_or("?");
                         let snip = r.get("snippet").and_then(|v| v.as_str()).unwrap_or("");
                         let reason = r.get("match_reason").and_then(|v| v.as_str()).unwrap_or("");
-                        println!("{}. [{}] session:{} ({})", i + 1, ct, prefix, src);
-                        println!("   {}", snip.replace('\n', " "));
-                        println!("   reason: {}\n", reason);
+                        crate::out!("{}. [{}] session:{} ({})", i + 1, ct, prefix, src);
+                        crate::out!("   {}", snip.replace('\n', " "));
+                        crate::out!("   reason: {}\n", reason);
                     }
                 }
             }
@@ -126,12 +126,12 @@ fn run_direct(
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!(
+            crate::out!(
                 "{}",
                 serde_json::json!({"results": [], "error": "database not found, run `memex ingest` first"})
             );
         } else {
-            eprintln!("Database not found. Run `memex ingest` first.");
+            crate::err!("Database not found. Run `memex ingest` first.");
         }
         return Ok(());
     }
@@ -155,11 +155,11 @@ fn run_direct(
     let _ = db.record_search_latency(latency);
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&results)?);
+        crate::io::json(&results)?;
     } else if results.is_empty() {
-        println!("No results for \"{}\"", query);
+        crate::out!("No results for \"{}\"", query);
     } else {
-        println!(
+        crate::out!(
             "Found {} result(s) for \"{}\" ({} ms):\n",
             results.len(),
             query,
@@ -168,9 +168,9 @@ fn run_direct(
         for (i, r) in results.iter().enumerate() {
             let prefix = &r.session_id[..8.min(r.session_id.len())];
             let src = r.adapter.as_deref().unwrap_or("?");
-            println!("{}. [{}] session:{} ({})", i + 1, r.chunk_type, prefix, src);
-            println!("   {}", r.snippet.replace('\n', " "));
-            println!("   reason: {}\n", r.match_reason);
+            crate::out!("{}. [{}] session:{} ({})", i + 1, r.chunk_type, prefix, src);
+            crate::out!("   {}", r.snippet.replace('\n', " "));
+            crate::out!("   reason: {}\n", r.match_reason);
         }
     }
 

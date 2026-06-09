@@ -49,7 +49,6 @@ fn flags() -> IoFlags {
 
 /// 内部实现：被 [`out!`] macro 调用。
 #[doc(hidden)]
-#[allow(dead_code)] // 下一 commit 迁移调用点后移除
 pub fn write_out(args: std::fmt::Arguments<'_>) {
     if flags().json {
         return;
@@ -61,7 +60,6 @@ pub fn write_out(args: std::fmt::Arguments<'_>) {
 
 /// 内部实现：被 [`err!`] macro 调用。
 #[doc(hidden)]
-#[allow(dead_code)] // 下一 commit 迁移调用点后移除
 pub fn write_err(args: std::fmt::Arguments<'_>) {
     let stderr = std::io::stderr();
     let mut lock = stderr.lock();
@@ -73,7 +71,6 @@ pub fn write_err(args: std::fmt::Arguments<'_>) {
 /// - 非 `--json` 模式下仍然输出（让 caller 显式选择「我就是想要 JSON」）
 /// - `--json` 模式下输出紧凑格式（一行一对象），方便 pipe 处理
 /// - 非 `--json` 模式下输出 pretty 格式，便于人眼看
-#[allow(dead_code)] // 下一 commit 迁移调用点后移除
 pub fn json<T: Serialize>(value: &T) -> Result<()> {
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();

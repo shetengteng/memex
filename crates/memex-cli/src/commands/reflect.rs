@@ -65,15 +65,16 @@ pub fn run(period_input: &str, json: bool) -> Result<()> {
                 .as_ref()
                 .map(|p| p.display().to_string()),
         };
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        crate::io::json(&out)?;
     } else {
-        println!("{}", artifacts.markdown);
+        crate::out!("{}", artifacts.markdown);
         if let Some(p) = &artifacts.markdown_path {
-            println!("\n📝 已写入：{}", p.display());
+            crate::out!("\n📝 已写入：{}", p.display());
         }
-        println!(
+        crate::out!(
             "💾 已存进 DB（scope_type=reflect, scope_key={}），基于 {} 份 daily 摘要。",
-            artifacts.scope_key, artifacts.digest_count
+            artifacts.scope_key,
+            artifacts.digest_count
         );
     }
 
@@ -110,20 +111,22 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
                 created_at: r.created_at.clone(),
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        crate::io::json(&out)?;
         return Ok(());
     }
 
     if rows.is_empty() {
-        println!("还没有 reflect 记录。先跑 `memex reflect run --period week` 生成一份。");
+        crate::out!("还没有 reflect 记录。先跑 `memex reflect run --period week` 生成一份。");
         return Ok(());
     }
 
-    println!(
+    crate::out!(
         "{:<26} {:<6}  {:<32}  CREATED",
-        "SCOPE_KEY", "DIGEST", "TITLE"
+        "SCOPE_KEY",
+        "DIGEST",
+        "TITLE"
     );
-    println!("{}", "-".repeat(100));
+    crate::out!("{}", "-".repeat(100));
     for r in &rows {
         let title = r.title.as_deref().unwrap_or("");
         let title_disp = if title.chars().count() > 30 {
@@ -132,9 +135,12 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
         } else {
             title.to_string()
         };
-        println!(
+        crate::out!(
             "{:<26} {:<6}  {:<32}  {}",
-            r.scope_key, r.session_count, title_disp, r.created_at
+            r.scope_key,
+            r.session_count,
+            title_disp,
+            r.created_at
         );
     }
     Ok(())
@@ -161,21 +167,18 @@ pub fn show(scope_key: &str, json: bool) -> Result<()> {
 
     if json {
         // 复用 aggregate_summary 的字段命名，但显式标注是 reflect
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "scope_type": row.scope_type,
-                "scope_key": row.scope_key,
-                "title": row.title,
-                "summary": row.summary,
-                "patterns": row.topics,
-                "open_loops": row.decisions,
-                "digest_count": row.session_count,
-                "created_at": row.created_at,
-            }))?
-        );
+        crate::io::json(&serde_json::json!({
+            "scope_type": row.scope_type,
+            "scope_key": row.scope_key,
+            "title": row.title,
+            "summary": row.summary,
+            "patterns": row.topics,
+            "open_loops": row.decisions,
+            "digest_count": row.session_count,
+            "created_at": row.created_at,
+        }))?;
     } else {
-        println!("{}", row.summary);
+        crate::out!("{}", row.summary);
     }
     Ok(())
 }

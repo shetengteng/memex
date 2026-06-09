@@ -12,12 +12,11 @@ pub fn run(json: bool) -> Result<()> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!(
-                "{}",
-                serde_json::json!({"sessions": 0, "messages": 0, "chunks": 0})
-            );
+            crate::io::json(&serde_json::json!({
+                "sessions": 0, "messages": 0, "chunks": 0
+            }))?;
         } else {
-            println!("No data yet. Run `memex ingest` first.");
+            crate::out!("No data yet. Run `memex ingest` first.");
         }
         return Ok(());
     }
@@ -31,25 +30,22 @@ pub fn run(json: bool) -> Result<()> {
     let last_week_total = aggregate_range(&db, ACTIVITY_WINDOW_DAYS);
 
     if json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "sessions": sessions,
-                "messages": messages,
-                "chunks": chunks,
-                "today": metric_map(&today),
-                "last_7_days": last_week_total,
-            })
-        );
+        crate::io::json(&serde_json::json!({
+            "sessions": sessions,
+            "messages": messages,
+            "chunks": chunks,
+            "today": metric_map(&today),
+            "last_7_days": last_week_total,
+        }))?;
         return Ok(());
     }
 
-    println!("Memex Statistics:");
-    println!("  Sessions: {}", sessions);
-    println!("  Messages: {}", messages);
-    println!("  Chunks:   {}", chunks);
+    crate::out!("Memex Statistics:");
+    crate::out!("  Sessions: {}", sessions);
+    crate::out!("  Messages: {}", messages);
+    crate::out!("  Chunks:   {}", chunks);
 
-    println!("\nToday:");
+    crate::out!("\nToday:");
     print_activity_line("  Searches", &today, METRIC_SEARCH_COUNT);
     print_activity_line("  MCP calls", &today, METRIC_MCP_CALLS);
     print_activity_line("  Slow queries", &today, METRIC_SLOW_QUERIES);
@@ -57,7 +53,7 @@ pub fn run(json: bool) -> Result<()> {
     print_activity_line("  Ingested msgs", &today, METRIC_INGEST_MESSAGES);
     print_activity_line("  Adapter errors", &today, METRIC_ADAPTER_ERRORS);
 
-    println!("\nLast {} days:", ACTIVITY_WINDOW_DAYS);
+    crate::out!("\nLast {} days:", ACTIVITY_WINDOW_DAYS);
     print_total_line("  Searches", &last_week_total, METRIC_SEARCH_COUNT);
     print_total_line("  MCP calls", &last_week_total, METRIC_MCP_CALLS);
     print_total_line("  Slow queries", &last_week_total, METRIC_SLOW_QUERIES);
@@ -99,10 +95,10 @@ fn print_activity_line(
         .find(|m| m.name == name)
         .map(|m| m.value)
         .unwrap_or(0);
-    println!("{}: {}", label, value);
+    crate::out!("{}: {}", label, value);
 }
 
 fn print_total_line(label: &str, totals: &std::collections::BTreeMap<String, i64>, name: &str) {
     let value = totals.get(name).copied().unwrap_or(0);
-    println!("{}: {}", label, value);
+    crate::out!("{}: {}", label, value);
 }

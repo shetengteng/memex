@@ -8,12 +8,12 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     let memex = memex_dir();
     if !memex.exists() {
         if json {
-            println!(
+            crate::out!(
                 "{}",
                 serde_json::json!({"error": "memex directory not found"})
             );
         } else {
-            eprintln!("Memex directory not found at {}", memex.display());
+            crate::err!("Memex directory not found at {}", memex.display());
         }
         return Ok(());
     }
@@ -70,7 +70,7 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     let size = fs::metadata(output)?.len();
 
     if json {
-        println!(
+        crate::out!(
             "{}",
             serde_json::json!({
                 "path": output_path,
@@ -79,9 +79,11 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
             })
         );
     } else {
-        println!(
+        crate::out!(
             "Backup complete: {} ({} files, {} bytes)",
-            output_path, file_count, size
+            output_path,
+            file_count,
+            size
         );
     }
 

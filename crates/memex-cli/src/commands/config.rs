@@ -8,9 +8,9 @@ pub fn show(json: bool) -> Result<()> {
     let config = MemexConfig::load(&memex_dir())?;
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&config)?);
+        crate::io::json(&config)?;
     } else {
-        println!("{}", toml::to_string_pretty(&config)?);
+        crate::out!("{}", toml::to_string_pretty(&config)?);
     }
 
     Ok(())
@@ -39,12 +39,12 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         "data_dir" => config.data_dir = value.to_string(),
         _ => {
             if json {
-                println!(
+                crate::out!(
                     "{}",
                     serde_json::json!({"error": format!("unknown key: {}", key)})
                 );
             } else {
-                eprintln!("Unknown config key: {}", key);
+                crate::err!("Unknown config key: {}", key);
             }
             return Ok(());
         }
@@ -55,12 +55,12 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         .with_context(|| format!("failed to write {}", config_path.display()))?;
 
     if json {
-        println!(
+        crate::out!(
             "{}",
             serde_json::json!({"key": key, "value": value, "status": "ok"})
         );
     } else {
-        println!("Set {} = {}", key, value);
+        crate::out!("Set {} = {}", key, value);
     }
 
     Ok(())

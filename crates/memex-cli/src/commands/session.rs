@@ -6,9 +6,9 @@ pub fn run(session_id: &str, json: bool) -> Result<()> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!("{}", serde_json::json!({"error": "database not found"}));
+            crate::io::json(&serde_json::json!({"error": "database not found"}))?;
         } else {
-            eprintln!("Database not found. Run `memex ingest` first.");
+            crate::err!("Database not found. Run `memex ingest` first.");
         }
         return Ok(());
     }
@@ -27,16 +27,16 @@ pub fn run(session_id: &str, json: bool) -> Result<()> {
     match detail {
         Some(d) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&d)?);
+                crate::io::json(&d)?;
             } else {
-                println!("Session: {}", d.id);
-                println!("Source:  {}", d.source);
+                crate::out!("Session: {}", d.id);
+                crate::out!("Source:  {}", d.source);
                 if let Some(ref proj) = d.project_path {
-                    println!("Project: {}", proj);
+                    crate::out!("Project: {}", proj);
                 }
-                println!("Created: {}", d.created_at);
-                println!("Updated: {}", d.updated_at);
-                println!("Messages: {}\n", d.message_count);
+                crate::out!("Created: {}", d.created_at);
+                crate::out!("Updated: {}", d.updated_at);
+                crate::out!("Messages: {}\n", d.message_count);
 
                 for (i, msg) in d.messages.iter().enumerate() {
                     let role_icon = match msg.role.as_str() {
@@ -47,24 +47,24 @@ pub fn run(session_id: &str, json: bool) -> Result<()> {
                         _ => &msg.role,
                     };
                     let ts = msg.timestamp.as_deref().unwrap_or("");
-                    println!("--- Message {} ({}) {} ---", i + 1, role_icon, ts);
+                    crate::out!("--- Message {} ({}) {} ---", i + 1, role_icon, ts);
                     let preview = if msg.content.len() > 500 {
                         format!("{}...", &msg.content[..500])
                     } else {
                         msg.content.clone()
                     };
-                    println!("{}\n", preview);
+                    crate::out!("{}\n", preview);
                 }
             }
         }
         None => {
             if json {
-                println!(
+                crate::out!(
                     "{}",
                     serde_json::json!({"error": "session not found", "id": session_id})
                 );
             } else {
-                eprintln!("Session \"{}\" not found.", session_id);
+                crate::err!("Session \"{}\" not found.", session_id);
             }
         }
     }

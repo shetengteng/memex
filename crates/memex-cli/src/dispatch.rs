@@ -89,11 +89,14 @@ fn run_setup(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
     if status {
         let s = commands::setup::status(ide)?;
         if json {
-            println!("{}", serde_json::to_string_pretty(&s)?);
+            crate::io::json(&s)?;
         } else {
-            println!(
+            crate::out!(
                 "{}: installed={}, exists={}, path={}",
-                s.ide, s.installed, s.config_exists, s.config_path
+                s.ide,
+                s.installed,
+                s.config_exists,
+                s.config_path
             );
         }
         return Ok(());
@@ -107,12 +110,12 @@ fn run_setup(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
 fn run_setup_status(json: bool) -> Result<()> {
     let all = commands::setup::list_status();
     if json {
-        println!("{}", serde_json::to_string_pretty(&all)?);
+        crate::io::json(&all)?;
         return Ok(());
     }
     for s in &all {
         let mark = if s.installed { "[✓]" } else { "[ ]" };
-        println!(
+        crate::out!(
             "{} {:<14} {} (config: {})",
             mark,
             s.ide,
@@ -132,11 +135,14 @@ fn run_skill(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
     if status {
         let s = commands::skill::status(ide)?;
         if json {
-            println!("{}", serde_json::to_string_pretty(&s)?);
+            crate::io::json(&s)?;
         } else {
-            println!(
+            crate::out!(
                 "{}: installed={}, path={}, size={:?}",
-                s.ide, s.installed, s.dest_path, s.size
+                s.ide,
+                s.installed,
+                s.dest_path,
+                s.size
             );
         }
         return Ok(());
@@ -150,12 +156,12 @@ fn run_skill(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
 fn run_skill_status(json: bool) -> Result<()> {
     let all = commands::skill::list_status();
     if json {
-        println!("{}", serde_json::to_string_pretty(&all)?);
+        crate::io::json(&all)?;
         return Ok(());
     }
     for s in &all {
         let mark = if s.installed { "[✓]" } else { "[ ]" };
-        println!(
+        crate::out!(
             "{} {:<14} {} ({} bytes)",
             mark,
             s.ide,
@@ -176,7 +182,7 @@ fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
     let report = |st: &hooks::HookStatus| {
         if json {
             if let Ok(s) = serde_json::to_string_pretty(st) {
-                println!("{}", s);
+                crate::out!("{}", s);
             }
             return;
         }
@@ -187,7 +193,7 @@ fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
         } else {
             "[ ]"
         };
-        println!(
+        crate::out!(
             "{} {:<14} {}{}",
             mark,
             st.ide,
@@ -195,7 +201,7 @@ fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
             st.config_path,
         );
         if let Some(w) = &st.wrapper_path {
-            println!("    wrapper: {}", w);
+            crate::out!("    wrapper: {}", w);
         }
     };
 
@@ -218,7 +224,7 @@ fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
         HooksAction::All => {
             let all = hooks::list_status();
             if json {
-                println!("{}", serde_json::to_string_pretty(&all)?);
+                crate::io::json(&all)?;
             } else {
                 for st in &all {
                     report(st);

@@ -95,7 +95,7 @@ pub fn run(target: &str) -> Result<()> {
     })?;
     let memex_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("memex"));
     install(ide, &memex_bin)?;
-    println!("\nRestart {} to activate.", ide.as_str());
+    crate::out!("\nRestart {} to activate.", ide.as_str());
     Ok(())
 }
 
@@ -113,8 +113,8 @@ pub fn install(ide: Ide, memex_bin: &Path) -> Result<IdeStatus> {
         Ide::Codex => upsert_codex_toml(&path, SERVER_NAME, memex_bin)?,
         Ide::OpenCode => upsert_opencode_json(&path, SERVER_NAME, memex_bin)?,
     }
-    println!("{} MCP configured at {}", ide.as_str(), path.display());
-    println!("  command: {} mcp", memex_bin.display());
+    crate::out!("{} MCP configured at {}", ide.as_str(), path.display());
+    crate::out!("  command: {} mcp", memex_bin.display());
     status(ide)
 }
 
@@ -127,9 +127,9 @@ pub fn uninstall(ide: Ide) -> Result<IdeStatus> {
             Ide::Codex => remove_codex_toml(&path, SERVER_NAME)?,
             Ide::OpenCode => remove_opencode_json(&path, SERVER_NAME)?,
         }
-        println!("{} MCP removed from {}", ide.as_str(), path.display());
+        crate::out!("{} MCP removed from {}", ide.as_str(), path.display());
     } else {
-        println!(
+        crate::out!(
             "{} config not found, nothing to remove ({})",
             ide.as_str(),
             path.display()

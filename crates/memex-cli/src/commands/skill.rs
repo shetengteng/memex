@@ -69,7 +69,7 @@ pub fn install(ide: Ide) -> Result<SkillStatus> {
     }
     fs::write(&path, skill_content(ide))
         .with_context(|| format!("failed to write {}", path.display()))?;
-    println!("{} skill installed at {}", ide.as_str(), path.display());
+    crate::out!("{} skill installed at {}", ide.as_str(), path.display());
     status(ide)
 }
 
@@ -77,9 +77,9 @@ pub fn uninstall(ide: Ide) -> Result<SkillStatus> {
     let path = dest_path(ide);
     if path.exists() {
         fs::remove_file(&path).with_context(|| format!("failed to remove {}", path.display()))?;
-        println!("{} skill removed from {}", ide.as_str(), path.display());
+        crate::out!("{} skill removed from {}", ide.as_str(), path.display());
     } else {
-        println!(
+        crate::out!(
             "{} skill not installed, nothing to remove ({})",
             ide.as_str(),
             path.display()

@@ -14,7 +14,7 @@ pub fn run(json: bool) -> Result<()> {
         fs::copy(&db_path, &bak)?;
         fs::remove_file(&db_path)?;
         if !json {
-            println!("Backed up existing database to memex.db.bak");
+            crate::out!("Backed up existing database to memex.db.bak");
         }
     }
 
@@ -22,7 +22,7 @@ pub fn run(json: bool) -> Result<()> {
     let stats = rebuild::rebuild_from_markdown(&memex, &db)?;
 
     if json {
-        println!(
+        crate::out!(
             "{}",
             serde_json::json!({
                 "sessions": stats.sessions,
@@ -32,12 +32,12 @@ pub fn run(json: bool) -> Result<()> {
             })
         );
     } else {
-        println!("Rebuild complete:");
-        println!("  Sessions: {}", stats.sessions);
-        println!("  Messages: {}", stats.messages);
-        println!("  Chunks:   {}", stats.chunks);
+        crate::out!("Rebuild complete:");
+        crate::out!("  Sessions: {}", stats.sessions);
+        crate::out!("  Messages: {}", stats.messages);
+        crate::out!("  Chunks:   {}", stats.chunks);
         if stats.errors > 0 {
-            println!("  Errors:   {}", stats.errors);
+            crate::out!("  Errors:   {}", stats.errors);
         }
     }
 

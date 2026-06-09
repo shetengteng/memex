@@ -12,7 +12,7 @@ pub fn start(json: bool) -> Result<()> {
         daemon_client::read_lock(&memex).filter(|i| daemon_client::is_process_alive(i.pid))
     {
         if json {
-            println!(
+            crate::out!(
                 "{}",
                 serde_json::json!({
                     "status": "already_running",
@@ -21,9 +21,10 @@ pub fn start(json: bool) -> Result<()> {
                 })
             );
         } else {
-            println!(
+            crate::out!(
                 "daemon already running (pid={}, port={})",
-                info.pid, info.port
+                info.pid,
+                info.port
             );
         }
         return Ok(());
@@ -39,7 +40,7 @@ pub fn start(json: bool) -> Result<()> {
         .with_context(|| format!("failed to start daemon: {}", daemon_bin))?;
 
     if json {
-        println!(
+        crate::out!(
             "{}",
             serde_json::json!({
                 "status": "started",
@@ -47,7 +48,7 @@ pub fn start(json: bool) -> Result<()> {
             })
         );
     } else {
-        println!("daemon started (pid={})", child.id());
+        crate::out!("daemon started (pid={})", child.id());
     }
     Ok(())
 }
@@ -62,19 +63,19 @@ pub fn stop(json: bool) -> Result<()> {
             let _ = std::fs::remove_file(memex.join("daemon.lock"));
 
             if json {
-                println!(
+                crate::out!(
                     "{}",
                     serde_json::json!({ "status": "stopped", "pid": info.pid })
                 );
             } else {
-                println!("daemon stopped (pid={})", info.pid);
+                crate::out!("daemon stopped (pid={})", info.pid);
             }
         }
         _ => {
             if json {
-                println!("{}", serde_json::json!({ "status": "not_running" }));
+                crate::io::json(&serde_json::json!({ "status": "not_running" }))?;
             } else {
-                println!("daemon is not running");
+                crate::out!("daemon is not running");
             }
         }
     }
@@ -88,7 +89,7 @@ pub fn status(json: bool) -> Result<()> {
         Some(info) if daemon_client::is_process_alive(info.pid) => {
             let health = daemon_client::check_health(info.port);
             if json {
-                println!(
+                crate::out!(
                     "{}",
                     serde_json::json!({
                         "running": true,
@@ -99,7 +100,7 @@ pub fn status(json: bool) -> Result<()> {
                     })
                 );
             } else {
-                println!(
+                crate::out!(
                     "daemon running (pid={}, port={}, http={})",
                     info.pid,
                     info.port,
@@ -109,9 +110,9 @@ pub fn status(json: bool) -> Result<()> {
         }
         _ => {
             if json {
-                println!("{}", serde_json::json!({ "running": false }));
+                crate::io::json(&serde_json::json!({ "running": false }))?;
             } else {
-                println!("daemon is not running");
+                crate::out!("daemon is not running");
             }
         }
     }

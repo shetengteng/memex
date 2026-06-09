@@ -14,7 +14,7 @@ pub fn run(adapter_filter: Option<&str>, json: bool) -> Result<()> {
     let result = ingest::run_ingest(&db, &memex, adapter_filter)?;
 
     if json {
-        println!(
+        crate::out!(
             "{}",
             serde_json::json!({
                 "messages_ingested": result.messages_ingested,
@@ -22,9 +22,10 @@ pub fn run(adapter_filter: Option<&str>, json: bool) -> Result<()> {
             })
         );
     } else {
-        println!(
+        crate::out!(
             "Ingested {} messages, created {} chunks",
-            result.messages_ingested, result.chunks_created
+            result.messages_ingested,
+            result.chunks_created
         );
     }
 

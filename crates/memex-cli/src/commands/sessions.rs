@@ -6,9 +6,9 @@ pub fn run(recent: usize, days: Option<u32>, json: bool) -> Result<()> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!("{}", serde_json::json!({"sessions": []}));
+            crate::io::json(&serde_json::json!({"sessions": []}))?;
         } else {
-            println!("No sessions found. Run `memex ingest` first.");
+            crate::out!("No sessions found. Run `memex ingest` first.");
         }
         return Ok(());
     }
@@ -22,13 +22,13 @@ pub fn run(recent: usize, days: Option<u32>, json: bool) -> Result<()> {
     }
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&sessions)?);
+        crate::io::json(&sessions)?;
     } else if sessions.is_empty() {
-        println!("No sessions found.");
+        crate::out!("No sessions found.");
     } else {
-        println!("{} session(s):\n", sessions.len());
+        crate::out!("{} session(s):\n", sessions.len());
         for s in &sessions {
-            println!(
+            crate::out!(
                 "  {} [{}] {} msgs  {}",
                 &s.id[..8.min(s.id.len())],
                 s.source,
