@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use super::error::{CmdError, CmdResult};
+
 /// CLI 安装到的最终位置 — 用户 home 下的 `~/.local/bin`，不需 sudo，
 /// 也是 XDG / FHS 共识中给"用户自己装的可执行文件"的标准位置。
 /// 选这里而不是 `/usr/local/bin`，是为了避免 macOS 上 SIP 与 sudo 摩擦。
@@ -56,7 +58,7 @@ fn is_correct_symlink(link: &Path, expected_target: &Path) -> bool {
 
 /// 检查当前 CLI 安装状态。前端在 Settings 页挂载时调用一次。
 #[tauri::command]
-pub async fn cli_status() -> Result<CliStatus, String> {
+pub async fn cli_status() -> CmdResult<CliStatus> {
     let dir = target_dir();
     let path_env = env::var("PATH").unwrap_or_default();
     let app_dir = app_macos_dir();
@@ -84,31 +86,27 @@ pub async fn cli_status() -> Result<CliStatus, String> {
 /// 不主动写 shell rc。如果 PATH 里没有目标目录，仍然创建 symlink，但返回 warning，
 /// 让前端提示用户手动 export。
 #[tauri::command]
-pub async fn cli_install() -> Result<CliStatus, String> {
+pub async fn cli_install() -> CmdResult<CliStatus> {
     let dir = target_dir();
-    let app_dir = app_macos_dir().ok_or_else(|| "无法确定 Memex.app 的 MacOS 目录".to_string())?;
+    let app_dir = app_macos_dir()
+        .ok_or_else(|| CmdError::NotFound("无法确定 Memex.app 的 MacOS 目录".into()))?;
 
-    fs::create_dir_all(&dir).map_err(|e| format!("创建目录 {} 失败：{}", dir.display(), e))?;
+    fs::create_dir_all(&dir)?;
 
     for name in TARGET_NAMES {
         let link = dir.join(name);
         let target = app_dir.join(name);
         if !target.exists() {
-            return Err(format!("sidecar binary 不存在：{}", target.display()));
+            return Err(CmdError::NotFound(format!(
+                "sidecar binary 不存在：{}",
+                target.display()
+            )));
         }
         if link.exists() || fs::symlink_metadata(&link).is_ok() {
             // 先把旧的链接/文件清掉，避免 "File exists"
-            fs::remove_file(&link)
-                .map_err(|e| format!("移除旧 symlink {} 失败：{}", link.display(), e))?;
+            fs::remove_file(&link)?;
         }
-        unix_fs::symlink(&target, &link).map_err(|e| {
-            format!(
-                "创建 symlink {} → {} 失败：{}",
-                link.display(),
-                target.display(),
-                e
-            )
-        })?;
+        unix_fs::symlink(&target, &link)?;
     }
 
     cli_status().await
@@ -117,7 +115,7 @@ pub async fn cli_install() -> Result<CliStatus, String> {
 /// 移除 `~/.local/bin` 下指向 .app 内部的 symlink。
 /// 只删 symlink，不删用户自己放的真实文件（双保险检查 read_link）。
 #[tauri::command]
-pub async fn cli_uninstall() -> Result<CliStatus, String> {
+pub async fn cli_uninstall() -> CmdResult<CliStatus> {
     let dir = target_dir();
     let app_dir = app_macos_dir();
 
@@ -134,8 +132,7 @@ pub async fn cli_uninstall() -> Result<CliStatus, String> {
         if !is_ours {
             continue;
         }
-        fs::remove_file(&link)
-            .map_err(|e| format!("删除 symlink {} 失败：{}", link.display(), e))?;
+        fs::remove_file(&link)?;
     }
 
     cli_status().await
