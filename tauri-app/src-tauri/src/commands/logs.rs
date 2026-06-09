@@ -46,16 +46,14 @@ pub async fn list_daemon_log_files() -> CmdResult<Vec<DaemonLogFile>> {
         if !path.is_file() {
             continue;
         }
-        let name = match path.file_name().and_then(|n| n.to_str()) {
-            Some(s) => s.to_string(),
-            None => continue,
+        let Some(name) = path.file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
+            continue;
         };
         if !name.starts_with("daemon.log") {
             continue;
         }
-        let meta = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
+        let Ok(meta) = entry.metadata() else {
+            continue;
         };
         let modified_secs = meta
             .modified()
@@ -109,16 +107,12 @@ pub async fn read_daemon_log(
     let mut all_lines: Vec<String> = Vec::new();
     let mut first_partial_dropped = false;
     for (i, line) in reader.lines().enumerate() {
-        match line {
-            Ok(s) => {
-                if start > 0 && i == 0 {
-                    first_partial_dropped = true;
-                    continue;
-                }
-                all_lines.push(s);
-            }
-            Err(_) => continue,
+        let Ok(s) = line else { continue };
+        if start > 0 && i == 0 {
+            first_partial_dropped = true;
+            continue;
         }
+        all_lines.push(s);
     }
 
     let truncated = first_partial_dropped || all_lines.len() > want_lines;

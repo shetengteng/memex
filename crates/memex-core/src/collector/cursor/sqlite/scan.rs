@@ -39,10 +39,7 @@ pub(super) fn scan_sessions(adapter: &CursorSqliteAdapter) -> Result<Vec<Session
 
     let mut sessions = Vec::with_capacity(rows.len());
     for (key, value) in rows {
-        let text = match value {
-            Some(s) => s,
-            None => continue,
-        };
+        let Some(text) = value else { continue };
         let composer: ComposerData = match serde_json::from_str(&text) {
             Ok(c) => c,
             Err(e) => {

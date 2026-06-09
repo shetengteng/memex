@@ -50,31 +50,27 @@ pub fn run(args: ContextArgs) -> Result<()> {
         None => env::current_dir()?,
     };
 
-    let project_path = match search_by_project(&db, &cwd)? {
-        Some(m) => {
-            tracing::debug!("matched project_path={} tier={:?}", m.project_path, m.tier);
-            // Tier 1 / 2 都比较可靠；Tier 3 在 stderr 提示一下，方便用户在
-            // hook 日志里发现"匹配错项目"的情况，但不打到 stdout 污染上下文。
-            if matches!(m.tier, MatchTier::FuzzySubstring) {
-                crate::err!(
-                    "[memex] using fuzzy-substring match for project {} (cwd={})",
-                    m.project_path,
-                    cwd.display()
-                );
-            }
-            m.project_path
-        }
-        None => {
-            emit_empty(
-                &args,
-                &format!(
-                    "Memex 当前目录 {} 暂无关联会话记忆 —— 后续在此目录内的 AI 会话会被自动采集。",
-                    cwd.display()
-                ),
-            );
-            return Ok(());
-        }
+    let Some(m) = search_by_project(&db, &cwd)? else {
+        emit_empty(
+            &args,
+            &format!(
+                "Memex 当前目录 {} 暂无关联会话记忆 —— 后续在此目录内的 AI 会话会被自动采集。",
+                cwd.display()
+            ),
+        );
+        return Ok(());
     };
+    tracing::debug!("matched project_path={} tier={:?}", m.project_path, m.tier);
+    // Tier 1 / 2 都比较可靠；Tier 3 在 stderr 提示一下，方便用户在
+    // hook 日志里发现"匹配错项目"的情况，但不打到 stdout 污染上下文。
+    if matches!(m.tier, MatchTier::FuzzySubstring) {
+        crate::err!(
+            "[memex] using fuzzy-substring match for project {} (cwd={})",
+            m.project_path,
+            cwd.display()
+        );
+    }
+    let project_path = m.project_path;
 
     let redact = args.redact.unwrap_or(cfg.privacy.redaction_enabled);
 
