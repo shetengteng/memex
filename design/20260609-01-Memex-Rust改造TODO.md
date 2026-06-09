@@ -9,6 +9,9 @@
 
 ## 进度跟踪
 
+- 2026-06-09 44b3785 — **P0-1 完成 + cursor pre-existing bug**：19 个 commands 文件全部迁到 `CmdError`（`Result<T, String>` 在 commands/ 下零残留）。前端 `humanizeBackendError` 同步加上 `{kind, message}` 解析，向下兼容旧 string 错误，新增 10 条单测。整体 19 commit（1 基础 + 18 文件 + 1 cursor fix）。顺便修了 main 上 silently-failing 的 `test_sqlite_scan_multifolder_workspace_yields_no_project_path`（multi-folder workspace 不再误用 `.code-workspace` 父目录当 cwd，与 sqlite.rs 自带注释契约一致）。
+- 2026-06-09 0865a3e — **library Today bug 修复**：`fTime` 过滤未生效 + "Today" 分组以最新 session 日期当锚点 → 抽出 `sessionFilters.ts` 纯函数 composable（filter / group），用绝对 `new Date()` 锚定，库视图从 503 行减到 470 行；新增 16 条单测覆盖时间边界、分组、组合过滤。`LibraryFacets.vue` 强类型化 `TimeFilter` / `SummaryFilter`，emit 前加 runtime guard 防非法值。
+- 2026-06-09 — **rust.mdc §2.6 新增**：增加「卫语句优先 / Happy Path 居中」章节 + §15 提交前清单加项「函数体嵌套 ≤ 3 层」。
 - 2026-06-09 bc6613e — **P0-4 完成**：`cargo clippy --all-targets --all-features -- -D warnings` 全绿。一次性清掉 40 处 errors（collapsible_if 34 / needless_question_mark 4 / unnecessary_to_owned 2 / 其他 9 类各 1-3 处）。`too_many_arguments` 引入参数 struct `NewSession` / `SummaryUpsert` / `AggregateSummaryUpsert` 满足 rust.mdc §6.2 builder 指引。
 - 2026-06-09 a11746b — fix(test) 善后：恢复 `tauri-app/src-tauri/tests/ipc_contract.rs` 的 DTO import 路径（P0-2 把 `pub use commands::*` 改成 `pub mod` 之后这个集成测试再也编译不过，但当时没人跑 `cargo test --all` 所以没暴露）。让 `cargo test --all` 重新可跑。
 - 2026-06-09 e2ec778 — 修复 today stats double-count bug（与 TODO 无直接对应，属 §7.2 路径之外的业务缺陷）。详见 commit message。
@@ -31,38 +34,38 @@
 
 ## P0 — 红线违规（必须修，影响发版）
 
-### P0-1 `Result<T, String>` → 结构化错误枚举
+### ✅ P0-1 `Result<T, String>` → `CmdError` 结构化错误枚举（44b3785）
 
-- [ ] 在 `tauri-app/src-tauri/src/commands/error.rs` 新建 `CmdError` 错误枚举（thiserror + Serialize）
-  - 变体设计参考：`Io / Db / Config / NotFound / Validation / Backend(anyhow::Error) / Custom(String)`
-  - 实现 `From<anyhow::Error>` / `From<std::io::Error>` / `From<rusqlite::Error>`
-  - `#[serde(tag = "kind", content = "message")]` 让前端能按 kind 分支
-- [ ] 19 个 commands 文件迁移：
-  - [ ] `backup.rs`
-  - [ ] `cli_path.rs`
-  - [ ] `config.rs`
-  - [ ] `daemon.rs`
-  - [ ] `doctor.rs`
-  - [ ] `hooks.rs`
-  - [ ] `ide_integration.rs`
-  - [ ] `ingest.rs`
-  - [ ] `llm_providers.rs`
-  - [ ] `llm_test.rs`
-  - [ ] `logs.rs`
-  - [ ] `maintenance.rs`
-  - [ ] `reflect.rs`
-  - [ ] `reports.rs`
-  - [ ] `search.rs`
-  - [ ] `sessions.rs`
-  - [ ] `stats.rs`
-  - [ ] `threads.rs`
-  - [ ] `update.rs`
-- [ ] 前端 `tauri-app/src/composables/useMemex.ts` 等同步：把 `catch (e: string)` 改为 `catch (e: { kind, message })`
-- [ ] 添加 `humanizeBackendError` 已经有结构化字段后简化逻辑
+- [x] `tauri-app/src-tauri/src/commands/error.rs` 新建 `CmdError`（thiserror + Serialize）
+  - 实际变体：`Io / Db / Config / NotFound / Validation / Backend`
+  - 实现 `From<std::io::Error>` / `From<anyhow::Error>` / `From<String>` / `From<&'static str>`
+  - 注：未实现 `From<rusqlite::Error>` —— commands/ 下没有直接拿 rusqlite 的代码，db 错误经 anyhow 进入 `Backend`，避免新增 rusqlite 直接依赖
+  - `#[serde(tag = "kind", content = "message", rename_all = "snake_case")]` 序列化为 `{kind, message}`
+- [x] 19 个 commands 文件全部迁移（每文件一个 commit）：
+  - [x] `search.rs`（与 error.rs 同 commit dfc62e0 作为示范）
+  - [x] `ingest.rs` (a3e62c5)
+  - [x] `reports.rs` (12d0b2b)
+  - [x] `hooks.rs` (c3d156c)
+  - [x] `update.rs` (8fc0422)
+  - [x] `threads.rs` (10793e9)
+  - [x] `config.rs` (ac5946c)
+  - [x] `doctor.rs` (0ead412)
+  - [x] `maintenance.rs` (387448a)
+  - [x] `llm_test.rs` (aa839b2)
+  - [x] `stats.rs` (3b60462)
+  - [x] `reflect.rs` (55dca37)
+  - [x] `backup.rs` (73e7791)
+  - [x] `logs.rs` (a4a60a1)
+  - [x] `cli_path.rs` (3bf4115)
+  - [x] `ide_integration.rs` (c68a73b)
+  - [x] `sessions.rs` (883e541)
+  - [x] `llm_providers.rs` (7d3d9e3)
+  - [x] `daemon.rs` (b78abb7)
+- [x] 前端 `tauri-app/src/lib/utils.ts` `humanizeBackendError` 同步：新增 `parseBackendError` 同时识别 `{kind, message}` 与旧 string 输入；按 `kind` 分支文案 (`not_found` / `validation` / `backend` / `io` / `db` / `config`)；保留旧 regex 文案为兜底。10 条新单测覆盖结构化解析、kind 分支、不识别 kind 回退。
+- [x] `cargo clippy --all-targets --all-features -- -D warnings` 全绿；`cargo test --all` 全绿；`cd tauri-app && npx vitest run` 全绿（140 tests）。
 
-**规约依据**：§14.1 / §1.2
-**影响**：所有前端 IPC 调用的 catch
-**估时**：4-6h
+**实际**：未走 useMemex.ts 改 `catch` 类型——前端 `humanizeBackendError` 内部已 narrow，调用方继续按字符串语义用即可。把 IPC catch 全改成 `{kind, message}` 收益小（要改 ~40 处 invoke 调用），后续 P1 阶段再统一。
+**实际工时**：~5h（含 cursor multi-folder pre-existing bug 顺手修）。
 
 ### ✅ P0-2 `pub use module::*;` → 明确符号列表（d8b944b）
 
