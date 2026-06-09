@@ -10,58 +10,17 @@
 //!
 //! 频率说明：thread 生成在 ingest 末尾按"每周一次或手动触发"调用一次，
 //! 不在高频路径，所以这里查询走最朴素的 SQL，不做 prepared cache。
+//!
+//! DTO 集中在 `dto`，本文件只承载 `impl Db` + SQL 输出辅助。
+
+mod dto;
 
 use anyhow::Result;
 use chrono::Utc;
 use rusqlite::params;
-use serde::Serialize;
 
 use super::{Db, sessions::SessionRow};
-
-/// `threads` 表的一行 + 用于 list_threads 的展示信息。
-/// 只需 Serialize（IPC 出去给前端），Deserialize 不需要——
-/// 来自 LLM 的 thread 草稿走 ThreadDraft，不复用此类型。
-///
-/// 卡片视图额外需要的派生字段（`first_session_at` / `last_session_at` /
-/// `projects` / `adapters`）通过 list_threads SQL 一次 JOIN 聚合返回，
-/// 避免前端 N+1。
-#[derive(Debug, Clone, Serialize)]
-pub struct ThreadRow {
-    pub id: i64,
-    pub name: String,
-    pub summary: String,
-    pub session_count: i64,
-    pub created_at: String,
-    pub updated_at: String,
-    /// 命中会话中最早的 created_at（按所有 sessions 时间跨度）。可能为空（没有命中或全部 session 已删）。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_session_at: Option<String>,
-    /// 命中会话中最晚的 updated_at。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_session_at: Option<String>,
-    /// 涉及的项目（去重后用 `\n` 串联，前端 split），便于一次返回数组。
-    /// 用 `\n` 而不是 `,` 因为项目路径里有逗号的可能比换行多。
-    #[serde(default)]
-    pub projects: Vec<String>,
-    /// 涉及的适配器（去重后），如 cursor / claude_code。
-    #[serde(default)]
-    pub adapters: Vec<String>,
-}
-
-/// 一个 thread 的详情：基础信息 + 命中的 session 列表（取 SessionRow 给前端复用）。
-#[derive(Debug, Clone, Serialize)]
-pub struct ThreadDetail {
-    pub thread: ThreadRow,
-    pub sessions: Vec<SessionRow>,
-}
-
-/// LLM 聚类输出的一个 thread 草稿，准备落库。
-#[derive(Debug, Clone)]
-pub struct ThreadDraft {
-    pub name: String,
-    pub summary: String,
-    pub session_ids: Vec<String>,
-}
+pub use dto::{ThreadDetail, ThreadDraft, ThreadRow};
 
 impl Db {
     /// 原子地 upsert 一个 thread + 重建它的 session links。
