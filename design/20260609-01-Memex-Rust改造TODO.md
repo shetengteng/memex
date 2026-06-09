@@ -131,17 +131,31 @@
 - `memex-cli/src/main.rs` → `cli/` + `dispatch/`（commit d577939）
 - `context/builder.rs` → `builder/{mod,collect,render}.rs`（commit c052a49）
 - `context/builder/render.rs` 382 行 → `render/{mod,tests}.rs` + 抽出 `builder/text.rs`（commit 待提交）
+- `ingest.rs` 1148 行 → `ingest/{mod,adapter,summarize_levels,project_summaries,reports,period,threads}.rs`（mod ≤ 288 行；待提交）
+- `storage/queries.rs` 1144 行 → `queries/{mod,dto,doctor,stats,workload,tests/{mod,general,workload_basic,workload_daily,workload_heatmap}}.rs`（最大 workload.rs 291 行；测试 13 PASS；待提交）
+- `llm/summarize.rs` 720 行 → `summarize/{mod,prompts,parse,period,tests}.rs`（最大 tests 245 行；待提交）
+- `llm/threads.rs` 608 行 → `threads/{mod,prompts,cluster,query,fallback,tests}.rs`（最大 tests 193 行；待提交）
+- `collector/cursor/sqlite.rs` 670 行 → `sqlite/{mod,types,scan,collect,probe,project_path}.rs`（最大 scan 167 行；待提交）
+- `storage/db/tests.rs` 832 行 → `tests/{mod,basic,summaries,sessions,schema,threads}.rs`（最大 sessions 249 行；29 PASS；待提交）
 
-**当前剩余 > 300 行文件（按优先级）**：
-| 文件 | 行 | 备注 |
-|---|---|---|
-| `ingest.rs` | 1148 | **未拆**（最大、风险高，建议优先） |
-| `storage/queries.rs` | 1144 | **未拆**（含 12 个独立查询函数，可按主题拆） |
-| `storage/db/tests.rs` | 833 | 纯测试，可按被测模块拆 |
-| `llm/summarize.rs` | 720 | 待拆 |
-| `collector/cursor/sqlite.rs` | 670 | 待拆 |
-| `llm/threads.rs` | 608 | 待拆 |
-| 其余 13 个 300-380 行 | — | 优先级低，可在 P2 顺手做 |
+**当前剩余 > 300 行文件（全部为 303-375 行，未拆）**：
+| 文件 | 行 |
+|---|---|
+| `config/mod.rs` | 375 |
+| `collector/cursor/tests.rs` | 375 |
+| `collector/aider.rs` | 355 |
+| `memex-cli/commands/setup.rs` | 351 |
+| `collector/claude_code/mod.rs` | 350 |
+| `storage/db/summaries.rs` | 345 |
+| `collector/opencode.rs` | 341 |
+| `storage/db/threads.rs` | 327 |
+| `context/matcher.rs` | 311 |
+| `storage/db/providers.rs` | 309 |
+| `storage/rebuild.rs` | 308 |
+| `retriever/mod.rs` | 305 |
+| `collector/cline.rs` | 303 |
+
+这一批 13 个最多超 75 行，优先级低于 P2 的功能性工作，可在童子军规则下随手拆。
 
 **规约依据**：§7.2
 **风险**：拆分会影响 `git blame`；建议每个文件一个独立 commit
