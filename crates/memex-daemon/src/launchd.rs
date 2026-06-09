@@ -47,8 +47,7 @@ pub fn install_plist(daemon_bin: &str) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     let content = generate_plist(daemon_bin);
-    fs::write(&path, content)
-        .with_context(|| format!("failed to write {}", path.display()))?;
+    fs::write(&path, content).with_context(|| format!("failed to write {}", path.display()))?;
     println!("launchd plist written to {}", path.display());
     println!("To load:   launchctl load {}", path.display());
     println!("To unload: launchctl unload {}", path.display());
@@ -58,8 +57,7 @@ pub fn install_plist(daemon_bin: &str) -> Result<()> {
 pub fn uninstall_plist() -> Result<()> {
     let path = plist_path();
     if path.exists() {
-        fs::remove_file(&path)
-            .with_context(|| format!("failed to remove {}", path.display()))?;
+        fs::remove_file(&path).with_context(|| format!("failed to remove {}", path.display()))?;
         println!("launchd plist removed");
     } else {
         println!("no plist found at {}", path.display());

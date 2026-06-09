@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use memex_core::config::MemexConfig;
-use memex_core::llm::ollama::{ollama_model_base, OllamaProvider};
+use memex_core::llm::ollama::{OllamaProvider, ollama_model_base};
 use memex_core::llm::provider::{LlmProvider, LlmRequest};
 use memex_core::memex_dir;
 use serde::Serialize;
@@ -47,7 +47,10 @@ pub async fn llm_test_ollama() -> Result<LlmTestResult, String> {
                     .filter_map(|m| m["name"].as_str().map(String::from))
                     .collect();
                 if names.is_empty() {
-                    ("Ollama is running but has no models installed".into(), Some(names))
+                    (
+                        "Ollama is running but has no models installed".into(),
+                        Some(names),
+                    )
                 } else {
                     let configured = &config.llm.ollama_model;
                     let configured_base = ollama_model_base(configured);
@@ -71,7 +74,10 @@ pub async fn llm_test_ollama() -> Result<LlmTestResult, String> {
                     (msg, Some(names))
                 }
             }
-            Err(e) => (format!("Cannot reach Ollama at {}: {}", config.llm.ollama_url, e), None),
+            Err(e) => (
+                format!("Cannot reach Ollama at {}: {}", config.llm.ollama_url, e),
+                None,
+            ),
         };
         return Ok(LlmTestResult {
             ok: false,

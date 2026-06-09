@@ -23,7 +23,5 @@ pub fn memex_dir() -> PathBuf {
             return PathBuf::from(custom);
         }
     }
-    dirs::home_dir()
-        .expect("无法确定 home 目录")
-        .join(".memex")
+    dirs::home_dir().expect("无法确定 home 目录").join(".memex")
 }

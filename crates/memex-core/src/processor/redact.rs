@@ -118,7 +118,10 @@ fn apply_rules(rules: &[RedactionRule], result: &mut String, hits: &mut Vec<Reda
             });
         }
         let replacement = format!("[REDACTED:{}]", rule.label);
-        *result = rule.pattern.replace_all(result, replacement.as_str()).into_owned();
+        *result = rule
+            .pattern
+            .replace_all(result, replacement.as_str())
+            .into_owned();
     }
 }
 

@@ -152,6 +152,9 @@ fn codex_install_adds_matcher_for_all_sources() {
 #[test]
 fn opencode_is_marked_unsupported() {
     let st = status(Ide::OpenCode).unwrap();
-    assert!(!st.supported, "OpenCode 应标记为 unsupported（plugin 体系）");
+    assert!(
+        !st.supported,
+        "OpenCode 应标记为 unsupported（plugin 体系）"
+    );
     assert!(!st.installed);
 }

@@ -7,6 +7,12 @@
 
 ---
 
+## 进度跟踪
+
+- 2026-06-09 e2ec778 — 修复 today stats double-count bug（与 TODO 无直接对应，属 §7.2 路径之外的业务缺陷）。详见 commit message。
+
+---
+
 ## 改造方法论
 
 1. **不做大爆炸式重构**：每个 P0 / P1 拆为独立 commit，单 commit 改一类问题

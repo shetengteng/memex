@@ -30,11 +30,8 @@ pub async fn list_threads(
         return Ok(vec![]);
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.list_threads_paged(
-        limit.unwrap_or(100) as usize,
-        offset.unwrap_or(0) as usize,
-    )
-    .map_err(|e| e.to_string())
+    db.list_threads_paged(limit.unwrap_or(100) as usize, offset.unwrap_or(0) as usize)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -58,8 +55,9 @@ pub async fn regenerate_threads() -> Result<usize, String> {
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
-    let provider = select_provider_unified(&db, &cfg.llm, &memex)
-        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string())?;
+    let provider = select_provider_unified(&db, &cfg.llm, &memex).ok_or_else(|| {
+        "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string()
+    })?;
     core_regenerate_threads(&db, provider.as_ref()).map_err(|e| e.to_string())
 }
 
@@ -87,8 +85,9 @@ pub async fn search_thread_by_query(query: String) -> Result<i64, String> {
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
-    let provider = select_provider_unified(&db, &cfg.llm, &memex)
-        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string())?;
+    let provider = select_provider_unified(&db, &cfg.llm, &memex).ok_or_else(|| {
+        "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string()
+    })?;
     let q = query.trim();
     if q.is_empty() {
         return Err("查询关键词不能为空".to_string());

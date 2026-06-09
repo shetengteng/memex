@@ -1,8 +1,8 @@
 //! CLI JSON 契约的快照测试 —— 检查序列化字段是否齐全。
 //! 一旦字段被删除或重命名，这些测试会立刻把回归捞出来。
 
-use crate::storage::db::{Db, SessionRow, SessionDetail, MessageRow};
-use crate::storage::models::{SearchResult, Chunk, ChunkType, ChunkMetadata};
+use crate::storage::db::{Db, MessageRow, SessionDetail, SessionRow};
+use crate::storage::models::{Chunk, ChunkMetadata, ChunkType, SearchResult};
 
 fn setup_db() -> Db {
     let db = Db::open_in_memory().unwrap();
@@ -45,8 +45,14 @@ fn test_search_result_json_fields() {
     let obj = json.as_object().unwrap();
 
     let required_fields = [
-        "chunk_id", "session_id", "message_id", "chunk_type",
-        "content", "snippet", "rank", "match_reason",
+        "chunk_id",
+        "session_id",
+        "message_id",
+        "chunk_type",
+        "content",
+        "snippet",
+        "rank",
+        "match_reason",
     ];
     for field in &required_fields {
         assert!(obj.contains_key(*field), "missing field: {}", field);
@@ -73,9 +79,18 @@ fn test_search_result_skips_none_fields() {
     };
     let json: serde_json::Value = serde_json::to_value(&result).unwrap();
     let obj = json.as_object().unwrap();
-    assert!(!obj.contains_key("adapter"), "None adapter should be skipped");
-    assert!(!obj.contains_key("project"), "None project should be skipped");
-    assert!(!obj.contains_key("timestamp"), "None timestamp should be skipped");
+    assert!(
+        !obj.contains_key("adapter"),
+        "None adapter should be skipped"
+    );
+    assert!(
+        !obj.contains_key("project"),
+        "None project should be skipped"
+    );
+    assert!(
+        !obj.contains_key("timestamp"),
+        "None timestamp should be skipped"
+    );
 }
 
 #[test]
@@ -134,9 +149,18 @@ fn test_session_detail_json_fields() {
     let json: serde_json::Value = serde_json::to_value(&detail).unwrap();
     let obj = json.as_object().unwrap();
     let required = [
-        "id", "source", "project_path", "file_path", "title",
-        "summary", "topics", "decisions",
-        "created_at", "updated_at", "message_count", "messages",
+        "id",
+        "source",
+        "project_path",
+        "file_path",
+        "title",
+        "summary",
+        "topics",
+        "decisions",
+        "created_at",
+        "updated_at",
+        "message_count",
+        "messages",
         "intent",
     ];
     for field in &required {
@@ -178,7 +202,13 @@ fn test_chunk_metadata_json_fields() {
     };
     let json: serde_json::Value = serde_json::to_value(&meta).unwrap();
     let obj = json.as_object().unwrap();
-    let required = ["topics", "languages", "has_code", "tools_used", "error_keywords"];
+    let required = [
+        "topics",
+        "languages",
+        "has_code",
+        "tools_used",
+        "error_keywords",
+    ];
     for field in &required {
         assert!(obj.contains_key(*field), "ChunkMetadata missing: {}", field);
     }

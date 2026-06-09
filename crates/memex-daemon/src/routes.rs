@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use memex_core::retriever::{Retriever, SearchFilter};
@@ -77,15 +77,16 @@ pub struct ListSessionsParams {
     pub limit: Option<usize>,
 }
 
-pub async fn get_session(
-    State(db): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+pub async fn get_session(State(db): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     match db.get_session_detail(&id) {
         Ok(Some(detail)) => Json(serde_json::json!(detail)).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({
-            "error": "session not found"
-        }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "session not found"
+            })),
+        )
+            .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
     }
 }
@@ -120,9 +121,13 @@ pub async fn get_config(
 ) -> impl IntoResponse {
     match db.kv_get(&params.key) {
         Ok(Some(v)) => Json(serde_json::json!({ "key": params.key, "value": v })).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({
-            "error": "key not found"
-        }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "key not found"
+            })),
+        )
+            .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
     }
 }
@@ -166,14 +171,14 @@ pub async fn timeline(
             let mut grouped: std::collections::BTreeMap<String, serde_json::Value> =
                 std::collections::BTreeMap::new();
             for e in &entries {
-                let day = grouped
-                    .entry(e.date.clone())
-                    .or_insert_with(|| serde_json::json!({
+                let day = grouped.entry(e.date.clone()).or_insert_with(|| {
+                    serde_json::json!({
                         "date": e.date,
                         "sessions": 0i64,
                         "messages": 0i64,
                         "by_adapter": {}
-                    }));
+                    })
+                });
                 if let Some(obj) = day.as_object_mut() {
                     *obj.entry("sessions").or_insert(serde_json::json!(0)) =
                         serde_json::json!(obj["sessions"].as_i64().unwrap_or(0) + e.sessions);

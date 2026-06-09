@@ -21,31 +21,45 @@ pub fn adapter_watch_dirs(memex_dir: &Path) -> Vec<PathBuf> {
 
     if config.adapters.claude_code {
         let p = home.join(".claude/projects");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.cursor {
         let p = home.join(".cursor/projects");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.codex {
         let p = home.join(".codex");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.opencode {
         let p = home.join(".opencode/sessions");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.aider {
         let p = home.join(".aider");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.continue_dev {
         let p = home.join(".continue");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
     if config.adapters.cline {
         let p = home.join(".cline");
-        if p.exists() { dirs.push(p); }
+        if p.exists() {
+            dirs.push(p);
+        }
     }
 
     dirs
@@ -58,12 +72,10 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
     let mut watcher: RecommendedWatcher =
         notify::recommended_watcher(move |res: notify::Result<Event>| {
             if let Ok(event) = res {
-                if matches!(
-                    event.kind,
-                    EventKind::Create(_) | EventKind::Modify(_)
-                ) {
+                if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
                     let dominated = event.paths.iter().any(|p| {
-                        p.extension().is_some_and(|ext| ext == "jsonl" || ext == "json")
+                        p.extension()
+                            .is_some_and(|ext| ext == "jsonl" || ext == "json")
                     });
                     if dominated {
                         let _ = watcher_tx.blocking_send(());
@@ -88,7 +100,10 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
         }
     }
 
-    info!("file watcher started, monitoring {} directories", watched.len());
+    info!(
+        "file watcher started, monitoring {} directories",
+        watched.len()
+    );
 
     let _watcher = watcher;
     tokio::spawn(async move {

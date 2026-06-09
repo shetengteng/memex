@@ -89,8 +89,8 @@ pub(super) fn read_json_or_empty(path: &Path) -> Result<serde_json::Value> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     if content.trim().is_empty() {
         return Ok(serde_json::json!({}));
     }

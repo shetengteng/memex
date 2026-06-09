@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use memex_core::config::MemexConfig;
-use memex_core::context::{build_context, search_by_project, ContextOptions, MatchTier};
+use memex_core::context::{ContextOptions, MatchTier, build_context, search_by_project};
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 
@@ -35,7 +35,10 @@ pub fn run(args: ContextArgs) -> Result<()> {
     // 数据库不存在 = 全新用户。打个友好 banner，让 AI 知道 Memex 还没有
     // 任何记忆可供注入，但不要报 error。
     if !db_path.exists() {
-        emit_empty(&args, "Memex 工作记忆尚未生成 —— 还没有任何 ingest 过的会话。");
+        emit_empty(
+            &args,
+            "Memex 工作记忆尚未生成 —— 还没有任何 ingest 过的会话。",
+        );
         return Ok(());
     }
 
@@ -49,11 +52,7 @@ pub fn run(args: ContextArgs) -> Result<()> {
 
     let project_path = match search_by_project(&db, &cwd)? {
         Some(m) => {
-            tracing::debug!(
-                "matched project_path={} tier={:?}",
-                m.project_path,
-                m.tier
-            );
+            tracing::debug!("matched project_path={} tier={:?}", m.project_path, m.tier);
             // Tier 1 / 2 都比较可靠；Tier 3 在 stderr 提示一下，方便用户在
             // hook 日志里发现"匹配错项目"的情况，但不打到 stdout 污染上下文。
             if matches!(m.tier, MatchTier::FuzzySubstring) {
@@ -77,9 +76,7 @@ pub fn run(args: ContextArgs) -> Result<()> {
         }
     };
 
-    let redact = args
-        .redact
-        .unwrap_or(cfg.privacy.redaction_enabled);
+    let redact = args.redact.unwrap_or(cfg.privacy.redaction_enabled);
 
     let md = build_context(
         &db,

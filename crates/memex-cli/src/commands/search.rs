@@ -21,10 +21,22 @@ pub fn run(
     let memex = memex_dir();
 
     if let Some(port) = daemon_client::daemon_port(&memex) {
-        return run_via_http(port, query, limit, json, &adapter, &project, &chunk_type, &after, &before);
+        return run_via_http(
+            port,
+            query,
+            limit,
+            json,
+            &adapter,
+            &project,
+            &chunk_type,
+            &after,
+            &before,
+        );
     }
 
-    run_direct(query, limit, json, adapter, project, chunk_type, after, before)
+    run_direct(
+        query, limit, json, adapter, project, chunk_type, after, before,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -40,11 +52,21 @@ fn run_via_http(
     before: &Option<String>,
 ) -> Result<()> {
     let mut params = format!("/search?q={}&limit={}", urlenc(query), limit);
-    if let Some(a) = adapter { params.push_str(&format!("&adapter={}", urlenc(a))); }
-    if let Some(p) = project { params.push_str(&format!("&project={}", urlenc(p))); }
-    if let Some(c) = chunk_type { params.push_str(&format!("&chunk_type={}", urlenc(c))); }
-    if let Some(a) = after { params.push_str(&format!("&after={}", urlenc(a))); }
-    if let Some(b) = before { params.push_str(&format!("&before={}", urlenc(b))); }
+    if let Some(a) = adapter {
+        params.push_str(&format!("&adapter={}", urlenc(a)));
+    }
+    if let Some(p) = project {
+        params.push_str(&format!("&project={}", urlenc(p)));
+    }
+    if let Some(c) = chunk_type {
+        params.push_str(&format!("&chunk_type={}", urlenc(c)));
+    }
+    if let Some(a) = after {
+        params.push_str(&format!("&after={}", urlenc(a)));
+    }
+    if let Some(b) = before {
+        params.push_str(&format!("&before={}", urlenc(b)));
+    }
 
     let start = Instant::now();
     match daemon_client::http_get_json(port, &params) {
@@ -56,7 +78,12 @@ fn run_via_http(
                 if results.is_empty() {
                     println!("No results for \"{}\"", query);
                 } else {
-                    println!("Found {} result(s) for \"{}\" ({} ms, via daemon):\n", results.len(), query, latency);
+                    println!(
+                        "Found {} result(s) for \"{}\" ({} ms, via daemon):\n",
+                        results.len(),
+                        query,
+                        latency
+                    );
                     for (i, r) in results.iter().enumerate() {
                         let sid = r.get("session_id").and_then(|v| v.as_str()).unwrap_or("?");
                         let prefix = &sid[..8.min(sid.len())];
@@ -72,12 +99,16 @@ fn run_via_http(
             }
             Ok(())
         }
-        Err(_) => {
-            run_direct(
-                query, limit, json,
-                adapter.clone(), project.clone(), chunk_type.clone(), after.clone(), before.clone(),
-            )
-        }
+        Err(_) => run_direct(
+            query,
+            limit,
+            json,
+            adapter.clone(),
+            project.clone(),
+            chunk_type.clone(),
+            after.clone(),
+            before.clone(),
+        ),
     }
 }
 
@@ -95,7 +126,10 @@ fn run_direct(
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            println!("{}", serde_json::json!({"results": [], "error": "database not found, run `memex ingest` first"}));
+            println!(
+                "{}",
+                serde_json::json!({"results": [], "error": "database not found, run `memex ingest` first"})
+            );
         } else {
             eprintln!("Database not found. Run `memex ingest` first.");
         }
@@ -104,7 +138,14 @@ fn run_direct(
 
     let db = Db::open(&db_path)?;
     let retriever = Retriever::new(&db);
-    let filter = SearchFilter { adapter, project, session_id: None, chunk_type, after, before };
+    let filter = SearchFilter {
+        adapter,
+        project,
+        session_id: None,
+        chunk_type,
+        after,
+        before,
+    };
 
     let start = Instant::now();
     let results = retriever.search_filtered(query, limit, &filter)?;
@@ -118,7 +159,12 @@ fn run_direct(
     } else if results.is_empty() {
         println!("No results for \"{}\"", query);
     } else {
-        println!("Found {} result(s) for \"{}\" ({} ms):\n", results.len(), query, latency);
+        println!(
+            "Found {} result(s) for \"{}\" ({} ms):\n",
+            results.len(),
+            query,
+            latency
+        );
         for (i, r) in results.iter().enumerate() {
             let prefix = &r.session_id[..8.min(r.session_id.len())];
             let src = r.adapter.as_deref().unwrap_or("?");
@@ -132,5 +178,7 @@ fn run_direct(
 }
 
 fn urlenc(s: &str) -> String {
-    s.replace(' ', "%20").replace('&', "%26").replace('=', "%3D")
+    s.replace(' ', "%20")
+        .replace('&', "%26")
+        .replace('=', "%3D")
 }

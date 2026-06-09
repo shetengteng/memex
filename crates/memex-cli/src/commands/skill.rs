@@ -31,8 +31,16 @@ fn dest_path(ide: Ide) -> PathBuf {
     let home = dirs::home_dir().expect("cannot determine home directory");
     match ide {
         // Cursor / Claude Code 都用 skills/<name>/SKILL.md 约定。
-        Ide::Cursor => home.join(".cursor").join("skills").join("memex").join("SKILL.md"),
-        Ide::ClaudeCode => home.join(".claude").join("skills").join("memex").join("SKILL.md"),
+        Ide::Cursor => home
+            .join(".cursor")
+            .join("skills")
+            .join("memex")
+            .join("SKILL.md"),
+        Ide::ClaudeCode => home
+            .join(".claude")
+            .join("skills")
+            .join("memex")
+            .join("SKILL.md"),
         // Codex 没有 skills 目录，用 prompts/<name>.md（通过 `/<name>` 调用）。
         Ide::Codex => home.join(".codex").join("prompts").join("memex.md"),
         // OpenCode 用 commands/<name>.md（也是 slash command）。
@@ -99,11 +107,13 @@ pub fn status(ide: Ide) -> Result<SkillStatus> {
 pub fn list_status() -> Vec<SkillStatus> {
     Ide::all()
         .iter()
-        .map(|ide| status(*ide).unwrap_or_else(|_| SkillStatus {
-            ide: ide.as_str().to_string(),
-            dest_path: dest_path(*ide).to_string_lossy().to_string(),
-            installed: false,
-            size: None,
-        }))
+        .map(|ide| {
+            status(*ide).unwrap_or_else(|_| SkillStatus {
+                ide: ide.as_str().to_string(),
+                dest_path: dest_path(*ide).to_string_lossy().to_string(),
+                installed: false,
+                size: None,
+            })
+        })
         .collect()
 }

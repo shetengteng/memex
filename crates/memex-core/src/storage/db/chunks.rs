@@ -52,7 +52,11 @@ impl Db {
         Ok(())
     }
 
-    pub fn chunks_without_summary(&self, min_token_count: u32, limit: usize) -> Result<Vec<(i64, String, String)>> {
+    pub fn chunks_without_summary(
+        &self,
+        min_token_count: u32,
+        limit: usize,
+    ) -> Result<Vec<(i64, String, String)>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, content, redacted_content FROM chunks

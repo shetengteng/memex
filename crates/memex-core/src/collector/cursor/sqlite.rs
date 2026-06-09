@@ -164,9 +164,10 @@ impl CursorSqliteAdapter {
                 Some(WorkspaceIdentifier { uri: Some(u), .. }) => {
                     u.fs_path.or(u.path).filter(|s| !s.is_empty())
                 }
-                Some(WorkspaceIdentifier { config_path: Some(ref cp), .. }) => {
-                    config_path_to_project(cp)
-                }
+                Some(WorkspaceIdentifier {
+                    config_path: Some(ref cp),
+                    ..
+                }) => config_path_to_project(cp),
                 _ => None,
             };
             out.insert(
@@ -252,10 +253,21 @@ fn value_ref_to_string(value: ValueRef<'_>) -> Option<String> {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case", tag = "status")]
 pub enum CursorSqliteProbe {
-    Ok { composer_count: i64, db_path: String },
-    NotFound { db_path: String },
-    PermissionDenied { db_path: String, message: String },
-    Error { db_path: String, message: String },
+    Ok {
+        composer_count: i64,
+        db_path: String,
+    },
+    NotFound {
+        db_path: String,
+    },
+    PermissionDenied {
+        db_path: String,
+        message: String,
+    },
+    Error {
+        db_path: String,
+        message: String,
+    },
 }
 
 impl CursorSqliteAdapter {
@@ -366,16 +378,20 @@ impl Adapter for CursorSqliteAdapter {
                 0
             };
             let created_ms = composer.created_at.unwrap_or(0);
-            let created_secs = if created_ms > 0 { (created_ms / 1000) as u64 } else { 0 };
+            let created_secs = if created_ms > 0 {
+                (created_ms / 1000) as u64
+            } else {
+                0
+            };
 
             // composer.name 历来被错放进 project_path —— 实际是对话标题。
             // 新版 Cursor 把它和 workspaceIdentifier 都搬去了 composerHeaders，
             // 所以这里以 enrichment 为准；enrichment 缺失时退回 composer.name
             // 当 title（至少给 UI 留下可读字符串），project_path 留空。
             let enrichment = enrichments.get(&composer_id).cloned().unwrap_or_default();
-            let project_path = enrichment.project_path.or_else(|| {
-                infer_project_from_raw_json(&text)
-            });
+            let project_path = enrichment
+                .project_path
+                .or_else(|| infer_project_from_raw_json(&text));
             let title = enrichment.title.or_else(|| {
                 composer
                     .name
@@ -536,19 +552,28 @@ fn infer_project_from_raw_json(raw: &str) -> Option<String> {
             if let Some(path) = uri.strip_prefix("file://") {
                 let decoded = percent_decode(path);
                 let p = std::path::Path::new(&decoded);
-                let dir = p.parent()
+                let dir = p
+                    .parent()
                     .map(|d| d.to_string_lossy().to_string())
                     .unwrap_or_default();
-                if dir.is_empty() { continue; }
-                if dir.contains("/.cursor/") || dir.contains("\\.cursor\\") { continue; }
+                if dir.is_empty() {
+                    continue;
+                }
+                if dir.contains("/.cursor/") || dir.contains("\\.cursor\\") {
+                    continue;
+                }
                 if !dirs.contains(&dir) {
                     dirs.push(dir);
-                    if dirs.len() >= 10 { break; }
+                    if dirs.len() >= 10 {
+                        break;
+                    }
                 }
             }
         }
     }
-    if dirs.is_empty() { return None; }
+    if dirs.is_empty() {
+        return None;
+    }
     find_common_ancestor(&dirs)
 }
 
@@ -558,9 +583,7 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(
-                &s[i + 1..i + 3], 16,
-            ) {
+            if let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
                 out.push(byte);
                 i += 3;
                 continue;
@@ -577,10 +600,16 @@ fn percent_decode(s: &str) -> String {
 const MIN_ANCESTOR_DEPTH: usize = 4;
 
 fn find_common_ancestor(dirs: &[String]) -> Option<String> {
-    if dirs.is_empty() { return None; }
+    if dirs.is_empty() {
+        return None;
+    }
     if dirs.len() == 1 {
         let depth = std::path::Path::new(&dirs[0]).components().count();
-        return if depth >= MIN_ANCESTOR_DEPTH { Some(dirs[0].clone()) } else { None };
+        return if depth >= MIN_ANCESTOR_DEPTH {
+            Some(dirs[0].clone())
+        } else {
+            None
+        };
     }
     let first = std::path::Path::new(&dirs[0]);
     let components: Vec<_> = first.components().collect();
@@ -588,16 +617,23 @@ fn find_common_ancestor(dirs: &[String]) -> Option<String> {
     for dir in &dirs[1..] {
         let p = std::path::Path::new(dir);
         let p_comps: Vec<_> = p.components().collect();
-        let matching = components.iter()
+        let matching = components
+            .iter()
             .zip(p_comps.iter())
             .take_while(|(a, b)| a == b)
             .count();
         common_len = common_len.min(matching);
     }
-    if common_len < MIN_ANCESTOR_DEPTH { return None; }
+    if common_len < MIN_ANCESTOR_DEPTH {
+        return None;
+    }
     let ancestor: std::path::PathBuf = components[..common_len].iter().collect();
     let s = ancestor.to_string_lossy().to_string();
-    if s.is_empty() || s == "/" { None } else { Some(s) }
+    if s.is_empty() || s == "/" {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// Extract a project path from a multi-folder workspace `configPath`.
@@ -608,12 +644,11 @@ fn find_common_ancestor(dirs: &[String]) -> Option<String> {
 fn config_path_to_project(val: &serde_json::Value) -> Option<String> {
     let raw = match val {
         serde_json::Value::String(s) => Some(s.clone()),
-        serde_json::Value::Object(obj) => {
-            obj.get("fsPath")
-                .or_else(|| obj.get("path"))
-                .and_then(|v| v.as_str())
-                .map(String::from)
-        }
+        serde_json::Value::Object(obj) => obj
+            .get("fsPath")
+            .or_else(|| obj.get("path"))
+            .and_then(|v| v.as_str())
+            .map(String::from),
         _ => None,
     };
     let raw = raw.filter(|s| !s.is_empty())?;
@@ -621,7 +656,9 @@ fn config_path_to_project(val: &serde_json::Value) -> Option<String> {
         return None;
     }
     let p = std::path::Path::new(&raw);
-    p.parent().map(|d| d.to_string_lossy().to_string()).filter(|s| !s.is_empty())
+    p.parent()
+        .map(|d| d.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn bubble_content(bubble: &Bubble) -> Option<String> {

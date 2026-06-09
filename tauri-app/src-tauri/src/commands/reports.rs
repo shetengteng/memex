@@ -8,7 +8,10 @@ use memex_core::memex_dir;
 use memex_core::storage::db::{AggregateSummaryRow, Db};
 
 #[tauri::command]
-pub async fn list_reports(scope: String, limit: Option<u32>) -> Result<Vec<AggregateSummaryRow>, String> {
+pub async fn list_reports(
+    scope: String,
+    limit: Option<u32>,
+) -> Result<Vec<AggregateSummaryRow>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
@@ -21,7 +24,10 @@ pub async fn list_reports(scope: String, limit: Option<u32>) -> Result<Vec<Aggre
 /// scope: "daily" | "weekly" | "monthly" — 生成最新的
 /// scope_key: 可选，如 "daily:2026-06-04" / "monthly:2026-06" — 重新生成指定的
 #[tauri::command]
-pub async fn regenerate_report(scope: String, scope_key: Option<String>) -> Result<Option<AggregateSummaryRow>, String> {
+pub async fn regenerate_report(
+    scope: String,
+    scope_key: Option<String>,
+) -> Result<Option<AggregateSummaryRow>, String> {
     let memex = memex_dir();
     let db_path = memex.join("memex.db");
     if !db_path.exists() {
@@ -29,12 +35,12 @@ pub async fn regenerate_report(scope: String, scope_key: Option<String>) -> Resu
     }
     let db = Db::open(&db_path).map_err(|e| e.to_string())?;
     let cfg = MemexConfig::load(&memex).map_err(|e| e.to_string())?;
-    let provider = select_provider_unified(&db, &cfg.llm, &memex)
-        .ok_or_else(|| "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string())?;
+    let provider = select_provider_unified(&db, &cfg.llm, &memex).ok_or_else(|| {
+        "未配置 LLM 提供方，请在设置中启用 Ollama 或自定义 LLM 提供商".to_string()
+    })?;
 
     if let Some(key) = scope_key {
-        return regenerate_report_by_key(&db, provider.as_ref(), &key)
-            .map_err(|e| e.to_string());
+        return regenerate_report_by_key(&db, provider.as_ref(), &key).map_err(|e| e.to_string());
     }
 
     match scope.as_str() {

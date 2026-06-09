@@ -4,8 +4,8 @@ use memex_core::llm::build_provider_from_row;
 use memex_core::llm::openai_compat::OpenAiCompatProvider;
 use memex_core::llm::provider::LlmRequest;
 use memex_core::memex_dir;
-use memex_core::storage::db::providers::{LlmProviderRow, LlmProviderUpsert};
 use memex_core::storage::db::Db;
+use memex_core::storage::db::providers::{LlmProviderRow, LlmProviderUpsert};
 use serde::Serialize;
 
 fn open_db() -> Result<Db, String> {
@@ -177,10 +177,7 @@ fn run_list_models(kind: &str, base_url: &str, api_key: &str) -> Result<Vec<Stri
             provider.list_models().map_err(|e| e.to_string())
         }
         "ollama" => {
-            let url = format!(
-                "{}/api/tags",
-                base_url.trim_end_matches('/')
-            );
+            let url = format!("{}/api/tags", base_url.trim_end_matches('/'));
             let mut resp = ureq::get(&url)
                 .call()
                 .map_err(|e| format!("Cannot reach Ollama: {}", e))?;

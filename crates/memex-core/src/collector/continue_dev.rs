@@ -76,13 +76,15 @@ impl ContinueAdapter {
 }
 
 fn workspace_to_project(ws: &str) -> Option<String> {
-    ws.strip_prefix("file://").map(|s| s.to_string()).or_else(|| {
-        if ws.is_empty() {
-            None
-        } else {
-            Some(ws.to_string())
-        }
-    })
+    ws.strip_prefix("file://")
+        .map(|s| s.to_string())
+        .or_else(|| {
+            if ws.is_empty() {
+                None
+            } else {
+                Some(ws.to_string())
+            }
+        })
 }
 
 impl Adapter for ContinueAdapter {
@@ -193,17 +195,13 @@ impl Adapter for ContinueAdapter {
                 continue;
             }
 
-            let id = msg
-                .id
-                .clone()
-                .unwrap_or_else(|| {
-                    blake3::hash(
-                        format!("{}{}{}", session.id, i, super::safe_prefix(&text, 100))
-                            .as_bytes(),
-                    )
-                    .to_hex()
-                    .to_string()
-                });
+            let id = msg.id.clone().unwrap_or_else(|| {
+                blake3::hash(
+                    format!("{}{}{}", session.id, i, super::safe_prefix(&text, 100)).as_bytes(),
+                )
+                .to_hex()
+                .to_string()
+            });
 
             messages.push(RawMessage {
                 id,

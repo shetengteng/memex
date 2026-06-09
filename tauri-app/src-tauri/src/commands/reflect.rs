@@ -14,7 +14,7 @@ use serde::Serialize;
 use memex_core::config::MemexConfig;
 use memex_core::llm::select_provider_unified;
 use memex_core::memex_dir;
-use memex_core::reflect::{run_reflect, today_utc, ReflectPeriod};
+use memex_core::reflect::{ReflectPeriod, run_reflect, today_utc};
 use memex_core::storage::db::Db;
 
 #[derive(Debug, Serialize)]
@@ -100,8 +100,9 @@ pub async fn reflect_run(period: String) -> Result<ReflectRunResult, String> {
         let memex = memex_dir();
         let db = Db::open(&memex.join("memex.db")).map_err(|e| e.to_string())?;
         let config = MemexConfig::load(&memex).unwrap_or_default();
-        let provider = select_provider_unified(&db, &config.llm, &memex)
-            .ok_or_else(|| "没有可用的 LLM provider（先到 Settings → LLM Providers 注册）".to_string())?;
+        let provider = select_provider_unified(&db, &config.llm, &memex).ok_or_else(|| {
+            "没有可用的 LLM provider（先到 Settings → LLM Providers 注册）".to_string()
+        })?;
 
         let artifacts = run_reflect(
             &db,

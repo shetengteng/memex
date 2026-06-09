@@ -4,7 +4,11 @@ use memex_core::storage::db::Db;
 use memex_core::storage::models::SearchResult;
 
 #[tauri::command]
-pub async fn search_memex(query: String, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<SearchResult>, String> {
+pub async fn search_memex(
+    query: String,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<Vec<SearchResult>, String> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);

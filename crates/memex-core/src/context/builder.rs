@@ -70,9 +70,7 @@ pub fn collect_project_context(
 ) -> Result<ProjectContext> {
     let all_sessions = db.list_sessions_by_project(project_path)?;
     let total = all_sessions.len() as i64;
-    let last_active = all_sessions
-        .first()
-        .map(|s| short_date(&s.updated_at));
+    let last_active = all_sessions.first().map(|s| short_date(&s.updated_at));
 
     // 过滤掉信息量为零的 session（没标题、没 summary、没 intent、且 first_user_message
     // 是 noise 模板）—— 让"近期会话"块只展示有价值的内容，而不是把空骨架占进 top_n。
@@ -119,10 +117,11 @@ pub fn collect_project_context(
         }
     };
 
-    let (project_summary, project_topics) = match db.get_aggregate_summary("project", project_path)? {
-        Some(row) => (Some(row.summary), row.topics),
-        None => (None, vec![]),
-    };
+    let (project_summary, project_topics) =
+        match db.get_aggregate_summary("project", project_path)? {
+            Some(row) => (Some(row.summary), row.topics),
+            None => (None, vec![]),
+        };
 
     let mut recent = Vec::new();
     for s in sessions.iter().take(top_n) {
@@ -188,7 +187,11 @@ pub fn render_markdown(ctx: &ProjectContext) -> String {
             .unwrap_or_default()
     ));
 
-    if let Some(summary) = ctx.project_summary.as_ref().filter(|s| !s.trim().is_empty()) {
+    if let Some(summary) = ctx
+        .project_summary
+        .as_ref()
+        .filter(|s| !s.trim().is_empty())
+    {
         out.push_str(&format!("概览：{}\n", first_paragraph(summary, 240)));
     } else if !ctx.recent_sessions.is_empty() {
         // 没有 L3 摘要时，用最近若干会话的标题拼一行 fallback。
@@ -255,11 +258,7 @@ pub fn render_markdown(ctx: &ProjectContext) -> String {
 }
 
 /// CLI / MCP 都走这个入口。
-pub fn build_context(
-    db: &Db,
-    project_path: &str,
-    opts: &ContextOptions,
-) -> Result<String> {
+pub fn build_context(db: &Db, project_path: &str, opts: &ContextOptions) -> Result<String> {
     let ctx = collect_project_context(db, project_path, opts.top_n)?;
     let mut md = render_markdown(&ctx);
     if opts.redact {
@@ -339,37 +338,55 @@ mod tests {
 
     fn seed(db: &Db, project_path: &str) {
         db.insert_session(
-            "s1", "claude_code", Some(project_path), "/f1.jsonl",
-            1717000000, 1717010000,
-        ).unwrap();
+            "s1",
+            "claude_code",
+            Some(project_path),
+            "/f1.jsonl",
+            1717000000,
+            1717010000,
+        )
+        .unwrap();
         db.insert_session(
-            "s2", "cursor", Some(project_path), "/f2.jsonl",
-            1717100000, 1717110000,
-        ).unwrap();
+            "s2",
+            "cursor",
+            Some(project_path),
+            "/f2.jsonl",
+            1717100000,
+            1717110000,
+        )
+        .unwrap();
         let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
         // s1: 第一条 user 消息 + 2 条 assistant，便于触发 message_count >= 2
-        db.insert_message("m1", "s1", "user", "fix the login bug", None, 0, &h("a")).unwrap();
-        db.insert_message("m2", "s1", "assistant", "ok", None, 1, &h("b")).unwrap();
-        db.insert_message("m3", "s2", "user", "design the migration", None, 0, &h("c")).unwrap();
-        db.insert_message("m4", "s2", "assistant", "ack", None, 1, &h("d")).unwrap();
+        db.insert_message("m1", "s1", "user", "fix the login bug", None, 0, &h("a"))
+            .unwrap();
+        db.insert_message("m2", "s1", "assistant", "ok", None, 1, &h("b"))
+            .unwrap();
+        db.insert_message("m3", "s2", "user", "design the migration", None, 0, &h("c"))
+            .unwrap();
+        db.insert_message("m4", "s2", "assistant", "ack", None, 1, &h("d"))
+            .unwrap();
 
         db.upsert_summary(
-            "s1", "L2_session",
+            "s1",
+            "L2_session",
             Some("Fix login bug"),
             "Fixed the JWT parser when audience claim is missing.",
             &["auth".into(), "jwt".into()],
             &["use RS256".into()],
             /* message_count_at_creation */ 2,
-        ).unwrap();
+        )
+        .unwrap();
 
         db.upsert_aggregate_summary(
-            "project", project_path,
+            "project",
+            project_path,
             Some("My Project"),
             "Project-wide work on Memex —— Rust + Tauri + Vue.",
             &["memex".into(), "rust".into()],
             &[],
             5,
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     #[test]
@@ -400,8 +417,12 @@ mod tests {
         let md = build_context(
             &db,
             "/Users/me/work/memex",
-            &ContextOptions { top_n: 3, redact: false },
-        ).unwrap();
+            &ContextOptions {
+                top_n: 3,
+                redact: false,
+            },
+        )
+        .unwrap();
 
         assert!(md.starts_with("**Memex 工作记忆**"), "缺少 banner:\n{}", md);
         assert!(md.contains("**memex**"), "缺少项目名:\n{}", md);
@@ -413,11 +434,16 @@ mod tests {
             "应以 list 形式渲染标题:\n{}",
             md,
         );
-        assert!(md.contains("关注：fix the login bug"), "应用关注字段渲染最后提示:\n{}", md);
+        assert!(
+            md.contains("关注：fix the login bug"),
+            "应用关注字段渲染最后提示:\n{}",
+            md
+        );
         assert!(md.contains("已决定：use RS256"), "缺少 decisions:\n{}", md);
         assert!(
             md.contains("memex hooks uninstall"),
-            "缺少 opt-out 提示，避免用户找不到怎么关:\n{}", md,
+            "缺少 opt-out 提示，避免用户找不到怎么关:\n{}",
+            md,
         );
     }
 
@@ -427,31 +453,41 @@ mod tests {
     #[test]
     fn render_filters_noise_first_user_message() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session(
-            "s1", "claude_code", Some("/work/foo"), "/f.jsonl", 0, 0,
-        ).unwrap();
+        db.insert_session("s1", "claude_code", Some("/work/foo"), "/f.jsonl", 0, 0)
+            .unwrap();
         let h = blake3::hash(b"x").to_hex().to_string();
         // 标题 fallback 用 first_user_message 时会被 "=== Role ===" 污染。
         // 但是同时给一个 L2 摘要标题，让 session 仍然有 signal 不被整体过滤。
         db.insert_message(
-            "m1", "s1", "user",
+            "m1",
+            "s1",
+            "user",
             "=== Role ===\n你是 Pilot Transition agent。\n=== Task ===\n做事。",
-            None, 0, &h,
-        ).unwrap();
+            None,
+            0,
+            &h,
+        )
+        .unwrap();
         db.upsert_summary(
-            "s1", "L2_session",
+            "s1",
+            "L2_session",
             Some("推进 JIRA 状态"),
             "对 ZOOM-1269895 做 In Progress → Ready for Review 推进。",
             &["jira".into()],
             &[],
             2,
-        ).unwrap();
+        )
+        .unwrap();
 
         let md = build_context(
             &db,
             "/work/foo",
-            &ContextOptions { top_n: 3, redact: false },
-        ).unwrap();
+            &ContextOptions {
+                top_n: 3,
+                redact: false,
+            },
+        )
+        .unwrap();
 
         assert!(
             !md.contains("=== Role ==="),
@@ -472,26 +508,50 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         // s1 全噪音：会被过滤掉
         db.insert_session(
-            "s1", "claude_code", Some("/work/bar"), "/f1.jsonl", 1717000000, 1717010000,
-        ).unwrap();
+            "s1",
+            "claude_code",
+            Some("/work/bar"),
+            "/f1.jsonl",
+            1717000000,
+            1717010000,
+        )
+        .unwrap();
         let h1 = blake3::hash(b"a").to_hex().to_string();
-        db.insert_message("m1", "s1", "user", "=== Role ===", None, 0, &h1).unwrap();
+        db.insert_message("m1", "s1", "user", "=== Role ===", None, 0, &h1)
+            .unwrap();
         // s2 有标题：保留
         db.insert_session(
-            "s2", "claude_code", Some("/work/bar"), "/f2.jsonl", 1717100000, 1717110000,
-        ).unwrap();
+            "s2",
+            "claude_code",
+            Some("/work/bar"),
+            "/f2.jsonl",
+            1717100000,
+            1717110000,
+        )
+        .unwrap();
         let h2 = blake3::hash(b"b").to_hex().to_string();
-        db.insert_message("m2", "s2", "user", "real question", None, 0, &h2).unwrap();
+        db.insert_message("m2", "s2", "user", "real question", None, 0, &h2)
+            .unwrap();
         db.upsert_summary(
-            "s2", "L2_session", Some("有标题的 session"),
-            "summary", &[], &[], 1,
-        ).unwrap();
+            "s2",
+            "L2_session",
+            Some("有标题的 session"),
+            "summary",
+            &[],
+            &[],
+            1,
+        )
+        .unwrap();
 
         let md = build_context(
             &db,
             "/work/bar",
-            &ContextOptions { top_n: 3, redact: false },
-        ).unwrap();
+            &ContextOptions {
+                top_n: 3,
+                redact: false,
+            },
+        )
+        .unwrap();
 
         // 总会话数仍按全量计算（让用户看到完整规模），但 list 里不再展示 s1。
         assert!(md.contains("2 个会话"), "总数应统计全量:\n{}", md);
@@ -503,25 +563,44 @@ mod tests {
     #[test]
     fn render_prefers_intent_over_first_user_message() {
         let db = Db::open_in_memory().unwrap();
-        db.insert_session(
-            "s1", "cursor", Some("/work/baz"), "/f.jsonl", 0, 0,
-        ).unwrap();
+        db.insert_session("s1", "cursor", Some("/work/baz"), "/f.jsonl", 0, 0)
+            .unwrap();
         let h = blake3::hash(b"x").to_hex().to_string();
-        db.insert_message("m1", "s1", "user", "原始提问相对啰嗦的版本", None, 0, &h).unwrap();
+        db.insert_message("m1", "s1", "user", "原始提问相对啰嗦的版本", None, 0, &h)
+            .unwrap();
         db.upsert_summary(
-            "s1", "L2_session", Some("修 bug"),
-            "做事的 summary", &[], &[], 1,
-        ).unwrap();
-        db.update_session_intent("s1", Some("修复登录 bug")).unwrap();
+            "s1",
+            "L2_session",
+            Some("修 bug"),
+            "做事的 summary",
+            &[],
+            &[],
+            1,
+        )
+        .unwrap();
+        db.update_session_intent("s1", Some("修复登录 bug"))
+            .unwrap();
 
         let md = build_context(
             &db,
             "/work/baz",
-            &ContextOptions { top_n: 3, redact: false },
-        ).unwrap();
+            &ContextOptions {
+                top_n: 3,
+                redact: false,
+            },
+        )
+        .unwrap();
 
-        assert!(md.contains("关注：修复登录 bug"), "应优先用 intent:\n{}", md);
-        assert!(!md.contains("关注：原始提问相对啰嗦"), "intent 在时不应用 first_user_message:\n{}", md);
+        assert!(
+            md.contains("关注：修复登录 bug"),
+            "应优先用 intent:\n{}",
+            md
+        );
+        assert!(
+            !md.contains("关注：原始提问相对啰嗦"),
+            "intent 在时不应用 first_user_message:\n{}",
+            md
+        );
     }
 
     #[test]
@@ -549,19 +628,26 @@ mod tests {
     fn render_handles_project_without_l2_summaries() {
         // 没有 L3 也没有 L2 时，至少要靠 title / first_user_message 兜底
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "cursor", Some("/work/foo"), "/f.jsonl", 0, 0).unwrap();
+        db.insert_session("s1", "cursor", Some("/work/foo"), "/f.jsonl", 0, 0)
+            .unwrap();
         let h = blake3::hash(b"x").to_hex().to_string();
-        db.insert_message("m1", "s1", "user", "explore the design", None, 0, &h).unwrap();
+        db.insert_message("m1", "s1", "user", "explore the design", None, 0, &h)
+            .unwrap();
 
         let md = build_context(
             &db,
             "/work/foo",
-            &ContextOptions { top_n: 3, redact: false },
-        ).unwrap();
+            &ContextOptions {
+                top_n: 3,
+                redact: false,
+            },
+        )
+        .unwrap();
         assert!(md.contains("1 个会话"));
         assert!(
             md.contains("explore the design"),
-            "fallback 应当用 first_user_message:\n{}", md,
+            "fallback 应当用 first_user_message:\n{}",
+            md,
         );
     }
 }

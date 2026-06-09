@@ -17,9 +17,9 @@ mod schema;
 mod sessions;
 mod sources;
 mod summaries;
-mod threads;
 #[cfg(test)]
 mod tests;
+mod threads;
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -110,10 +110,7 @@ impl Db {
                     UNIQUE(scope_type, scope_key)
                 );",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![2u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![2u32])?;
         }
         if from < 3 {
             // v3：为 popup 的 list_sessions_paged 热路径加索引
@@ -127,10 +124,7 @@ impl Db {
                  CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
                     ON sessions(updated_at DESC);",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![3u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![3u32])?;
         }
         if from < 4 {
             conn.execute_batch(
@@ -148,10 +142,7 @@ impl Db {
                     updated_at TEXT NOT NULL
                 );",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![4u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![4u32])?;
         }
         if from < 5 {
             // v5: 给 summaries 加 message_count_at_creation 字段，
@@ -177,20 +168,14 @@ impl Db {
                     [],
                 )?;
             }
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![5u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![5u32])?;
         }
         if from < 6 {
             conn.execute_batch(
                 "CREATE INDEX IF NOT EXISTS idx_chunks_has_summary
                     ON chunks(id) WHERE summary IS NOT NULL;",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![6u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![6u32])?;
         }
         if from < 7 {
             // v7：sessions 表新增 intent 列。存量行该列为 NULL，等下次
@@ -203,10 +188,7 @@ impl Db {
             if !has_col {
                 conn.execute_batch("ALTER TABLE sessions ADD COLUMN intent TEXT;")?;
             }
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![7u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![7u32])?;
         }
         if from < 8 {
             // v8：在 messages(timestamp) 上加局部索引。
@@ -219,10 +201,7 @@ impl Db {
                 "CREATE INDEX IF NOT EXISTS idx_messages_timestamp
                     ON messages(timestamp) WHERE timestamp IS NOT NULL;",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![8u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![8u32])?;
         }
         if from < 9 {
             // v9：补齐两个本来应该早就在的热路径索引。
@@ -241,10 +220,7 @@ impl Db {
                  CREATE INDEX IF NOT EXISTS idx_messages_content_dedup
                     ON messages(content_hash, session_id);",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![9u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![9u32])?;
         }
         if from < 10 {
             // v10：新增 threads + thread_sessions N:N 中间表，用于 L5
@@ -274,10 +250,7 @@ impl Db {
                  CREATE INDEX IF NOT EXISTS idx_threads_updated_at
                     ON threads(updated_at DESC);",
             )?;
-            conn.execute(
-                "UPDATE schema_version SET version = ?1",
-                params![10u32],
-            )?;
+            conn.execute("UPDATE schema_version SET version = ?1", params![10u32])?;
         }
         Ok(())
     }

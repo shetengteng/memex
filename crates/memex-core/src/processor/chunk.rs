@@ -125,7 +125,10 @@ fn is_section_boundary(line: &str) -> bool {
         return true;
     }
     let lower = trimmed.to_lowercase();
-    if lower.starts_with("summary") || lower.starts_with("conclusion") || lower.starts_with("solution") {
+    if lower.starts_with("summary")
+        || lower.starts_with("conclusion")
+        || lower.starts_with("solution")
+    {
         return true;
     }
     false
@@ -243,6 +246,10 @@ Here is the implementation:\n\
 This approach eliminates the deadlock while maintaining correctness.\n";
         let msg = make_msg(content);
         let chunks = split_into_chunks(&msg).unwrap();
-        assert!(chunks.len() >= 3, "expected >= 3 chunks, got {}", chunks.len());
+        assert!(
+            chunks.len() >= 3,
+            "expected >= 3 chunks, got {}",
+            chunks.len()
+        );
     }
 }

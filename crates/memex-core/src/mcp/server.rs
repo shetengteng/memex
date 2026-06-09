@@ -311,7 +311,7 @@ fn tool_get_project_context(
     db: &Db,
     args: &serde_json::Value,
 ) -> std::result::Result<String, String> {
-    use crate::context::{build_context, search_by_project, ContextOptions};
+    use crate::context::{ContextOptions, build_context, search_by_project};
     use std::path::PathBuf;
 
     let top = args.get("top").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
@@ -343,8 +343,12 @@ fn tool_get_project_context(
     let md = build_context(
         db,
         &project_path,
-        &ContextOptions { top_n: top, redact: true },
-    ).map_err(|e| e.to_string())?;
+        &ContextOptions {
+            top_n: top,
+            redact: true,
+        },
+    )
+    .map_err(|e| e.to_string())?;
     Ok(md)
 }
 

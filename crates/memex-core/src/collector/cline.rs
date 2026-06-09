@@ -43,12 +43,18 @@ impl ClineAdapter {
         {
             if let Some(support) = dirs::data_dir() {
                 // VS Code 下的 Cline 任务目录
-                let vsc = support.join("Code/User/globalStorage").join(EXTENSION_ID).join("tasks");
+                let vsc = support
+                    .join("Code/User/globalStorage")
+                    .join(EXTENSION_ID)
+                    .join("tasks");
                 if vsc.exists() {
                     task_dirs.push(vsc);
                 }
                 // Cursor 下的 Cline 任务目录
-                let cursor = support.join("Cursor/User/globalStorage").join(EXTENSION_ID).join("tasks");
+                let cursor = support
+                    .join("Cursor/User/globalStorage")
+                    .join(EXTENSION_ID)
+                    .join("tasks");
                 if cursor.exists() {
                     task_dirs.push(cursor);
                 }
@@ -58,7 +64,10 @@ impl ClineAdapter {
         #[cfg(target_os = "linux")]
         {
             if let Some(config) = dirs::config_dir() {
-                let vsc = config.join("Code/User/globalStorage").join(EXTENSION_ID).join("tasks");
+                let vsc = config
+                    .join("Code/User/globalStorage")
+                    .join(EXTENSION_ID)
+                    .join("tasks");
                 if vsc.exists() {
                     task_dirs.push(vsc);
                 }

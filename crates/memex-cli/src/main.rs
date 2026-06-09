@@ -5,11 +5,7 @@ use tracing_subscriber::EnvFilter;
 mod commands;
 
 #[derive(Parser)]
-#[command(
-    name = "memex",
-    version,
-    about = "本地优先的跨 LLM 会话记忆中枢"
-)]
+#[command(name = "memex", version, about = "本地优先的跨 LLM 会话记忆中枢")]
 struct Cli {
     #[arg(long, global = true, help = "以 JSON 格式输出结果")]
     json: bool,
@@ -30,10 +26,7 @@ enum Commands {
         query: String,
         #[arg(short, long, default_value = "10")]
         limit: usize,
-        #[arg(
-            long,
-            help = "按适配器过滤（claude_code、cursor、codex、opencode）"
-        )]
+        #[arg(long, help = "按适配器过滤（claude_code、cursor、codex、opencode）")]
         adapter: Option<String>,
         #[arg(long, help = "按项目名称过滤")]
         project: Option<String>,
@@ -180,13 +173,9 @@ enum HooksAction {
         target: String,
     },
     /// 移除 SessionStart hook 但保留 wrapper 脚本
-    Uninstall {
-        target: String,
-    },
+    Uninstall { target: String },
     /// 显示某个 IDE 的 hook 状态
-    Status {
-        target: String,
-    },
+    Status { target: String },
     /// 显示所有 IDE 的 hook 状态
     All,
 }

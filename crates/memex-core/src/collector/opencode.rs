@@ -81,7 +81,11 @@ impl Adapter for OpenCodeAdapter {
                 let time_created: i64 = row.get(3)?;
                 let time_updated: i64 = row.get(4)?;
                 let mtime_secs = (time_updated / 1000) as u64;
-                let created_secs = if time_created > 0 { (time_created / 1000) as u64 } else { 0 };
+                let created_secs = if time_created > 0 {
+                    (time_created / 1000) as u64
+                } else {
+                    0
+                };
 
                 Ok(SessionMeta {
                     id,
@@ -176,10 +180,19 @@ impl Adapter for OpenCodeAdapter {
 
             let content = text_parts.join("\n");
             let ts_millis = *time_created;
-            let ts = DateTime::<Utc>::from_timestamp(ts_millis / 1000, ((ts_millis % 1000) * 1_000_000) as u32);
+            let ts = DateTime::<Utc>::from_timestamp(
+                ts_millis / 1000,
+                ((ts_millis % 1000) * 1_000_000) as u32,
+            );
 
             let id = blake3::hash(
-                format!("{}{}{}", session.id, msg_id, super::safe_prefix(&content, 100)).as_bytes(),
+                format!(
+                    "{}{}{}",
+                    session.id,
+                    msg_id,
+                    super::safe_prefix(&content, 100)
+                )
+                .as_bytes(),
             )
             .to_hex()
             .to_string();
@@ -259,9 +272,15 @@ mod tests {
 
     #[test]
     fn test_opencode_placeholder_title_classification() {
-        assert!(is_opencode_placeholder_title("New session - 2026-01-23T08:45:35.508Z"));
-        assert!(is_opencode_placeholder_title("New session - 2025-12-31T23:59:59.000Z"));
-        assert!(is_opencode_placeholder_title("new session - 2026-06-01T08:33:59.831Z"));
+        assert!(is_opencode_placeholder_title(
+            "New session - 2026-01-23T08:45:35.508Z"
+        ));
+        assert!(is_opencode_placeholder_title(
+            "New session - 2025-12-31T23:59:59.000Z"
+        ));
+        assert!(is_opencode_placeholder_title(
+            "new session - 2026-06-01T08:33:59.831Z"
+        ));
         assert!(is_opencode_placeholder_title("New session"));
         assert!(!is_opencode_placeholder_title("Greeting tone check-in"));
         assert!(!is_opencode_placeholder_title("Vue 3 简单按钮弹窗组件"));

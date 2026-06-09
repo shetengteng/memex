@@ -7,13 +7,13 @@
 //!
 //! 默认（不带子命令时）行为 = `run --period week`，向后兼容旧 CLI。
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Serialize;
 
 use memex_core::config::MemexConfig;
 use memex_core::llm::select_provider_unified;
 use memex_core::memex_dir;
-use memex_core::reflect::{run_reflect, today_utc, ReflectPeriod};
+use memex_core::reflect::{ReflectPeriod, run_reflect, today_utc};
 use memex_core::storage::db::Db;
 
 #[derive(Serialize)]
@@ -60,7 +60,10 @@ pub fn run(period_input: &str, json: bool) -> Result<()> {
             shipped: artifacts.output.shipped.clone(),
             patterns: artifacts.output.patterns.clone(),
             open_loops: artifacts.output.open_loops.clone(),
-            markdown_path: artifacts.markdown_path.as_ref().map(|p| p.display().to_string()),
+            markdown_path: artifacts
+                .markdown_path
+                .as_ref()
+                .map(|p| p.display().to_string()),
         };
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
@@ -116,7 +119,10 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("{:<26} {:<6}  {:<32}  {}", "SCOPE_KEY", "DIGEST", "TITLE", "CREATED");
+    println!(
+        "{:<26} {:<6}  {:<32}  {}",
+        "SCOPE_KEY", "DIGEST", "TITLE", "CREATED"
+    );
     println!("{}", "-".repeat(100));
     for r in &rows {
         let title = r.title.as_deref().unwrap_or("");

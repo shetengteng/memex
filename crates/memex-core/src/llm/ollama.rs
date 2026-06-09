@@ -173,6 +173,9 @@ mod tests {
     fn base_strips_tag() {
         assert_eq!(ollama_model_base("qwen2.5:7b"), "qwen2.5");
         assert_eq!(ollama_model_base("qwen2.5"), "qwen2.5");
-        assert_eq!(ollama_model_base("registry/llama3.2:latest"), "registry/llama3.2");
+        assert_eq!(
+            ollama_model_base("registry/llama3.2:latest"),
+            "registry/llama3.2"
+        );
     }
 }

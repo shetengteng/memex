@@ -19,7 +19,13 @@ pub struct IngestResult {
 /// 这里做一次映射，避免把映射逻辑下沉到 ingest 层。
 #[tauri::command]
 pub async fn trigger_ingest(adapter: Option<String>) -> Result<IngestResult, String> {
-    let mapped = adapter.map(|a| if a == "continue_dev" { "continue".to_string() } else { a });
+    let mapped = adapter.map(|a| {
+        if a == "continue_dev" {
+            "continue".to_string()
+        } else {
+            a
+        }
+    });
     tokio::task::spawn_blocking(move || {
         let memex = memex_dir();
         ensure_memex_dir(&memex).map_err(|e| e.to_string())?;

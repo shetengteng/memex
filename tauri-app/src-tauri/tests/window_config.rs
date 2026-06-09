@@ -81,7 +81,9 @@ fn capabilities_lists_both_windows() {
     let s = fs::read_to_string(&cap_path).expect("read capabilities/default.json");
     let v: Value = serde_json::from_str(&s).expect("parse capabilities/default.json");
 
-    let windows = v["windows"].as_array().expect("capabilities.windows is array");
+    let windows = v["windows"]
+        .as_array()
+        .expect("capabilities.windows is array");
     let labels: Vec<&str> = windows.iter().filter_map(|x| x.as_str()).collect();
     assert!(labels.contains(&"main"), "capabilities must allow 'main'");
     assert!(

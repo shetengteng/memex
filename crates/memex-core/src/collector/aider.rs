@@ -23,11 +23,20 @@ impl Default for AiderAdapter {
 impl AiderAdapter {
     pub fn new() -> Self {
         let home = dirs::home_dir().expect("cannot determine home directory");
-        let scan_dirs: Vec<PathBuf> = ["Documents", "Projects", "projects", "code", "dev", "repos", "work", "src"]
-            .iter()
-            .map(|d| home.join(d))
-            .filter(|p| p.exists())
-            .collect();
+        let scan_dirs: Vec<PathBuf> = [
+            "Documents",
+            "Projects",
+            "projects",
+            "code",
+            "dev",
+            "repos",
+            "work",
+            "src",
+        ]
+        .iter()
+        .map(|d| home.join(d))
+        .filter(|p| p.exists())
+        .collect();
         Self { scan_dirs }
     }
 
@@ -129,7 +138,13 @@ fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMessage> {
     for line in block.lines() {
         if let Some(user_text) = line.strip_prefix("#### ") {
             if let Some(role) = current_role.take() {
-                flush(role, &current_content, session_id, &mut msg_index, &mut messages);
+                flush(
+                    role,
+                    &current_content,
+                    session_id,
+                    &mut msg_index,
+                    &mut messages,
+                );
                 current_content.clear();
             }
             current_role = Some(Role::User);
@@ -138,7 +153,13 @@ fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMessage> {
         } else if line.starts_with("> ") || line == ">" {
             if current_role != Some(Role::Tool) {
                 if let Some(role) = current_role.take() {
-                    flush(role, &current_content, session_id, &mut msg_index, &mut messages);
+                    flush(
+                        role,
+                        &current_content,
+                        session_id,
+                        &mut msg_index,
+                        &mut messages,
+                    );
                     current_content.clear();
                 }
                 current_role = Some(Role::Tool);
@@ -149,7 +170,13 @@ fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMessage> {
         } else {
             if current_role == Some(Role::User) || current_role == Some(Role::Tool) {
                 if let Some(role) = current_role.take() {
-                    flush(role, &current_content, session_id, &mut msg_index, &mut messages);
+                    flush(
+                        role,
+                        &current_content,
+                        session_id,
+                        &mut msg_index,
+                        &mut messages,
+                    );
                     current_content.clear();
                 }
                 current_role = Some(Role::Assistant);
@@ -164,7 +191,13 @@ fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMessage> {
     }
 
     if let Some(role) = current_role {
-        flush(role, &current_content, session_id, &mut msg_index, &mut messages);
+        flush(
+            role,
+            &current_content,
+            session_id,
+            &mut msg_index,
+            &mut messages,
+        );
     }
 
     messages
@@ -287,7 +320,11 @@ def test_hello():
         assert_eq!(sessions.len(), 1);
 
         let messages = adapter.collect(&sessions[0]).unwrap();
-        assert!(messages.len() >= 4, "expected at least 4 messages, got {}", messages.len());
+        assert!(
+            messages.len() >= 4,
+            "expected at least 4 messages, got {}",
+            messages.len()
+        );
 
         assert_eq!(messages[0].role, Role::User);
         assert!(messages[0].content.contains("hello world"));

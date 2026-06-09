@@ -120,10 +120,7 @@ fn ensure_looks_like_memex_dir(memex_dir: &Path) -> Result<()> {
     if !memex_dir.is_dir() {
         bail!("memex dir is not a directory: {}", memex_dir.display());
     }
-    let name = memex_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let name = memex_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let looks_ok = name.starts_with(".memex") || name.contains("memex");
     if !looks_ok {
         bail!(
@@ -147,7 +144,10 @@ fn try_remove_file(path: &Path, report: &mut ResetReport) -> Result<()> {
 
 fn dir_size(path: &Path) -> u64 {
     let mut total: u64 = 0;
-    for entry in walkdir::WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file()
             && let Ok(meta) = entry.metadata()
         {
@@ -212,6 +212,9 @@ mod tests {
 
         assert!(memex.exists()); // 目录本身保留
         let leftover: Vec<_> = fs::read_dir(&memex).unwrap().collect();
-        assert!(leftover.is_empty(), "memex dir should be empty after reset_all");
+        assert!(
+            leftover.is_empty(),
+            "memex dir should be empty after reset_all"
+        );
     }
 }

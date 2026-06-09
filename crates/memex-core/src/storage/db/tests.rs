@@ -35,8 +35,15 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
     let db = Db::open_in_memory().unwrap();
     // 模拟 cursor 上报的真实 mtime：2025-06-11（一年前）。
     let real_mtime_secs: u64 = 1_749_628_448; // 2025-06-11T07:54:08Z
-    db.insert_session("s1", "cursor", None, "/state.vscdb#composer=s1", real_mtime_secs, real_mtime_secs)
-        .unwrap();
+    db.insert_session(
+        "s1",
+        "cursor",
+        None,
+        "/state.vscdb#composer=s1",
+        real_mtime_secs,
+        real_mtime_secs,
+    )
+    .unwrap();
 
     let updated_before: String = {
         let conn = db.conn.lock().unwrap();
@@ -44,7 +51,8 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
             "SELECT updated_at FROM sessions WHERE id = ?1",
             params!["s1"],
             |row| row.get(0),
-        ).unwrap()
+        )
+        .unwrap()
     };
     assert!(
         updated_before.starts_with("2025-06-11"),
@@ -55,8 +63,10 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
     // 写入若干新消息，模拟 ingest_adapter 后续把消息批量写入。
     let h1 = blake3::hash(b"msg1").to_hex().to_string();
     let h2 = blake3::hash(b"msg2").to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h1).unwrap();
-    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h2).unwrap();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h1)
+        .unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h2)
+        .unwrap();
 
     let updated_after: String = {
         let conn = db.conn.lock().unwrap();
@@ -64,7 +74,8 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
             "SELECT updated_at FROM sessions WHERE id = ?1",
             params!["s1"],
             |row| row.get(0),
-        ).unwrap()
+        )
+        .unwrap()
     };
     assert_eq!(
         updated_before, updated_after,
@@ -79,7 +90,8 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
             "SELECT message_count FROM sessions WHERE id = ?1",
             params!["s1"],
             |row| row.get(0),
-        ).unwrap()
+        )
+        .unwrap()
     };
     assert_eq!(count, 2, "insert_message 仍应维护 message_count 自增");
 }
@@ -87,7 +99,8 @@ fn test_insert_message_does_not_overwrite_session_updated_at() {
 #[test]
 fn test_fts_search() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let hash = blake3::hash(b"redis pipeline").to_hex().to_string();
     db.insert_message("m1", "s1", "assistant", "redis pipeline", None, 0, &hash)
         .unwrap();
@@ -135,12 +148,18 @@ fn test_kv_roundtrip() {
 #[test]
 fn test_summary_upsert_and_get() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     db.upsert_summary(
-        "s1", "L2_session", Some("Fix auth bug"),
-        "Fixed JWT parsing issue.", &["auth".into()], &["use RS256".into()],
+        "s1",
+        "L2_session",
+        Some("Fix auth bug"),
+        "Fixed JWT parsing issue.",
+        &["auth".into()],
+        &["use RS256".into()],
         10,
-    ).unwrap();
+    )
+    .unwrap();
 
     let summary = db.get_summary("s1", "L2_session").unwrap().unwrap();
     assert_eq!(summary.title.as_deref(), Some("Fix auth bug"));
@@ -148,10 +167,15 @@ fn test_summary_upsert_and_get() {
     assert_eq!(summary.decisions, vec!["use RS256"]);
 
     db.upsert_summary(
-        "s1", "L2_session", Some("Updated title"),
-        "Updated summary.", &["auth".into(), "jwt".into()], &[],
+        "s1",
+        "L2_session",
+        Some("Updated title"),
+        "Updated summary.",
+        &["auth".into(), "jwt".into()],
+        &[],
         20,
-    ).unwrap();
+    )
+    .unwrap();
     let updated = db.get_summary("s1", "L2_session").unwrap().unwrap();
     assert_eq!(updated.title.as_deref(), Some("Updated title"));
     assert_eq!(updated.topics.len(), 2);
@@ -166,9 +190,11 @@ fn test_summary_not_found() {
 #[test]
 fn test_chunk_summary_update() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let hash = blake3::hash(b"content").to_hex().to_string();
-    db.insert_message("m1", "s1", "assistant", "content", None, 0, &hash).unwrap();
+    db.insert_message("m1", "s1", "assistant", "content", None, 0, &hash)
+        .unwrap();
     let chunk = Chunk {
         id: None,
         message_id: "m1".into(),
@@ -186,7 +212,8 @@ fn test_chunk_summary_update() {
     assert_eq!(unsummarized.len(), 1);
     assert_eq!(unsummarized[0].0, chunk_id);
 
-    db.update_chunk_summary(chunk_id, "Implemented Redis caching.").unwrap();
+    db.update_chunk_summary(chunk_id, "Implemented Redis caching.")
+        .unwrap();
 
     let after = db.chunks_without_summary(10, 10).unwrap();
     assert!(after.is_empty());
@@ -195,9 +222,11 @@ fn test_chunk_summary_update() {
 #[test]
 fn test_chunks_without_summary_respects_min_tokens() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "cursor", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "cursor", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let hash = blake3::hash(b"tiny").to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "tiny", None, 0, &hash).unwrap();
+    db.insert_message("m1", "s1", "user", "tiny", None, 0, &hash)
+        .unwrap();
     let small_chunk = Chunk {
         id: None,
         message_id: "m1".into(),
@@ -212,28 +241,47 @@ fn test_chunks_without_summary_respects_min_tokens() {
     db.insert_chunk(&small_chunk).unwrap();
 
     let results = db.chunks_without_summary(50, 10).unwrap();
-    assert!(results.is_empty(), "chunks below min_token_count should be excluded");
+    assert!(
+        results.is_empty(),
+        "chunks below min_token_count should be excluded"
+    );
 }
 
 #[test]
 fn test_aggregate_summary_upsert_and_get() {
     let db = Db::open_in_memory().unwrap();
     db.upsert_aggregate_summary(
-        "project", "/my/project",
-        Some("My Project"), "Project-level summary.",
-        &["rust".into()], &["use FTS5".into()], 3,
-    ).unwrap();
+        "project",
+        "/my/project",
+        Some("My Project"),
+        "Project-level summary.",
+        &["rust".into()],
+        &["use FTS5".into()],
+        3,
+    )
+    .unwrap();
 
-    let s = db.get_aggregate_summary("project", "/my/project").unwrap().unwrap();
+    let s = db
+        .get_aggregate_summary("project", "/my/project")
+        .unwrap()
+        .unwrap();
     assert_eq!(s.title.as_deref(), Some("My Project"));
     assert_eq!(s.session_count, 3);
 
     db.upsert_aggregate_summary(
-        "project", "/my/project",
-        Some("Updated Project"), "Updated summary.",
-        &["rust".into(), "search".into()], &[], 5,
-    ).unwrap();
-    let updated = db.get_aggregate_summary("project", "/my/project").unwrap().unwrap();
+        "project",
+        "/my/project",
+        Some("Updated Project"),
+        "Updated summary.",
+        &["rust".into(), "search".into()],
+        &[],
+        5,
+    )
+    .unwrap();
+    let updated = db
+        .get_aggregate_summary("project", "/my/project")
+        .unwrap()
+        .unwrap();
     assert_eq!(updated.title.as_deref(), Some("Updated Project"));
     assert_eq!(updated.session_count, 5);
 }
@@ -241,7 +289,11 @@ fn test_aggregate_summary_upsert_and_get() {
 #[test]
 fn test_aggregate_summary_not_found() {
     let db = Db::open_in_memory().unwrap();
-    assert!(db.get_aggregate_summary("project", "nonexist").unwrap().is_none());
+    assert!(
+        db.get_aggregate_summary("project", "nonexist")
+            .unwrap()
+            .is_none()
+    );
 }
 
 /// 方案 A —— 过期检测：摘要生成后，session 又涨了新消息，应被重新纳入候选。
@@ -251,15 +303,24 @@ fn test_aggregate_summary_not_found() {
 #[test]
 fn test_sessions_needing_summary_detects_stale_summary() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
-    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1"))
+        .unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2"))
+        .unwrap();
 
     db.upsert_summary(
-        "s1", "L2_session", Some("title"), "summary",
-        &[], &[], /* message_count_at_creation = */ 2,
-    ).unwrap();
+        "s1",
+        "L2_session",
+        Some("title"),
+        "summary",
+        &[],
+        &[],
+        /* message_count_at_creation = */ 2,
+    )
+    .unwrap();
 
     // 此刻 message_count(=2) == message_count_at_creation(=2)：未过期。
     assert!(
@@ -268,7 +329,8 @@ fn test_sessions_needing_summary_detects_stale_summary() {
     );
 
     // 模拟 t=5s 又来了新消息。
-    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3")).unwrap();
+    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3"))
+        .unwrap();
 
     let needing = db.sessions_needing_summary(10, 0).unwrap();
     assert_eq!(
@@ -283,10 +345,13 @@ fn test_sessions_needing_summary_detects_stale_summary() {
 #[test]
 fn test_sessions_needing_summary_respects_cooldown() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
-    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1"))
+        .unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2"))
+        .unwrap();
     // 此时 sessions.updated_at = now()，距今 < 1 小时。
 
     // cool_down_secs = 3600（1 小时）：session 还在冷却中，应被排除。
@@ -309,7 +374,8 @@ fn test_sessions_needing_summary_respects_cooldown() {
         conn.execute(
             "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
             rusqlite::params![old],
-        ).unwrap();
+        )
+        .unwrap();
     }
     assert_eq!(
         db.sessions_needing_summary(10, 3600).unwrap(),
@@ -324,14 +390,19 @@ fn test_sessions_needing_summary_respects_cooldown() {
 #[test]
 fn test_sessions_needing_summary_cooldown_gates_stale_too() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let h = |s: &str| blake3::hash(s.as_bytes()).to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1")).unwrap();
-    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2")).unwrap();
-    db.upsert_summary("s1", "L2_session", Some("t"), "s", &[], &[], 2).unwrap();
+    db.insert_message("m1", "s1", "user", "msg1", None, 0, &h("msg1"))
+        .unwrap();
+    db.insert_message("m2", "s1", "assistant", "msg2", None, 1, &h("msg2"))
+        .unwrap();
+    db.upsert_summary("s1", "L2_session", Some("t"), "s", &[], &[], 2)
+        .unwrap();
 
     // 新消息进来 → 过期；同时 updated_at = now() → 在冷却窗口。
-    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3")).unwrap();
+    db.insert_message("m3", "s1", "user", "msg3", None, 2, &h("msg3"))
+        .unwrap();
 
     assert!(
         db.sessions_needing_summary(10, 3600).unwrap().is_empty(),
@@ -345,7 +416,8 @@ fn test_sessions_needing_summary_cooldown_gates_stale_too() {
         conn.execute(
             "UPDATE sessions SET updated_at = ?1 WHERE id = 's1'",
             rusqlite::params![old],
-        ).unwrap();
+        )
+        .unwrap();
     }
     assert_eq!(
         db.sessions_needing_summary(10, 3600).unwrap(),
@@ -359,9 +431,11 @@ fn test_sessions_needing_summary_cooldown_gates_stale_too() {
 #[test]
 fn test_sessions_needing_summary_skips_short_sessions() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", None, "/f.jsonl", 0, 0)
+        .unwrap();
     let h = blake3::hash(b"x").to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "x", None, 0, &h).unwrap();
+    db.insert_message("m1", "s1", "user", "x", None, 0, &h)
+        .unwrap();
     assert!(
         db.sessions_needing_summary(10, 0).unwrap().is_empty(),
         "message_count < 2 的 session 不该被摘要候选列出"
@@ -372,10 +446,13 @@ fn test_sessions_needing_summary_skips_short_sessions() {
 #[test]
 fn test_update_session_intent_roundtrip() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0)
+        .unwrap();
     let h = blake3::hash(b"hello").to_hex().to_string();
-    db.insert_message("m1", "s1", "user", "hello", None, 0, &h).unwrap();
-    db.insert_message("m2", "s1", "assistant", "world", None, 1, &h).unwrap();
+    db.insert_message("m1", "s1", "user", "hello", None, 0, &h)
+        .unwrap();
+    db.insert_message("m2", "s1", "assistant", "world", None, 1, &h)
+        .unwrap();
 
     // 默认 NULL
     let row = &db.list_sessions_paged(10, 0).unwrap()[0];
@@ -396,8 +473,10 @@ fn test_update_session_intent_roundtrip() {
 #[test]
 fn test_get_session_detail_includes_intent() {
     let db = Db::open_in_memory().unwrap();
-    db.insert_session("s1", "cursor", Some("/proj"), "/f.jsonl", 0, 0).unwrap();
-    db.update_session_intent("s1", Some("调研 monthly report")).unwrap();
+    db.insert_session("s1", "cursor", Some("/proj"), "/f.jsonl", 0, 0)
+        .unwrap();
+    db.update_session_intent("s1", Some("调研 monthly report"))
+        .unwrap();
     let detail = db.get_session_detail("s1").unwrap().unwrap();
     assert_eq!(detail.intent.as_deref(), Some("调研 monthly report"));
 }
@@ -497,9 +576,12 @@ fn test_v9_migration_creates_missing_indexes() {
     {
         let db = Db::open(&path).unwrap();
         let conn = db.conn.lock().unwrap();
-        conn.execute("DROP INDEX IF EXISTS idx_chunks_has_summary", []).unwrap();
-        conn.execute("DROP INDEX IF EXISTS idx_messages_content_dedup", []).unwrap();
-        conn.execute("UPDATE schema_version SET version = ?1", params![8u32]).unwrap();
+        conn.execute("DROP INDEX IF EXISTS idx_chunks_has_summary", [])
+            .unwrap();
+        conn.execute("DROP INDEX IF EXISTS idx_messages_content_dedup", [])
+            .unwrap();
+        conn.execute("UPDATE schema_version SET version = ?1", params![8u32])
+            .unwrap();
     }
 
     // 第二步：再 open 一次，触发 from=8 → 9 的 migration。
@@ -521,11 +603,17 @@ fn test_v9_migration_creates_missing_indexes() {
         "v8→v9 migration 应补建 idx_messages_content_dedup"
     );
     let version: u32 = conn
-        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| row.get(0))
+        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     // v9 → 之后版本号会一路升到当前最新（v10 之后还可能继续上涨）。
     // 这里只断言"升到了至少 9"——v9 migration 跑过即可。
-    assert!(version >= 9, "migration 后版本号应至少升到 9，实际 {}", version);
+    assert!(
+        version >= 9,
+        "migration 后版本号应至少升到 9，实际 {}",
+        version
+    );
 }
 
 // ============================================================
@@ -536,7 +624,8 @@ use crate::storage::db::ThreadDraft;
 
 fn seed_sessions(db: &Db, ids: &[&str]) {
     for id in ids {
-        db.insert_session(id, "cursor", Some("/proj"), "/f", 0, 0).unwrap();
+        db.insert_session(id, "cursor", Some("/proj"), "/f", 0, 0)
+            .unwrap();
     }
 }
 
@@ -689,8 +778,10 @@ fn test_delete_thread_cascades_thread_sessions() {
 fn test_list_threads_returns_aggregate_fields() {
     let db = Db::open_in_memory().unwrap();
     // 准备 2 个 session，分别属于不同项目 + 不同适配器，覆盖去重和分隔符。
-    db.insert_session("s_a", "cursor", Some("/proj-a"), "/f", 0, 0).unwrap();
-    db.insert_session("s_b", "claude_code", Some("/proj-b"), "/f", 0, 0).unwrap();
+    db.insert_session("s_a", "cursor", Some("/proj-a"), "/f", 0, 0)
+        .unwrap();
+    db.insert_session("s_b", "claude_code", Some("/proj-b"), "/f", 0, 0)
+        .unwrap();
 
     db.upsert_thread_with_sessions(&ThreadDraft {
         name: "mixed".into(),
@@ -731,9 +822,11 @@ fn test_v10_migration_creates_threads_tables() {
     {
         let db = Db::open(&path).unwrap();
         let conn = db.conn.lock().unwrap();
-        conn.execute("DROP TABLE IF EXISTS thread_sessions", []).unwrap();
+        conn.execute("DROP TABLE IF EXISTS thread_sessions", [])
+            .unwrap();
         conn.execute("DROP TABLE IF EXISTS threads", []).unwrap();
-        conn.execute("UPDATE schema_version SET version = ?1", params![9u32]).unwrap();
+        conn.execute("UPDATE schema_version SET version = ?1", params![9u32])
+            .unwrap();
     }
 
     let db = Db::open(&path).unwrap();
@@ -748,7 +841,9 @@ fn test_v10_migration_creates_threads_tables() {
     assert!(tables.contains(&"threads".to_string()));
     assert!(tables.contains(&"thread_sessions".to_string()));
     let version: u32 = conn
-        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| row.get(0))
+        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(version, 10);
 }

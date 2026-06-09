@@ -22,8 +22,7 @@ pub fn write_lock(memex_dir: &Path, port: u16) -> Result<()> {
         started_at: chrono::Utc::now().to_rfc3339(),
     };
     let content = serde_json::to_string_pretty(&info)?;
-    fs::write(lock_path(memex_dir), content)
-        .context("failed to write daemon.lock")?;
+    fs::write(lock_path(memex_dir), content).context("failed to write daemon.lock")?;
     Ok(())
 }
 

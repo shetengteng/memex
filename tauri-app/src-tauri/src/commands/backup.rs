@@ -21,8 +21,7 @@ pub fn memex_data_dir() -> String {
 pub fn ensure_backup_dir() -> Result<String, String> {
     let dir = memex_dir().join("backups");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)
-            .map_err(|e| format!("创建备份目录失败：{}", e))?;
+        std::fs::create_dir_all(&dir).map_err(|e| format!("创建备份目录失败：{}", e))?;
     }
     Ok(dir.to_string_lossy().to_string())
 }
@@ -60,8 +59,7 @@ pub async fn backup_now() -> Result<BackupResult, String> {
 
     let backup_dir = memex_dir().join("backups");
     if !backup_dir.exists() {
-        std::fs::create_dir_all(&backup_dir)
-            .map_err(|e| format!("创建备份目录失败：{}", e))?;
+        std::fs::create_dir_all(&backup_dir).map_err(|e| format!("创建备份目录失败：{}", e))?;
     }
 
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();

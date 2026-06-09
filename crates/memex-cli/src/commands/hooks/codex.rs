@@ -23,7 +23,9 @@ pub(super) const HOOK_KEY: &str = "SessionStart";
 
 pub(super) fn upsert_hook(path: &Path, wrapper: &Path) -> Result<()> {
     let mut v = read_json_or_empty(path)?;
-    let obj = v.as_object_mut().context("hooks.json is not a JSON object")?;
+    let obj = v
+        .as_object_mut()
+        .context("hooks.json is not a JSON object")?;
     let hooks = obj
         .entry("hooks".to_string())
         .or_insert(serde_json::json!({}))

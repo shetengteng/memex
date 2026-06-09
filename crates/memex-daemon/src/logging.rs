@@ -33,8 +33,8 @@ pub fn rotate_old_logs(memex_dir: &Path) {
         return;
     }
 
-    let cutoff = std::time::SystemTime::now()
-        - std::time::Duration::from_secs(MAX_LOG_AGE_DAYS * 86400);
+    let cutoff =
+        std::time::SystemTime::now() - std::time::Duration::from_secs(MAX_LOG_AGE_DAYS * 86400);
 
     let entries = match fs::read_dir(&log_dir) {
         Ok(e) => e,

@@ -223,7 +223,8 @@ mod sqlite_backend {
                     }
                 }
             }]
-        }).to_string();
+        })
+        .to_string();
         build_fixture_db_with_headers(&db_path, Some(&headers));
 
         let adapter = CursorAdapter::with_db_path(db_path);
@@ -252,7 +253,8 @@ mod sqlite_backend {
                     "configPath": {"path": "/Users/me/my.code-workspace"}
                 }
             }]
-        }).to_string();
+        })
+        .to_string();
         build_fixture_db_with_headers(&db_path, Some(&headers));
 
         let adapter = CursorAdapter::with_db_path(db_path);

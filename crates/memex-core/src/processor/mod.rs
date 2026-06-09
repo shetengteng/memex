@@ -13,8 +13,7 @@ pub struct ProcessedChunk {
 }
 
 pub fn process_messages(messages: &[RawMessage]) -> Result<Vec<Chunk>> {
-    process_messages_with_hits(messages)
-        .map(|v| v.into_iter().map(|pc| pc.chunk).collect())
+    process_messages_with_hits(messages).map(|v| v.into_iter().map(|pc| pc.chunk).collect())
 }
 
 pub fn process_messages_with_hits(messages: &[RawMessage]) -> Result<Vec<ProcessedChunk>> {
@@ -25,7 +24,10 @@ pub fn process_messages_with_hits(messages: &[RawMessage]) -> Result<Vec<Process
             let (redacted, hits) = redact::redact_with_hits(&c.content);
             c.redacted_content = Some(redacted);
             c.metadata = metadata::extract(&c.content);
-            all.push(ProcessedChunk { chunk: c, redaction_hits: hits });
+            all.push(ProcessedChunk {
+                chunk: c,
+                redaction_hits: hits,
+            });
         }
     }
     Ok(all)

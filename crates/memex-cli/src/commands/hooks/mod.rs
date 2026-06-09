@@ -133,8 +133,8 @@ pub fn status(ide: Ide) -> Result<HookStatus> {
             wrapper_path: None,
         });
     }
-    let content = fs::read_to_string(&cfg)
-        .with_context(|| format!("failed to read {}", cfg.display()))?;
+    let content =
+        fs::read_to_string(&cfg).with_context(|| format!("failed to read {}", cfg.display()))?;
     let config_has_entry = match ide {
         Ide::Cursor => cursor::probe_hook(&content),
         Ide::ClaudeCode => claude::probe_hook(&content),
@@ -149,7 +149,11 @@ pub fn status(ide: Ide) -> Result<HookStatus> {
         supported: true,
         installed,
         config_path: cfg.to_string_lossy().to_string(),
-        wrapper_path: if wrapper_exists { Some(wrapper.to_string_lossy().to_string()) } else { None },
+        wrapper_path: if wrapper_exists {
+            Some(wrapper.to_string_lossy().to_string())
+        } else {
+            None
+        },
     })
 }
 
@@ -194,10 +198,7 @@ fn hook_config_path(ide: Ide) -> PathBuf {
         Ide::Cursor => home.join(".cursor").join("hooks.json"),
         Ide::ClaudeCode => home.join(".claude").join("settings.json"),
         Ide::Codex => home.join(".codex").join("hooks.json"),
-        Ide::OpenCode => home
-            .join(".config")
-            .join("opencode")
-            .join("opencode.json"), // 仅作占位，install 不会用
+        Ide::OpenCode => home.join(".config").join("opencode").join("opencode.json"), // 仅作占位，install 不会用
     }
 }
 

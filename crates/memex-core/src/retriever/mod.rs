@@ -163,7 +163,11 @@ fn quote_token(word: &str) -> String {
 fn cjk_expand_query(query: &str) -> String {
     let chars: Vec<char> = query.chars().collect();
     if !chars.iter().any(|c| is_cjk(*c)) {
-        return query.split_whitespace().map(quote_token).collect::<Vec<_>>().join(" ");
+        return query
+            .split_whitespace()
+            .map(quote_token)
+            .collect::<Vec<_>>()
+            .join(" ");
     }
 
     let mut parts = Vec::new();

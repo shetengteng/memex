@@ -56,7 +56,10 @@ fn test_tools_list() {
     let tools = resp.result.unwrap();
     let tool_list = tools["tools"].as_array().unwrap();
     assert_eq!(tool_list.len(), 6);
-    let names: Vec<&str> = tool_list.iter().map(|t| t["name"].as_str().unwrap()).collect();
+    let names: Vec<&str> = tool_list
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
     assert!(names.contains(&"search_memory"));
     assert!(names.contains(&"get_session"));
     assert!(names.contains(&"list_recent"));
@@ -81,7 +84,12 @@ fn test_tool_search_memory() {
     let content = result["content"][0]["text"].as_str().unwrap();
     let parsed: Vec<serde_json::Value> = serde_json::from_str(content).unwrap();
     assert!(!parsed.is_empty());
-    assert!(parsed[0]["session_id"].as_str().unwrap().contains("sess-001"));
+    assert!(
+        parsed[0]["session_id"]
+            .as_str()
+            .unwrap()
+            .contains("sess-001")
+    );
     assert_eq!(
         parsed[0]["deep_link"].as_str().unwrap(),
         "memex://session/sess-001"
@@ -161,14 +169,18 @@ fn test_tool_get_project_context_with_explicit_project() {
     let db = setup_db(); // 已经 seed 了 /proj 项目下一条 session
     // 给 session 补一条 user 消息确保 message_count >= 2，再上一条 L2 摘要
     let hash = blake3::hash(b"ack").to_hex().to_string();
-    db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash).unwrap();
+    db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash)
+        .unwrap();
     db.upsert_summary(
-        "sess-001", "L2_session",
+        "sess-001",
+        "L2_session",
         Some("Redis pipeline talk"),
         "Discussion of using redis pipeline for batching",
-        &["redis".into()], &["batch writes via pipeline".into()],
+        &["redis".into()],
+        &["batch writes via pipeline".into()],
         2,
-    ).unwrap();
+    )
+    .unwrap();
 
     let req = make_request(
         "tools/call",
@@ -181,10 +193,26 @@ fn test_tool_get_project_context_with_explicit_project() {
     assert!(resp.error.is_none(), "tool error: {:?}", resp.error);
     let result = resp.result.unwrap();
     let content = result["content"][0]["text"].as_str().unwrap();
-    assert!(content.contains("**Memex 工作记忆**"), "missing banner:\n{}", content);
-    assert!(content.contains("**proj**"), "missing project name:\n{}", content);
-    assert!(content.contains("Redis pipeline talk"), "missing L2 title:\n{}", content);
-    assert!(content.contains("batch writes via pipeline"), "missing decision:\n{}", content);
+    assert!(
+        content.contains("**Memex 工作记忆**"),
+        "missing banner:\n{}",
+        content
+    );
+    assert!(
+        content.contains("**proj**"),
+        "missing project name:\n{}",
+        content
+    );
+    assert!(
+        content.contains("Redis pipeline talk"),
+        "missing L2 title:\n{}",
+        content
+    );
+    assert!(
+        content.contains("batch writes via pipeline"),
+        "missing decision:\n{}",
+        content
+    );
 }
 
 #[test]

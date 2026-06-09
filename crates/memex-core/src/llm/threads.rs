@@ -233,10 +233,7 @@ pub fn query_threads_by_keyword(
 
 /// 关键词检索的确定性 fallback：在 title / topics / summary 里做大小写不敏感的
 /// 字面子串匹配。比 LLM 弱很多但永远可用。
-pub fn fallback_query_match(
-    sessions: &[(String, SessionSummary)],
-    query: &str,
-) -> ThreadDraft {
+pub fn fallback_query_match(sessions: &[(String, SessionSummary)], query: &str) -> ThreadDraft {
     let needle = query.trim().to_lowercase();
     if needle.is_empty() {
         return ThreadDraft {
@@ -250,8 +247,7 @@ pub fn fallback_query_match(
         let hit = s.title.to_lowercase().contains(&needle)
             || s.summary.to_lowercase().contains(&needle)
             || s.topics.iter().any(|t| t.to_lowercase().contains(&needle))
-            || s
-                .decisions
+            || s.decisions
                 .iter()
                 .any(|d| d.to_lowercase().contains(&needle));
         if hit {
@@ -286,7 +282,10 @@ pub fn fallback_cluster(sessions: &[(String, SessionSummary)]) -> Vec<ThreadDraf
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "未分类".to_string());
-        by_bucket.entry((project, topic)).or_default().push(sid.clone());
+        by_bucket
+            .entry((project, topic))
+            .or_default()
+            .push(sid.clone());
     }
 
     // 只保留 session_count >= 2 的桶（单 session 的"线索"没有意义）。
@@ -344,8 +343,12 @@ fn build_clustering_prompt(batch: &[(String, SessionSummary)]) -> String {
 
 fn parse_thread_response(text: &str) -> Result<LlmThreadResponse> {
     let cleaned = strip_code_fences(text);
-    let parsed = serde_json::from_str::<LlmThreadResponse>(&cleaned)
-        .map_err(|e| anyhow::anyhow!("parse thread JSON failed: {e}; raw: {}", &cleaned[..cleaned.len().min(200)]))?;
+    let parsed = serde_json::from_str::<LlmThreadResponse>(&cleaned).map_err(|e| {
+        anyhow::anyhow!(
+            "parse thread JSON failed: {e}; raw: {}",
+            &cleaned[..cleaned.len().min(200)]
+        )
+    })?;
     Ok(parsed)
 }
 
@@ -452,8 +455,7 @@ mod tests {
     #[test]
     fn out_of_range_indices_are_dropped() {
         let batch = vec![("s1".into(), s("a", "x", &[]))];
-        let llm_out =
-            r#"{"threads":[{"name":"x","summary":"","session_indices":[0, 1, 2, 99]}]}"#;
+        let llm_out = r#"{"threads":[{"name":"x","summary":"","session_indices":[0, 1, 2, 99]}]}"#;
         let parsed = parse_thread_response(llm_out).unwrap();
         let drafts = map_to_drafts(&parsed.threads, &batch);
         // 0 和 2/99 越界都被丢，只留 1 → s1
@@ -463,9 +465,11 @@ mod tests {
 
     #[test]
     fn duplicate_indices_are_deduplicated() {
-        let batch = vec![("s1".into(), s("a", "x", &[])), ("s2".into(), s("b", "y", &[]))];
-        let llm_out =
-            r#"{"threads":[{"name":"x","summary":"","session_indices":[1, 1, 2, 2]}]}"#;
+        let batch = vec![
+            ("s1".into(), s("a", "x", &[])),
+            ("s2".into(), s("b", "y", &[])),
+        ];
+        let llm_out = r#"{"threads":[{"name":"x","summary":"","session_indices":[1, 1, 2, 2]}]}"#;
         let parsed = parse_thread_response(llm_out).unwrap();
         let drafts = map_to_drafts(&parsed.threads, &batch);
         assert_eq!(drafts[0].session_ids, vec!["s1", "s2"]);
@@ -489,8 +493,7 @@ mod tests {
     #[test]
     fn threads_with_empty_name_are_filtered() {
         let batch = vec![("s1".into(), s("a", "x", &[]))];
-        let llm_out =
-            r#"{"threads":[{"name":"  ","summary":"","session_indices":[1]},
+        let llm_out = r#"{"threads":[{"name":"  ","summary":"","session_indices":[1]},
                              {"name":"x","summary":"","session_indices":[1]}]}"#;
         let parsed = parse_thread_response(llm_out).unwrap();
         let drafts = map_to_drafts(&parsed.threads, &batch);
@@ -542,18 +545,32 @@ mod tests {
         assert!(names.iter().any(|n| n.contains("tt-qimen")));
         // memex 线索只包含 memex 的 session
         let memex_draft = drafts.iter().find(|d| d.name.contains("memex")).unwrap();
-        assert_eq!(memex_draft.session_ids, vec!["s1".to_string(), "s2".to_string()]);
+        assert_eq!(
+            memex_draft.session_ids,
+            vec!["s1".to_string(), "s2".to_string()]
+        );
     }
 
     #[test]
     fn build_prompt_includes_project_signal() {
         let batch = vec![
-            ("s1".into(), sp("写文档", "做文档相关工作", &["docs"], "memex")),
+            (
+                "s1".into(),
+                sp("写文档", "做文档相关工作", &["docs"], "memex"),
+            ),
             ("s2".into(), sp("跑命盘", "排八字", &["命理"], "tt-qimen")),
         ];
         let prompt = build_clustering_prompt(&batch);
-        assert!(prompt.contains("project=memex"), "应包含 project=memex 信号:\n{}", prompt);
-        assert!(prompt.contains("project=tt-qimen"), "应包含 project=tt-qimen 信号:\n{}", prompt);
+        assert!(
+            prompt.contains("project=memex"),
+            "应包含 project=memex 信号:\n{}",
+            prompt
+        );
+        assert!(
+            prompt.contains("project=tt-qimen"),
+            "应包含 project=tt-qimen 信号:\n{}",
+            prompt
+        );
     }
 
     /// 关键词字面 fallback：在 title / topics / summary / decisions 任一命中即收录。

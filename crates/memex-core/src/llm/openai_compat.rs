@@ -186,7 +186,12 @@ mod tests {
 
     #[test]
     fn test_provider_name() {
-        let p = OpenAiCompatProvider::new("deepseek", "https://api.deepseek.com/v1", "key", "deepseek-chat");
+        let p = OpenAiCompatProvider::new(
+            "deepseek",
+            "https://api.deepseek.com/v1",
+            "key",
+            "deepseek-chat",
+        );
         assert_eq!(p.name(), "deepseek");
     }
 

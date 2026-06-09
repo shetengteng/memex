@@ -74,7 +74,12 @@ fn try_summarize_new_sessions(db: &Db, memex_dir: &Path) {
     // 与手动 batch_summarize 共用同一个配置 `llm.summarize_interval_ms`，
     // 默认 2000ms（在 LlmConfig::default 里设置）。
     try_l1_chunk_summaries(db, provider.as_ref(), throttle_ms);
-    try_l2_session_summaries(db, provider.as_ref(), config.llm.summary_cooldown_secs, throttle_ms);
+    try_l2_session_summaries(
+        db,
+        provider.as_ref(),
+        config.llm.summary_cooldown_secs,
+        throttle_ms,
+    );
 
     // L3 / L4 都是「整库一次性聚合」，每个 scope 只跑一次 LLM，
     // 不构成"短时间高频"压力，不需要节流。
@@ -241,8 +246,8 @@ fn regenerate_monthly_report_inner(
 
     let period_label = format!("Monthly {:04}-{:02}", year, month);
     let fixed_title = format!("月报 {:04}-{:02}", year, month);
-    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
-        .map_err(|e| {
+    let summary =
+        summarize::summarize_period(provider, &period_label, &l2_summaries).map_err(|e| {
             warn!("L4 monthly summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
@@ -305,8 +310,9 @@ fn regenerate_weekly_report_inner(
         return Ok(None);
     }
 
-    let week_start = chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Mon)
-        .map(|d| format!("{}T00:00:00+00:00", d));
+    let week_start =
+        chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Mon)
+            .map(|d| format!("{}T00:00:00+00:00", d));
     let week_end = chrono::NaiveDate::from_isoywd_opt(iso.year(), iso.week(), chrono::Weekday::Sun)
         .map(|d| format!("{}T23:59:59+00:00", d));
     let (after, before) = match (week_start, week_end) {
@@ -339,8 +345,8 @@ fn regenerate_weekly_report_inner(
 
     let period_label = format!("Week {}-W{:02}", iso.year(), iso.week());
     let fixed_title = format!("周报 {}-W{:02}", iso.year(), iso.week());
-    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
-        .map_err(|e| {
+    let summary =
+        summarize::summarize_period(provider, &period_label, &l2_summaries).map_err(|e| {
             warn!("L4 weekly summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
@@ -399,9 +405,16 @@ pub fn regenerate_report_by_key(
     };
 
     let sessions = db.list_sessions_in_range(&after, &before)?;
-    info!("regenerate_report_by_key: scope_key={}, sessions={}", scope_key, sessions.len());
+    info!(
+        "regenerate_report_by_key: scope_key={}, sessions={}",
+        scope_key,
+        sessions.len()
+    );
     if sessions.is_empty() {
-        warn!("regenerate_report_by_key: no sessions in range {} .. {}", after, before);
+        warn!(
+            "regenerate_report_by_key: no sessions in range {} .. {}",
+            after, before
+        );
         return Ok(None);
     }
 
@@ -418,18 +431,31 @@ pub fn regenerate_report_by_key(
             });
         }
     }
-    info!("regenerate_report_by_key: l2_summaries={}", l2_summaries.len());
+    info!(
+        "regenerate_report_by_key: l2_summaries={}",
+        l2_summaries.len()
+    );
     if l2_summaries.is_empty() {
-        warn!("regenerate_report_by_key: no L2 summaries found for {} sessions", sessions.len());
+        warn!(
+            "regenerate_report_by_key: no L2 summaries found for {} sessions",
+            sessions.len()
+        );
         return Ok(None);
     }
 
-    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
-        .map_err(|e| {
-            warn!("regenerate_report_by_key: LLM summarize_period failed: {}", e);
+    let summary =
+        summarize::summarize_period(provider, &period_label, &l2_summaries).map_err(|e| {
+            warn!(
+                "regenerate_report_by_key: LLM summarize_period failed: {}",
+                e
+            );
             anyhow::anyhow!(e)
         })?;
-    info!("regenerate_report_by_key: generated summary_len={}, title='{}'", summary.summary.len(), fixed_title);
+    info!(
+        "regenerate_report_by_key: generated summary_len={}, title='{}'",
+        summary.summary.len(),
+        fixed_title
+    );
     db.upsert_aggregate_summary(
         scope_type,
         scope_key,
@@ -525,8 +551,8 @@ fn regenerate_daily_report_inner(
 
     let period_label = format!("Daily {}", today);
     let fixed_title = format!("日报 {}", today);
-    let summary = summarize::summarize_period(provider, &period_label, &l2_summaries)
-        .map_err(|e| {
+    let summary =
+        summarize::summarize_period(provider, &period_label, &l2_summaries).map_err(|e| {
             warn!("L4 daily summarize failed: {}", e);
             anyhow::anyhow!(e)
         })?;
@@ -613,7 +639,11 @@ pub fn summarize_session_by_id(
             true
         }
         Err(e) => {
-            warn!("L2 summarize failed for session {}: {}", &session_id[..8.min(session_id.len())], e);
+            warn!(
+                "L2 summarize failed for session {}: {}",
+                &session_id[..8.min(session_id.len())],
+                e
+            );
             false
         }
     }
@@ -790,7 +820,9 @@ pub fn regenerate_threads(
         // 这是防止跨项目错聚类（例如 memex 的 prompts.txt 讨论 + tt-qimen 的
         // prompts.txt 讨论被合到同一条线索）的关键信号。
         let project_name = s.project_path.as_deref().and_then(|p| {
-            p.rsplit('/').find(|seg| !seg.is_empty()).map(|s| s.to_string())
+            p.rsplit('/')
+                .find(|seg| !seg.is_empty())
+                .map(|s| s.to_string())
         });
         batch.push((
             s.id.clone(),
@@ -860,7 +892,9 @@ pub fn search_thread_by_query(
             _ => continue,
         };
         let project_name = s.project_path.as_deref().and_then(|p| {
-            p.rsplit('/').find(|seg| !seg.is_empty()).map(|s| s.to_string())
+            p.rsplit('/')
+                .find(|seg| !seg.is_empty())
+                .map(|s| s.to_string())
         });
         batch.push((
             s.id.clone(),
@@ -956,8 +990,12 @@ mod tests {
             ticks: Mutex<Vec<Instant>>,
         }
         impl LlmProvider for TickProvider {
-            fn name(&self) -> &str { "tick" }
-            fn is_available(&self) -> bool { true }
+            fn name(&self) -> &str {
+                "tick"
+            }
+            fn is_available(&self) -> bool {
+                true
+            }
             fn generate(&self, _req: &LlmRequest) -> anyhow::Result<LlmResponse> {
                 self.ticks.lock().unwrap().push(Instant::now());
                 Ok(LlmResponse {
@@ -969,7 +1007,8 @@ mod tests {
         }
 
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0).unwrap();
+        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0)
+            .unwrap();
         // 插 3 条 chunk，每条都有足够大的 token_count 触发 summarize（min 阈值是
         // min_chunk_chars / 4 ≈ 50/4 ≈ 12 → 我们给 50）。
         for i in 0..3 {
@@ -980,8 +1019,11 @@ mod tests {
                 &format!("message {i} with enough content to summarize lalalalala"),
                 None,
                 i,
-                &blake3::hash(format!("msg{i}").as_bytes()).to_hex().to_string(),
-            ).unwrap();
+                &blake3::hash(format!("msg{i}").as_bytes())
+                    .to_hex()
+                    .to_string(),
+            )
+            .unwrap();
             // 内容必须 ≥ 200 字符（MIN_CHUNK_CHARS_FOR_SUMMARY），否则
             // summarize_chunk 走 fallback 路径不调用 provider.generate。
             let long_content = "x".repeat(220);
@@ -995,10 +1037,13 @@ mod tests {
                 position: i as u32,
                 token_count: 60,
                 metadata: ChunkMetadata::default(),
-            }).unwrap();
+            })
+            .unwrap();
         }
 
-        let provider = TickProvider { ticks: Mutex::new(Vec::new()) };
+        let provider = TickProvider {
+            ticks: Mutex::new(Vec::new()),
+        };
 
         // throttle=50ms 跑 3 个 chunk → 至少 2 个间隔，间隔 ≥ 50ms
         let start = Instant::now();
@@ -1014,7 +1059,9 @@ mod tests {
             assert!(
                 gap.as_millis() >= 45, // 留一点点容差，主要确认 sleep 真的发生
                 "第 {} 次和第 {} 次 LLM 调用间隔应该 ≥ 50ms，实际 {:?}",
-                i - 1, i, gap
+                i - 1,
+                i,
+                gap
             );
         }
         // 整体至少要 100ms（两个间隔）
@@ -1038,8 +1085,12 @@ mod tests {
             count: Mutex<usize>,
         }
         impl LlmProvider for FastProvider {
-            fn name(&self) -> &str { "fast" }
-            fn is_available(&self) -> bool { true }
+            fn name(&self) -> &str {
+                "fast"
+            }
+            fn is_available(&self) -> bool {
+                true
+            }
             fn generate(&self, _req: &LlmRequest) -> anyhow::Result<LlmResponse> {
                 *self.count.lock().unwrap() += 1;
                 Ok(LlmResponse {
@@ -1051,15 +1102,21 @@ mod tests {
         }
 
         let db = Db::open_in_memory().unwrap();
-        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0).unwrap();
+        db.insert_session("s1", "claude_code", Some("/p"), "/f.jsonl", 0, 0)
+            .unwrap();
         for i in 0..5 {
             db.insert_message(
                 &format!("m{i}"),
-                "s1", "user",
+                "s1",
+                "user",
                 &format!("hello {i}"),
-                None, i,
-                &blake3::hash(format!("h{i}").as_bytes()).to_hex().to_string(),
-            ).unwrap();
+                None,
+                i,
+                &blake3::hash(format!("h{i}").as_bytes())
+                    .to_hex()
+                    .to_string(),
+            )
+            .unwrap();
             // 见上文：内容必须 ≥ 200 字符才会调用 provider
             let long_content = "y".repeat(220);
             db.insert_chunk(&Chunk {
@@ -1072,10 +1129,13 @@ mod tests {
                 position: i as u32,
                 token_count: 60,
                 metadata: ChunkMetadata::default(),
-            }).unwrap();
+            })
+            .unwrap();
         }
 
-        let provider = FastProvider { count: Mutex::new(0) };
+        let provider = FastProvider {
+            count: Mutex::new(0),
+        };
 
         let start = Instant::now();
         try_l1_chunk_summaries(&db, &provider, /* throttle_ms = */ 0);

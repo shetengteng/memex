@@ -49,12 +49,8 @@ pub fn search_by_project(db: &Db, cwd: &Path) -> anyhow::Result<Option<ProjectMa
 /// 测试便利版本：候选只有路径、没有会话计数。等价于把每条候选都视为
 /// 计数 = 1，并把 `min_sessions = 1` 关掉过滤。保留这个签名是为了让
 /// 历史单测继续起到回归保护作用，不重写。
-pub fn search_by_project_in_candidates(
-    cwd: &Path,
-    candidates: &[String],
-) -> Option<ProjectMatch> {
-    let with_counts: Vec<(String, i64)> =
-        candidates.iter().map(|p| (p.clone(), 1)).collect();
+pub fn search_by_project_in_candidates(cwd: &Path, candidates: &[String]) -> Option<ProjectMatch> {
+    let with_counts: Vec<(String, i64)> = candidates.iter().map(|p| (p.clone(), 1)).collect();
     search_by_project_in_counted_candidates(cwd, &with_counts, 1)
 }
 
@@ -153,10 +149,7 @@ mod tests {
 
     #[test]
     fn exact_path_takes_precedence() {
-        let cands = paths(&[
-            "/home/u/foo",
-            "/home/u/bar",
-        ]);
+        let cands = paths(&["/home/u/foo", "/home/u/bar"]);
         let m = search_by_project_in_candidates(Path::new("/home/u/foo"), &cands).unwrap();
         assert_eq!(m.project_path, "/home/u/foo");
         assert_eq!(m.tier, MatchTier::ExactPath);
@@ -165,7 +158,8 @@ mod tests {
     #[test]
     fn exact_path_matches_subdirectory() {
         let cands = paths(&["/home/u/foo"]);
-        let m = search_by_project_in_candidates(Path::new("/home/u/foo/sub/deeper"), &cands).unwrap();
+        let m =
+            search_by_project_in_candidates(Path::new("/home/u/foo/sub/deeper"), &cands).unwrap();
         assert_eq!(m.tier, MatchTier::ExactPath);
         assert_eq!(m.project_path, "/home/u/foo");
     }
@@ -181,7 +175,8 @@ mod tests {
     fn project_name_matches_across_clones() {
         let cands = paths(&["/Users/me/work/memex"]);
         // 在另一台机器上 clone 在不同位置
-        let m = search_by_project_in_candidates(Path::new("/home/other/repos/memex"), &cands).unwrap();
+        let m =
+            search_by_project_in_candidates(Path::new("/home/other/repos/memex"), &cands).unwrap();
         assert_eq!(m.tier, MatchTier::ProjectName);
         assert_eq!(m.project_path, "/Users/me/work/memex");
     }
@@ -233,11 +228,9 @@ mod tests {
             "/Users/me/Documents/personal/foo",
             "/Users/me/Documents/personal/bar",
         ]);
-        let m = search_by_project_in_candidates(
-            Path::new("/Users/me/Documents/personal/foo"),
-            &cands,
-        )
-        .unwrap();
+        let m =
+            search_by_project_in_candidates(Path::new("/Users/me/Documents/personal/foo"), &cands)
+                .unwrap();
         assert_eq!(m.tier, MatchTier::ExactPath);
         assert_eq!(
             m.project_path, "/Users/me/Documents/personal/foo",
@@ -248,15 +241,9 @@ mod tests {
     #[test]
     fn tier1_longest_prefix_extends_to_subdirectory() {
         // cwd 在项目下的子目录里，候选既有家目录又有具体项目时，仍命中具体项目。
-        let cands = paths(&[
-            "/Users/me",
-            "/Users/me/work/proj",
-        ]);
-        let m = search_by_project_in_candidates(
-            Path::new("/Users/me/work/proj/src/utils"),
-            &cands,
-        )
-        .unwrap();
+        let cands = paths(&["/Users/me", "/Users/me/work/proj"]);
+        let m = search_by_project_in_candidates(Path::new("/Users/me/work/proj/src/utils"), &cands)
+            .unwrap();
         assert_eq!(m.tier, MatchTier::ExactPath);
         assert_eq!(m.project_path, "/Users/me/work/proj");
     }
@@ -265,11 +252,8 @@ mod tests {
     fn tier1_home_dir_still_matches_when_no_subproject_does() {
         // 当 cwd 不在任何具体项目内时，家目录仍然是合法的 fallback 命中。
         let cands = paths(&["/Users/me", "/Users/me/work/proj"]);
-        let m = search_by_project_in_candidates(
-            Path::new("/Users/me/Downloads/random"),
-            &cands,
-        )
-        .unwrap();
+        let m = search_by_project_in_candidates(Path::new("/Users/me/Downloads/random"), &cands)
+            .unwrap();
         assert_eq!(m.tier, MatchTier::ExactPath);
         assert_eq!(m.project_path, "/Users/me");
     }
@@ -314,10 +298,7 @@ mod tests {
     fn min_sessions_promotes_home_dir_once_it_has_enough_sessions() {
         // 边界：如果用户确实在家目录直接跑 AI 会话，并且累计 >= 阈值，
         // 那家目录就成了合法 fallback —— 跟旧测试同样可用。
-        let cands = counted(&[
-            ("/Users/me", 5),
-            ("/Users/me/work/proj", 10),
-        ]);
+        let cands = counted(&[("/Users/me", 5), ("/Users/me/work/proj", 10)]);
         let m = search_by_project_in_counted_candidates(
             Path::new("/Users/me/Downloads/random"),
             &cands,

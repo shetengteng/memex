@@ -127,9 +127,7 @@ pub fn generate_reflection(
         prompt.push_str(&entry);
     }
 
-    prompt.push_str(
-        "\n请基于上述材料做一次反思级别的回顾，按 system 描述输出 JSON。",
-    );
+    prompt.push_str("\n请基于上述材料做一次反思级别的回顾，按 system 描述输出 JSON。");
 
     let request = LlmRequest::with_prompt(prompt)
         .with_system(REFLECTION_SYSTEM)
@@ -163,7 +161,10 @@ fn parse_reflection(text: &str) -> Result<ReflectionOutput> {
     // 最终兜底：把整段文本塞进 patterns，保证不丢失信息
     Ok(ReflectionOutput {
         shipped: Vec::new(),
-        patterns: vec![format!("LLM 返回未能解析为结构化 JSON：{}", text.chars().take(300).collect::<String>())],
+        patterns: vec![format!(
+            "LLM 返回未能解析为结构化 JSON：{}",
+            text.chars().take(300).collect::<String>()
+        )],
         open_loops: Vec::new(),
     })
 }

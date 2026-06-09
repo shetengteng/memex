@@ -102,11 +102,7 @@ fn print_activity_line(
     println!("{}: {}", label, value);
 }
 
-fn print_total_line(
-    label: &str,
-    totals: &std::collections::BTreeMap<String, i64>,
-    name: &str,
-) {
+fn print_total_line(label: &str, totals: &std::collections::BTreeMap<String, i64>, name: &str) {
     let value = totals.get(name).copied().unwrap_or(0);
     println!("{}: {}", label, value);
 }

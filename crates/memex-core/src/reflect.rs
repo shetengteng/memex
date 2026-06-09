@@ -13,11 +13,11 @@
 
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 
 use crate::llm::provider::LlmProvider;
-use crate::llm::reflect::{generate_reflection, PeriodDigest, ReflectionOutput};
+use crate::llm::reflect::{PeriodDigest, ReflectionOutput, generate_reflection};
 use crate::storage::db::Db;
 
 /// 用户在 CLI 上选择的周期，解析后得到一组要拉取的 daily/weekly scope_key
@@ -60,7 +60,11 @@ impl ReflectPeriod {
     /// 内含当前日期上下文，便于 reflect 内容追溯。
     pub fn label(&self, today: NaiveDate) -> String {
         match self {
-            ReflectPeriod::Week => format!("Week {}-W{:02}", today.iso_week().year(), today.iso_week().week()),
+            ReflectPeriod::Week => format!(
+                "Week {}-W{:02}",
+                today.iso_week().year(),
+                today.iso_week().week()
+            ),
             ReflectPeriod::Month => format!("Last 30 days ending {}", today),
             ReflectPeriod::Days(n) => format!("Last {n} days ending {today}"),
         }
@@ -70,7 +74,11 @@ impl ReflectPeriod {
     /// 同周期内多次运行只更新同一行（依赖 upsert）。
     pub fn scope_key(&self, today: NaiveDate) -> String {
         match self {
-            ReflectPeriod::Week => format!("week:{}-W{:02}", today.iso_week().year(), today.iso_week().week()),
+            ReflectPeriod::Week => format!(
+                "week:{}-W{:02}",
+                today.iso_week().year(),
+                today.iso_week().week()
+            ),
             ReflectPeriod::Month => format!("month:{}", today.format("%Y-%m")),
             ReflectPeriod::Days(n) => format!("days{n}:{today}"),
         }
@@ -80,7 +88,8 @@ impl ReflectPeriod {
     pub fn date_range(&self, today: NaiveDate) -> (NaiveDate, NaiveDate) {
         match self {
             ReflectPeriod::Week => {
-                let week_start = today - Duration::days(today.weekday().num_days_from_monday() as i64);
+                let week_start =
+                    today - Duration::days(today.weekday().num_days_from_monday() as i64);
                 (week_start, today)
             }
             ReflectPeriod::Month => (today - Duration::days(29), today),
@@ -91,7 +100,11 @@ impl ReflectPeriod {
 
 /// 从 DB 拉出周期内的 daily 聚合摘要，转成 PeriodDigest 列表。
 /// 没有 LLM 摘要的日子不会出现在结果里（这是预期行为 — 那一天没工作就跳过）。
-pub fn collect_digests_for_period(db: &Db, period: &ReflectPeriod, today: NaiveDate) -> Result<Vec<PeriodDigest>> {
+pub fn collect_digests_for_period(
+    db: &Db,
+    period: &ReflectPeriod,
+    today: NaiveDate,
+) -> Result<Vec<PeriodDigest>> {
     let (start, end) = period.date_range(today);
     let mut digests = Vec::new();
     let mut d = start;

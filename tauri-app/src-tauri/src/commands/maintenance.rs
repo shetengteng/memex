@@ -14,7 +14,7 @@ use memex_core::memex_dir;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use super::daemon::{daemon_restart, read_lock_for_maintenance, is_process_alive_for_maintenance};
+use super::daemon::{daemon_restart, is_process_alive_for_maintenance, read_lock_for_maintenance};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemResetResult {

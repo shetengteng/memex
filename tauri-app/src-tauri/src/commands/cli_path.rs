@@ -23,7 +23,9 @@ fn target_paths() -> Vec<PathBuf> {
 /// 当前正在运行的 menubar binary 所在目录（`Memex.app/Contents/MacOS/`），
 /// 同目录里就放着 `memex` 和 `memex-daemon` 两个 sidecar 二进制。
 fn app_macos_dir() -> Option<PathBuf> {
-    env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from))
+    env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(PathBuf::from))
 }
 
 #[derive(Debug, Serialize)]
@@ -67,10 +69,7 @@ pub async fn cli_status() -> Result<CliStatus, String> {
         None => false,
     };
 
-    let path_export_hint = format!(
-        "export PATH=\"{}:$PATH\"",
-        dir.display()
-    );
+    let path_export_hint = format!("export PATH=\"{}:$PATH\"", dir.display());
 
     Ok(CliStatus {
         path_contains_target_dir: is_dir_in_path(&dir, &path_env),
@@ -87,12 +86,9 @@ pub async fn cli_status() -> Result<CliStatus, String> {
 #[tauri::command]
 pub async fn cli_install() -> Result<CliStatus, String> {
     let dir = target_dir();
-    let app_dir = app_macos_dir()
-        .ok_or_else(|| "无法确定 Memex.app 的 MacOS 目录".to_string())?;
+    let app_dir = app_macos_dir().ok_or_else(|| "无法确定 Memex.app 的 MacOS 目录".to_string())?;
 
-    fs::create_dir_all(&dir).map_err(|e| {
-        format!("创建目录 {} 失败：{}", dir.display(), e)
-    })?;
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录 {} 失败：{}", dir.display(), e))?;
 
     for name in TARGET_NAMES {
         let link = dir.join(name);
@@ -102,12 +98,16 @@ pub async fn cli_install() -> Result<CliStatus, String> {
         }
         if link.exists() || fs::symlink_metadata(&link).is_ok() {
             // 先把旧的链接/文件清掉，避免 "File exists"
-            fs::remove_file(&link).map_err(|e| {
-                format!("移除旧 symlink {} 失败：{}", link.display(), e)
-            })?;
+            fs::remove_file(&link)
+                .map_err(|e| format!("移除旧 symlink {} 失败：{}", link.display(), e))?;
         }
         unix_fs::symlink(&target, &link).map_err(|e| {
-            format!("创建 symlink {} → {} 失败：{}", link.display(), target.display(), e)
+            format!(
+                "创建 symlink {} → {} 失败：{}",
+                link.display(),
+                target.display(),
+                e
+            )
         })?;
     }
 
@@ -134,9 +134,8 @@ pub async fn cli_uninstall() -> Result<CliStatus, String> {
         if !is_ours {
             continue;
         }
-        fs::remove_file(&link).map_err(|e| {
-            format!("删除 symlink {} 失败：{}", link.display(), e)
-        })?;
+        fs::remove_file(&link)
+            .map_err(|e| format!("删除 symlink {} 失败：{}", link.display(), e))?;
     }
 
     cli_status().await

@@ -27,7 +27,12 @@ async fn body_json(body: Body) -> Value {
 #[tokio::test]
 async fn test_health_returns_ok() {
     let response = empty_db_router()
-        .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -38,7 +43,12 @@ async fn test_health_returns_ok() {
 #[tokio::test]
 async fn test_stats_zero_for_empty_db() {
     let response = empty_db_router()
-        .oneshot(Request::builder().uri("/stats").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -67,7 +77,8 @@ async fn test_sessions_list_empty() {
 #[tokio::test]
 async fn test_search_returns_seeded_chunk() {
     let db = Arc::new(Db::open_in_memory().unwrap());
-    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0).unwrap();
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0)
+        .unwrap();
     let hash = blake3::hash(b"redis pipeline tuning").to_hex().to_string();
     db.insert_message("m1", "s1", "user", "redis pipeline tuning", None, 0, &hash)
         .unwrap();

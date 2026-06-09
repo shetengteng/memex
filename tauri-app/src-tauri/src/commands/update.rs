@@ -23,7 +23,11 @@ fn parse_latest_tag(xml: &str) -> Option<String> {
     let after_marker = &id_value[marker_pos + TAG_MARKER.len()..];
     let slash_pos = after_marker.find('/')?;
     let tag = after_marker[slash_pos + 1..].trim();
-    if tag.is_empty() { None } else { Some(tag.to_string()) }
+    if tag.is_empty() {
+        None
+    } else {
+        Some(tag.to_string())
+    }
 }
 
 #[tauri::command]

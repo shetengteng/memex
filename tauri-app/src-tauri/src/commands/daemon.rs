@@ -75,7 +75,16 @@ pub(crate) fn stop_daemon_blocking() {
 fn http_health_ok(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
     Command::new("curl")
-        .args(["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2", &url])
+        .args([
+            "-s",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            "--max-time",
+            "2",
+            &url,
+        ])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -126,7 +135,11 @@ pub async fn daemon_status() -> Result<DaemonStatus, String> {
     };
     if let Some(info) = info {
         let alive = is_process_alive(info.pid);
-        let http = if alive { http_health_ok(info.port) } else { false };
+        let http = if alive {
+            http_health_ok(info.port)
+        } else {
+            false
+        };
         status.running = alive;
         status.pid = Some(info.pid);
         status.port = Some(info.port);
@@ -142,9 +155,8 @@ pub async fn daemon_restart() -> Result<DaemonStatus, String> {
     // lock 清理逻辑只有一份实现。
     let _ = stop_daemon_blocking();
 
-    let bin = find_daemon_binary().ok_or_else(|| {
-        "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string()
-    })?;
+    let bin = find_daemon_binary()
+        .ok_or_else(|| "在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".to_string())?;
 
     Command::new(&bin)
         .stdin(Stdio::null())

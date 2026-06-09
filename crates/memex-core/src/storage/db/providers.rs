@@ -230,7 +230,10 @@ mod tests {
         .unwrap();
 
         let got = db.provider_get("p1").unwrap().unwrap();
-        assert_eq!(got.api_key, "secret", "empty api_key in upsert should preserve existing");
+        assert_eq!(
+            got.api_key, "secret",
+            "empty api_key in upsert should preserve existing"
+        );
         assert_eq!(got.model, "m2");
     }
 

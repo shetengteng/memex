@@ -44,10 +44,7 @@ impl Ide {
             // ~/.claude/claude_desktop_config.json（后者是 Claude Desktop App 用的）。
             Self::ClaudeCode => home.join(".claude.json"),
             Self::Codex => home.join(".codex").join("config.toml"),
-            Self::OpenCode => home
-                .join(".config")
-                .join("opencode")
-                .join("opencode.json"),
+            Self::OpenCode => home.join(".config").join("opencode").join("opencode.json"),
         }
     }
 
@@ -133,8 +130,8 @@ pub fn status(ide: Ide) -> Result<IdeStatus> {
             command: None,
         });
     }
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     let (installed, command) = match ide {
         Ide::Cursor | Ide::ClaudeCode => probe_json_mcp_servers(&content, SERVER_NAME),
         Ide::Codex => probe_codex_toml(&content, SERVER_NAME),
@@ -152,13 +149,15 @@ pub fn status(ide: Ide) -> Result<IdeStatus> {
 pub fn list_status() -> Vec<IdeStatus> {
     Ide::all()
         .iter()
-        .map(|ide| status(*ide).unwrap_or_else(|_| IdeStatus {
-            ide: ide.as_str().to_string(),
-            config_path: ide.primary_config().to_string_lossy().to_string(),
-            config_exists: false,
-            installed: false,
-            command: None,
-        }))
+        .map(|ide| {
+            status(*ide).unwrap_or_else(|_| IdeStatus {
+                ide: ide.as_str().to_string(),
+                config_path: ide.primary_config().to_string_lossy().to_string(),
+                config_exists: false,
+                installed: false,
+                command: None,
+            })
+        })
         .collect()
 }
 
@@ -171,11 +170,7 @@ fn json_command_entry(memex_bin: &Path) -> serde_json::Value {
     })
 }
 
-fn upsert_json_mcp_servers(
-    path: &Path,
-    server_name: &str,
-    entry: serde_json::Value,
-) -> Result<()> {
+fn upsert_json_mcp_servers(path: &Path, server_name: &str, entry: serde_json::Value) -> Result<()> {
     let mut config = read_json_or_empty(path)?;
     let obj = config
         .as_object_mut()
@@ -205,10 +200,7 @@ fn probe_json_mcp_servers(content: &str, server_name: &str) -> (bool, Option<Str
     let Ok(v): serde_json::Result<serde_json::Value> = serde_json::from_str(content) else {
         return (false, None);
     };
-    let Some(entry) = v
-        .get("mcpServers")
-        .and_then(|s| s.get(server_name))
-    else {
+    let Some(entry) = v.get("mcpServers").and_then(|s| s.get(server_name)) else {
         return (false, None);
     };
     let cmd = entry
@@ -232,9 +224,7 @@ fn upsert_opencode_json(path: &Path, server_name: &str, memex_bin: &Path) -> Res
     let mcp = obj
         .entry("mcp".to_string())
         .or_insert(serde_json::json!({}));
-    let mcp = mcp
-        .as_object_mut()
-        .context("mcp is not a JSON object")?;
+    let mcp = mcp.as_object_mut().context("mcp is not a JSON object")?;
     mcp.insert(
         server_name.to_string(),
         serde_json::json!({
@@ -330,8 +320,8 @@ fn read_json_or_empty(path: &Path) -> Result<serde_json::Value> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     if content.trim().is_empty() {
         return Ok(serde_json::json!({}));
     }
@@ -347,13 +337,12 @@ fn read_toml_or_empty(path: &Path) -> Result<toml::Value> {
     if !path.exists() {
         return Ok(toml::Value::Table(toml::map::Map::new()));
     }
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     if content.trim().is_empty() {
         return Ok(toml::Value::Table(toml::map::Map::new()));
     }
-    toml::from_str(&content)
-        .or_else(|_| Ok(toml::Value::Table(toml::map::Map::new())))
+    toml::from_str(&content).or_else(|_| Ok(toml::Value::Table(toml::map::Map::new())))
 }
 
 fn write_toml(path: &Path, value: &toml::Value) -> Result<()> {

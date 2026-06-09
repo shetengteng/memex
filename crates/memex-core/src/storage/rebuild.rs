@@ -157,7 +157,9 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
     for line in body.lines() {
         if let Some(role) = detect_message_header(line) {
             if let Some(prev_role) = current_role.take() {
-                if let Some(msg) = build_rebuild_message(session_id, prev_role, &current_content, msg_index) {
+                if let Some(msg) =
+                    build_rebuild_message(session_id, prev_role, &current_content, msg_index)
+                {
                     messages.push(msg);
                     msg_index += 1;
                 }
@@ -181,7 +183,12 @@ fn parse_messages_from_body(body: &str, session_id: &str) -> Vec<RawMessage> {
     messages
 }
 
-fn build_rebuild_message(session_id: &str, role: Role, raw_content: &str, index: u64) -> Option<RawMessage> {
+fn build_rebuild_message(
+    session_id: &str,
+    role: Role,
+    raw_content: &str,
+    index: u64,
+) -> Option<RawMessage> {
     let trimmed = raw_content.trim().to_string();
     if trimmed.is_empty() {
         return None;
@@ -293,7 +300,10 @@ mod tests {
         rebuild_from_markdown(tmp.path(), &db).unwrap();
 
         let results = db.fts_search("redis", 10).unwrap();
-        assert!(!results.is_empty(), "search after rebuild should find 'redis'");
+        assert!(
+            !results.is_empty(),
+            "search after rebuild should find 'redis'"
+        );
         assert!(results.iter().any(|r| r.content.contains("redis")));
     }
 }

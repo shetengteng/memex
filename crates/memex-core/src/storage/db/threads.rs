@@ -88,12 +88,7 @@ impl Db {
                     "UPDATE threads
                      SET summary = ?1, session_count = ?2, updated_at = ?3
                      WHERE id = ?4",
-                    params![
-                        draft.summary,
-                        draft.session_ids.len() as i64,
-                        now,
-                        id
-                    ],
+                    params![draft.summary, draft.session_ids.len() as i64, now, id],
                 )?;
                 id
             }

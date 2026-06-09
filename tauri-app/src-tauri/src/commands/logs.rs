@@ -84,12 +84,14 @@ pub async fn read_daemon_log(
 ) -> Result<DaemonLogRead, String> {
     let files = list_daemon_log_files().await?;
     let target = match file_name {
-        Some(n) => files.into_iter().find(|f| f.name == n).ok_or_else(|| {
-            format!("找不到日志文件：{n}")
-        })?,
-        None => files.into_iter().next().ok_or_else(|| {
-            "日志目录为空（daemon 可能尚未写入日志）".to_string()
-        })?,
+        Some(n) => files
+            .into_iter()
+            .find(|f| f.name == n)
+            .ok_or_else(|| format!("找不到日志文件：{n}"))?,
+        None => files
+            .into_iter()
+            .next()
+            .ok_or_else(|| "日志目录为空（daemon 可能尚未写入日志）".to_string())?,
     };
     let want_lines = lines.unwrap_or(500).min(MAX_TAIL_LINES).max(1);
 

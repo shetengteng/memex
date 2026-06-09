@@ -96,7 +96,10 @@ pub fn summarize_chunk(provider: &dyn LlmProvider, content: &str) -> Result<Stri
         return Ok(extract_first_sentence(content, 120));
     }
     let truncated = if content.len() > 2000 {
-        format!("{}... (truncated)", &content[..content.floor_char_boundary(2000)])
+        format!(
+            "{}... (truncated)",
+            &content[..content.floor_char_boundary(2000)]
+        )
     } else {
         content.to_string()
     };
@@ -265,15 +268,16 @@ impl PeriodBudget {
 ///    的同名 topic 不会被错误合并。无 project_name 的会话 fallback 到 topic-only。
 /// 2. 大组（> sessions_per_group * 1.5）按时间分片再切几条，避免一段 prompt 全
 ///    被一个超大组占满 max_summary_chars 之后剩余组被截断。
-fn condense_for_period(
-    summaries: &[SessionSummary],
-    budget: &PeriodBudget,
-) -> Vec<String> {
+fn condense_for_period(summaries: &[SessionSummary], budget: &PeriodBudget) -> Vec<String> {
     use std::collections::BTreeMap;
 
     let mut by_key: BTreeMap<String, Vec<&SessionSummary>> = BTreeMap::new();
     for s in summaries {
-        let topic = s.topics.first().cloned().unwrap_or_else(|| "其他".to_string());
+        let topic = s
+            .topics
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "其他".to_string());
         let key = match &s.project_name {
             Some(p) if !p.trim().is_empty() => format!("{} · {}", p.trim(), topic),
             _ => topic,
@@ -339,7 +343,8 @@ fn build_prompt(messages: &[(String, String)]) -> String {
     for (role, content) in messages {
         let header = format!("[{}]：", role);
         let truncated = if content.len() > 1000 {
-            let end = content.char_indices()
+            let end = content
+                .char_indices()
                 .take_while(|(i, _)| *i < 1000)
                 .last()
                 .map(|(i, c)| i + c.len_utf8())
@@ -364,7 +369,10 @@ fn build_prompt(messages: &[(String, String)]) -> String {
 
 fn parse_summary(text: &str) -> Result<SessionSummary> {
     if text.trim().len() < 10 {
-        anyhow::bail!("LLM returned too-short response ({} chars), cannot parse summary", text.len());
+        anyhow::bail!(
+            "LLM returned too-short response ({} chars), cannot parse summary",
+            text.len()
+        );
     }
 
     let cleaned = strip_code_fences(text);
@@ -427,30 +435,38 @@ fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
             .iter()
             .filter_map(|v| match v {
                 serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Object(obj) => {
-                    obj.get("decision")
-                        .or_else(|| obj.get("content"))
-                        .or_else(|| obj.get("desc"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from)
-                }
+                serde_json::Value::Object(obj) => obj
+                    .get("decision")
+                    .or_else(|| obj.get("content"))
+                    .or_else(|| obj.get("desc"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
                 _ => None,
             })
             .collect(),
         _ => Vec::new(),
     };
 
-    let project_name = val.get("project_name")
+    let project_name = val
+        .get("project_name")
         .and_then(|v| v.as_str())
         .map(String::from)
         .filter(|s| !s.is_empty());
 
-    let intent = val.get("intent")
+    let intent = val
+        .get("intent")
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    SessionSummary { title, summary, topics, decisions, project_name, intent }
+    SessionSummary {
+        title,
+        summary,
+        topics,
+        decisions,
+        project_name,
+        intent,
+    }
 }
 
 fn extract_first_sentence(text: &str, max_len: usize) -> String {

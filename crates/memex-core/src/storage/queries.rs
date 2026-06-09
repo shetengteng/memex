@@ -225,9 +225,7 @@ impl Db {
         let conn = self.conn.lock().unwrap();
         let mut by_adapter = std::collections::BTreeMap::new();
         {
-            let mut stmt = conn.prepare(
-                "SELECT source, COUNT(*) FROM sessions GROUP BY source",
-            )?;
+            let mut stmt = conn.prepare("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
             let rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
             })?;
@@ -515,12 +513,14 @@ impl Db {
 
         let heat_rows: Vec<WorkloadHeatmapCell> = bucket
             .into_iter()
-            .map(|((weekday, hour), (sessions, messages))| WorkloadHeatmapCell {
-                weekday,
-                hour,
-                sessions,
-                messages,
-            })
+            .map(
+                |((weekday, hour), (sessions, messages))| WorkloadHeatmapCell {
+                    weekday,
+                    hour,
+                    sessions,
+                    messages,
+                },
+            )
             .collect();
 
         // 2) 按 adapter 聚合
@@ -783,15 +783,26 @@ mod tests {
         assert_eq!(r.overall.messages, 65);
         assert!(r.overall.active_days >= 1);
 
-        let cc = r.by_adapter.iter().find(|b| b.key == "claude_code").unwrap();
+        let cc = r
+            .by_adapter
+            .iter()
+            .find(|b| b.key == "claude_code")
+            .unwrap();
         assert_eq!(cc.sessions, 2);
         assert_eq!(cc.messages, 30);
 
-        let proj_a = r.by_project.iter().find(|p| p.project_path == "/a").unwrap();
+        let proj_a = r
+            .by_project
+            .iter()
+            .find(|p| p.project_path == "/a")
+            .unwrap();
         assert_eq!(proj_a.sessions, 3);
         assert_eq!(proj_a.name, "a");
 
-        assert!(!r.heatmap.is_empty(), "heatmap should contain at least one cell");
+        assert!(
+            !r.heatmap.is_empty(),
+            "heatmap should contain at least one cell"
+        );
         for cell in &r.heatmap {
             assert!(cell.weekday <= 6);
             assert!(cell.hour <= 23);
@@ -890,7 +901,12 @@ mod tests {
         // 4 个不同的 hour 桶（9/11/13 + 15）。
         let distinct_hours: std::collections::HashSet<u8> =
             r.heatmap.iter().map(|c| c.hour).collect();
-        assert_eq!(distinct_hours.len(), 4, "expected 4 distinct hour buckets, got {:?}", distinct_hours);
+        assert_eq!(
+            distinct_hours.len(),
+            4,
+            "expected 4 distinct hour buckets, got {:?}",
+            distinct_hours
+        );
     }
 
     /// 回归测试：去掉 messages × sessions JOIN 之后，结果应当与有 JOIN 时一致。
@@ -1076,7 +1092,11 @@ mod tests {
 
         // 通路 A = 2（cc1 的 2 条 timestamp），通路 B = 7（cu1 message_count）
         // 关键：cc1 的 message_count=500 不应被算进来。
-        assert_eq!(today_row.messages, 9, "expected 2 + 7 = 9, got {}", today_row.messages);
+        assert_eq!(
+            today_row.messages, 9,
+            "expected 2 + 7 = 9, got {}",
+            today_row.messages
+        );
         assert_eq!(today_row.sessions, 2);
         assert_eq!(r.overall.messages, 9);
         assert_eq!(r.overall.sessions, 2);
@@ -1108,7 +1128,10 @@ mod tests {
 
         let r = db.workload_report(2).unwrap();
         let total_msgs: i64 = r.heatmap.iter().map(|c| c.messages).sum();
-        assert_eq!(total_msgs, 1, "must NOT include session.message_count=99 fallback");
+        assert_eq!(
+            total_msgs, 1,
+            "must NOT include session.message_count=99 fallback"
+        );
         let total_sessions: i64 = r.heatmap.iter().map(|c| c.sessions).sum();
         assert_eq!(total_sessions, 1);
     }

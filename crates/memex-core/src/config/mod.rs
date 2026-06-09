@@ -216,9 +216,15 @@ pub fn detect_installed_adapters() -> AdaptersConfig {
     let claude_code = home.join(".claude/projects").exists();
     let cursor = {
         #[cfg(target_os = "macos")]
-        { home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb").exists() }
+        {
+            home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
+                .exists()
+        }
         #[cfg(not(target_os = "macos"))]
-        { home.join(".config/Cursor/User/globalStorage/state.vscdb").exists() }
+        {
+            home.join(".config/Cursor/User/globalStorage/state.vscdb")
+                .exists()
+        }
     };
     let codex = home.join(".codex").exists();
     let opencode = home.join(".local/share/opencode/opencode.db").exists();
@@ -227,13 +233,18 @@ pub fn detect_installed_adapters() -> AdaptersConfig {
         #[cfg(target_os = "macos")]
         {
             let data = dirs::data_dir().unwrap_or_else(|| home.join("Library/Application Support"));
-            data.join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
-                || data.join("Cursor/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
+            data.join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks")
+                .exists()
+                || data
+                    .join("Cursor/User/globalStorage/saoudrizwan.claude-dev/tasks")
+                    .exists()
         }
         #[cfg(not(target_os = "macos"))]
         {
             let config = dirs::config_dir().unwrap_or_else(|| home.join(".config"));
-            config.join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks").exists()
+            config
+                .join("Code/User/globalStorage/saoudrizwan.claude-dev/tasks")
+                .exists()
         }
     };
     let aider = home.join(".aider.chat.history.md").exists();
@@ -280,7 +291,10 @@ mod tests {
     #[test]
     fn default_adapters_all_disabled() {
         let c = MemexConfig::default();
-        assert!(!c.adapters.claude_code, "OOB adapters 必须默认关闭，由用户按需开启");
+        assert!(
+            !c.adapters.claude_code,
+            "OOB adapters 必须默认关闭，由用户按需开启"
+        );
         assert!(!c.adapters.cursor);
         assert!(!c.adapters.codex);
         assert!(!c.adapters.opencode);
@@ -292,7 +306,10 @@ mod tests {
     #[test]
     fn default_privacy_has_redaction_on() {
         let c = MemexConfig::default();
-        assert!(c.privacy.redaction_enabled, "默认必须开启脱敏（隐私默认安全）");
+        assert!(
+            c.privacy.redaction_enabled,
+            "默认必须开启脱敏（隐私默认安全）"
+        );
         assert!(!c.privacy.skip_private_sessions);
     }
 
@@ -347,6 +364,10 @@ skip_private_sessions = false
             "OOB config.toml 必须写入完整 ollama_url，否则新用户开关打开后 Ollama provider 选不上。\n实际写入:\n{}",
             written
         );
-        assert!(written.contains("ollama_model = \"llama3.2\""), "实际写入:\n{}", written);
+        assert!(
+            written.contains("ollama_model = \"llama3.2\""),
+            "实际写入:\n{}",
+            written
+        );
     }
 }

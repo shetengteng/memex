@@ -92,7 +92,14 @@ fn summary_progress_contract() {
     .unwrap();
     assert_object_keys(
         &v,
-        &["current", "total", "session_id", "success", "done", "aborted"],
+        &[
+            "current",
+            "total",
+            "session_id",
+            "success",
+            "done",
+            "aborted",
+        ],
     );
 }
 

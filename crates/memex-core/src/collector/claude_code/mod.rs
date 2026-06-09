@@ -297,11 +297,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let jsonl = r#"{"type":"user","cwd":"/Users/foo/work/my-proj","message":{"role":"human","content":"hi"}}
 "#;
-        let file_path = write_fixture(
-            tmp.path(),
-            "-Users-foo-work-my--proj/session1.jsonl",
-            jsonl,
-        );
+        let file_path = write_fixture(tmp.path(), "-Users-foo-work-my--proj/session1.jsonl", jsonl);
         let adapter = ClaudeCodeAdapter::with_base_dir(tmp.path().to_path_buf());
         let got = adapter.extract_project_path(&file_path);
         assert_eq!(got.as_deref(), Some("/Users/foo/work/my-proj"));

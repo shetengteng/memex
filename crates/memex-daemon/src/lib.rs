@@ -12,8 +12,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Result;
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tracing::{info, warn};
@@ -43,7 +43,11 @@ pub async fn run(port: u16) -> Result<()> {
     let db = Arc::new(Db::open(&db_path)?);
 
     lockfile::write_lock(&memex_dir, port)?;
-    info!("daemon.lock written (pid={}, port={})", std::process::id(), port);
+    info!(
+        "daemon.lock written (pid={}, port={})",
+        std::process::id(),
+        port
+    );
 
     let watcher_db = Arc::clone(&db);
     let watcher_dir = memex_dir.clone();

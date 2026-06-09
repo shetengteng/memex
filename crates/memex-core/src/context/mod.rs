@@ -13,8 +13,8 @@
 //! - 输出格式跟 IDE hook 协议**解耦**（hook wrapper 负责 JSON
 //!   套壳）—— 命令本身永远只发 Markdown
 
-pub mod matcher;
 pub mod builder;
+pub mod matcher;
 
-pub use builder::{build_context, ContextOptions};
-pub use matcher::{search_by_project, ProjectMatch, MatchTier};
+pub use builder::{ContextOptions, build_context};
+pub use matcher::{MatchTier, ProjectMatch, search_by_project};

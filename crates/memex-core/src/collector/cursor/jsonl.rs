@@ -223,11 +223,10 @@ fn convert_cursor_entry(entry: &CursorEntry, session_id: &str, offset: u64) -> O
         return None;
     }
 
-    let id = blake3::hash(
-        format!("{}{}{}", session_id, offset, safe_prefix(&content, 100)).as_bytes(),
-    )
-    .to_hex()
-    .to_string();
+    let id =
+        blake3::hash(format!("{}{}{}", session_id, offset, safe_prefix(&content, 100)).as_bytes())
+            .to_hex()
+            .to_string();
 
     Some(RawMessage {
         id,
