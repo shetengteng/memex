@@ -9,6 +9,7 @@
 
 ## 进度跟踪
 
+- 2026-06-09 1cf99f4 — **P1-3 完成**：新增 `crates/memex-cli/src/io.rs` (142 行) 作为 CLI 输出单一控制点（`init`/`out!`/`err!`/`json`），134 处 `println!`/`eprintln!` 跨 15 文件全部迁移，14 处旧 `crate::out!("{}", serde_json::*())` 直接走 `io::json()` —— 顺手修了 `--json` 模式静默 bug。烟测 `memex --json stats` 输出合法可解析 JSON，`memex stats` 保持人类格式。287/287 tests pass。
 - 2026-06-09 ec5bd34 — **P1-2 主体完成（13/16）**：精确扫描后真实 production unwrap/expect = 16 处（旧 TODO 估的 200+ 多在 inline `#[cfg(test)] mod tests` 或 `_tests.rs` 文件级测试里）。3 个 commit 处理 13 处：
   * adf659c：redact.rs 7 regex INVARIANT + 1 std Mutex Ok-else-return
   * 9bac3b3：metadata.rs 3 regex INVARIANT + hooks 2 home_dir INVARIANT
@@ -263,19 +264,31 @@
 **规约依据**：§1.1
 **实际耗时**：~1.5h（远低于估时 1-2 天 —— 因为旧扫描数被 test 误报严重虚高）
 
-### P1-3 CLI `println!` 抽 io 模块
+### ✅ P1-3 CLI `println!` 抽 io 模块（2026-06-09 完成，~1h）
 
-- [ ] 新建 `crates/memex-cli/src/io.rs` 封装：
-  ```rust
-  pub fn out(args: std::fmt::Arguments) { /* stdout */ }
-  pub fn err(args: std::fmt::Arguments) { /* stderr */ }
-  pub fn json<T: Serialize>(v: &T) { /* stdout JSON line */ }
-  ```
-- [ ] memex-cli 14 个 commands 文件迁移
-- [ ] 让 `--quiet` / `--json` 全局开关有单一控制点
+#### 实施（commit d8ce656 + 1cf99f4）
+
+- `crates/memex-cli/src/io.rs` 142 行，提供 4 个公开 API：
+  - `init(json: bool)` —— `dispatch::run` 入口调用一次，把顶层 `--json` flag 注入 `OnceLock<IoFlags>`
+  - `out!(...)` macro —— `println!` 形态，受 `--json` 抑制（避免污染 JSON 流）
+  - `err!(...)` macro —— `eprintln!` 形态，不受 `--json` 影响（诊断/进度/警告永远输出到 stderr）
+  - `json(value: &T)` —— `Serialize` 写到 stdout，`--json` 模式紧凑、人类模式 pretty
+- 134 处 `println!`/`eprintln!` 跨 15 文件全部迁移
+- 14 处 `crate::out!("{}", serde_json::*(&x))` → `crate::io::json(&x)` 修正了 `--json` 模式静默 bug（如果没改这部分，迁移后 `--json` 反而不出 JSON）
+
+#### 未实施
+
+- 不引入 `--quiet` flag：TODO 提了但用户没明确要求；shell 重定向已能达成 quiet 效果，引入 flag 是 API 表面扩张。
+- 14 个 `commands::*::run()` 函数签名里的 `json: bool` 参数没移除：移除会牵涉所有 caller。`io::init()` 已经吃掉 flag，但 commands 内部还是判断局部 `json` 参数。下个 boy-scout commit 可以清理。
+
+#### 验证
+
+- `cargo clippy -p memex-cli --tests --all-targets -- -D warnings` ✓
+- `cargo test --workspace`：287 tests 全过
+- 烟测：`memex stats` 输出人类格式；`memex --json stats` 输出合法 JSON（python `json.tool` round-trip pass）
 
 **规约依据**：§9.1
-**估时**：3-4h
+**实际工时**：~1h（远低于估时 3-4h —— 大头是 sed 机械替换）
 
 ### P1-4 启用 crate 级 lint
 
