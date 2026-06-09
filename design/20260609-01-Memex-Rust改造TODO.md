@@ -231,24 +231,79 @@ SQLx 是 **async-only**（即便 SQLite driver 也走后台 worker thread + chan
 
 memex.db 切 SQLx，外部 db（cursor / opencode）继续 rusqlite。同时引入两个 SQLite 绑定，binary 体积 +2-3 MB，dev 心智成本翻倍。
 
+#### 候选 D：`Diesel 2.x` ORM（同步 + 编译期 typed query）
+
+Diesel 是 Rust 生态里**唯一的同步原生 ORM**，且**直接支持 SQLite**（`diesel = "2"` features=`["sqlite"]`，可加 `bundled`）。也提供 `diesel-async`（可选，本节不取）。
+
+| 改造项 | 估时 |
+|---|---|
+| `Cargo.toml`：rusqlite → diesel 2 features=["sqlite", "r2d2", "chrono"] (+`libsqlite3-sys/bundled`) | 30min |
+| `diesel setup` + `diesel print-schema > src/storage/schema.rs` 生成 `table!` 宏 | 1h |
+| 把 10 个 inline migration 写成 `migrations/<timestamp>_<name>/{up,down}.sql`（`diesel migration generate`） | 2h |
+| 8 个 `db/*.rs` 改 query DSL（`users::table.filter(...).load::<User>(&conn)?`），或继续手写 SQL 用 `sql_query::<T>(...)` 但失去类型安全 | 8-12h |
+| `queries.rs` 1138 行（含大量 aggregation / window / FTS5）很多 SQL **diesel DSL 表达不动**，必须 `sql_query` + 手写 typed Row → 实质是把 rusqlite 的 row mapping 用 Diesel 重写一遍 | 8-12h |
+| `db/tests.rs`：连接池初始化方式变了（`SqliteConnection::establish(":memory:")`），16 处 in-memory db 全改 | 1.5h |
+| 模型派生 `#[derive(Queryable, Insertable, AsChangeset)]`，所有 struct 重新标注列映射 | 2h |
+| `commands/error.rs` 加 `From<diesel::result::Error>` | 30min |
+
+**总估时**：~24-31h（与候选 B2 同量级）。
+
+##### Diesel 的真正成本
+
+1. **学习曲线陡**：`table!` 宏 + query DSL（`users::dsl::*`）+ `Queryable` / `AsChangeset` / `Insertable` derive 是一整套 mental model；新人上手 ≥1 周。
+2. **复杂 SQL 表达不动**：window functions / CTE / FTS5 MATCH 在 DSL 里都得退回 `sql_query`，DSL 收益打七折。memex 在 `queries.rs` 里有大量这类 SQL（`workload_report` 用了 7 个 CTE，summary 进度条 query 用了 `LEFT JOIN ... GROUP BY`），DSL 化收益 < 30%。
+3. **bundled SQLite 编译时间**：Diesel 启动 cargo build 第一次 +60-90s（绑 SQLite + macro 展开）。
+4. **macro debug 体验差**：`table!` / `joinable!` 有时 query 编不过却报奇怪错误，比 SQLx 的 `query!` macro 更难调。
+
+**适合场景**：纯 CRUD + 简单 join 业务（用户系统 / 订单系统）。**memex 是分析型 + 全文检索 + 大量 aggregate，不是 Diesel 的甜蜜区。**
+
+#### 候选 E：`rusqlite` + 周边工具补齐 = 候选 A 的具体化
+
+这是把候选 A 写得更具体的版本，所有依赖均为 rusqlite 生态原生组件：
+
+| 依赖 | 版本 | 解决什么 |
+|---|---|---|
+| `rusqlite_migration` | 1.x | 把 inline migration 提到 `migrations/V01__*.sql` 文件，自动管 `schema_version`，`Migrations::new(&[...])` 一行声明 |
+| `serde_rusqlite` | 0.36 | `from_row::<MySession>(row)` 替代手写 `row.get(0)?, row.get(1)?, ...`，DRY |
+| 自带 `prepare_cached` | n/a | 热路径 query 自动复用编译后的 stmt，省 parse + plan |
+| 自带 `Transaction` | n/a | 显式 `tx.commit()` 替代散落的 batch execute |
+| 可选 `rusqlite_from_row` | 0.7 | derive macro 生成 `FromRow`，比 `serde_rusqlite` 少一层 serde 间接 |
+
+**总估时**：6-10h，**风险低**，**API 表面完全不变**（130 处调用点最多调局部参数，不动方法签名）。
+
+#### 候选横向对比
+
+| 候选 | sync/async | 编译期 query check | 学习曲线 | 估时 | 风险 | 适合度 |
+|---|---|---|---|---|---|---|
+| A/E rusqlite + 补强 | sync | ❌（runtime 报错） | 低 | 6-10h | 低 | ⭐⭐⭐⭐⭐ |
+| B1 SQLx 全异步 | async | ✅（macro） | 中 | 30-42h | 高 | ⭐⭐ |
+| B2 SQLx + block_on | sync 假象 | ✅（macro） | 中 | 22-30h | 中-高（反模式） | ⭐ |
+| C 混合 | mixed | 部分 ✅ | 高 | 25-35h | 高 | ⭐ |
+| D Diesel ORM | sync | ✅（DSL + macro） | 高 | 24-31h | 中 | ⭐⭐ |
+
 #### 决策建议
 
-**强烈倾向候选 A**（保持 rusqlite + 补强）。判断依据：
+**强烈倾向候选 E**（rusqlite + 周边工具补齐）。判断依据：
 
-1. **业务场景错配**：memex 是 local-first 桌面应用，无网络 DB / 无并发请求 / 无多租户，SQLx 的 async + 编译期 query check 价值都被打折扣。
-2. **改造成本失衡**：候选 A 6-8h，候选 B 22-30h（不含测试回归），收益（编译期 query check 减少错误）无法对冲风险（async 穿透 / block_on 反模式）。
-3. **业界共识**：2026 年 Rust ORM 综述明确 "CLI tools, desktop apps, embedded systems → Rusqlite"。
-4. **rusqlite 的痛点可补**：migration 用 `rusqlite_migration`，编译期检查可以用 `sqlite_macros` 或 `cargo sqlite-static-analyzer`，不需要换框架。
+1. **业务场景错配**：memex 是 local-first 桌面应用 + 分析型查询为主，async 收益微薄、ORM DSL 表达力不够、编译期 query check 不等于业务正确性
+2. **改造成本失衡**：E 6-10h vs B/C/D 22-42h，4-7 倍工时差，但收益不到 1.5 倍
+3. **业界共识**：2026 年 Rust ORM 综述明确 "CLI tools, desktop apps, embedded systems → Rusqlite"
+4. **API 稳定性**：候选 E 完全不破坏 130 处调用点的方法签名，可与 P1-1 / P1-2 并行推进
 
-**若坚持候选 B**：建议至少先做 P1-1（拆 1138 行的 `queries.rs`）+ P1-2（unwrap 清零），确保 storage 层稳态后再切；切换时只做 B2（block_on facade）保持调用方不动，最后再渐进 async 化。
+**若仍想换框架**，按场景适用度排序应该是：
+1. **Diesel**（候选 D）—— 同步 + SQLite + 编译期 check，唯一不引入 async 的 ORM 候选；但 DSL 学习成本 + 复杂 SQL 退化为 `sql_query` 的现实，最终收益打折
+2. SQLx + block_on（候选 B2）—— 编译期 check 在；但 block_on 反模式
+3. SQLx 全异步（候选 B1）—— 改造面最大，但路径最干净
 
 **待用户决策**：
-- [ ] 候选 A：rusqlite 补强（推荐）
+- [ ] 候选 E：rusqlite + 周边工具（**推荐**）
+- [ ] 候选 D：Diesel 2 ORM
 - [ ] 候选 B1：SQLx + 全异步穿透
 - [ ] 候选 B2：SQLx + block_on facade
+- [ ] 暂不做 P1-5，先做 P1-1（拆大文件）/ P1-2（清 unwrap）
 
 **规约依据**：§3.1 依赖最小化、§7.2 文件大小、§14.1 错误类型
-**估时**：A=6-8h / B1=30-42h / B2=22-30h
+**估时**：E=6-10h / D=24-31h / B1=30-42h / B2=22-30h
 
 ---
 
