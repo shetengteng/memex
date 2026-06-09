@@ -6,6 +6,8 @@ use memex_core::llm::provider::{LlmProvider, LlmRequest};
 use memex_core::memex_dir;
 use serde::Serialize;
 
+use super::error::CmdResult;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct LlmTestResult {
     pub ok: bool,
@@ -27,8 +29,8 @@ fn micro_request() -> LlmRequest {
 }
 
 #[tauri::command]
-pub async fn llm_test_ollama() -> Result<LlmTestResult, String> {
-    let config = MemexConfig::load(&memex_dir()).map_err(|e| e.to_string())?;
+pub async fn llm_test_ollama() -> CmdResult<LlmTestResult> {
+    let config = MemexConfig::load(&memex_dir())?;
     let provider = OllamaProvider::from_config(&config.llm);
     let start = Instant::now();
 
