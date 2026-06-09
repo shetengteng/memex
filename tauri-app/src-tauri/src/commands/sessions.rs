@@ -63,7 +63,12 @@ pub async fn retry_summary(session_id: String) -> CmdResult<bool> {
     let provider = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
         .ok_or_else(require_provider)?;
 
-    let _ = db.delete_summary(&session_id, "L2_session");
+    if let Err(e) = db.delete_summary(&session_id, "L2_session") {
+        // best-effort cleanup before re-summarizing; if it failed for any
+        // reason other than "no such row" the upsert below will surface the
+        // real problem to the user. Logged to aid diagnosis.
+        tracing::warn!(session_id = %session_id, error = %e, "failed to delete stale L2 summary before re-summarize");
+    }
     let ok = memex_core::ingest::summarize_session_by_id(&db, provider.as_ref(), &session_id);
     Ok(ok)
 }

@@ -65,7 +65,9 @@ pub async fn llm_provider_test(id: String) -> CmdResult<ProviderTestResult> {
 
     if !provider.is_available() {
         let elapsed = start.elapsed().as_millis() as u64;
-        let _ = db.provider_update_status(&id, "error", Some(elapsed as i64));
+        if let Err(e) = db.provider_update_status(&id, "error", Some(elapsed as i64)) {
+            tracing::warn!(provider_id = %id, error = %e, "failed to record provider error status");
+        }
         return Ok(ProviderTestResult {
             ok: false,
             latency_ms: elapsed,
@@ -77,7 +79,9 @@ pub async fn llm_provider_test(id: String) -> CmdResult<ProviderTestResult> {
     match provider.generate(&micro_request()) {
         Ok(resp) => {
             let elapsed = start.elapsed().as_millis() as u64;
-            let _ = db.provider_update_status(&id, "ok", Some(elapsed as i64));
+            if let Err(e) = db.provider_update_status(&id, "ok", Some(elapsed as i64)) {
+                tracing::warn!(provider_id = %id, error = %e, "failed to record provider ok status");
+            }
             Ok(ProviderTestResult {
                 ok: true,
                 latency_ms: elapsed,
@@ -87,7 +91,9 @@ pub async fn llm_provider_test(id: String) -> CmdResult<ProviderTestResult> {
         }
         Err(e) => {
             let elapsed = start.elapsed().as_millis() as u64;
-            let _ = db.provider_update_status(&id, "error", Some(elapsed as i64));
+            if let Err(update_err) = db.provider_update_status(&id, "error", Some(elapsed as i64)) {
+                tracing::warn!(provider_id = %id, error = %update_err, "failed to record provider error status");
+            }
             Ok(ProviderTestResult {
                 ok: false,
                 latency_ms: elapsed,

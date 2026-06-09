@@ -62,14 +62,19 @@ pub(crate) fn stop_daemon_blocking() {
         let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
         return;
     }
-    let _ = Command::new("kill")
+    if let Err(e) = Command::new("kill")
         .args(["-TERM", &info.pid.to_string()])
-        .status();
+        .status()
+    {
+        tracing::warn!(pid = info.pid, error = %e, "failed to send SIGTERM to daemon");
+    }
     std::thread::sleep(std::time::Duration::from_millis(800));
-    if is_process_alive(info.pid) {
-        let _ = Command::new("kill")
+    if is_process_alive(info.pid)
+        && let Err(e) = Command::new("kill")
             .args(["-KILL", &info.pid.to_string()])
-            .status();
+            .status()
+    {
+        tracing::warn!(pid = info.pid, error = %e, "failed to send SIGKILL to daemon");
     }
     let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
 }

@@ -80,14 +80,20 @@ fn stop_daemon_blocking() {
         return;
     }
 
-    let _ = Command::new("kill")
+    if let Err(e) = Command::new("kill")
         .args(["-TERM", &info.pid.to_string()])
-        .status();
+        .status()
+    {
+        tracing::warn!(pid = info.pid, error = %e, "failed to send SIGTERM to daemon");
+    }
     std::thread::sleep(Duration::from_millis(800));
     if is_process_alive_for_maintenance(info.pid) {
-        let _ = Command::new("kill")
+        if let Err(e) = Command::new("kill")
             .args(["-KILL", &info.pid.to_string()])
-            .status();
+            .status()
+        {
+            tracing::warn!(pid = info.pid, error = %e, "failed to send SIGKILL to daemon");
+        }
         std::thread::sleep(Duration::from_millis(200));
     }
 
@@ -98,7 +104,11 @@ fn stop_daemon_blocking() {
 fn restart_after_reset(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(300)).await;
-        let _ = daemon_restart().await;
+        if let Err(e) = daemon_restart().await {
+            tracing::warn!(error = %e, "failed to restart daemon after reset");
+        }
+        // app.emit failures here mean no subscribers — UI is free to refresh
+        // on its own polling. Not worth logging on every reset.
         let _ = app.emit("reset-complete", ());
     });
 }
