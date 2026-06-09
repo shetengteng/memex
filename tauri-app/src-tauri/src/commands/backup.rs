@@ -7,6 +7,8 @@ use std::process::Command;
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
+use super::error::{CmdError, CmdResult};
+
 /// 返回 memex 数据目录（`~/.memex`）的绝对路径，给前端展示用。
 /// DataTab 用它显示数据库路径，避免之前为了拿一个路径把 doctor 全跑一遍。
 #[tauri::command]
@@ -18,10 +20,10 @@ pub fn memex_data_dir() -> String {
 /// 前端"打开备份目录"按钮在用户从未备份过的情况下也能用：先 ensure 再
 /// reveal，否则 Finder 会跳到上一级 `~/.memex`，跟用户意图不一致。
 #[tauri::command]
-pub fn ensure_backup_dir() -> Result<String, String> {
+pub fn ensure_backup_dir() -> CmdResult<String> {
     let dir = memex_dir().join("backups");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("创建备份目录失败：{}", e))?;
+        std::fs::create_dir_all(&dir)?;
     }
     Ok(dir.to_string_lossy().to_string())
 }
@@ -53,13 +55,14 @@ fn locate_memex_cli() -> Option<PathBuf> {
 
 /// 在 `~/.memex/backups/` 下生成一个带时间戳的 `.tar.gz`，返回备份信息。
 #[tauri::command]
-pub async fn backup_now() -> Result<BackupResult, String> {
-    let bin = locate_memex_cli()
-        .ok_or_else(|| "找不到 memex CLI（既不在 app 同目录，也不在 PATH）".to_string())?;
+pub async fn backup_now() -> CmdResult<BackupResult> {
+    let bin = locate_memex_cli().ok_or_else(|| {
+        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
+    })?;
 
     let backup_dir = memex_dir().join("backups");
     if !backup_dir.exists() {
-        std::fs::create_dir_all(&backup_dir).map_err(|e| format!("创建备份目录失败：{}", e))?;
+        std::fs::create_dir_all(&backup_dir)?;
     }
 
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
@@ -68,20 +71,19 @@ pub async fn backup_now() -> Result<BackupResult, String> {
 
     let output = Command::new(&bin)
         .args(["--json", "backup", &output_str])
-        .output()
-        .map_err(|e| format!("调用 {} 失败：{}", bin.display(), e))?;
+        .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
+        return Err(CmdError::Backend(format!(
             "memex backup 返回非零（{}）：{}",
             output.status, stderr
-        ));
+        )));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("无法解析 CLI 输出（{}）：{}", e, stdout))
+        .map_err(|e| CmdError::Backend(format!("无法解析 CLI 输出（{}）：{}", e, stdout)))
 }
 
 #[cfg(test)]
