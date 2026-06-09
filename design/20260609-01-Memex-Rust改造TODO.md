@@ -9,6 +9,8 @@
 
 ## 进度跟踪
 
+- 2026-06-09 bc6613e — **P0-4 完成**：`cargo clippy --all-targets --all-features -- -D warnings` 全绿。一次性清掉 40 处 errors（collapsible_if 34 / needless_question_mark 4 / unnecessary_to_owned 2 / 其他 9 类各 1-3 处）。`too_many_arguments` 引入参数 struct `NewSession` / `SummaryUpsert` / `AggregateSummaryUpsert` 满足 rust.mdc §6.2 builder 指引。
+- 2026-06-09 a11746b — fix(test) 善后：恢复 `tauri-app/src-tauri/tests/ipc_contract.rs` 的 DTO import 路径（P0-2 把 `pub use commands::*` 改成 `pub mod` 之后这个集成测试再也编译不过，但当时没人跑 `cargo test --all` 所以没暴露）。让 `cargo test --all` 重新可跑。
 - 2026-06-09 e2ec778 — 修复 today stats double-count bug（与 TODO 无直接对应，属 §7.2 路径之外的业务缺陷）。详见 commit message。
 - 2026-06-09 2288b15 — **P0-5 完成**：`cargo fmt --all` 一次扫平 76 个文件。
 - 2026-06-09 a9c865d — **P0-6 完成**：新增 `rust-toolchain.toml`（channel=1.95.0）+ workspace `rust-version="1.95"`。MSRV 提到 1.95 是事实需求（`floor_char_boundary` 在 1.95 stabilize，crates/memex-core/src/llm/summarize.rs 已用）。
@@ -70,23 +72,25 @@
 
 > 最终 features：workspace = `rt-multi-thread,macros,sync,net,signal,time`；menubar = `rt-multi-thread,macros,sync,time`。无 io-util / fs / process。
 
-### P0-4 clippy 42 个 error 修复
+### ✅ P0-4 clippy 42 个 error 修复（bc6613e）
 
-- [ ] `cargo clippy --all-targets -- -D warnings 2>&1 | head -200` 收集全部 error
-- [ ] 按类型分批：
-  - [ ] `collapsible_if`（多处）
-  - [ ] `derivable_impls`（reflect::ReflectionOutput）
-  - [ ] `items_after_test_module`（reflect.rs:254）
-  - [ ] `redundant_closure_for_method_calls`
-  - [ ] `to_string_in_format_args`
-  - [ ] `manual_strip` / `manual_map`
-  - [ ] `needless_question_mark`
-  - [ ] `too_many_arguments`（需要 builder pattern 或参数 struct）
-  - [ ] `field_reassign_with_default`
-  - [ ] 其他
+- [x] `cargo clippy --all-targets -- -D warnings 2>&1 | head -200` 收集全部 error
+- [x] 按类型分批：
+  - [x] `collapsible_if`（实际 34 处，最多）
+  - [x] `derivable_impls`（reflect::ReflectionOutput → 加 `#[derive(Default)]`）
+  - [x] `items_after_test_module`（reflect.rs:267 的 `today_utc` 提到 test mod 之前）
+  - [x] `redundant_closure`（hooks/claude.rs `.map(|x| f(x))` → `.map(f)`；之前列的 `redundant_closure_for_method_calls` 实际上是 `redundant_closure`）
+  - [x] `to_string_in_format_args`（aider.rs blake3 hex）
+  - [x] `manual_strip` / `manual_map`
+  - [x] `needless_question_mark`（4 处）
+  - [x] `too_many_arguments`（3 处，引入 `NewSession` / `SummaryUpsert` / `AggregateSummaryUpsert`）
+  - [x] `field_reassign_with_default`
+  - [x] 其他：`print_literal` / `unnecessary_to_owned` / `let_unit_value` / `sort_by_key` / `clamp_like_pattern`
+
+**实际**：拆"单 lint 单 commit"会让中间 commit 必然违反 `-D warnings` 硬约束（与 24-30 行模板互斥），最终单 commit 一次清完。
 
 **规约依据**：§12.4 必须通过
-**估时**：1-2h
+**估时**：1-2h（实际花了约 2h）
 
 ### ✅ P0-5 `cargo fmt --all -- --check` 修复（2288b15）
 
