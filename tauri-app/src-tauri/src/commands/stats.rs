@@ -4,6 +4,8 @@ use memex_core::storage::db::Db;
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry, WorkloadReport};
 use serde::Serialize;
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Serialize)]
 pub struct Stats {
     pub sessions: u64,
@@ -19,7 +21,7 @@ pub struct Stats {
 }
 
 #[tauri::command]
-pub async fn get_stats() -> Result<Stats, String> {
+pub async fn get_stats() -> CmdResult<Stats> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
@@ -35,7 +37,7 @@ pub async fn get_stats() -> Result<Stats, String> {
         });
     }
 
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
+    let db = Db::open(&db_path)?;
     let config = MemexConfig::load(&dir).unwrap_or_default();
     // 用 *_unified 版本，让 DB 中已注册的自定义 provider（DeepSeek/OpenAI/Anthropic 等）
     // 也能在 dashboard 上显示「已启用」，而不仅看 LlmConfig 的 ollama 老开关。
@@ -55,7 +57,7 @@ pub async fn get_stats() -> Result<Stats, String> {
 }
 
 #[tauri::command]
-pub async fn get_breakdown() -> Result<StatsBreakdown, String> {
+pub async fn get_breakdown() -> CmdResult<StatsBreakdown> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(StatsBreakdown {
@@ -67,34 +69,34 @@ pub async fn get_breakdown() -> Result<StatsBreakdown, String> {
             recent_30d_messages: 0,
         });
     }
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.stats_breakdown().map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    Ok(db.stats_breakdown()?)
 }
 
 #[tauri::command]
-pub async fn get_timeline(days: Option<u32>) -> Result<Vec<TimelineEntry>, String> {
+pub async fn get_timeline(days: Option<u32>) -> CmdResult<Vec<TimelineEntry>> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
     }
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.timeline(days.unwrap_or(30)).map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    Ok(db.timeline(days.unwrap_or(30))?)
 }
 
 #[tauri::command]
-pub async fn list_projects() -> Result<Vec<ProjectSummary>, String> {
+pub async fn list_projects() -> CmdResult<Vec<ProjectSummary>> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
     }
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.list_project_summaries().map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    Ok(db.list_project_summaries()?)
 }
 
 /// 给 Dashboard Workload tab 用：一次性返回热力图 + adapter 饼图 + 项目 top10。
 /// `days` 留空默认 30；前端可传 7 / 14 / 30 / 90。
 #[tauri::command]
-pub async fn get_workload(days: Option<u32>) -> Result<WorkloadReport, String> {
+pub async fn get_workload(days: Option<u32>) -> CmdResult<WorkloadReport> {
     let db_path = memex_dir().join("memex.db");
     let days = days.unwrap_or(30).clamp(1, 365);
     if !db_path.exists() {
@@ -113,10 +115,10 @@ pub async fn get_workload(days: Option<u32>) -> Result<WorkloadReport, String> {
             },
         });
     }
-    tokio::task::spawn_blocking(move || {
-        let db = Db::open(&memex_dir().join("memex.db")).map_err(|e| e.to_string())?;
-        db.workload_report(days).map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || -> CmdResult<WorkloadReport> {
+        let db = Db::open(&memex_dir().join("memex.db"))?;
+        Ok(db.workload_report(days)?)
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))?
 }
