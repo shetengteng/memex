@@ -125,9 +125,86 @@
 | `crates/memex-core/src/storage/db/sessions.rs` | 404 | `sessions/read.rs` + `sessions/write.rs` + `sessions/filter.rs` |
 | 其他 10 个 300-360 行文件 | — | 按职责评估 |
 
+**已完成**（截至 2026-06-09）：
+- `db/sessions.rs` → `sessions/{mod,read,write}.rs`（commit a88a415）
+- `mcp/server.rs` → `mcp/server/{mod,transport,dispatch,tools}.rs`（commit 3698ad8）
+- `memex-cli/src/main.rs` → `cli/` + `dispatch/`（commit d577939）
+- `context/builder.rs` → `builder/{mod,collect,render}.rs`（commit c052a49）
+- `context/builder/render.rs` 382 行 → `render/{mod,tests}.rs` + 抽出 `builder/text.rs`（commit 待提交）
+
+**当前剩余 > 300 行文件（按优先级）**：
+| 文件 | 行 | 备注 |
+|---|---|---|
+| `ingest.rs` | 1148 | **未拆**（最大、风险高，建议优先） |
+| `storage/queries.rs` | 1144 | **未拆**（含 12 个独立查询函数，可按主题拆） |
+| `storage/db/tests.rs` | 833 | 纯测试，可按被测模块拆 |
+| `llm/summarize.rs` | 720 | 待拆 |
+| `collector/cursor/sqlite.rs` | 670 | 待拆 |
+| `llm/threads.rs` | 608 | 待拆 |
+| 其余 13 个 300-380 行 | — | 优先级低，可在 P2 顺手做 |
+
 **规约依据**：§7.2
 **风险**：拆分会影响 `git blame`；建议每个文件一个独立 commit
-**估时**：每个文件 30 min-2h，总计 2-3 天
+**估时**：每个文件 30 min-2h；剩余预估 6-10h
+
+### P1-6 把 `mcp` 模块独立为 `memex-mcp` crate
+
+> **背景**：用户提出「看下 memex mcp 是否可以单独的一个模块从 memex-core 中独立出来」。本节给出评估结论与执行清单。
+
+#### 评估
+
+| 维度 | 现状 | 独立后 |
+|---|---|---|
+| 依赖方向 | `mcp → core`（Db / Retriever / storage::models），core 无反向引用 | 单向稳定 |
+| Caller | 仅 `memex-cli/src/commands/mcp.rs` 一处 14 行 | 改 `use memex_mcp::server` |
+| 行数 | 4 个文件 + 1 个 tests + protocol = 781 行 | 已经全部 < 300 行（最大 tools.rs 283） |
+| 测试隔离 | tests.rs 用 in-memory Db 做集成测试 | 同样可用；core 把 `Db / Chunk / Retriever` 等导出即可 |
+| 编译并行 | mcp 改动重编 memex-core 测试 | mcp 改动只影响 memex-mcp + cli |
+
+**结论**：值得做，风险低。
+
+#### 实施清单
+
+- [ ] 新建 `crates/memex-mcp/{Cargo.toml, src/lib.rs}`，依赖 `memex-core` + `serde_json` + `anyhow`
+- [ ] `git mv crates/memex-core/src/mcp/* crates/memex-mcp/src/`（保留 commit 历史）
+- [ ] 把内部 `use crate::storage::db::Db` 等改成 `use memex_core::storage::db::Db`
+- [ ] 把 memex-core 内 `storage::models::{Chunk, ChunkMetadata, ChunkType}` / `retriever::{Retriever, SearchFilter}` 确认为 `pub` 导出
+- [ ] 删除 `memex-core/src/mcp/` 与 `lib.rs` 里的 `pub mod mcp;`
+- [ ] `memex-cli` Cargo.toml 加 `memex-mcp = { path = "../memex-mcp" }`；`commands/mcp.rs` 改 import
+- [ ] root `Cargo.toml` `[workspace.members]` 加 `crates/memex-mcp`
+- [ ] cargo check / clippy / test / fmt / `cargo test --doc` 全过
+- [ ] commit `refactor(mcp): extract memex-core::mcp into memex-mcp crate`
+
+**估时**：1.5-2h（机械化重构 + 全量 quality gate）
+**风险**：低；唯一注意是确保 core 把 mcp 需要的 internal API 提升为 pub（无需破坏现有 ergonomics，只是让模块边界更显式）
+
+### P1-7 数据库升级策略（封板后启用）
+
+> **当前阶段**：开发未封板，schema 变更走「DROP + 重建」单条 baseline（见 P1-5 step 4）。一旦正式发布给外部用户，必须切到 backup-and-migrate 模式。
+
+#### 触发条件
+
+- 任一二进制（menubar / daemon / cli）公开发布到 GitHub Release
+- `Cargo.toml` workspace.version 升到 `>= 1.0.0`（或团队约定的「封板」节点）
+
+#### 升级流程（每次 schema 变更）
+
+1. `Db::open` 前先把当前 `memex.db` 备份为 `memex.db.bak-{YYYYMMDD-HHMMSS}-v{user_version}`
+2. 跑增量 migration：`M::up("ALTER TABLE ... / CREATE INDEX IF NOT EXISTS ...")`，用 `rusqlite_migration` 接力 v2..=vN
+3. 失败回滚：如 to_latest 返回 Err，删除当前 db，从最新备份 copy 回来
+4. 成功后保留最近 N 份备份（建议 N=3），更老的自动清理
+
+#### 实施清单
+
+- [ ] `db/migrations.rs` 增加 `pub fn migrations() -> Migrations<'static>`：v1 baseline (复用 SCHEMA_SQL) + v2..=vN 增量
+- [ ] `Db::open` 内加 backup-then-migrate 流程
+- [ ] backup 文件命名规则 + 旋转策略 unit test
+- [ ] doctor / Settings UI 显示「最近一次成功 backup」位置，方便用户手动 rollback
+- [ ] 文档：`docs/db-upgrade.md`（升级路径、回滚指引、数据保留策略）
+
+**估时**：4-6h
+**风险**：中（用户数据安全相关，需要充分手测）
+**规约依据**：§14.2（向后兼容）、§16（运维 / 数据保护）
 
 ### P1-2 生产 `unwrap()` / `expect()` → 错误传播
 
