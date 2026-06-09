@@ -17,6 +17,8 @@ use memex_core::memex_dir;
 use memex_core::reflect::{ReflectPeriod, run_reflect, today_utc};
 use memex_core::storage::db::Db;
 
+use super::error::{CmdError, CmdResult};
+
 #[derive(Debug, Serialize)]
 pub struct ReflectEntry {
     pub scope_key: String,
@@ -49,13 +51,11 @@ pub struct ReflectRunResult {
 }
 
 #[tauri::command]
-pub async fn reflect_list() -> Result<Vec<ReflectEntry>, String> {
-    tokio::task::spawn_blocking(|| {
+pub async fn reflect_list() -> CmdResult<Vec<ReflectEntry>> {
+    tokio::task::spawn_blocking(|| -> CmdResult<Vec<ReflectEntry>> {
         let memex = memex_dir();
-        let db = Db::open(&memex.join("memex.db")).map_err(|e| e.to_string())?;
-        let rows = db
-            .list_aggregate_summaries("reflect", 100)
-            .map_err(|e| e.to_string())?;
+        let db = Db::open(&memex.join("memex.db"))?;
+        let rows = db.list_aggregate_summaries("reflect", 100)?;
         Ok(rows
             .into_iter()
             .map(|r| ReflectEntry {
@@ -67,17 +67,15 @@ pub async fn reflect_list() -> Result<Vec<ReflectEntry>, String> {
             .collect())
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))?
 }
 
 #[tauri::command]
-pub async fn reflect_get(scope_key: String) -> Result<Option<ReflectDetail>, String> {
-    tokio::task::spawn_blocking(move || {
+pub async fn reflect_get(scope_key: String) -> CmdResult<Option<ReflectDetail>> {
+    tokio::task::spawn_blocking(move || -> CmdResult<Option<ReflectDetail>> {
         let memex = memex_dir();
-        let db = Db::open(&memex.join("memex.db")).map_err(|e| e.to_string())?;
-        let row = db
-            .get_aggregate_summary("reflect", &scope_key)
-            .map_err(|e| e.to_string())?;
+        let db = Db::open(&memex.join("memex.db"))?;
+        let row = db.get_aggregate_summary("reflect", &scope_key)?;
         Ok(row.map(|r| ReflectDetail {
             scope_key: r.scope_key,
             title: r.title,
@@ -89,19 +87,22 @@ pub async fn reflect_get(scope_key: String) -> Result<Option<ReflectDetail>, Str
         }))
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))?
 }
 
 #[tauri::command]
-pub async fn reflect_run(period: String) -> Result<ReflectRunResult, String> {
-    tokio::task::spawn_blocking(move || {
-        let parsed = ReflectPeriod::parse(&period).map_err(|e| e.to_string())?;
+pub async fn reflect_run(period: String) -> CmdResult<ReflectRunResult> {
+    tokio::task::spawn_blocking(move || -> CmdResult<ReflectRunResult> {
+        let parsed =
+            ReflectPeriod::parse(&period).map_err(|e| CmdError::Validation(e.to_string()))?;
 
         let memex = memex_dir();
-        let db = Db::open(&memex.join("memex.db")).map_err(|e| e.to_string())?;
+        let db = Db::open(&memex.join("memex.db"))?;
         let config = MemexConfig::load(&memex).unwrap_or_default();
         let provider = select_provider_unified(&db, &config.llm, &memex).ok_or_else(|| {
-            "没有可用的 LLM provider（先到 Settings → LLM Providers 注册）".to_string()
+            CmdError::Backend(
+                "没有可用的 LLM provider（先到 Settings → LLM Providers 注册）".into(),
+            )
         })?;
 
         let artifacts = run_reflect(
@@ -110,8 +111,7 @@ pub async fn reflect_run(period: String) -> Result<ReflectRunResult, String> {
             parsed,
             today_utc(),
             Some(memex.as_path()),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
         Ok(ReflectRunResult {
             scope_key: artifacts.scope_key,
@@ -124,5 +124,5 @@ pub async fn reflect_run(period: String) -> Result<ReflectRunResult, String> {
         })
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))?
 }
