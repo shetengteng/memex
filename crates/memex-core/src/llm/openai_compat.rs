@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use super::provider::{LlmProvider, LlmRequest, LlmResponse};
 
+#[cfg(test)]
+mod tests;
+
 /// OpenAI Chat Completions 兼容 provider。
 /// 支持 DeepSeek、OpenAI、Moonshot、SiliconFlow、Together 等任何说
 /// `/v1/chat/completions` 的服务端。
@@ -177,41 +180,5 @@ impl LlmProvider for OpenAiCompatProvider {
             model: parsed.model.unwrap_or_else(|| self.model.clone()),
             tokens_used: usage.completion_tokens,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_provider_name() {
-        let p = OpenAiCompatProvider::new(
-            "deepseek",
-            "https://api.deepseek.com/v1",
-            "key",
-            "deepseek-chat",
-        );
-        assert_eq!(p.name(), "deepseek");
-    }
-
-    #[test]
-    fn test_is_available() {
-        let p = OpenAiCompatProvider::new("ds", "https://api.deepseek.com/v1", "key", "model");
-        assert!(p.is_available());
-        let empty = OpenAiCompatProvider::new("ds", "https://api.deepseek.com/v1", "", "model");
-        assert!(!empty.is_available());
-    }
-
-    #[test]
-    fn test_api_root_with_v1() {
-        let p = OpenAiCompatProvider::new("ds", "https://api.deepseek.com/v1", "k", "m");
-        assert_eq!(p.api_root(), "https://api.deepseek.com/v1");
-    }
-
-    #[test]
-    fn test_api_root_without_v1() {
-        let p = OpenAiCompatProvider::new("ds", "http://localhost:8080", "k", "m");
-        assert_eq!(p.api_root(), "http://localhost:8080/v1");
     }
 }

@@ -15,6 +15,9 @@ use crate::storage::db::Db;
 use crate::storage::markdown;
 use crate::storage::models::SourceState;
 
+#[cfg(test)]
+mod tests;
+
 /// Cap per-call message batch size. Keeps a single jsonl with tens of
 /// thousands of messages from monopolizing the DB write lock and lets
 /// the caller report progress between batches.

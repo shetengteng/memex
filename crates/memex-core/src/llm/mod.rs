@@ -92,6 +92,22 @@ mod tests {
     use crate::storage::db::providers::LlmProviderUpsert;
     use tempfile::TempDir;
 
+    fn provider_row(kind: &str, enabled: bool, is_default: bool) -> LlmProviderRow {
+        LlmProviderRow {
+            id: format!("{kind}-{enabled}-{is_default}"),
+            name: format!("{kind}-provider"),
+            kind: kind.to_string(),
+            base_url: "https://api.example.com/v1".to_string(),
+            model: "test-model".to_string(),
+            api_key: "sk-test".to_string(),
+            enabled,
+            is_default,
+            status: "untested".to_string(),
+            latency_ms: None,
+            updated_at: "2026-06-09T00:00:00Z".to_string(),
+        }
+    }
+
     fn disabled_config() -> LlmConfig {
         LlmConfig {
             ollama_enabled: false,
@@ -107,6 +123,63 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let provider = select_provider(&disabled_config(), tmp.path());
         assert!(provider.is_none());
+    }
+
+    #[test]
+    fn build_provider_from_row_returns_none_for_unknown_kind() {
+        let row = provider_row("unsupported", true, false);
+        assert!(build_provider_from_row(&row).is_none());
+    }
+
+    #[test]
+    fn build_provider_from_row_uses_row_name_for_openai_compat() {
+        let row = provider_row("openai_compat", true, false);
+        let provider = build_provider_from_row(&row).unwrap();
+
+        assert_eq!(provider.name(), "openai_compat-provider");
+        assert!(provider.is_available());
+    }
+
+    #[test]
+    fn select_provider_from_db_skips_disabled_and_unknown_rows() {
+        let tmp = TempDir::new().unwrap();
+        let db = Db::open(&tmp.path().join("providers.db")).unwrap();
+        db.provider_upsert(LlmProviderUpsert {
+            id: "disabled".into(),
+            name: "Disabled".into(),
+            kind: "openai_compat".into(),
+            base_url: "https://api.example.com/v1".into(),
+            model: "disabled-model".into(),
+            api_key: "sk-disabled".into(),
+            enabled: false,
+            is_default: true,
+        })
+        .unwrap();
+        db.provider_upsert(LlmProviderUpsert {
+            id: "unknown".into(),
+            name: "Unknown".into(),
+            kind: "unknown_kind".into(),
+            base_url: "https://api.example.com/v1".into(),
+            model: "unknown-model".into(),
+            api_key: "sk-unknown".into(),
+            enabled: true,
+            is_default: false,
+        })
+        .unwrap();
+        db.provider_upsert(LlmProviderUpsert {
+            id: "enabled".into(),
+            name: "Enabled".into(),
+            kind: "openai_compat".into(),
+            base_url: "https://api.example.com/v1".into(),
+            model: "enabled-model".into(),
+            api_key: "sk-enabled".into(),
+            enabled: true,
+            is_default: false,
+        })
+        .unwrap();
+
+        let provider = select_provider_from_db(&db).unwrap();
+        assert_eq!(provider.name(), "Enabled");
     }
 
     #[test]

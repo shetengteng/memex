@@ -183,6 +183,39 @@ fn test_get_session_detail_includes_intent() {
     assert_eq!(detail.intent.as_deref(), Some("调研 monthly report"));
 }
 
+#[test]
+fn test_list_sessions_filters_only_stale_empty_sessions() {
+    let db = Db::open_in_memory().unwrap();
+    let old = (chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339();
+    let conn = db.conn.lock();
+    conn.execute(
+        "INSERT INTO sessions (id, source, file_path, created_at, updated_at, message_count)
+         VALUES ('old_empty', 'cursor', '/old.jsonl', ?1, ?1, 0)",
+        rusqlite::params![old],
+    )
+    .unwrap();
+    drop(conn);
+
+    db.insert_session("recent_empty", "cursor", None, "/recent.jsonl", 0, 0)
+        .unwrap();
+    db.insert_session("old_with_messages", "cursor", None, "/messages.jsonl", 0, 0)
+        .unwrap();
+    let hash = blake3::hash(b"kept").to_hex().to_string();
+    db.insert_message("m1", "old_with_messages", "user", "kept", None, 0, &hash)
+        .unwrap();
+
+    let ids: Vec<String> = db
+        .list_sessions_paged(10, 0)
+        .unwrap()
+        .into_iter()
+        .map(|row| row.id)
+        .collect();
+
+    assert!(!ids.contains(&"old_empty".to_string()));
+    assert!(ids.contains(&"recent_empty".to_string()));
+    assert!(ids.contains(&"old_with_messages".to_string()));
+}
+
 /// 回归：`messages.timestamp` 为 NULL（cursor / continue_dev adapter）时
 /// `get_session_detail` 必须用 `sessions.updated_at` 退化填充，前端 UI 才能
 /// 始终渲染消息时间戳。

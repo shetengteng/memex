@@ -182,3 +182,19 @@ fn urlenc(s: &str) -> String {
         .replace('&', "%26")
         .replace('=', "%3D")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn urlenc_escapes_query_separators() {
+        assert_eq!(urlenc("redis cache"), "redis%20cache");
+        assert_eq!(urlenc("a&b=c"), "a%26b%3Dc");
+    }
+
+    #[test]
+    fn urlenc_preserves_non_separator_characters() {
+        assert_eq!(urlenc("ZOOM-123 中文/path"), "ZOOM-123%20中文/path");
+    }
+}
