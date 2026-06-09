@@ -8,6 +8,8 @@ use memex_core::config::MemexConfig;
 use memex_core::memex_dir;
 use memex_core::storage::db::{Db, SessionDetail, SessionRow};
 
+use super::error::{CmdError, CmdResult};
+
 /// 当前批量摘要任务的中断标志位。`AtomicBool::store(true)` 后，正在运行的
 /// `batch_summarize` 工作线程会在下一次循环检查时退出，并 emit `summary-progress`
 /// 给前端（aborted=true）。`OnceLock` 让我们不需要 lazy_static / once_cell。
@@ -17,48 +19,49 @@ fn abort_flag() -> &'static Arc<AtomicBool> {
     ABORT_FLAG.get_or_init(|| Arc::new(AtomicBool::new(false)))
 }
 
+fn require_provider() -> CmdError {
+    CmdError::Backend(
+        "No LLM provider available. Enable Ollama or configure a custom LLM provider.".into(),
+    )
+}
+
 #[tauri::command]
 pub async fn list_recent(
     limit: Option<usize>,
     offset: Option<usize>,
-) -> Result<Vec<SessionRow>, String> {
+) -> CmdResult<Vec<SessionRow>> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(vec![]);
     }
 
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.list_sessions_paged(limit.unwrap_or(20), offset.unwrap_or(0))
-        .map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    Ok(db.list_sessions_paged(limit.unwrap_or(20), offset.unwrap_or(0))?)
 }
 
 #[tauri::command]
-pub async fn get_session(session_id: String) -> Result<Option<SessionDetail>, String> {
+pub async fn get_session(session_id: String) -> CmdResult<Option<SessionDetail>> {
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         return Ok(None);
     }
 
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    db.get_session_detail(&session_id)
-        .map_err(|e| e.to_string())
+    let db = Db::open(&db_path)?;
+    Ok(db.get_session_detail(&session_id)?)
 }
 
 #[tauri::command]
-pub async fn retry_summary(session_id: String) -> Result<bool, String> {
+pub async fn retry_summary(session_id: String) -> CmdResult<bool> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
-        return Err("Database not found".into());
+        return Err(CmdError::NotFound("Database not found".into()));
     }
 
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    let config = MemexConfig::load(&dir).map_err(|e| e.to_string())?;
-    let provider =
-        memex_core::llm::select_provider_unified(&db, &config.llm, &dir).ok_or_else(|| {
-            "No LLM provider available. Enable Ollama or configure a custom LLM provider."
-                .to_string()
-        })?;
+    let db = Db::open(&db_path)?;
+    let config = MemexConfig::load(&dir)?;
+    let provider = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
+        .ok_or_else(require_provider)?;
 
     let _ = db.delete_summary(&session_id, "L2_session");
     let ok = memex_core::ingest::summarize_session_by_id(&db, provider.as_ref(), &session_id);
@@ -76,26 +79,21 @@ pub struct SummaryProgress {
 }
 
 #[tauri::command]
-pub async fn batch_summarize(app: AppHandle) -> Result<usize, String> {
+pub async fn batch_summarize(app: AppHandle) -> CmdResult<usize> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
-        return Err("Database not found".into());
+        return Err(CmdError::NotFound("Database not found".into()));
     }
 
-    let db = Db::open(&db_path).map_err(|e| e.to_string())?;
-    let config = MemexConfig::load(&dir).map_err(|e| e.to_string())?;
-    let provider =
-        memex_core::llm::select_provider_unified(&db, &config.llm, &dir).ok_or_else(|| {
-            "No LLM provider available. Enable Ollama or configure a custom LLM provider."
-                .to_string()
-        })?;
+    let db = Db::open(&db_path)?;
+    let config = MemexConfig::load(&dir)?;
+    let provider = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
+        .ok_or_else(require_provider)?;
 
     // 用户主动点「批量摘要」按钮 → 把过期 / 缺失的 L2 都补上，
     // 不应用冷却（cool_down_secs=0），避免「明明 LLM 已经配好却没补摘要」的尴尬。
-    let ids = db
-        .sessions_needing_summary(100, 0)
-        .map_err(|e| e.to_string())?;
+    let ids = db.sessions_needing_summary(100, 0)?;
     let total = ids.len();
 
     if total == 0 {
@@ -156,7 +154,7 @@ pub async fn batch_summarize(app: AppHandle) -> Result<usize, String> {
 /// 用户主动中断当前批量摘要任务。
 /// 工作线程会在下一次循环开始时检测到该标志并退出。
 #[tauri::command]
-pub async fn abort_summarize() -> Result<bool, String> {
+pub async fn abort_summarize() -> CmdResult<bool> {
     let flag = abort_flag();
     let was_running = !flag.load(Ordering::SeqCst);
     flag.store(true, Ordering::SeqCst);
