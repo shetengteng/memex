@@ -8,9 +8,11 @@ use memex_core::storage::db::Db;
 use memex_core::storage::db::providers::{LlmProviderRow, LlmProviderUpsert};
 use serde::Serialize;
 
-fn open_db() -> Result<Db, String> {
+use super::error::{CmdError, CmdResult};
+
+fn open_db() -> CmdResult<Db> {
     let db_path = memex_dir().join("memex.db");
-    Db::open(&db_path).map_err(|e| e.to_string())
+    Ok(Db::open(&db_path)?)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,33 +34,32 @@ fn micro_request() -> LlmRequest {
 }
 
 #[tauri::command]
-pub async fn llm_provider_list() -> Result<Vec<LlmProviderRow>, String> {
+pub async fn llm_provider_list() -> CmdResult<Vec<LlmProviderRow>> {
     let db = open_db()?;
-    db.provider_list().map_err(|e| e.to_string())
+    Ok(db.provider_list()?)
 }
 
 #[tauri::command]
-pub async fn llm_provider_upsert(provider: LlmProviderUpsert) -> Result<LlmProviderRow, String> {
+pub async fn llm_provider_upsert(provider: LlmProviderUpsert) -> CmdResult<LlmProviderRow> {
     let db = open_db()?;
-    db.provider_upsert(provider).map_err(|e| e.to_string())
+    Ok(db.provider_upsert(provider)?)
 }
 
 #[tauri::command]
-pub async fn llm_provider_delete(id: String) -> Result<u64, String> {
+pub async fn llm_provider_delete(id: String) -> CmdResult<u64> {
     let db = open_db()?;
-    db.provider_delete(&id).map_err(|e| e.to_string())
+    Ok(db.provider_delete(&id)?)
 }
 
 #[tauri::command]
-pub async fn llm_provider_test(id: String) -> Result<ProviderTestResult, String> {
+pub async fn llm_provider_test(id: String) -> CmdResult<ProviderTestResult> {
     let db = open_db()?;
     let row = db
-        .provider_get(&id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("provider {} not found", id))?;
+        .provider_get(&id)?
+        .ok_or_else(|| CmdError::NotFound(format!("provider {} not found", id)))?;
 
     let provider = build_provider_from_row(&row)
-        .ok_or_else(|| format!("unknown provider kind: {}", row.kind))?;
+        .ok_or_else(|| CmdError::Validation(format!("unknown provider kind: {}", row.kind)))?;
 
     let start = Instant::now();
 
@@ -104,7 +105,7 @@ pub async fn llm_provider_test_draft(
     base_url: String,
     model: String,
     api_key: String,
-) -> Result<ProviderTestResult, String> {
+) -> CmdResult<ProviderTestResult> {
     let row = LlmProviderRow {
         id: String::new(),
         name,
@@ -120,7 +121,7 @@ pub async fn llm_provider_test_draft(
     };
 
     let provider = build_provider_from_row(&row)
-        .ok_or_else(|| format!("unknown provider kind: {}", row.kind))?;
+        .ok_or_else(|| CmdError::Validation(format!("unknown provider kind: {}", row.kind)))?;
 
     let start = Instant::now();
 
@@ -161,30 +162,30 @@ pub async fn llm_list_models(
     kind: String,
     base_url: String,
     api_key: String,
-) -> Result<Vec<String>, String> {
+) -> CmdResult<Vec<String>> {
     // ureq 是同步阻塞客户端；如果直接在 async fn 里调用会阻住整个 tokio runtime，
     // 让 IPC 排队、UI 看起来卡死（用户感觉「拉取」按钮无响应、超 10s 才弹错）。
     // 用 spawn_blocking 把 HTTP 调用挪到专门的阻塞线程池上。
     tokio::task::spawn_blocking(move || run_list_models(&kind, &base_url, &api_key))
         .await
-        .map_err(|e| format!("internal: blocking task join error: {e}"))?
+        .map_err(|e| CmdError::Backend(format!("internal: blocking task join error: {e}")))?
 }
 
-fn run_list_models(kind: &str, base_url: &str, api_key: &str) -> Result<Vec<String>, String> {
+fn run_list_models(kind: &str, base_url: &str, api_key: &str) -> CmdResult<Vec<String>> {
     match kind {
         "openai_compat" | "anthropic" => {
             let provider = OpenAiCompatProvider::new("_probe", base_url, api_key, "");
-            provider.list_models().map_err(|e| e.to_string())
+            Ok(provider.list_models()?)
         }
         "ollama" => {
             let url = format!("{}/api/tags", base_url.trim_end_matches('/'));
             let mut resp = ureq::get(&url)
                 .call()
-                .map_err(|e| format!("Cannot reach Ollama: {}", e))?;
+                .map_err(|e| CmdError::Backend(format!("Cannot reach Ollama: {}", e)))?;
             let val: serde_json::Value = resp
                 .body_mut()
                 .read_json()
-                .map_err(|e| format!("Failed to parse Ollama tags: {}", e))?;
+                .map_err(|e| CmdError::Backend(format!("Failed to parse Ollama tags: {}", e)))?;
             let models = val["models"]
                 .as_array()
                 .unwrap_or(&vec![])
@@ -193,6 +194,9 @@ fn run_list_models(kind: &str, base_url: &str, api_key: &str) -> Result<Vec<Stri
                 .collect();
             Ok(models)
         }
-        _ => Err(format!("unsupported kind for model listing: {}", kind)),
+        _ => Err(CmdError::Validation(format!(
+            "unsupported kind for model listing: {}",
+            kind
+        ))),
     }
 }
