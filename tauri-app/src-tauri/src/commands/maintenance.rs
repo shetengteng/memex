@@ -15,6 +15,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use super::daemon::{daemon_restart, is_process_alive_for_maintenance, read_lock_for_maintenance};
+use super::error::{CmdError, CmdResult};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemResetResult {
@@ -26,14 +27,13 @@ pub struct SystemResetResult {
 /// 保留 `sessions/*.md` / `config.toml` / `redactions.yaml`。
 /// daemon 会重新跑 ingest，但 LLM 摘要需要用户重新触发。
 #[tauri::command]
-pub async fn system_reset_index(app: AppHandle) -> Result<SystemResetResult, String> {
+pub async fn system_reset_index(app: AppHandle) -> CmdResult<SystemResetResult> {
     stop_daemon_blocking();
 
     let memex = memex_dir();
     let report = tokio::task::spawn_blocking(move || reset_index_only(&memex))
         .await
-        .map_err(|e| format!("join error: {e}"))?
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| CmdError::Backend(format!("join error: {e}")))??;
 
     restart_after_reset(app);
 
@@ -45,7 +45,7 @@ pub async fn system_reset_index(app: AppHandle) -> Result<SystemResetResult, Str
 
 /// 彻底重置：停掉 daemon → 清空整个 memex 目录 → 重建目录 → 重启 daemon。
 #[tauri::command]
-pub async fn system_reset_all(app: AppHandle) -> Result<SystemResetResult, String> {
+pub async fn system_reset_all(app: AppHandle) -> CmdResult<SystemResetResult> {
     stop_daemon_blocking();
 
     let memex = memex_dir();
@@ -56,8 +56,7 @@ pub async fn system_reset_all(app: AppHandle) -> Result<SystemResetResult, Strin
         Ok::<_, anyhow::Error>(r)
     })
     .await
-    .map_err(|e| format!("join error: {e}"))?
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))??;
 
     restart_after_reset(app);
 
