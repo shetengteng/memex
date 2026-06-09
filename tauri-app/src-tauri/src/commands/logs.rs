@@ -4,6 +4,8 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use memex_core::memex_dir;
 use serde::Serialize;
 
+use super::error::{CmdError, CmdResult};
+
 const MAX_TAIL_LINES: usize = 5000;
 const MAX_READ_BYTES: u64 = 8 * 1024 * 1024;
 
@@ -32,12 +34,12 @@ fn logs_dir() -> std::path::PathBuf {
 /// 该目录由 `memex-daemon` 在启动时 `setup_file_logging` 写入，
 /// 使用 `tracing_appender::rolling::daily` 滚动，文件名形如 `daemon.log.2026-06-07`。
 #[tauri::command]
-pub async fn list_daemon_log_files() -> Result<Vec<DaemonLogFile>, String> {
+pub async fn list_daemon_log_files() -> CmdResult<Vec<DaemonLogFile>> {
     let dir = logs_dir();
     if !dir.exists() {
         return Ok(vec![]);
     }
-    let entries = fs::read_dir(&dir).map_err(|e| format!("读取日志目录失败：{e}"))?;
+    let entries = fs::read_dir(&dir)?;
     let mut files: Vec<DaemonLogFile> = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
@@ -81,28 +83,27 @@ pub async fn list_daemon_log_files() -> Result<Vec<DaemonLogFile>, String> {
 pub async fn read_daemon_log(
     file_name: Option<String>,
     lines: Option<usize>,
-) -> Result<DaemonLogRead, String> {
+) -> CmdResult<DaemonLogRead> {
     let files = list_daemon_log_files().await?;
     let target = match file_name {
         Some(n) => files
             .into_iter()
             .find(|f| f.name == n)
-            .ok_or_else(|| format!("找不到日志文件：{n}"))?,
+            .ok_or_else(|| CmdError::NotFound(format!("找不到日志文件：{n}")))?,
         None => files
             .into_iter()
             .next()
-            .ok_or_else(|| "日志目录为空（daemon 可能尚未写入日志）".to_string())?,
+            .ok_or_else(|| CmdError::NotFound("日志目录为空（daemon 可能尚未写入日志）".into()))?,
     };
     let want_lines = lines.unwrap_or(500).clamp(1, MAX_TAIL_LINES);
 
     let path = std::path::PathBuf::from(&target.path);
-    let mut file = fs::File::open(&path).map_err(|e| format!("打开日志失败：{e}"))?;
+    let mut file = fs::File::open(&path)?;
 
     let file_size = target.size;
     let start = file_size.saturating_sub(MAX_READ_BYTES);
     if start > 0 {
-        file.seek(SeekFrom::Start(start))
-            .map_err(|e| format!("seek 日志失败：{e}"))?;
+        file.seek(SeekFrom::Start(start))?;
     }
     let reader = BufReader::new(file);
     let mut all_lines: Vec<String> = Vec::new();
