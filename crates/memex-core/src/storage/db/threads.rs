@@ -155,7 +155,7 @@ impl Db {
     ///   中的逗号冲突；DISTINCT 去重在子查询内做。
     pub fn list_threads_paged(&self, limit: usize, offset: usize) -> Result<Vec<ThreadRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT t.id, t.name, t.summary, t.session_count, t.created_at, t.updated_at,
                     (SELECT MIN(s.created_at) FROM thread_sessions ts
                      JOIN sessions s ON s.id = ts.session_id
@@ -262,7 +262,7 @@ impl Db {
 
         // SELECT 列要和 list_sessions_paged 保持完全一致——前端 SessionRow
         // 解析复用同一份字段约定。
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
                     s.created_at, s.updated_at,
                     sm.title AS summary_title,

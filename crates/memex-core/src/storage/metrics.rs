@@ -43,7 +43,7 @@ impl Db {
 
     pub fn get_metrics_for_date(&self, date: &str) -> Result<Vec<MetricEntry>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT metric_name, metric_value FROM metrics WHERE date = ?1 ORDER BY metric_name",
         )?;
         let rows = stmt
@@ -59,7 +59,7 @@ impl Db {
 
     pub fn get_metrics_range(&self, days: u32) -> Result<Vec<DailyMetrics>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT date, metric_name, metric_value FROM metrics
              WHERE date >= date('now', ?1)
              ORDER BY date DESC, metric_name",

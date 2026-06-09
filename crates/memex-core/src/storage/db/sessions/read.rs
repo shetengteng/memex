@@ -13,7 +13,7 @@ impl Db {
 
     pub fn list_sessions_paged(&self, limit: usize, offset: usize) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
                     s.created_at, s.updated_at,
                     sm.title AS summary_title,
@@ -106,7 +106,7 @@ impl Db {
         // 至少能渲染一个时间戳，对一次性会话足够精确；对长会话用户看到的是
         // 会话级时间，比"无时间"友好。SerDe 仍走 Option<String>，COALESCE 决定
         // 取值，调用方拿到的永远是 Some。
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT m.id, m.role, m.content,
                     COALESCE(m.timestamp, s.updated_at) AS ts
              FROM messages m
@@ -151,7 +151,7 @@ impl Db {
         // 跟 list_sessions_paged 保持同一形态：JOIN L2 摘要 + 取第一条 user
         // 消息预览。context 注入用到这两个字段做"概览行"，否则只能拿 raw title。
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT s.id, s.source, s.project_path, s.title, s.message_count,
                     s.created_at, s.updated_at,
                     sm.title AS summary_title,
@@ -189,7 +189,7 @@ impl Db {
 
     pub fn distinct_projects(&self) -> Result<Vec<String>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT DISTINCT project_path FROM sessions
              WHERE project_path IS NOT NULL ORDER BY project_path",
         )?;
@@ -206,7 +206,7 @@ impl Db {
     /// 子项目命中。
     pub fn distinct_projects_with_counts(&self) -> Result<Vec<(String, i64)>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT project_path, COUNT(*) AS n FROM sessions
              WHERE project_path IS NOT NULL
              GROUP BY project_path
@@ -222,7 +222,7 @@ impl Db {
 
     pub fn list_sessions_in_range(&self, after: &str, before: &str) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, source, project_path, title, message_count, created_at, updated_at, intent
              FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
                AND NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))

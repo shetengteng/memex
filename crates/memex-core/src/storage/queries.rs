@@ -167,7 +167,7 @@ impl Db {
 
     pub fn adapter_statuses(&self) -> Result<Vec<AdapterStatus>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT adapter, COUNT(*) as cnt, MAX(last_scan) as ls
              FROM sources GROUP BY adapter",
         )?;
@@ -201,7 +201,7 @@ impl Db {
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
         // 按本地时间分桶，让用户看到的是自己时区的日期
         //（跨 UTC 0 点的会话特别需要这样处理）。
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT DATE(updated_at, 'localtime') as d, source, COUNT(*) as cnt,
                     SUM(message_count) as msgs
              FROM sessions WHERE updated_at >= ?1
@@ -225,7 +225,7 @@ impl Db {
         let conn = self.conn.lock();
         let mut by_adapter = std::collections::BTreeMap::new();
         {
-            let mut stmt = conn.prepare("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
+            let mut stmt = conn.prepare_cached("SELECT source, COUNT(*) FROM sessions GROUP BY source")?;
             let rows = stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
             })?;
@@ -235,7 +235,7 @@ impl Db {
         }
         let mut by_project = std::collections::BTreeMap::new();
         {
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare_cached(
                 "SELECT project_path, COUNT(*) FROM sessions
                  WHERE project_path IS NOT NULL GROUP BY project_path
                  ORDER BY COUNT(*) DESC LIMIT 20",
@@ -272,7 +272,7 @@ impl Db {
 
     pub fn list_project_summaries(&self) -> Result<Vec<ProjectSummary>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT project_path,
                     COUNT(*) as cnt,
                     COALESCE(SUM(message_count), 0) as msgs,
@@ -304,7 +304,7 @@ impl Db {
 
             let mut by_adapter = std::collections::BTreeMap::new();
             {
-                let mut s2 = conn.prepare(
+                let mut s2 = conn.prepare_cached(
                     "SELECT source, COUNT(*) FROM sessions
                      WHERE project_path = ?1 GROUP BY source",
                 )?;
@@ -332,7 +332,7 @@ impl Db {
     pub fn daily_session_counts(&self, days: u32) -> Result<Vec<TimelineEntry>> {
         let conn = self.conn.lock();
         let offset = format!("-{days} days");
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT DATE(updated_at, 'localtime') as day, source, COUNT(*) as cnt,
                     COALESCE(SUM(message_count), 0) as msgs
              FROM sessions
@@ -384,7 +384,7 @@ impl Db {
         //        用 session.message_count（粗粒度但是该 adapter 唯一可得）。
         //    用 LEFT JOIN sessions_by_day 保证哪怕某天只有 cursor session 也能
         //    被算到。
-        let mut daily_stmt = conn.prepare(
+        let mut daily_stmt = conn.prepare_cached(
             "WITH
                 sessions_by_day AS (
                     SELECT DATE(updated_at, 'localtime') AS day,
@@ -451,7 +451,7 @@ impl Db {
         //    session 任何列，JOIN 等于额外做一次 covering-index lookup × messages 行数；
         //    在 30w+ messages 的真实库上把 30 天查询从 0.06s 拉到 6.3s（趋势页超时空白）。
         //    去掉 JOIN，依赖新的 idx_messages_timestamp 走 range scan。
-        let mut msg_stmt = conn.prepare(
+        let mut msg_stmt = conn.prepare_cached(
             "SELECT
                 (CAST(strftime('%w', m.timestamp, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
                 CAST(strftime('%H', m.timestamp, 'localtime') AS INTEGER) AS hour,
@@ -481,7 +481,7 @@ impl Db {
         // B) 退化路径：session 表里所有 message timestamp 都为 null 的 session，
         //    按 session.updated_at 分到一个桶里（message_count 走 session.message_count）。
         //    用 NOT EXISTS 取代 GROUP BY HAVING，让 SQLite 走 covering index 更快。
-        let mut sess_stmt = conn.prepare(
+        let mut sess_stmt = conn.prepare_cached(
             "SELECT
                 (CAST(strftime('%w', s.updated_at, 'localtime') AS INTEGER) + 6) % 7 AS weekday,
                 CAST(strftime('%H', s.updated_at, 'localtime') AS INTEGER) AS hour,
@@ -524,7 +524,7 @@ impl Db {
             .collect();
 
         // 2) 按 adapter 聚合
-        let mut adp_stmt = conn.prepare(
+        let mut adp_stmt = conn.prepare_cached(
             "SELECT source, COUNT(*) as sessions, COALESCE(SUM(message_count), 0) as msgs
              FROM sessions
              WHERE updated_at >= DATE('now', 'localtime', ?1)
@@ -543,7 +543,7 @@ impl Db {
             .collect();
 
         // 3) 按 project 聚合 top 10。project_path NULL/空时归到 (no project) 桶里。
-        let mut proj_stmt = conn.prepare(
+        let mut proj_stmt = conn.prepare_cached(
             "SELECT COALESCE(NULLIF(project_path, ''), '(no project)') as project_path,
                     COUNT(*) as sessions,
                     COALESCE(SUM(message_count), 0) as msgs

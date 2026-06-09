@@ -58,7 +58,7 @@ impl Db {
         limit: usize,
     ) -> Result<Vec<(i64, String, String)>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, content, redacted_content FROM chunks
              WHERE summary IS NULL AND token_count >= ?1
              ORDER BY id DESC LIMIT ?2",
@@ -76,7 +76,7 @@ impl Db {
 
     pub fn fts_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT c.id, c.session_id, c.message_id, c.chunk_type, c.content,
                     snippet(chunks_fts, 0, '<mark>', '</mark>', '...', 32) as snip, rank,
                     s.source, s.project_path, m.timestamp

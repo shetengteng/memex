@@ -120,7 +120,7 @@ impl Db {
 
     pub fn list_summaries(&self, session_id: &str) -> Result<Vec<SummaryRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, session_id, level, title, summary, topics_json, decisions_json, created_at
              FROM summaries WHERE session_id = ?1 ORDER BY created_at DESC",
         )?;
@@ -187,7 +187,7 @@ impl Db {
             (chrono::Utc::now() - cd).to_rfc3339()
         };
 
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT s.id FROM sessions s
              LEFT JOIN summaries sm
                ON s.id = sm.session_id AND sm.level = 'L2_session'
@@ -274,7 +274,7 @@ impl Db {
         limit: u32,
     ) -> Result<Vec<AggregateSummaryRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at
              FROM aggregate_summaries
              WHERE scope_type = ?1

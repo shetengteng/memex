@@ -48,7 +48,7 @@ fn now_iso() -> String {
 impl Db {
     pub fn provider_list(&self) -> Result<Vec<LlmProviderRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, name, kind, base_url, model, api_key, enabled, is_default, \
                     status, latency_ms, updated_at \
              FROM llm_providers \
@@ -77,7 +77,7 @@ impl Db {
 
     pub fn provider_get(&self, id: &str) -> Result<Option<LlmProviderRow>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             "SELECT id, name, kind, base_url, model, api_key, enabled, is_default, \
                     status, latency_ms, updated_at \
              FROM llm_providers WHERE id = ?1",
