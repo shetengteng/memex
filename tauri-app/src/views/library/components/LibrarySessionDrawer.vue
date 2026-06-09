@@ -60,6 +60,25 @@ const visibleMessages = computed(() =>
   detail.value?.messages?.slice(0, visibleCount.value) ?? [],
 )
 
+// 判断 message 的 timestamp 是不是 session-level fallback（后端 COALESCE 后
+// 所有消息的 timestamp 与 session.updated_at 完全相等）。这种情况下时间不是
+// "每条 message 真实发送时间"，UI 加 "~" 前缀让用户知道这是估算。
+const sessionFallbackTs = computed(() => {
+  const msgs = detail.value?.messages ?? []
+  if (msgs.length < 2) return null
+  const first = msgs[0]?.timestamp
+  if (!first) return null
+  return msgs.every((m) => m.timestamp === first) ? first : null
+})
+
+function messageTimeLabel(ts: string): string {
+  const formatted = new Date(ts).toLocaleString('zh-CN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+  return ts === sessionFallbackTs.value ? `~ ${formatted}` : formatted
+}
+
 const remainingCount = computed(() => {
   const total = detail.value?.messages?.length ?? 0
   return Math.max(0, total - visibleMessages.value.length)
@@ -208,8 +227,12 @@ onBeforeUnmount(() => {
                           : m.role
                     }}
                   </span>
+                  <!-- 后端在 message.timestamp 为 NULL 时退化为 session.updated_at
+                       （cursor / continue_dev 没有 per-message timestamp），
+                       这种情况下整条会话所有消息共享同一时间，前面加 ~ 提示是
+                       会话级估算而非真实 message 时间。 -->
                   <span v-if="m.timestamp" class="text-muted-foreground">
-                    {{ new Date(m.timestamp).toLocaleString() }}
+                    {{ messageTimeLabel(m.timestamp) }}
                   </span>
                 </div>
                 <div class="text-sm leading-relaxed">

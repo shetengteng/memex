@@ -172,6 +172,45 @@ describe('LibrarySessionDrawer', () => {
     expect(wrapper.find('[data-action="delete"]').exists()).toBe(false)
   })
 
+  it('所有消息共享同一时间戳（session-level fallback）时给时间加 ~ 前缀提示', async () => {
+    // 模拟 cursor / continue_dev：messages.timestamp 为 NULL，后端 COALESCE 后
+    // 全部退化为 session.updated_at，这里 detail 把每条消息时间都填成同一个值
+    // → UI 必须把时间显示为 "~ ..." 表示是会话级估算而非真实 message 时间。
+    const detail = makeDetail(3) // makeDetail 默认每条都是同一个 timestamp
+    ipcMocks.getSession.mockResolvedValue(detail)
+    const wrapper = mount(LibrarySessionDrawer, {
+      props: { session: baseSession, open: true },
+      global: { stubs },
+    })
+    await flushPromises()
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).toMatch(/~ /) // 至少出现一次 fallback 标记
+    // 同时确认 3 条 user/assistant 消息都被渲染（有时间戳，没有被 v-if 吃掉）
+    expect(text).toContain('msg-0 body')
+    expect(text).toContain('msg-1 body')
+    expect(text).toContain('msg-2 body')
+  })
+
+  it('每条消息的真实 timestamp 不同时不加 ~ 前缀', async () => {
+    const detail = makeDetail(3)
+    detail.messages = detail.messages.map((m, i) => ({
+      ...m,
+      timestamp: `2026-06-01T10:0${i}:00Z`, // 真实时间互不相同
+    }))
+    ipcMocks.getSession.mockResolvedValue(detail)
+    const wrapper = mount(LibrarySessionDrawer, {
+      props: { session: baseSession, open: true },
+      global: { stubs },
+    })
+    await flushPromises()
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).not.toMatch(/~ /)
+  })
+
   it('open 关闭后清空 detail，再次打开重新拉取', async () => {
     ipcMocks.getSession.mockResolvedValueOnce(makeDetail(3))
     const wrapper = mount(LibrarySessionDrawer, {

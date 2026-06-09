@@ -481,6 +481,72 @@ fn test_get_session_detail_includes_intent() {
     assert_eq!(detail.intent.as_deref(), Some("调研 monthly report"));
 }
 
+/// 回归：`messages.timestamp` 为 NULL（cursor / continue_dev adapter）时
+/// `get_session_detail` 必须用 `sessions.updated_at` 退化填充，前端 UI 才能
+/// 始终渲染消息时间戳。如果不退化，user 会看到"消息没有时间"的旧版回归。
+#[test]
+fn test_get_session_detail_falls_back_to_session_updated_at_for_null_message_ts() {
+    let db = Db::open_in_memory().unwrap();
+    let session_updated_at = "2026-06-01 10:00:00";
+
+    // 直接 INSERT，避免 insert_session/insert_message 改写 updated_at
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
+         VALUES ('s1', 'cursor', '/p', '/f.jsonl', ?1, ?1, 0)",
+        rusqlite::params![session_updated_at],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+         VALUES ('m1', 's1', 'user', 'hello', NULL, 0, 'h1'),
+                ('m2', 's1', 'assistant', 'hi', NULL, 1, 'h2')",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+
+    let detail = db.get_session_detail("s1").unwrap().unwrap();
+    assert_eq!(detail.messages.len(), 2);
+    for m in &detail.messages {
+        assert_eq!(
+            m.timestamp.as_deref(),
+            Some(session_updated_at),
+            "message {} should fall back to session.updated_at",
+            m.id
+        );
+    }
+}
+
+/// 反向回归：messages.timestamp 有真实值时不能被 COALESCE 替换掉。
+#[test]
+fn test_get_session_detail_keeps_real_message_timestamp() {
+    let db = Db::open_in_memory().unwrap();
+    let session_updated_at = "2026-06-01 10:00:00";
+    let m1_ts = "2026-06-01 09:01:23";
+    let m2_ts = "2026-06-01 09:05:00";
+
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "INSERT INTO sessions (id, source, project_path, file_path, created_at, updated_at, message_count)
+         VALUES ('s1', 'claude_code', '/p', '/f.jsonl', ?1, ?1, 0)",
+        rusqlite::params![session_updated_at],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO messages (id, session_id, role, content, timestamp, source_offset, content_hash)
+         VALUES ('m1', 's1', 'user', 'q', ?1, 0, 'h1'),
+                ('m2', 's1', 'assistant', 'a', ?2, 1, 'h2')",
+        rusqlite::params![m1_ts, m2_ts],
+    )
+    .unwrap();
+    drop(conn);
+
+    let detail = db.get_session_detail("s1").unwrap().unwrap();
+    assert_eq!(detail.messages[0].timestamp.as_deref(), Some(m1_ts));
+    assert_eq!(detail.messages[1].timestamp.as_deref(), Some(m2_ts));
+}
+
 /// v9 回归：新装库的 SCHEMA_SQL 必须把 `idx_chunks_has_summary` 和
 /// `idx_messages_content_dedup` 全部建出来——这两个索引以前只在 v6
 /// migration 里建过，从未写进 SCHEMA_SQL，导致新装库 / v6→v8 跳级升级

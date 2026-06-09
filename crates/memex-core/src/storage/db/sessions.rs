@@ -256,9 +256,19 @@ impl Db {
             }
         }
 
+        // messages.timestamp 在 cursor / continue_dev 等 adapter 里整列为 NULL
+        // （source 文件没记录），导致前端 session detail 的「每条消息时间」全部
+        // 不显示。我们退化到 session.updated_at（整个会话的最后活动时间）让 UI
+        // 至少能渲染一个时间戳，对一次性会话足够精确；对长会话用户看到的是
+        // 会话级时间，比"无时间"友好。SerDe 仍走 Option<String>，COALESCE 决定
+        // 取值，调用方拿到的永远是 Some。
         let mut stmt = conn.prepare(
-            "SELECT id, role, content, timestamp FROM messages
-             WHERE session_id = ?1 ORDER BY source_offset ASC",
+            "SELECT m.id, m.role, m.content,
+                    COALESCE(m.timestamp, s.updated_at) AS ts
+             FROM messages m
+             JOIN sessions s ON s.id = m.session_id
+             WHERE m.session_id = ?1
+             ORDER BY m.source_offset ASC",
         )?;
         detail.messages = stmt
             .query_map(params![session_id], |row| {
