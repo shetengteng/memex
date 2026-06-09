@@ -89,9 +89,8 @@ fn tier1_prefers_longest_prefix_over_home_dir() {
         "/Users/me/Documents/personal/foo",
         "/Users/me/Documents/personal/bar",
     ]);
-    let m =
-        search_by_project_in_candidates(Path::new("/Users/me/Documents/personal/foo"), &cands)
-            .unwrap();
+    let m = search_by_project_in_candidates(Path::new("/Users/me/Documents/personal/foo"), &cands)
+        .unwrap();
     assert_eq!(m.tier, MatchTier::ExactPath);
     assert_eq!(
         m.project_path, "/Users/me/Documents/personal/foo",
@@ -113,8 +112,8 @@ fn tier1_longest_prefix_extends_to_subdirectory() {
 fn tier1_home_dir_still_matches_when_no_subproject_does() {
     // 当 cwd 不在任何具体项目内时，家目录仍然是合法的 fallback 命中。
     let cands = paths(&["/Users/me", "/Users/me/work/proj"]);
-    let m = search_by_project_in_candidates(Path::new("/Users/me/Downloads/random"), &cands)
-        .unwrap();
+    let m =
+        search_by_project_in_candidates(Path::new("/Users/me/Downloads/random"), &cands).unwrap();
     assert_eq!(m.tier, MatchTier::ExactPath);
     assert_eq!(m.project_path, "/Users/me");
 }

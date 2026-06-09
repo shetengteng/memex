@@ -4,6 +4,7 @@
 //! 拆分：
 //! - `parser` —— `split_sessions` / `parse_session_messages` 的纯函数
 //! - `tests`  —— 集成 fixture 测试
+//!
 //! 本文件只负责 adapter 配置（扫描目录）+ `Adapter` trait 实现。
 
 mod parser;

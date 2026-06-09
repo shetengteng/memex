@@ -58,7 +58,13 @@ pub(super) fn parse_session_messages(session_id: &str, block: &str) -> Vec<RawMe
                 return;
             }
             let id = blake3::hash(
-                format!("{}{}{}", sid, *idx, crate::collector::safe_prefix(text, 100)).as_bytes(),
+                format!(
+                    "{}{}{}",
+                    sid,
+                    *idx,
+                    crate::collector::safe_prefix(text, 100)
+                )
+                .as_bytes(),
             )
             .to_hex()
             .to_string();
