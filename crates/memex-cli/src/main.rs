@@ -5,6 +5,8 @@ use tracing_subscriber::EnvFilter;
 mod cli;
 mod commands;
 mod dispatch;
+#[macro_use]
+mod io;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()

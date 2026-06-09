@@ -9,6 +9,11 @@ use crate::cli::{Cli, Commands, ConfigAction, DaemonAction, HooksAction, Reflect
 use crate::commands;
 
 pub fn run(cli: Cli) -> Result<()> {
+    // 把 clap 顶层 --json flag 一次性注入 io 子系统，让 `out!` / `err!` /
+    // `crate::io::json()` 都能在任何位置感知到，而不必把 `json: bool`
+    // 沿着每个 commands::*::run 调用链手动传递。
+    crate::io::init(cli.json);
+
     match cli.command {
         Commands::Ingest { adapter } => commands::ingest::run(adapter.as_deref(), cli.json),
         Commands::Search {
