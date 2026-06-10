@@ -10,6 +10,7 @@ import { Puzzle, RefreshCw } from 'lucide-vue-next'
 import IdeDot from '@/components/shell/IdeDot.vue'
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
+import { parseBackendError } from '@/lib/utils'
 import type { IdeStatus, SkillStatus, HookStatus } from '@/types'
 
 interface IdeRow {
@@ -66,6 +67,11 @@ const installedIdeCount = computed(
   () => rows.value.filter((r) => r.mcpInstalled && r.skillInstalled).length,
 )
 
+function formatToggleError(e: unknown): string {
+  const parsed = parseBackendError(e)
+  return parsed.message || parsed.kind
+}
+
 async function toggleMcp(row: IdeRow, next: boolean) {
   busy.value[row.id] = true
   try {
@@ -73,7 +79,7 @@ async function toggleMcp(row: IdeRow, next: boolean) {
     row.mcpInstalled = s.installed
     toast.success(`${row.label} MCP 已${next ? '安装' : '卸载'}`)
   } catch (e) {
-    toast.error(`${row.label} MCP 切换失败：${String(e)}`)
+    toast.error(`${row.label} MCP 切换失败：${formatToggleError(e)}`)
   } finally {
     busy.value[row.id] = false
   }
@@ -86,7 +92,7 @@ async function toggleSkill(row: IdeRow, next: boolean) {
     row.skillInstalled = s.installed
     toast.success(`${row.label} SKILL 已${next ? '安装' : '卸载'}`)
   } catch (e) {
-    toast.error(`${row.label} SKILL 切换失败：${String(e)}`)
+    toast.error(`${row.label} SKILL 切换失败：${formatToggleError(e)}`)
   } finally {
     busy.value[row.id + ':skill'] = false
   }
@@ -99,7 +105,7 @@ async function toggleHook(row: IdeRow, next: boolean) {
     row.hookInstalled = s.installed
     toast.success(`${row.label} Hook 已${next ? '安装' : '卸载'}`)
   } catch (e) {
-    toast.error(`${row.label} Hook 切换失败：${String(e)}`)
+    toast.error(`${row.label} Hook 切换失败：${formatToggleError(e)}`)
   } finally {
     busy.value[row.id + ':hook'] = false
   }

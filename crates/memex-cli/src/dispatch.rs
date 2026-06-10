@@ -244,9 +244,10 @@ fn run_hooks(action: HooksAction, json: bool) -> Result<()> {
 
     let report = |st: &hooks::HookStatus| {
         if json {
-            if let Ok(s) = serde_json::to_string_pretty(st) {
-                crate::out!("{}", s);
-            }
+            // `crate::out!` 在 --json 模式下会被压制（io::write_out 的契约），
+            // 因此必须走 `crate::io::json` 这条专用的 JSON stdout 通道，否则
+            // Tauri / `jq` 之类的下游会收到空 stdout 并 fail to parse。
+            let _ = crate::io::json(st);
             return;
         }
         let mark = if !st.supported {
