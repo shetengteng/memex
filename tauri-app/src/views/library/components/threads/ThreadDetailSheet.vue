@@ -46,7 +46,7 @@ const emit = defineEmits<{
         <SheetDescription class="sr-only">线索详情</SheetDescription>
         <div class="flex flex-wrap items-center gap-2 pr-8 pt-1">
           <Badge variant="secondary" class="tabular-nums text-[10.5px]">
-            {{ thread?.session_count ?? 0 }} 个会话
+            {{ thread?.sessionCount ?? 0 }} 个会话
           </Badge>
           <Badge
             v-if="(thread?.projects?.length ?? 0) > 0"
@@ -73,17 +73,17 @@ const emit = defineEmits<{
             </p>
           </section>
 
-          <section v-if="thread?.first_session_at && thread?.last_session_at">
+          <section v-if="thread?.firstSessionAt && thread?.lastSessionAt">
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
               活跃时间
             </h4>
             <div class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
               <span class="text-muted-foreground">开始</span>
-              <span class="tabular-nums">{{ timeFmt(thread.first_session_at) }}</span>
+              <span class="tabular-nums">{{ timeFmt(thread.firstSessionAt) }}</span>
               <span class="text-muted-foreground">最近</span>
-              <span class="tabular-nums">{{ timeFmt(thread.last_session_at) }}</span>
+              <span class="tabular-nums">{{ timeFmt(thread.lastSessionAt) }}</span>
               <span class="text-muted-foreground">持续</span>
-              <span class="tabular-nums">{{ durationDays(thread.first_session_at, thread.last_session_at) }} 天</span>
+              <span class="tabular-nums">{{ durationDays(thread.firstSessionAt, thread.lastSessionAt) }} 天</span>
             </div>
           </section>
 

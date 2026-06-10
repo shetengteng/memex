@@ -23,21 +23,22 @@ export interface SessionRow {
 }
 
 /**
- * L5「主题线索」一行 —— `threads` 表 + 派生的 session_count + 卡片视图聚合字段。
- * 由后端 `list_threads` / `get_thread_detail` 返回，字段对齐 storage::db::ThreadRow。
+ * L5「主题线索」一行 —— `threads` 表 + 派生的 sessionCount + 卡片视图聚合字段。
+ * 由后端 `list_threads` / `get_thread_detail` 返回，字段对齐 storage::db::ThreadRow
+ * 在 `#[serde(rename_all = "camelCase")]` 下的 IPC 形态。
  *
- * `first_session_at` / `last_session_at` / `projects` / `adapters` 是由
+ * `firstSessionAt` / `lastSessionAt` / `projects` / `adapters` 是由
  * thread_sessions + sessions join 后聚合得到，避免前端 N+1。
  */
 export interface ThreadRow {
   id: number
   name: string
   summary: string
-  session_count: number
-  created_at: string
-  updated_at: string
-  first_session_at?: string | null
-  last_session_at?: string | null
+  sessionCount: number
+  createdAt: string
+  updatedAt: string
+  firstSessionAt?: string | null
+  lastSessionAt?: string | null
   projects?: string[]
   adapters?: string[]
 }

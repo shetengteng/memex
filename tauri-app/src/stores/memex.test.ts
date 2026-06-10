@@ -383,9 +383,9 @@ describe('stores/memex', () => {
               id: 1,
               name: '桌面化',
               summary: 'memex 桌面化迁移',
-              session_count: 3,
-              created_at: '2026-06-08T10:00:00+00:00',
-              updated_at: '2026-06-08T11:00:00+00:00',
+              sessionCount: 3,
+              createdAt: '2026-06-08T10:00:00+00:00',
+              updatedAt: '2026-06-08T11:00:00+00:00',
             },
           ]
         }
@@ -401,9 +401,9 @@ describe('stores/memex', () => {
         id: 99,
         name: 'preexisting',
         summary: '',
-        session_count: 0,
-        created_at: '',
-        updated_at: '',
+        sessionCount: 0,
+        createdAt: '',
+        updatedAt: '',
       })
       mockedInvoke.mockImplementation(async () => {
         throw new Error('db gone')
@@ -422,9 +422,9 @@ describe('stores/memex', () => {
               id: 42,
               name: 'foo',
               summary: 'bar',
-              session_count: 0,
-              created_at: '',
-              updated_at: '',
+              sessionCount: 0,
+              createdAt: '',
+              updatedAt: '',
             },
             sessions: [],
           }
@@ -454,9 +454,9 @@ describe('stores/memex', () => {
               id: 7,
               name: 'new',
               summary: '',
-              session_count: 2,
-              created_at: '',
-              updated_at: '',
+              sessionCount: 2,
+              createdAt: '',
+              updatedAt: '',
             },
           ]
         }
@@ -500,17 +500,17 @@ describe('stores/memex', () => {
           id: 1,
           name: 'keep',
           summary: '',
-          session_count: 0,
-          created_at: '',
-          updated_at: '',
+          sessionCount: 0,
+          createdAt: '',
+          updatedAt: '',
         },
         {
           id: 2,
           name: 'remove',
           summary: '',
-          session_count: 0,
-          created_at: '',
-          updated_at: '',
+          sessionCount: 0,
+          createdAt: '',
+          updatedAt: '',
         },
       )
       mockedInvoke.mockImplementation(
@@ -549,9 +549,9 @@ describe('stores/memex', () => {
                 id: 42,
                 name: 'Tauri 多窗口',
                 summary: '',
-                session_count: 3,
-                created_at: '',
-                updated_at: '',
+                sessionCount: 3,
+                createdAt: '',
+                updatedAt: '',
               },
             ]
           }

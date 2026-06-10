@@ -33,7 +33,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
       <DialogHeader>
         <DialogTitle>删除线索</DialogTitle>
         <DialogDescription>
-          将删除「{{ target?.name }}」（{{ target?.session_count }} 个会话的关联）。
+          将删除「{{ target?.name }}」（{{ target?.sessionCount }} 个会话的关联）。
           <br />
           <span class="text-muted-foreground">
             只是删除主题分组，不会删除会话本身。下次"全量聚类"可能会再生成同名线索。

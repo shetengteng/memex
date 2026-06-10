@@ -39,11 +39,11 @@ function mkThread(over: Partial<any> = {}) {
     id: 1,
     name: 'topic-A',
     summary: '',
-    session_count: 1,
-    created_at: now(),
-    updated_at: now(),
-    last_session_at: now(),
-    first_session_at: now(),
+    sessionCount: 1,
+    createdAt: now(),
+    updatedAt: now(),
+    lastSessionAt: now(),
+    firstSessionAt: now(),
     projects: ['/a'],
     adapters: ['claude_code'],
     ...over,
@@ -74,11 +74,11 @@ describe('useThreadsView', () => {
     expect(view.filterCounts.value.multi_project).toBe(2)
   })
 
-  it('filteredThreads applies recent_7d filter by last_session_at', () => {
+  it('filteredThreads applies recent_7d filter by lastSessionAt', () => {
     mockState.threads = [
-      mkThread({ id: 1, last_session_at: daysAgo(2) }),
-      mkThread({ id: 2, last_session_at: daysAgo(8) }),
-      mkThread({ id: 3, last_session_at: daysAgo(1) }),
+      mkThread({ id: 1, lastSessionAt: daysAgo(2) }),
+      mkThread({ id: 2, lastSessionAt: daysAgo(8) }),
+      mkThread({ id: 3, lastSessionAt: daysAgo(1) }),
     ]
     const view = useThreadsView()
     view.filter.value = 'recent_7d'

@@ -52,11 +52,11 @@ const emit = defineEmits<{
       </p>
 
       <div
-        v-if="thread.first_session_at && thread.last_session_at"
+        v-if="thread.firstSessionAt && thread.lastSessionAt"
         class="flex items-center gap-2 text-[10.5px] text-muted-foreground"
       >
         <Clock class="size-3 shrink-0" />
-        <span class="tabular-nums">{{ dateRangeFmt(thread.first_session_at, thread.last_session_at) }}</span>
+        <span class="tabular-nums">{{ dateRangeFmt(thread.firstSessionAt, thread.lastSessionAt) }}</span>
       </div>
 
       <div
@@ -91,8 +91,8 @@ const emit = defineEmits<{
     </CardContent>
 
     <CardFooter class="mt-auto flex items-center justify-between px-4 text-[10.5px] text-muted-foreground/80">
-      <span class="tabular-nums">{{ thread.session_count }} 个会话</span>
-      <span class="tabular-nums">{{ timeFmt(thread.updated_at) }}</span>
+      <span class="tabular-nums">{{ thread.sessionCount }} 个会话</span>
+      <span class="tabular-nums">{{ timeFmt(thread.updatedAt) }}</span>
     </CardFooter>
   </Card>
 </template>

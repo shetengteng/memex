@@ -52,7 +52,7 @@ export function useThreadsView() {
     all: threads.length,
     multi_project: threads.filter((t) => (t.projects ?? []).length >= 2).length,
     recent_7d: threads.filter((t) =>
-      isWithinDays(t.last_session_at ?? t.updated_at, 7),
+      isWithinDays(t.lastSessionAt ?? t.updatedAt, 7),
     ).length,
   }))
 
@@ -62,7 +62,7 @@ export function useThreadsView() {
         return threads.filter((t) => (t.projects ?? []).length >= 2)
       case 'recent_7d':
         return threads.filter((t) =>
-          isWithinDays(t.last_session_at ?? t.updated_at, 7),
+          isWithinDays(t.lastSessionAt ?? t.updatedAt, 7),
         )
       default:
         return threads.slice()
