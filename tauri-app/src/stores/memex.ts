@@ -99,16 +99,16 @@ export interface Session {
 export const sessions: Session[] = reactive([])
 
 export function rowToSession(row: SessionRow): Session {
-  // 用 project_path 末段当 workspace/project 名；title 缺失时退到 first_user_message
-  const projName = row.project_path
-    ? row.project_path.split('/').filter(Boolean).pop() ?? row.project_path
+  // 用 projectPath 末段当 workspace/project 名；title 缺失时退到 firstUserMessage
+  const projName = row.projectPath
+    ? row.projectPath.split('/').filter(Boolean).pop() ?? row.projectPath
     : '(未知项目)'
   // claude_code 等 IDE 的 workflow agent 框架会把 `=== Role === ...` 这种
   // system prompt 模板写进第一条 user message。这种内容做标题 / intent fallback
   // 完全是噪音，必须过滤掉。
-  const cleanFirstPrompt = meaningfulPrompt(row.first_user_message)
+  const cleanFirstPrompt = meaningfulPrompt(row.firstUserMessage)
   const title =
-    (row.summary_title && row.summary_title.trim()) ||
+    (row.summaryTitle && row.summaryTitle.trim()) ||
     (row.title && row.title.trim()) ||
     (cleanFirstPrompt && cleanFirstPrompt.slice(0, 60)) ||
     '(无标题)'
@@ -123,12 +123,12 @@ export function rowToSession(row: SessionRow): Session {
     adapter: row.source,
     workspace: projName,
     project: projName,
-    startedAt: row.created_at,
-    durationMin: computeDurationMin(row.created_at, row.updated_at),
-    messages: row.message_count,
+    startedAt: row.createdAt,
+    durationMin: computeDurationMin(row.createdAt, row.updatedAt),
+    messages: row.messageCount,
     title,
     topics: [],
-    l2Done: !!row.summary_title,
+    l2Done: !!row.summaryTitle,
     intent,
   }
 }

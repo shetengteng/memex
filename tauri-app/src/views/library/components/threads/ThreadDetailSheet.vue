@@ -136,16 +136,16 @@ const emit = defineEmits<{
               >
                 <div class="flex items-start justify-between gap-2">
                   <span class="line-clamp-1 text-[12.5px] font-medium">
-                    {{ row.summary_title ?? row.title ?? '未命名会话' }}
+                    {{ row.summaryTitle ?? row.title ?? '未命名会话' }}
                   </span>
                   <span class="shrink-0 tabular-nums text-[10.5px] text-muted-foreground">
-                    {{ timeFmt(row.updated_at) }}
+                    {{ timeFmt(row.updatedAt) }}
                   </span>
                 </div>
                 <div class="mt-1 flex items-center gap-2 text-[10.5px] text-muted-foreground">
                   <span>{{ adapterLabel(row.source) }}</span>
                   <span>·</span>
-                  <span class="tabular-nums">{{ row.message_count }} 条</span>
+                  <span class="tabular-nums">{{ row.messageCount }} 条</span>
                 </div>
               </li>
             </ul>

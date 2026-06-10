@@ -11,31 +11,49 @@ mod write;
 
 use serde::{Deserialize, Serialize};
 
-/// `Deserialize` 是为了 `serde_rusqlite::from_rows` 的 row mapping —— SQL
-/// 里 SELECT 出的列名必须和这里的字段名对齐（`summary_title` /
-/// `first_user_message` 都已经在 SQL 里 `AS` 成了同名 alias）。
+/// IPC 序列化形态使用 `#[serde(rename_all = "camelCase")]`，与 JS 命名习惯
+/// 对齐（出去的 JSON 是 `projectPath` / `messageCount` / `createdAt` 等）。
+///
+/// 同时这条结构是 `Deserialize` 的，因为 `serde_rusqlite::from_rows` 走它
+/// 把 SQL 行映射成 SessionRow —— **SQL 列名仍是 snake_case**。为此每个
+/// 多词字段都补了 `#[serde(alias = "<snake_case>")]`，让 deserializer 既
+/// 接受新的 camelCase（用于 JSON 输入），也接受历史 snake_case（用于 SQL
+/// 列）。
+///
+/// 锁定形态见 `storage::json_contract_tests::test_session_row_json_fields`。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionRow {
     pub id: String,
     pub source: String,
+    #[serde(alias = "project_path")]
     pub project_path: Option<String>,
     pub title: Option<String>,
+    #[serde(alias = "message_count")]
     pub message_count: i64,
+    #[serde(alias = "created_at")]
     pub created_at: String,
+    #[serde(alias = "updated_at")]
     pub updated_at: String,
     /// L2 摘要的标题（已经镜像写到了 `sessions.title`，但单独保留一份方便
     /// UI 区分"原始来源标题"和"LLM 生成的标题"）。当前与 `title` 同值，
     /// 预留供后续拆分使用。
+    #[serde(alias = "summary_title")]
     pub summary_title: Option<String>,
     /// 第一条 user 消息的预览（约 120 字），尚未生成摘要时作为 fallback，
     /// 避免 popup 列表里整条目为空。
+    #[serde(alias = "first_user_message")]
     pub first_user_message: Option<String>,
     /// L2 摘要中由 LLM 推断出的"用户真实意图"，一句话。
     /// 摘要尚未生成时为 None；UI 在列表里用它代替原始首条消息预览。
     pub intent: Option<String>,
 }
 
+/// IPC 出去的会话详情，`#[serde(rename_all = "camelCase")]` 让多词字段在
+/// JSON 里成 `projectPath` / `filePath` / `createdAt` 等。**只 Serialize**,
+/// 不需要 alias —— 没有任何路径会从 JSON 反序列化回这个 struct。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionDetail {
     pub id: String,
     pub source: String,
@@ -53,7 +71,12 @@ pub struct SessionDetail {
     pub intent: Option<String>,
 }
 
+/// 单条会话消息。当前所有字段都是单词（id / role / content / timestamp），
+/// rename_all camelCase 与 snake_case 等价；显式加 attr 是把契约写在结构
+/// 上而不是隐含在"碰巧没多词"上 —— 未来加多词字段（如 `tool_calls`）时
+/// 不会忘。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MessageRow {
     pub id: String,
     pub role: String,

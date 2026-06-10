@@ -7,7 +7,7 @@ const mockState = {
 const mockedRefresh = vi.fn(async (_limit?: number) => {})
 const mockedFetchDetail = vi.fn(async (id: number) => ({
   thread: { id, name: `thread-${id}` },
-  sessions: [{ id: 's1', updated_at: '2026-06-01T10:00:00Z' }],
+  sessions: [{ id: 's1', updatedAt: '2026-06-01T10:00:00Z' }],
 }))
 const mockedRegenerate = vi.fn(async () => 0)
 const mockedDelete = vi.fn(async (_id: number) => {})

@@ -93,6 +93,15 @@ fn test_search_result_skips_none_fields() {
     );
 }
 
+/// SessionRow 的 IPC 序列化形态：所有多词字段都是 camelCase
+/// （`projectPath` / `messageCount` / `createdAt` / `updatedAt` /
+/// `summaryTitle` / `firstUserMessage`），snake_case 字段在 JSON 里
+/// 不再存在。前端 `tauri-app/src/types/index.ts::SessionRow` 必须
+/// 与此断言保持一致。
+///
+/// 同时验证 SessionRow 仍能从 snake_case 形式（来自 SQL 列名经
+/// `serde_rusqlite::from_rows`）反序列化 —— 这条用例守住 alias 的退路，
+/// 防止有人在 dto.rs 上误删 `#[serde(alias = "...")]` 后 SQL 路径静默崩。
 #[test]
 fn test_session_row_json_fields() {
     let row = SessionRow {
@@ -112,18 +121,54 @@ fn test_session_row_json_fields() {
     let required = [
         "id",
         "source",
-        "project_path",
-        "message_count",
-        "updated_at",
-        "summary_title",
-        "first_user_message",
+        "projectPath",
+        "messageCount",
+        "createdAt",
+        "updatedAt",
+        "summaryTitle",
+        "firstUserMessage",
         "intent",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionRow missing: {}", field);
     }
+    for legacy in &[
+        "project_path",
+        "message_count",
+        "created_at",
+        "updated_at",
+        "summary_title",
+        "first_user_message",
+    ] {
+        assert!(
+            !obj.contains_key(*legacy),
+            "SessionRow leaked snake_case key: {}",
+            legacy
+        );
+    }
+
+    // SQL 列名是 snake_case，alias 必须接受它 —— 否则 from_rows::<SessionRow>
+    // 会在所有 list_sessions / list_recent / get_session 路径上 silently 翻车。
+    let from_snake: SessionRow = serde_json::from_value(serde_json::json!({
+        "id": "sess-002",
+        "source": "cursor",
+        "project_path": "/proj-snake",
+        "title": null,
+        "message_count": 7,
+        "created_at": "2026-06-01T00:00:00+00:00",
+        "updated_at": "2026-06-01T00:00:00+00:00",
+        "summary_title": null,
+        "first_user_message": "snake",
+        "intent": null,
+    }))
+    .expect("SessionRow must accept snake_case input via #[serde(alias)] for SQL row mapping");
+    assert_eq!(from_snake.project_path.as_deref(), Some("/proj-snake"));
+    assert_eq!(from_snake.message_count, 7);
 }
 
+/// SessionDetail 的 IPC 序列化形态：与 SessionRow 同步走 camelCase。
+/// 多词字段为 `projectPath` / `filePath` / `createdAt` / `updatedAt` /
+/// `messageCount`；snake_case 不再出现。
 #[test]
 fn test_session_detail_json_fields() {
     let detail = SessionDetail {
@@ -151,20 +196,33 @@ fn test_session_detail_json_fields() {
     let required = [
         "id",
         "source",
-        "project_path",
-        "file_path",
+        "projectPath",
+        "filePath",
         "title",
         "summary",
         "topics",
         "decisions",
-        "created_at",
-        "updated_at",
-        "message_count",
+        "createdAt",
+        "updatedAt",
+        "messageCount",
         "messages",
         "intent",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionDetail missing: {}", field);
+    }
+    for legacy in &[
+        "project_path",
+        "file_path",
+        "created_at",
+        "updated_at",
+        "message_count",
+    ] {
+        assert!(
+            !obj.contains_key(*legacy),
+            "SessionDetail leaked snake_case key: {}",
+            legacy
+        );
     }
     let messages = obj["messages"].as_array().unwrap();
     let msg = messages[0].as_object().unwrap();

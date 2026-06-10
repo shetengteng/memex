@@ -9,16 +9,21 @@ export interface Stats {
   llm_provider: string | null
 }
 
+/**
+ * 单条会话的 IPC 形态，对齐后端 storage::db::SessionRow 在
+ * `#[serde(rename_all = "camelCase")]` 下的 JSON 字段名。
+ * 锁定形态见 crates/memex-core/src/storage/json_contract_tests.rs::test_session_row_json_fields。
+ */
 export interface SessionRow {
   id: string
   source: string
-  project_path: string | null
+  projectPath: string | null
   title: string | null
-  message_count: number
-  created_at: string
-  updated_at: string
-  summary_title: string | null
-  first_user_message: string | null
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+  summaryTitle: string | null
+  firstUserMessage: string | null
   intent: string | null
 }
 
@@ -63,18 +68,22 @@ export interface SearchResult {
   timestamp?: string
 }
 
+/**
+ * 会话详情的 IPC 形态，对齐后端 storage::db::SessionDetail 在
+ * `#[serde(rename_all = "camelCase")]` 下的 JSON 字段名。
+ */
 export interface SessionDetail {
   id: string
   source: string
-  project_path: string | null
+  projectPath: string | null
   title: string | null
   summary: string | null
   topics: string[]
   decisions: string[]
-  file_path: string
-  message_count: number
-  created_at: string
-  updated_at: string
+  filePath: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
   messages: MessageRow[]
   intent: string | null
 }
