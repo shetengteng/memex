@@ -102,26 +102,14 @@ pub fn run(target: &str) -> Result<()> {
     })?;
     let memex_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("memex"));
     install(ide, &memex_bin)?;
-
-    // 联动：成功开 MCP 后，把 memex 使用规则也装上（v1 仅 Cursor 实现）。
-    // 用 status() 判断是否支持，避免对不支持的 IDE 打误导性的失败提示。
-    if let Ok(rs) = super::rules::status(ide)
-        && rs.supported
-        && let Err(e) = super::rules::install(ide)
-    {
-        crate::err!(
-            "[memex] rules install failed (non-fatal): {}. \
-             Run `memex rules install {}` later to retry.",
-            e,
-            ide.as_str()
-        );
-    }
-
     crate::out!("\nRestart {} to activate.", ide.as_str());
     Ok(())
 }
 
 /// 写入「memex」MCP server 条目。已存在时覆盖更新（让 command 路径跟当前可执行文件走）。
+///
+/// 联动安装：rules 的价值就是「告诉 AI 你有 MCP 工具」。MCP 装上了 rules 也得装上，
+/// 否则 AI 不会主动调用，MCP 白搭。失败 best-effort 上报到 stderr，不阻塞主流程。
 pub fn install(ide: Ide, memex_bin: &Path) -> Result<IdeStatus> {
     let path = ide.primary_config();
     if let Some(parent) = path.parent() {
@@ -137,10 +125,25 @@ pub fn install(ide: Ide, memex_bin: &Path) -> Result<IdeStatus> {
     }
     crate::out!("{} MCP configured at {}", ide.as_str(), path.display());
     crate::out!("  command: {} mcp", memex_bin.display());
+    if let Ok(rs) = super::rules::status(ide)
+        && rs.supported
+        && let Err(e) = super::rules::install(ide)
+    {
+        crate::err!(
+            "[memex] rules install failed (non-fatal): {}. \
+             Run `memex rules {}` later to retry.",
+            e,
+            ide.as_str()
+        );
+    }
     status(ide)
 }
 
 /// 移除「memex」MCP server 条目。文件不存在或没条目都视为 success（幂等）。
+///
+/// 联动卸载：rules 的存在价值就是「告诉 AI 你有 MCP 工具」。MCP 没了，rules
+/// 没有意义，必须一起退场。失败 best-effort 上报到 stderr，不阻塞主流程，
+/// 这样即便 rules 文件被用户手改或 IDE 升级换了路径，仍能完成 MCP 卸载。
 pub fn uninstall(ide: Ide) -> Result<IdeStatus> {
     let path = ide.primary_config();
     if path.exists() {
@@ -155,6 +158,18 @@ pub fn uninstall(ide: Ide) -> Result<IdeStatus> {
             "{} config not found, nothing to remove ({})",
             ide.as_str(),
             path.display()
+        );
+    }
+    if let Ok(rs) = super::rules::status(ide)
+        && rs.supported
+        && rs.installed
+        && let Err(e) = super::rules::uninstall(ide)
+    {
+        crate::err!(
+            "[memex] rules uninstall failed (non-fatal): {}. \
+             Run `memex rules {} --uninstall` later to retry.",
+            e,
+            ide.as_str()
         );
     }
     status(ide)
