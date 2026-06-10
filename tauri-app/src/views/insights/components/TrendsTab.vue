@@ -11,6 +11,7 @@ import { ADAPTER_MAP } from '@/stores/memex'
 import type { WorkloadReport } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import DailyBarChart from './DailyBarChart.vue'
+import { buildAdapterUsage } from '../composables/adapterUsage'
 
 const memex = useMemex()
 const range = ref<'7d' | '30d' | '90d'>('30d')
@@ -67,20 +68,15 @@ const habitHeatmap = computed<number[][]>(() => {
   return matrix
 })
 
-const adapterUsage = computed(() => {
-  const xs = data.value?.by_adapter ?? []
-  const max = Math.max(1, ...xs.map((x) => x.sessions))
-  return xs
-    .filter((x) => x.sessions > 0)
-    .map((x) => ({
-      id: x.key,
-      label: ADAPTER_MAP[x.key]?.label ?? x.key,
-      count: x.sessions,
-      pct: Math.round((x.sessions / max) * 100),
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8)
-})
+// 数字百分比 = 占总会话数的份额（用户认得的"工具使用占比"），
+// bar 宽度 = 相对最大那条的份额（视觉对比"哪个 IDE 明显多"）。
+// 抽到 composables/adapterUsage.ts 是为了对两类 pct 的边界做单测。
+const adapterUsage = computed(() =>
+  buildAdapterUsage(
+    data.value?.by_adapter ?? [],
+    (id) => ADAPTER_MAP[id]?.label ?? id,
+  ),
+)
 
 const projectUsage = computed(() => {
   const xs = data.value?.by_project ?? []
@@ -205,15 +201,25 @@ const projectUsage = computed(() => {
                 <IdeDot :adapter="t.id" />
                 {{ t.label }}
               </span>
-              <span class="text-muted-foreground tabular-nums">
-                {{ t.count }} ({{ t.pct }}%)
-              </span>
+              <Tooltip :delay-duration="120">
+                <TooltipTrigger as-child>
+                  <span class="cursor-default text-muted-foreground tabular-nums">
+                    {{ t.count }} ({{ t.sharePct }}%)
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="left" :side-offset="6" class="px-2.5 py-1.5 text-[11px]">
+                  <div class="leading-tight">
+                    <div class="tabular-nums">{{ t.count.toLocaleString() }} 个会话</div>
+                    <div class="mt-0.5 text-muted-foreground">占当前区间总会话数</div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 class="h-full rounded-full"
                 :style="{
-                  width: t.pct + '%',
+                  width: t.widthPct + '%',
                   background: `var(--adapter-${t.id.replace('_code', '')})`,
                 }"
               />
