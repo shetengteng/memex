@@ -1,12 +1,19 @@
 //! 一次性手动备份。复用 `memex backup` CLI，避免在 menubar 这边重新实现
 //! tar/flate2 打包逻辑 —— CLI 那边已经把 memex.db / config.toml / sessions/
 //! 三个产物收拢好了。
-use std::path::PathBuf;
+//!
+//! 导出 / 导入流程：
+//! - `export_db(target_path)` —— 让用户在 Save 对话框选位置后，把整份数据 dump
+//!   到那里（仍然是 `memex backup <path>`，因此后续可用 `memex restore` 反向恢复）。
+//! - `import_db(source_path)` —— 让用户挑一个 `.tar.gz`，先停 daemon、调用
+//!   `memex restore`、再把 daemon 拉回来。daemon 不停的话 SQLite WAL 会锁住 db。
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
+use super::daemon::{daemon_restart, stop_daemon_blocking};
 use super::error::{CmdError, CmdResult};
 
 /// 返回 memex 数据目录（`~/.memex`）的绝对路径，给前端展示用。
@@ -56,19 +63,82 @@ fn locate_memex_cli() -> Option<PathBuf> {
 /// 在 `~/.memex/backups/` 下生成一个带时间戳的 `.tar.gz`，返回备份信息。
 #[tauri::command]
 pub async fn backup_now() -> CmdResult<BackupResult> {
-    let bin = locate_memex_cli().ok_or_else(|| {
-        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
-    })?;
-
     let backup_dir = memex_dir().join("backups");
     if !backup_dir.exists() {
         std::fs::create_dir_all(&backup_dir)?;
     }
-
     let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
     let output_path = backup_dir.join(format!("memex-{}.tar.gz", ts));
-    let output_str = output_path.to_string_lossy().to_string();
+    run_backup_cli(&output_path)
+}
 
+/// 让用户在 save dialog 选目标位置后，把整份数据导出到该位置。
+/// 与 [`backup_now`] 共用同一份 `memex backup` 流水线，区别仅是落点由用户决定。
+#[tauri::command]
+pub async fn export_db(target_path: String) -> CmdResult<BackupResult> {
+    let target = PathBuf::from(&target_path);
+    if target.as_os_str().is_empty() {
+        return Err(CmdError::Backend("导出路径为空".into()));
+    }
+    if let Some(parent) = target.parent()
+        && !parent.as_os_str().is_empty()
+        && !parent.exists()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    run_backup_cli(&target)
+}
+
+/// 把 `memex backup` 写成的 `.tar.gz` 恢复回 `~/.memex/`。
+///
+/// 关键顺序：必须先停 daemon —— SQLite WAL 把 memex.db 锁着的时候，
+/// 解包覆盖文件可能拿到不一致的快照或者直接 fail，所以前置 stop_daemon_blocking。
+/// CLI 自己什么都不知道，只管解包；这边补上 daemon 边界。
+///
+/// 解包完成后调 `daemon_restart`，否则后台采集 / HTTP 健康都会一直挂着。
+#[tauri::command]
+pub async fn import_db(source_path: String) -> CmdResult<ImportResult> {
+    let source = PathBuf::from(&source_path);
+    if source.as_os_str().is_empty() {
+        return Err(CmdError::Backend("导入路径为空".into()));
+    }
+    if !source.exists() {
+        return Err(CmdError::NotFound(format!(
+            "导入文件不存在：{}",
+            source.display()
+        )));
+    }
+    if !source.is_file() {
+        return Err(CmdError::Backend(format!(
+            "导入路径不是文件：{}",
+            source.display()
+        )));
+    }
+
+    let restore = run_restore_cli(&source)?;
+    // 数据替换后立刻拉起 daemon，避免 UI 那边接下来的查询都打到一个空的 db state。
+    let _ = daemon_restart().await;
+    Ok(ImportResult {
+        source: restore.source,
+        before_path: restore.before_path,
+        files: restore.files,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub source: String,
+    pub before_path: String,
+    pub files: u64,
+}
+
+/// CLI `memex backup <output>` 的 JSON 输出契约，与 `commands::backup::run` 中
+/// 的 `serde_json::json!({"path","files","size_bytes"})` 对齐。
+fn run_backup_cli(output_path: &Path) -> CmdResult<BackupResult> {
+    let bin = locate_memex_cli().ok_or_else(|| {
+        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
+    })?;
+    let output_str = output_path.to_string_lossy().to_string();
     let output = Command::new(&bin)
         .args(["--json", "backup", &output_str])
         .output()?;
@@ -80,10 +150,40 @@ pub async fn backup_now() -> CmdResult<BackupResult> {
             output.status, stderr
         )));
     }
-
     let stdout = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(stdout.trim())
         .map_err(|e| CmdError::Backend(format!("无法解析 CLI 输出（{}）：{}", e, stdout)))
+}
+
+#[derive(Debug, Deserialize)]
+struct RestoreCliOutput {
+    source: String,
+    before_path: String,
+    files: u64,
+}
+
+/// CLI `memex restore <input>` 的 JSON 输出契约，与 `commands::restore::RestoreResult`
+/// 对齐。调用前先停 daemon 防 SQLite WAL 锁竞争。
+fn run_restore_cli(source_path: &Path) -> CmdResult<RestoreCliOutput> {
+    let bin = locate_memex_cli().ok_or_else(|| {
+        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
+    })?;
+    // 同步停 daemon，等 SIGTERM/KILL 走完才解包，避免覆盖到一半 daemon 还在写。
+    stop_daemon_blocking();
+    let source_str = source_path.to_string_lossy().to_string();
+    let output = Command::new(&bin)
+        .args(["--json", "restore", &source_str])
+        .output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(CmdError::Backend(format!(
+            "memex restore 返回非零（{}）：{}",
+            output.status, stderr
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str(stdout.trim())
+        .map_err(|e| CmdError::Backend(format!("无法解析 restore CLI 输出（{}）：{}", e, stdout)))
 }
 
 #[cfg(test)]
@@ -131,5 +231,59 @@ mod tests {
             let got = memex_data_dir();
             assert_eq!(got, dir.to_string_lossy());
         });
+    }
+
+    /// 导出空路径应被前置校验拒绝，不会走到 CLI。
+    #[tokio::test]
+    async fn export_db_rejects_empty_path() {
+        let err = export_db(String::new()).await.unwrap_err();
+        assert!(
+            matches!(err, CmdError::Backend(_)),
+            "expected Backend error, got {:?}",
+            err
+        );
+    }
+
+    /// 导入空路径应被前置校验拒绝。
+    #[tokio::test]
+    async fn import_db_rejects_empty_path() {
+        let err = import_db(String::new()).await.unwrap_err();
+        assert!(
+            matches!(err, CmdError::Backend(_)),
+            "expected Backend error, got {:?}",
+            err
+        );
+    }
+
+    /// 导入不存在的归档路径应返回 NotFound，避免静默把 daemon 停了之后什么都不做。
+    #[tokio::test]
+    async fn import_db_rejects_missing_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing = tmp.path().join("nope.tar.gz");
+        let err = import_db(missing.to_string_lossy().to_string())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CmdError::NotFound(_)),
+            "expected NotFound, got {:?}",
+            err
+        );
+    }
+
+    /// 给一个目录路径（不是 file）应被拒绝。否则后端会傻乎乎地把目录传给 `memex restore`，
+    /// CLI 那边再 fail 一次，错误信息很模糊。
+    #[tokio::test]
+    async fn import_db_rejects_directory() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir_path = tmp.path().join("subdir");
+        std::fs::create_dir_all(&dir_path).unwrap();
+        let err = import_db(dir_path.to_string_lossy().to_string())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CmdError::Backend(_)),
+            "expected Backend error, got {:?}",
+            err
+        );
     }
 }

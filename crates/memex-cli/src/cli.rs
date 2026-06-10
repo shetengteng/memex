@@ -64,6 +64,11 @@ pub enum Commands {
         /// 输出文件路径
         path: String,
     },
+    /// 从 `memex backup` 产出的 tar.gz 恢复数据（旧数据自动搬到 .before-restore-*）
+    Restore {
+        /// 输入归档路径
+        path: String,
+    },
     /// 从 Markdown 会话文件重建 SQLite 索引
     RebuildIndex,
     /// 启动 MCP server（stdio JSON-RPC）

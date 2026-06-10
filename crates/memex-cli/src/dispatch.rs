@@ -42,6 +42,7 @@ pub fn run(cli: Cli) -> Result<()> {
             Some(ReflectAction::Show { key }) => commands::reflect::show(&key, cli.json),
         },
         Commands::Backup { path } => commands::backup::run(&path, cli.json),
+        Commands::Restore { path } => commands::restore::run(&path, cli.json),
         Commands::RebuildIndex => commands::rebuild::run(cli.json),
         Commands::Mcp => commands::mcp::run(),
         Commands::Context {

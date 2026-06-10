@@ -146,6 +146,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -263,6 +264,8 @@ pub fn run() {
             commands::backup::memex_data_dir,
             commands::backup::backup_now,
             commands::backup::ensure_backup_dir,
+            commands::backup::export_db,
+            commands::backup::import_db,
             commands::logs::list_daemon_log_files,
             commands::logs::read_daemon_log,
             commands::ingest::trigger_ingest,

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
   Card,
   CardAction,
@@ -35,11 +36,19 @@ const rebuilding = ref(false)
 const clearing = ref(false)
 const backingUp = ref(false)
 const openingFolder = ref(false)
+const exporting = ref(false)
+const importing = ref(false)
 
 interface BackupResult {
   path: string
   files: number
   size_bytes: number
+}
+
+interface ImportResult {
+  source: string
+  before_path: string
+  files: number
 }
 
 const backupDir = computed(() =>
@@ -133,11 +142,76 @@ async function clearAll() {
   }
 }
 
-function exportDb() {
-  toast.message('导出功能即将提供')
+async function exportDb() {
+  if (exporting.value) return
+  const defaultName = `memex-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.tar.gz`
+  const target = await saveDialog({
+    title: '导出 Memex 数据库',
+    defaultPath: defaultName,
+    filters: [{ name: '归档', extensions: ['tar.gz', 'tgz'] }],
+  })
+  if (!target) return
+
+  exporting.value = true
+  const loadingId = toast.loading('正在导出…')
+  try {
+    const r = await invoke<BackupResult>('export_db', { targetPath: target })
+    const mb = (r.size_bytes / 1024 / 1024).toFixed(1)
+    toast.dismiss(loadingId)
+    toast.success(`导出完成（${r.files} 个文件 · ${mb} MB）`, {
+      description: r.path,
+      duration: 10_000,
+      action: {
+        label: '在 Finder 显示',
+        onClick: () => {
+          void revealItemInDir(r.path).catch((e) =>
+            toast.error(`无法打开文件位置：${String(e)}`),
+          )
+        },
+      },
+    })
+  } catch (e) {
+    toast.dismiss(loadingId)
+    toast.error(`导出失败：${String(e)}`)
+  } finally {
+    exporting.value = false
+  }
 }
-function importDb() {
-  toast.message('导入功能即将提供')
+
+async function importDb() {
+  if (importing.value) return
+  if (
+    !confirm(
+      '导入会先停止后台服务、用归档替换 ~/.memex/{memex.db, config.toml, sessions/}，' +
+        '然后重启服务。原数据会先搬到 ~/.memex/.before-restore-* 作为安全网。\n\n确认继续？',
+    )
+  )
+    return
+
+  const source = await openDialog({
+    title: '选择 Memex 归档（.tar.gz）',
+    multiple: false,
+    directory: false,
+    filters: [{ name: '归档', extensions: ['tar.gz', 'tgz'] }],
+  })
+  if (!source || typeof source !== 'string') return
+
+  importing.value = true
+  const loadingId = toast.loading('正在导入…（会先停 daemon 再解包，重启后此处会刷新）')
+  try {
+    const r = await invoke<ImportResult>('import_db', { sourcePath: source })
+    toast.dismiss(loadingId)
+    toast.success(`导入完成（${r.files} 个文件）`, {
+      description: `原数据已保留在：${r.before_path}`,
+      duration: 12_000,
+    })
+    if (r.before_path) lastBackupPath.value = r.before_path
+  } catch (e) {
+    toast.dismiss(loadingId)
+    toast.error(`导入失败：${String(e)}`)
+  } finally {
+    importing.value = false
+  }
 }
 </script>
 
@@ -170,13 +244,13 @@ function importDb() {
         </div>
       </CardContent>
       <CardFooter class="gap-2">
-        <Button size="sm" variant="outline" @click="exportDb">
-          <Download class="mr-1.5 size-3.5" />
-          导出数据库
+        <Button size="sm" variant="outline" :disabled="exporting" @click="exportDb">
+          <Download :class="['mr-1.5 size-3.5', exporting && 'animate-pulse']" />
+          {{ exporting ? '导出中…' : '导出数据库' }}
         </Button>
-        <Button size="sm" variant="outline" @click="importDb">
-          <Upload class="mr-1.5 size-3.5" />
-          导入
+        <Button size="sm" variant="outline" :disabled="importing" @click="importDb">
+          <Upload :class="['mr-1.5 size-3.5', importing && 'animate-pulse']" />
+          {{ importing ? '导入中…' : '导入' }}
         </Button>
       </CardFooter>
     </Card>
