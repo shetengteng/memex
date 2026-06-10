@@ -266,6 +266,8 @@ pub fn run() {
             commands::backup::ensure_backup_dir,
             commands::backup::export_db,
             commands::backup::import_db,
+            commands::mcp_activity::mcp_recent_calls,
+            commands::mcp_activity::mcp_call_stats_24h,
             commands::logs::list_daemon_log_files,
             commands::logs::read_daemon_log,
             commands::ingest::trigger_ingest,

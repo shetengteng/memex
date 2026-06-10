@@ -352,3 +352,40 @@ export interface UpdateInfo {
   latest_tag: string
   html_url: string
 }
+
+/**
+ * 一行 MCP `tools/call` 调用。后端 [`memex_core::storage::mcp_call_log`] 在每次
+ * `handle_tool_call` 结束时写入；前端 3s 轮询渲染事件流。
+ *
+ * - `occurred_at` 是 RFC3339 UTC（如 `2026-06-10T07:31:42Z`），UI 直接 `new Date()`
+ * - `tool_name` 是 MCP snake_case 名（`get_project_context` / `search_memory` …）
+ * - 失败时 `success=false` 且 `error_message` 非空
+ */
+export interface McpCallEntry {
+  id: number
+  occurred_at: string
+  tool_name: string
+  latency_ms: number
+  success: boolean
+  error_message: string | null
+}
+
+export interface McpToolBreakdown {
+  tool_name: string
+  count: number
+  avg_latency_ms: number
+}
+
+/**
+ * 滚动 24 小时窗口聚合。`avg_latency_ms` 只统计 success 样本，避免错误调用
+ * 通常瞬时返回压低均值。`by_tool` 按 `count DESC, tool_name ASC` 二级排序，
+ * UI 渲染顺序稳定。
+ */
+export interface McpCallStats24h {
+  total: number
+  success: number
+  failed: number
+  avg_latency_ms: number
+  by_tool: McpToolBreakdown[]
+  last_call_at: string | null
+}

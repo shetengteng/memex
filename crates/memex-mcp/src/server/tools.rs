@@ -28,6 +28,7 @@ pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse
 
     let _ = db.increment_metric(memex_core::storage::metrics::METRIC_MCP_CALLS);
 
+    let started = Instant::now();
     let result = match tool_name {
         TOOL_SEARCH_MEMORY => tool_search(db, &args),
         TOOL_GET_SESSION => tool_get_session(db, &args),
@@ -37,6 +38,16 @@ pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse
         TOOL_LIST_SESSIONS_BY_RANGE => tool_list_sessions_by_range(db, &args),
         _ => Err(format!("unknown tool: {}", tool_name)),
     };
+    let latency_ms = started.elapsed().as_millis() as u64;
+
+    // 写一行 mcp_call_log。失败时静默吞 —— 这只是观测，写不进去最坏就是 UI
+    // 上少了一行事件，不能拖垮主链路的 MCP 响应。tool_name 为空（caller 没传
+    // name）也照写，便于事后发现 dispatcher 失败的样本。
+    let (success, err_msg): (bool, Option<&str>) = match &result {
+        Ok(_) => (true, None),
+        Err(m) => (false, Some(m.as_str())),
+    };
+    let _ = db.insert_mcp_call(tool_name, latency_ms, success, err_msg);
 
     match result {
         Ok(content) => JsonRpcResponse::success(

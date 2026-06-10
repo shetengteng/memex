@@ -61,9 +61,26 @@ fn baseline_sql() -> &'static str {
     SQL.get_or_init(|| format!("{}\n{}", DROP_LEGACY_SQL, SCHEMA_SQL))
 }
 
+/// v2: 给已有库追加 `mcp_call_log` 表 + 两个索引。
+/// 全 `IF NOT EXISTS`，对 fresh install 是 no-op（baseline 已经包含）。
+const ADD_MCP_CALL_LOG_SQL: &str = "
+CREATE TABLE IF NOT EXISTS mcp_call_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    occurred_at TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1,
+    error_message TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_call_log_occurred_desc
+    ON mcp_call_log(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
+    ON mcp_call_log(tool_name);
+";
+
 /// Build the migration set.
 pub(super) fn build_migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(baseline_sql())])
+    Migrations::new(vec![M::up(baseline_sql()), M::up(ADD_MCP_CALL_LOG_SQL)])
 }
 
 #[cfg(test)]

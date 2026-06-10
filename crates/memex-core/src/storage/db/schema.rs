@@ -228,4 +228,28 @@ CREATE INDEX IF NOT EXISTS idx_thread_sessions_session
 
 CREATE INDEX IF NOT EXISTS idx_threads_updated_at
     ON threads(updated_at DESC);
+
+-- v11: mcp_call_log —— MCP 工具单次调用明细。
+-- metrics 表只能按日按 metric_name 聚合，对 \"哪个工具被调了多少次 / 平均延迟
+-- / 最近一次发生在什么时候\" 这类问题无能为力。这张表把每次 MCP 调用作为单
+-- 独一行写入，给 menubar \"MCP 活动\" 卡片做 24h 聚合 + 准实时事件流。
+-- 写入路径：crates/memex-mcp/src/server/tools.rs::handle_tool_call。
+-- 写入开销控制：只记 tool_name / latency_ms / success / error_message，
+-- 不记 arguments / result（避免把用户的 query / project path 落库）。
+CREATE TABLE IF NOT EXISTS mcp_call_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    occurred_at TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 1,
+    error_message TEXT
+);
+
+-- 时间倒序读最近 N 条事件用。
+CREATE INDEX IF NOT EXISTS idx_mcp_call_log_occurred_desc
+    ON mcp_call_log(occurred_at DESC);
+
+-- 按 tool 聚合 24h 调用计数 / 平均延迟用。
+CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
+    ON mcp_call_log(tool_name);
 ";

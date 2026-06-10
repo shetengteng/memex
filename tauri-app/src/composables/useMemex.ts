@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, SessionListFilter, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, SessionListFilter, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo, McpCallEntry, McpCallStats24h } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -199,6 +199,19 @@ export function useMemex() {
     return invoke<UpdateInfo>('check_for_updates')
   }
 
+  /**
+   * 最近 N 条 MCP 调用，按 occurred_at 倒序。limit 后端上限 500。
+   * db 不存在时返回 [] —— 前端不需要 try/catch 仅为了空状态。
+   */
+  async function mcpRecentCalls(limit = 50): Promise<McpCallEntry[]> {
+    return invoke<McpCallEntry[]>('mcp_recent_calls', { limit })
+  }
+
+  /** 滚动 24h 窗口 MCP 调用聚合。db 不存在时返回 total=0 的零值结构。 */
+  async function mcpCallStats24h(): Promise<McpCallStats24h> {
+    return invoke<McpCallStats24h>('mcp_call_stats_24h')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, listSessionsFiltered, searchMemex, getSession,
     retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
@@ -214,5 +227,6 @@ export function useMemex() {
     skillListStatus, skillInstall, skillUninstall,
     hookListStatus, hookInstall, hookUninstall,
     checkForUpdates,
+    mcpRecentCalls, mcpCallStats24h,
   }
 }
