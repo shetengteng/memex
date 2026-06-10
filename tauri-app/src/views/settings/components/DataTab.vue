@@ -20,6 +20,7 @@ import {
   Download,
   FolderArchive,
   FolderOpen,
+  Info,
   RefreshCw,
   Trash2,
   Upload,
@@ -219,16 +220,16 @@ async function importDb() {
   <div class="space-y-4">
     <Card>
       <CardHeader>
-        <CardDescription>存储</CardDescription>
+        <CardDescription>存储 · 备份 · 导入导出</CardDescription>
         <CardTitle class="text-base">本地 SQLite 数据库</CardTitle>
         <CardAction>
           <Badge variant="outline">本地</Badge>
         </CardAction>
       </CardHeader>
       <CardContent class="space-y-3 text-sm">
-        <div class="flex items-center justify-between">
-          <span>数据库路径</span>
-          <code class="text-xs text-muted-foreground">{{ dbPath || '—' }}</code>
+        <div class="flex items-center justify-between gap-3">
+          <span class="shrink-0">数据库路径</span>
+          <code class="truncate text-xs text-muted-foreground" :title="dbPath">{{ dbPath || '—' }}</code>
         </div>
         <div class="flex items-center justify-between">
           <span>会话数</span>
@@ -242,42 +243,20 @@ async function importDb() {
           <span>摘要数</span>
           <span class="font-medium tabular-nums">{{ summariesTotal.toLocaleString() }}</span>
         </div>
-      </CardContent>
-      <CardFooter class="gap-2">
-        <Button size="sm" variant="outline" :disabled="exporting" @click="exportDb">
-          <Download :class="['mr-1.5 size-3.5', exporting && 'animate-pulse']" />
-          {{ exporting ? '导出中…' : '导出数据库' }}
-        </Button>
-        <Button size="sm" variant="outline" :disabled="importing" @click="importDb">
-          <Upload :class="['mr-1.5 size-3.5', importing && 'animate-pulse']" />
-          {{ importing ? '导入中…' : '导入' }}
-        </Button>
-      </CardFooter>
-    </Card>
 
-    <Card>
-      <CardHeader>
-        <CardDescription>备份</CardDescription>
-        <CardTitle class="text-base">手动快照</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <div class="min-w-0 flex-1">
-            <Label class="text-sm">立即备份</Label>
-            <p class="truncate text-xs text-muted-foreground">
-              将 memex.db / config.toml / sessions/ 打包到 .tar.gz
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            class="shrink-0 gap-1.5"
-            :disabled="backingUp"
-            @click="onBackupNow"
-          >
-            <FolderArchive :class="['size-3.5', backingUp && 'animate-pulse']" />
-            {{ backingUp ? '备份中…' : '立即备份' }}
-          </Button>
+        <Separator />
+
+        <!--
+          一行小字把"备份 / 导出 / 导入"是同一种 .tar.gz codec 这件事直说，
+          避免用户以为"立即备份"和"导出数据库"是两种格式 —— 底层都是
+          memex backup / memex restore，跨机器也能搬。
+        -->
+        <div class="flex items-start gap-1.5 rounded-md bg-muted/40 px-2.5 py-2 text-[11.5px] text-muted-foreground">
+          <Info class="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            「立即备份」与「导出数据库」生成完全相同的
+            <code class="font-mono">.tar.gz</code>。备份可拷到另一台机器后点「导入」恢复。
+          </span>
         </div>
 
         <div class="flex items-center justify-between gap-3">
@@ -291,17 +270,50 @@ async function importDb() {
             <p v-else class="text-xs text-muted-foreground">—</p>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             class="shrink-0 gap-1.5"
             :disabled="!backupDir || openingFolder"
             @click="onOpenBackupFolder"
           >
             <FolderOpen class="size-3.5" />
-            打开目录
+            打开
           </Button>
         </div>
       </CardContent>
+      <CardFooter class="flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          class="gap-1.5"
+          :disabled="backingUp"
+          title="备份到 ~/.memex/backups/（自动命名）"
+          @click="onBackupNow"
+        >
+          <FolderArchive :class="['size-3.5', backingUp && 'animate-pulse']" />
+          {{ backingUp ? '备份中…' : '立即备份' }}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          :disabled="exporting"
+          title="导出到任意位置（与备份产物完全等价）"
+          @click="exportDb"
+        >
+          <Download :class="['mr-1.5 size-3.5', exporting && 'animate-pulse']" />
+          {{ exporting ? '导出中…' : '导出到…' }}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          :disabled="importing"
+          title="选择 .tar.gz 恢复（适用于备份或导出文件）"
+          @click="importDb"
+        >
+          <Upload :class="['mr-1.5 size-3.5', importing && 'animate-pulse']" />
+          {{ importing ? '导入中…' : '导入归档' }}
+        </Button>
+      </CardFooter>
     </Card>
 
     <Card>
