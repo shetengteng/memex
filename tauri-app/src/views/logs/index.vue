@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,12 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'vue-sonner'
-import { RefreshCw, Filter as FilterIcon, AlertTriangle } from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw, Filter as FilterIcon, AlertTriangle } from 'lucide-vue-next'
+
+const router = useRouter()
+function goBackToSystemTab() {
+  router.push({ path: '/settings', query: { tab: 'system' } })
+}
 
 interface DaemonLogFile {
   name: string
@@ -152,6 +158,16 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div class="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+      <Button
+        size="sm"
+        variant="ghost"
+        class="-ml-2 h-8 gap-1.5 text-[12px]"
+        @click="goBackToSystemTab"
+      >
+        <ArrowLeft class="size-3.5" />
+        返回系统
+      </Button>
+      <span class="h-4 w-px bg-border" aria-hidden="true" />
       <span class="text-[12px] font-medium text-muted-foreground">日志文件</span>
       <Select v-model="activeFile" :disabled="!files.length">
         <SelectTrigger class="h-8 w-[280px] text-[12px]">
