@@ -4,6 +4,7 @@
 //! 避免本文件被资料库 facets 那一大块测试推过 300 行规约上限。
 
 mod filtered;
+mod latest_active;
 
 use crate::storage::db::{self, Db};
 

@@ -9,6 +9,7 @@ pub mod ingest;
 pub mod mcp;
 pub mod rebuild;
 pub mod reflect;
+pub mod rules;
 pub mod search;
 pub mod session;
 pub mod sessions;

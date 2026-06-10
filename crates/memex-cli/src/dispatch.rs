@@ -66,6 +66,12 @@ pub fn run(cli: Cli) -> Result<()> {
             status,
         } => run_skill(&target, uninstall, status, cli.json),
         Commands::SkillStatus => run_skill_status(cli.json),
+        Commands::Rules {
+            target,
+            uninstall,
+            status,
+        } => run_rules(&target, uninstall, status, cli.json),
+        Commands::RulesStatus => run_rules_status(cli.json),
         Commands::Daemon { action } => match action {
             DaemonAction::Start => commands::daemon::start(cli.json),
             DaemonAction::Stop => commands::daemon::stop(cli.json),
@@ -151,6 +157,63 @@ fn run_skill(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
         return commands::skill::uninstall(ide).map(|_| ());
     }
     commands::skill::install(ide).map(|_| ())
+}
+
+fn run_rules(target: &str, uninstall: bool, status: bool, json: bool) -> Result<()> {
+    let ide = parse_ide(target)?;
+    if status {
+        let s = commands::rules::status(ide)?;
+        if json {
+            crate::io::json(&s)?;
+        } else {
+            crate::out!(
+                "{}: installed={}, supported={}, path={}, size={:?}",
+                s.ide,
+                s.installed,
+                s.supported,
+                s.dest_path,
+                s.size
+            );
+        }
+        return Ok(());
+    }
+    if uninstall {
+        return commands::rules::uninstall(ide).map(|_| ());
+    }
+    commands::rules::install(ide).map(|_| ())
+}
+
+fn run_rules_status(json: bool) -> Result<()> {
+    let all = commands::rules::list_status();
+    if json {
+        crate::io::json(&all)?;
+        return Ok(());
+    }
+    for s in &all {
+        let mark = if s.installed {
+            "[✓]"
+        } else if s.supported {
+            "[ ]"
+        } else {
+            "[—]"
+        };
+        crate::out!(
+            "{} {:<14} {} (path: {})",
+            mark,
+            s.ide,
+            if s.supported {
+                if s.installed {
+                    "installed"
+                } else {
+                    "not installed"
+                }
+            } else {
+                "unsupported"
+            },
+            s.dest_path
+        );
+    }
+    Ok(())
 }
 
 fn run_skill_status(json: bool) -> Result<()> {

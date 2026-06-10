@@ -160,6 +160,32 @@ impl Db {
         Ok(rows)
     }
 
+    /// 取最近更新过的、带 `project_path` 的 session 的项目路径。
+    ///
+    /// 用于 `memex context` 的 IDE-cwd fallback：当 hook 启动时 `$PWD` 误指向
+    /// `~/.cursor` / `~/.claude` 等 IDE 内部目录、`search_by_project` 三级匹配
+    /// 全部失败时，用「用户最近活跃的项目」作为兜底 cwd，让 banner 还有内容
+    /// 可注入。空数据库或全部 session 都缺 `project_path` 时返回 `None`。
+    ///
+    /// 过滤规则与 `list_sessions_*` 系列一致：跳过 message_count=0 且超 1 天
+    /// 未补完的"孤儿/扫描中"会话，避免它们顶到最前面。
+    pub fn latest_active_project(&self) -> Result<Option<String>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare_cached(
+            "SELECT project_path FROM sessions
+             WHERE project_path IS NOT NULL AND project_path != ''
+               AND NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))
+             ORDER BY updated_at DESC
+             LIMIT 1",
+        )?;
+        let row: Result<String, rusqlite::Error> = stmt.query_row([], |row| row.get(0));
+        match row {
+            Ok(p) => Ok(Some(p)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     /// 同 `distinct_projects`，但带每个 project_path 下的会话数。
     ///
     /// 用于 `context::matcher` 过滤掉单条孤儿会话（如 `/Users/me` 下偶然

@@ -106,6 +106,19 @@ pub enum Commands {
     },
     /// 显示所有 IDE 当前 SKILL.md 安装状态
     SkillStatus,
+    /// 安装 / 卸载 / 查询 Memex 使用规则（mdc）到 IDE 的全局 rules 目录
+    Rules {
+        /// 目标工具（v1 仅支持 cursor）
+        target: String,
+        /// 卸载（删除文件）而非安装
+        #[arg(long)]
+        uninstall: bool,
+        /// 只输出状态，不动文件
+        #[arg(long)]
+        status: bool,
+    },
+    /// 显示所有 IDE 当前 memex rules 安装状态
+    RulesStatus,
     /// 管理后台 daemon
     Daemon {
         #[command(subcommand)]

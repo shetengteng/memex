@@ -87,6 +87,12 @@ pub struct IdeStatus {
 const SERVER_NAME: &str = "memex";
 
 /// 解析 CLI 的 `memex setup <target>` 入口。保留旧行为：直接 install。
+///
+/// 联动安装：MCP server 配置成功后，best-effort 把 memex 使用规则文件
+/// 投递到对应 IDE 的全局指令文件。规则安装失败不阻塞 setup —— 规则是
+/// 强化 AI 主动调用 MCP 的提示器，没装上 MCP 自身仍能用，只是 AI 不一定
+/// "想起来"调。v2 起 4 个 IDE 全部支持（Cursor 走单文件 mdc，其余 3 个
+/// 走 BEGIN/END marker 块追加到 IDE 自己的 instructions 文件）。
 pub fn run(target: &str) -> Result<()> {
     let ide = Ide::parse(target).ok_or_else(|| {
         anyhow::anyhow!(
@@ -96,6 +102,21 @@ pub fn run(target: &str) -> Result<()> {
     })?;
     let memex_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("memex"));
     install(ide, &memex_bin)?;
+
+    // 联动：成功开 MCP 后，把 memex 使用规则也装上（v1 仅 Cursor 实现）。
+    // 用 status() 判断是否支持，避免对不支持的 IDE 打误导性的失败提示。
+    if let Ok(rs) = super::rules::status(ide)
+        && rs.supported
+        && let Err(e) = super::rules::install(ide)
+    {
+        crate::err!(
+            "[memex] rules install failed (non-fatal): {}. \
+             Run `memex rules install {}` later to retry.",
+            e,
+            ide.as_str()
+        );
+    }
+
     crate::out!("\nRestart {} to activate.", ide.as_str());
     Ok(())
 }

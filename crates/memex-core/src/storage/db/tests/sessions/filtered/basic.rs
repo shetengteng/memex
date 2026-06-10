@@ -1,9 +1,9 @@
 //! 基础过滤：空 filter（语义与 plain paged 等价）、adapter 多选、
 //! project 末段名匹配、message_count 排序。
 
-use super::{SessionSeed, seed_filtered_session};
-use crate::storage::db::Db;
+use super::{seed_filtered_session, SessionSeed};
 use crate::storage::db::sessions::SessionListFilter;
+use crate::storage::db::Db;
 
 #[test]
 fn filtered_paged_empty_filter_matches_plain_paged() {
