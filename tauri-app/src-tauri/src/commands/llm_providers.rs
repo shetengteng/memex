@@ -24,11 +24,18 @@ pub struct ProviderTestResult {
     pub response_text: Option<String>,
 }
 
+/// Provider 测试用的最小请求。
+///
+/// `max_tokens` 设成 256 而不是 8 —— 8 token 对普通模型够，但对 DeepSeek-R1 /
+/// V4 等 reasoning model **必失败**：它们把推理过程放在 `reasoning_content`,
+/// 8 token 在思考阶段就耗尽，最终 `content` 是空字符串，触发 "empty content"
+/// 误报。256 token 既能让常规模型快速回 "OK"，又给 reasoning model 留出
+/// 完成简短推理 + 输出最终答案的余量。
 fn micro_request() -> LlmRequest {
     LlmRequest {
         prompt: "Reply with exactly one word: OK".to_string(),
         system: None,
-        max_tokens: 8,
+        max_tokens: 256,
         temperature: 0.0,
     }
 }
