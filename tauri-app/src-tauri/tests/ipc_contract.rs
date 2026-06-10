@@ -50,6 +50,10 @@ fn stats_contract() {
     assert_eq!(v["llm_provider"], "ollama");
 }
 
+/// ProjectSummary IPC 形态：所有多词字段都是 camelCase
+/// （`projectPath` / `sessionCount` / `messageCount` / `lastTitle` /
+/// `lastUpdated` / `byAdapter`），snake_case 不再出现。前端
+/// `tauri-app/src/types/index.ts::ProjectSummary` 必须与此保持一致。
 #[test]
 fn project_summary_contract() {
     let mut by_adapter = std::collections::BTreeMap::new();
@@ -70,16 +74,31 @@ fn project_summary_contract() {
     assert_object_keys(
         &v,
         &[
-            "project_path",
+            "projectPath",
             "name",
-            "session_count",
-            "message_count",
-            "last_title",
-            "last_updated",
-            "by_adapter",
+            "sessionCount",
+            "messageCount",
+            "lastTitle",
+            "lastUpdated",
+            "byAdapter",
         ],
     );
-    assert_eq!(v["by_adapter"]["cursor"], 4);
+    let obj = v.as_object().unwrap();
+    for legacy in &[
+        "project_path",
+        "session_count",
+        "message_count",
+        "last_title",
+        "last_updated",
+        "by_adapter",
+    ] {
+        assert!(
+            !obj.contains_key(*legacy),
+            "ProjectSummary leaked snake_case key: {}",
+            legacy
+        );
+    }
+    assert_eq!(v["byAdapter"]["cursor"], 4);
 }
 
 #[test]

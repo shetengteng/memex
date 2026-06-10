@@ -44,7 +44,16 @@ pub struct StatsBreakdown {
     pub recent_30d_messages: i64,
 }
 
+/// `list_projects` IPC 返回的单个项目聚合行。
+///
+/// `#[serde(rename_all = "camelCase")]` 让多词字段在 JSON 里变成
+/// `projectPath` / `sessionCount` / `messageCount` / `lastTitle` /
+/// `lastUpdated` / `byAdapter`。Rust 字段名仍是 snake_case，所以
+/// 后端代码（如 `summaries[i].project_path`）不受影响。
+///
+/// 锁定形态见 `tauri-app/src-tauri/tests/ipc_contract.rs::project_summary_contract`。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectSummary {
     pub project_path: String,
     pub name: String,

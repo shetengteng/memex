@@ -166,14 +166,14 @@ export interface Project {
 export const projects: Project[] = reactive([])
 
 function projectSummaryToProject(p: ProjectSummary): Project {
-  const primary = Object.entries(p.by_adapter)
+  const primary = Object.entries(p.byAdapter)
     .sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'cursor'
   return {
-    id: p.project_path,
-    name: p.name || p.project_path,
-    path: p.project_path,
-    sessions: p.session_count,
-    lastActiveAt: p.last_updated,
+    id: p.projectPath,
+    name: p.name || p.projectPath,
+    path: p.projectPath,
+    sessions: p.sessionCount,
+    lastActiveAt: p.lastUpdated,
     primaryAdapter: primary,
     tags: [],
   }
