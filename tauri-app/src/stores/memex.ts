@@ -218,16 +218,22 @@ watch(
 
 /**
  * UI 友好版的 daemon 状态。包含原型 `daemonStatus` 的全部字段，
- * 但 running / startedAt 由 IPC 同步，剩余字段先给静态/计算值。
- * 用 reactive 而非 computed，组件可直接读 `daemonStatus.running`。
+ * 但 running / startedAt / llmProvider / llmModel 由 IPC 同步，
+ * 剩余字段先给静态/计算值。用 reactive 而非 computed，组件可直接
+ * 读 `daemonStatus.running`。
+ *
+ * `llmProvider` / `llmModel` 初始为空字符串，等 stats IPC 拿到真实
+ * 当前 provider 后再填进来。**不再硬编码 `Ollama` / `qwen2.5`** ——
+ * 用户启用了 DeepSeek 时再显示 qwen2.5 是历史遗留 bug，根因就是这里
+ * 给了一个 ollama-only 的初始值，且 watch 里又只同步 provider 不同步 model。
  */
 export const daemonStatus = reactive({
   running: false,
   startedAt: '',
   adapterActive: 0,
   adapterTotal: 7,
-  llmProvider: 'Ollama',
-  llmModel: 'qwen2.5',
+  llmProvider: '',
+  llmModel: '',
   llmHealth: 'ok' as 'ok' | 'degraded' | 'down',
   storage: '~/.memex/',
   ftsHealth: 'ok' as 'ok' | 'degraded' | 'down',
@@ -242,7 +248,8 @@ watch(
     daemonStatus.startedAt = daemon.value?.started_at ?? ''
     daemonStatus.adapterActive = adapters.filter((a) => a.status === 'active').length
     daemonStatus.adapterTotal = adapters.length
-    daemonStatus.llmProvider = stats.value?.llm_provider ?? 'Ollama'
+    daemonStatus.llmProvider = stats.value?.llm_provider ?? ''
+    daemonStatus.llmModel = stats.value?.llm_model ?? ''
   },
   { immediate: true },
 )

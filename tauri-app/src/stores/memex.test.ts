@@ -77,6 +77,7 @@ describe('stores/memex', () => {
         sessions_eligible_for_summary: 0,
         chunks_summarized: 0,
         llm_provider: 'ollama',
+        llm_model: 'qwen2.5:7b',
       }
       // watch 是同步 flush 'pre' 默认是 lazy，等一个 tick
       await new Promise((r) => setTimeout(r, 0))

@@ -169,6 +169,10 @@ impl LlmProvider for OpenAiCompatProvider {
         &self.name
     }
 
+    fn model(&self) -> &str {
+        &self.model
+    }
+
     fn is_available(&self) -> bool {
         !self.api_key.is_empty()
     }

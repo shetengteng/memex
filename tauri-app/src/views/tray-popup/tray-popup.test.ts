@@ -67,6 +67,7 @@ vi.mock('@/composables/useMemex', () => ({
       sessions_eligible_for_summary: 0,
       chunks_summarized: 0,
       llm_provider: 'ollama',
+      llm_model: 'qwen2.5:7b',
     }),
   }),
 }))

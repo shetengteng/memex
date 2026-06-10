@@ -30,6 +30,7 @@ fn stats_contract() {
         sessions_eligible_for_summary: 8,
         chunks_summarized: 30,
         llm_provider: Some("ollama".to_string()),
+        llm_model: Some("qwen2.5:7b".to_string()),
     })
     .unwrap();
 
@@ -44,10 +45,12 @@ fn stats_contract() {
             "sessions_eligible_for_summary",
             "chunks_summarized",
             "llm_provider",
+            "llm_model",
         ],
     );
     assert_eq!(v["sessions"], 10);
     assert_eq!(v["llm_provider"], "ollama");
+    assert_eq!(v["llm_model"], "qwen2.5:7b");
 }
 
 /// ProjectSummary IPC 形态：所有多词字段都是 camelCase

@@ -78,6 +78,10 @@ impl LlmProvider for OllamaProvider {
         "ollama"
     }
 
+    fn model(&self) -> &str {
+        &self.model
+    }
+
     fn is_available(&self) -> bool {
         let url = format!("{}/api/tags", self.base_url);
         match ureq::get(&url).call() {

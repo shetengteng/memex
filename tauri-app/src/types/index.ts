@@ -7,6 +7,11 @@ export interface Stats {
   sessions_eligible_for_summary: number
   chunks_summarized: number
   llm_provider: string | null
+  /**
+   * 当前活跃 provider 实际请求的模型字符串。AppSidebar / Dashboard 用它把
+   * "当前 LLM" 展示成 `Provider · model`。null 表示当前没有可用 provider。
+   */
+  llm_model: string | null
 }
 
 /**

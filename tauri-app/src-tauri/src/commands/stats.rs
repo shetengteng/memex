@@ -18,6 +18,12 @@ pub struct Stats {
     pub sessions_eligible_for_summary: u64,
     pub chunks_summarized: u64,
     pub llm_provider: Option<String>,
+    /// 当前活跃 provider 实际请求的模型字符串（如 `deepseek-v4-flash` /
+    /// `gpt-4o-mini` / `qwen2.5:7b`）。UI 在 sidebar / dashboard 上把
+    /// "当前 LLM" 展示成 `Provider · model` —— 没有这个字段，前端只能
+    /// 硬编码 `qwen2.5` 默认值，导致用户实际启用 DeepSeek 时仍显示
+    /// `qwen2.5`（issue: 采集中显示 qwen2.5 但 Settings 只开了 DeepSeek）。
+    pub llm_model: Option<String>,
 }
 
 #[tauri::command]
@@ -34,6 +40,7 @@ pub async fn get_stats() -> CmdResult<Stats> {
             sessions_eligible_for_summary: 0,
             chunks_summarized: 0,
             llm_provider: None,
+            llm_model: None,
         });
     }
 
@@ -41,8 +48,10 @@ pub async fn get_stats() -> CmdResult<Stats> {
     let config = MemexConfig::load(&dir).unwrap_or_default();
     // 用 *_unified 版本，让 DB 中已注册的自定义 provider（DeepSeek/OpenAI/Anthropic 等）
     // 也能在 dashboard 上显示「已启用」，而不仅看 LlmConfig 的 ollama 老开关。
-    let provider_name = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
-        .map(|p| p.name().to_string());
+    let (provider_name, provider_model) =
+        memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
+            .map(|p| (Some(p.name().to_string()), Some(p.model().to_string())))
+            .unwrap_or((None, None));
 
     Ok(Stats {
         sessions: db.session_count().unwrap_or(0),
@@ -53,6 +62,7 @@ pub async fn get_stats() -> CmdResult<Stats> {
         sessions_eligible_for_summary: db.sessions_eligible_for_summary_count().unwrap_or(0),
         chunks_summarized: db.chunks_with_summary_count().unwrap_or(0),
         llm_provider: provider_name,
+        llm_model: provider_model,
     })
 }
 
