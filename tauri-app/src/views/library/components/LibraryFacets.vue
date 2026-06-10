@@ -65,15 +65,17 @@ const projectsLimit = ref(PROJECT_DEFAULT_LIMIT)
 const sortedProjects = computed(() =>
   [...projects].sort((a, b) => b.sessions - a.sessions),
 )
-// 搜索同时命中 disambiguated display name 与完整 path 末段，让用户既能
-// 按 `tt-demo/src` 这种带前缀的展示名搜索，也能直接输 path 片段筛选。
+// 只在 disambiguated display name 上匹配。display name 已经是 path 末段
+// 的最短可区分前缀（如 `tt-demo/src` / `metadata-server/src`），既能命中
+// 用户认得的项目名，又不会被路径中间的目录段误伤——之前把 `p.path` 也
+// 纳入 search 会让搜 "cursor" / "src" 这种常见 segment 把 `~/.cursor/*`、
+// `node_modules/src/*` 等无关项目全拉进来。
 const filteredProjects = computed(() => {
   const q = projectQuery.value.trim().toLowerCase()
   if (!q) return sortedProjects.value
-  return sortedProjects.value.filter((p) => {
-    const display = displayNameOf(p).toLowerCase()
-    return display.includes(q) || p.path.toLowerCase().includes(q)
-  })
+  return sortedProjects.value.filter((p) =>
+    displayNameOf(p).toLowerCase().includes(q),
+  )
 })
 // 搜索时 → 全部命中；未搜索 → 当前 limit
 const visibleProjects = computed(() => {

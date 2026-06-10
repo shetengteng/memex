@@ -109,6 +109,49 @@ describe('LibraryFacets', () => {
     expect(wrapper.text()).toContain('没有匹配的项目')
   })
 
+  it('搜索只匹配 disambiguated 展示名，不被 path 中间段误伤', async () => {
+    // 直接复现用户报的「搜索项目名搜出来不太对，会有其他的」：
+    // 老实现把 p.path.toLowerCase().includes(q) 也算进 match，导致
+    // 搜 "cursor"、"src" 这种 segment 把 ~/.cursor/extensions、
+    // node_modules/src/* 这类"路径含关键字但项目名不含"的项目全拉进来。
+    // 这里 mock 一个 path 含 "cursor" 但 displayName="alpha" 的项目，
+    // 加一个 displayName="cursor-helper" 的项目，搜 "cursor" 必须只命中后者。
+    vi.resetModules()
+    vi.doMock('@/stores/memex', () => ({
+      adapters: [],
+      breakdownByAdapter: {},
+      projects: [
+        {
+          id: 'p-alpha',
+          name: 'alpha',
+          // path 中间段含 "cursor"——老实现会被搜到，新实现必须屏蔽
+          path: '/Users/me/.cursor/extensions/alpha',
+          sessions: 5,
+          messages: 0,
+          lastActive: '',
+        },
+        {
+          id: 'p-real',
+          name: 'cursor-helper',
+          path: '/Users/me/work/cursor-helper',
+          sessions: 3,
+          messages: 0,
+          lastActive: '',
+        },
+      ],
+    }))
+    const { default: LibraryFacetsReloaded } = await import('./LibraryFacets.vue')
+
+    const wrapper = mount(LibraryFacetsReloaded, { props: baseProps, global: { stubs } })
+    await wrapper.find('input[type="search"]').setValue('cursor')
+
+    const html = wrapper.html()
+    expect(html).toContain('cursor-helper')
+    expect(html).not.toContain('alpha')
+
+    vi.doUnmock('@/stores/memex')
+  })
+
   it('点击工具区"全选"emit update:fAdapters 全部 id', async () => {
     const wrapper = mount(LibraryFacets, { props: baseProps, global: { stubs } })
     const selectAllBtn = wrapper.findAll('button').find((b) => b.text() === '全选')

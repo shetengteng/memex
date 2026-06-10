@@ -10,14 +10,15 @@ defineEmits<{ open: [string] }>()
 
 const projectQuery = ref('')
 
+// 跟 LibraryFacets 的搜索框对齐：只匹配 project name + tags，不搜 path 全文。
+// path 中间段（如 `~/.cursor/extensions/...`、`node_modules/src/...`）会让常见
+// 关键词把无关项目全拉进来，是用户报「搜索项目名搜出来不太对」的根因。
 const filteredProjects = computed(() => {
   const q = projectQuery.value.trim().toLowerCase()
-  let xs = projects.slice()
-  if (q)
-    xs = xs.filter((p) =>
-      `${p.name} ${p.path} ${p.tags.join(' ')}`.toLowerCase().includes(q),
-    )
-  return xs
+  if (!q) return projects.slice()
+  return projects
+    .slice()
+    .filter((p) => `${p.name} ${p.tags.join(' ')}`.toLowerCase().includes(q))
 })
 
 const totalProjectSessions = computed(() =>
