@@ -2,6 +2,7 @@
 //! within the 300-line guideline; shared seed helper lives here.
 
 mod general;
+mod stats_basic;
 mod workload_basic;
 mod workload_daily;
 mod workload_heatmap;

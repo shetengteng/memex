@@ -16,6 +16,13 @@ import { buildDisambiguatedNames } from '../composables/projectDisambiguation'
 
 const adapterCount = (id: string): number => breakdownByAdapter[id] ?? 0
 
+// 只渲染有真实会话数的 adapter——adapters 数组是 7 个静态条目（含 disabled
+// 的 codex / aider / continue / cline），用户只用一两个 IDE 时其余全部
+// count=0，挂在 facet 上是噪音（点了也过滤不出任何东西）。
+const visibleAdapters = computed(() =>
+  adapters.filter((a) => adapterCount(a.id) > 0),
+)
+
 // 同末段路径自动加最短父目录前缀（如 `tt-demo/src` / `metadata-server/src`），
 // 让 facet 多行 "src" 在 UI 上能分辨。算法 + 单测见 `projectDisambiguation.ts`。
 const projectDisplayNames = computed(() => buildDisambiguatedNames(projects))
@@ -62,8 +69,18 @@ const PROJECT_PAGE_STEP = 10
 const projectQuery = ref('')
 const projectsLimit = ref(PROJECT_DEFAULT_LIMIT)
 
+// 过滤掉 path / 展示名为空的项目行：后端如果聚合出 project_path === ''
+// 的 ProjectSummary（罕见但已在数据中观察到，根因是早期写入逻辑没卡空串），
+// 前端会渲染出"checkbox + 空白 + 数字"的无意义行，且点击后 fProjects 会
+// 落入空字符串、过滤完全沉默。前端在这里做一次防御过滤。
 const sortedProjects = computed(() =>
-  [...projects].sort((a, b) => b.sessions - a.sessions),
+  [...projects]
+    .filter((p) => {
+      const path = p.path?.trim()
+      if (!path || path === '/') return false
+      return displayNameOf(p).trim().length > 0
+    })
+    .sort((a, b) => b.sessions - a.sessions),
 )
 // 只在 disambiguated display name 上匹配。display name 已经是 path 末段
 // 的最短可区分前缀（如 `tt-demo/src` / `metadata-server/src`），既能命中
@@ -96,9 +113,10 @@ function collapseProjects() {
   projectsLimit.value = PROJECT_DEFAULT_LIMIT
 }
 
-// 全选/全清逻辑：均针对当前可见集合
+// 全选/全清逻辑：均针对当前可见集合（visibleAdapters 已经过滤了 count=0）
 const allAdaptersSelected = computed(() =>
-  adapters.length > 0 && adapters.every((a) => props.fAdapters.includes(a.id)),
+  visibleAdapters.value.length > 0 &&
+    visibleAdapters.value.every((a) => props.fAdapters.includes(a.id)),
 )
 function toggleSelectAllAdapters() {
   if (allAdaptersSelected.value) {
@@ -106,7 +124,7 @@ function toggleSelectAllAdapters() {
   } else {
     emit(
       'update:fAdapters',
-      adapters.map((a) => a.id),
+      visibleAdapters.value.map((a) => a.id),
     )
   }
 }
@@ -150,7 +168,7 @@ function toggleSelectAllProjects() {
           </div>
           <div class="space-y-1.5">
             <Label
-              v-for="a in adapters"
+              v-for="a in visibleAdapters"
               :key="a.id"
               class="cursor-pointer text-[13px] font-normal"
             >

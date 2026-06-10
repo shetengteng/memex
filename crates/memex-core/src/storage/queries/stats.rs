@@ -89,9 +89,14 @@ impl Db {
         })
     }
 
-    /// One row per (non-null) project_path: session_count, message
-    /// total, last activity timestamp, last L2 title, and a
+    /// One row per (non-null, non-empty) project_path: session_count,
+    /// message total, last activity timestamp, last L2 title, and a
     /// per-adapter breakdown. Used by Library's project list.
+    ///
+    /// Empty-string `project_path` rows are excluded defensively—older
+    /// collector code paths could write `''` instead of `NULL`, which
+    /// then aggregated into a phantom project with no usable label
+    /// in the facet UI.
     pub fn list_project_summaries(&self) -> Result<Vec<ProjectSummary>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare_cached(
@@ -100,7 +105,7 @@ impl Db {
                     COALESCE(SUM(message_count), 0) as msgs,
                     MAX(updated_at) as last_upd
              FROM sessions
-             WHERE project_path IS NOT NULL
+             WHERE project_path IS NOT NULL AND project_path != ''
              GROUP BY project_path
              ORDER BY last_upd DESC",
         )?;

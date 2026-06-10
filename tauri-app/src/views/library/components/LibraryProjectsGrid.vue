@@ -10,15 +10,25 @@ defineEmits<{ open: [string] }>()
 
 const projectQuery = ref('')
 
+// 先过滤掉空 path / 空 name 的项目行（后端如有 project_path === '' 的聚合
+// 行漏到前端，会渲染成无 label 的卡片）。再在剩余集合上做搜索。
+const validProjects = computed(() =>
+  projects.filter((p) => {
+    const path = p.path?.trim()
+    if (!path || path === '/') return false
+    return p.name.trim().length > 0
+  }),
+)
+
 // 跟 LibraryFacets 的搜索框对齐：只匹配 project name + tags，不搜 path 全文。
 // path 中间段（如 `~/.cursor/extensions/...`、`node_modules/src/...`）会让常见
 // 关键词把无关项目全拉进来，是用户报「搜索项目名搜出来不太对」的根因。
 const filteredProjects = computed(() => {
   const q = projectQuery.value.trim().toLowerCase()
-  if (!q) return projects.slice()
-  return projects
-    .slice()
-    .filter((p) => `${p.name} ${p.tags.join(' ')}`.toLowerCase().includes(q))
+  if (!q) return validProjects.value.slice()
+  return validProjects.value.filter((p) =>
+    `${p.name} ${p.tags.join(' ')}`.toLowerCase().includes(q),
+  )
 })
 
 const totalProjectSessions = computed(() =>

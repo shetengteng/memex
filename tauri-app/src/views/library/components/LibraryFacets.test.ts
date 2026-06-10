@@ -163,6 +163,63 @@ describe('LibraryFacets', () => {
     expect(events![0][0]).toEqual(['cursor', 'claude_code'])
   })
 
+  it('count=0 的 adapter 不渲染（用户只用 cursor 时不应看到 codex/aider 等空行）', async () => {
+    // 复现「工具后面有个数为 0」：adapters 数组是 7 个静态条目，
+    // breakdownByAdapter 只对真正有数据的 adapter 写值，老实现把所有 7 行
+    // 都渲染出来 + 右侧 ?? 0。新实现只渲染 count > 0 的 adapter；
+    // "全选"也只覆盖可见集合，不会把 0 计数 adapter 误塞进 fAdapters。
+    vi.resetModules()
+    vi.doMock('@/stores/memex', () => ({
+      adapters: [
+        { id: 'cursor', label: 'Cursor', status: 'active', path: '~/x', sessions: 100 },
+        { id: 'codex', label: 'Codex', status: 'disabled', path: '~/y', sessions: 0 },
+      ],
+      breakdownByAdapter: { cursor: 100 },
+      projects: [],
+    }))
+    const { default: Reloaded } = await import('./LibraryFacets.vue')
+
+    const wrapper = mount(Reloaded, { props: baseProps, global: { stubs } })
+    const html = wrapper.html()
+    expect(html).toContain('Cursor')
+    expect(html).not.toContain('Codex')
+
+    const selectAllBtn = wrapper.findAll('button').find((b) => b.text() === '全选')
+    await selectAllBtn!.trigger('click')
+    const events = wrapper.emitted('update:fAdapters')
+    expect(events![0][0]).toEqual(['cursor'])
+
+    vi.doUnmock('@/stores/memex')
+  })
+
+  it('空 path / 空展示名的项目不渲染（防御后端聚合出 project_path=== "" 的幽灵行）', async () => {
+    // 复现「资料库左侧很多展示的过滤条件值空」：后端如果聚合出
+    // project_path === '' 的 ProjectSummary，老实现会渲染出
+    // checkbox + 空白 label + 数字的无意义行，且勾选后 fProjects 落入空字符串、
+    // 过滤完全沉默。前端在 sortedProjects 阶段统一拦截。
+    vi.resetModules()
+    vi.doMock('@/stores/memex', () => ({
+      adapters: [],
+      breakdownByAdapter: {},
+      projects: [
+        { id: 'p-real', name: 'real-project', path: '/Users/me/work/real', sessions: 5, messages: 0, lastActive: '' },
+        { id: 'p-empty', name: '', path: '', sessions: 3, messages: 0, lastActive: '' },
+        { id: 'p-root', name: '', path: '/', sessions: 1, messages: 0, lastActive: '' },
+      ],
+    }))
+    const { default: Reloaded } = await import('./LibraryFacets.vue')
+
+    const wrapper = mount(Reloaded, { props: baseProps, global: { stubs } })
+    const html = wrapper.html()
+    expect(html).toContain('real')
+    // 空白 label 行不应出现：用项目区第一个 checkbox 来判断
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    // adapter 区为空（adapters: []），项目区只有 1 个合法项目 → 共 1 个 checkbox
+    expect(checkboxes.length).toBe(1)
+
+    vi.doUnmock('@/stores/memex')
+  })
+
   it('已全选时点击 "全清" emit update:fAdapters 空数组', async () => {
     const wrapper = mount(LibraryFacets, {
       props: { ...baseProps, fAdapters: ['cursor', 'claude_code'] },
