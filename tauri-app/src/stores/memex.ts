@@ -458,39 +458,34 @@ export async function fetchThreadDetail(threadId: number): Promise<ThreadDetail 
 /**
  * 手动触发 LLM 重新聚类。返回新建/更新的 thread 数。
  * 阻塞调用（一次 LLM 调用），调用方负责显示 loading 状态。
+ *
+ * **注意**：失败时直接重抛 invoke 的原始 reject 值（Tauri 把 `CmdError`
+ * 反序列化成 `{kind, message}` plain object），让上层 `humanizeBackendError`
+ * 能识别 `kind` 给出友好文案。**不要**包成 `new Error(String(e))`，
+ * 那样会把 plain object 串化成 `[object Object]`。
  */
 export async function regenerateThreads(): Promise<number> {
-  try {
-    const n = await invoke<number>('regenerate_threads')
-    await refreshThreads()
-    return n
-  } catch (e) {
-    throw e instanceof Error ? e : new Error(String(e))
-  }
+  const n = await invoke<number>('regenerate_threads')
+  await refreshThreads()
+  return n
 }
 
-/** 删除一条线索（及其 thread_sessions 关联）。失败时重抛，调用方可 toast 报错。 */
+/** 删除一条线索（及其 thread_sessions 关联）。失败时让 invoke 的原始错误向上抛，
+ * 上层用 `humanizeBackendError` 解析 `{kind, message}`。*/
 export async function deleteThread(threadId: number): Promise<void> {
-  try {
-    await invoke<void>('delete_thread', { threadId })
-    // 从本地数组里同步移除，避免等下次 refresh 的延迟。
-    const idx = threads.findIndex((t) => t.id === threadId)
-    if (idx >= 0) threads.splice(idx, 1)
-  } catch (e) {
-    throw e instanceof Error ? e : new Error(String(e))
-  }
+  await invoke<void>('delete_thread', { threadId })
+  const idx = threads.findIndex((t) => t.id === threadId)
+  if (idx >= 0) threads.splice(idx, 1)
 }
 
 /**
  * 按关键词让 LLM 在所有 L2 摘要里挑出相关 session，作为新线索落库。
  * 返回新线索的 thread_id（调用方一般会再 refreshThreads 并自动选中它）。
+ *
+ * 失败处理同上：原样把 `{kind, message}` 抛出。
  */
 export async function searchThreadByQuery(query: string): Promise<number> {
-  try {
-    const id = await invoke<number>('search_thread_by_query', { query })
-    await refreshThreads()
-    return id
-  } catch (e) {
-    throw e instanceof Error ? e : new Error(String(e))
-  }
+  const id = await invoke<number>('search_thread_by_query', { query })
+  await refreshThreads()
+  return id
 }

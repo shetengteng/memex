@@ -476,6 +476,24 @@ describe('stores/memex', () => {
       await expect(regenerateThreads()).rejects.toThrow('LLM not configured')
     })
 
+    // 回归：Tauri 把 CmdError 反序列化成 plain object {kind, message}。
+    // 早期 store 用 `new Error(String(e))` 包了一层，导致 humanizeBackendError 拿到
+    // "[object Object]" 而不是真正的 message。现在 store 应当原样把 plain object 抛出，
+    // humanizeBackendError 才能根据 kind 生成友好文案。
+    it('regenerateThreads preserves Tauri plain-object errors instead of stringifying', async () => {
+      const backendErr = { kind: 'backend', message: '未配置 LLM 提供方' }
+      mockedInvoke.mockImplementation(async () => {
+        throw backendErr
+      })
+      try {
+        await regenerateThreads()
+        throw new Error('expected regenerateThreads to reject')
+      } catch (e) {
+        expect(e).toBe(backendErr)
+        expect(e).toMatchObject({ kind: 'backend', message: '未配置 LLM 提供方' })
+      }
+    })
+
     it('deleteThread removes the thread from the reactive list', async () => {
       threads.push(
         {
