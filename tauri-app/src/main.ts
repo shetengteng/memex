@@ -6,6 +6,59 @@ import { router } from './router'
 import { initTheme } from './composables/useTheme'
 import { syncLocaleFromBackend } from './i18n'
 
+/**
+ * 把任何 unhandled JS error / promise rejection 直接呈现在屏幕上。
+ *
+ * 历史上有过这种情况：release Tauri webview 没 devtools，应用启动早期某条
+ * import 失败或 onMounted 抛错就整个空白页，用户除了「打开是空白页」啥都
+ * 看不到，工程侧也只能凭经验猜。这个 overlay 不替代 toast / 业务错误，
+ * 只兜底「app 根本没渲染出来」这一类灾难场景：渲染一个固定定位、可滚动、
+ * 高 z-index 的红色面板，把 stack 直接打印出来。
+ *
+ * 当 #app 已经有子节点（说明 Vue 至少跑起来过一次）时，不打整版面板，只
+ * 写一行小字到 console —— 业务里有自己的 toast 系统，不需要 overlay 抢戏。
+ */
+function showStartupErrorOverlay(label: string, detail: string): void {
+  if (typeof document === 'undefined') return
+  const app = document.getElementById('app')
+  if (app != null && app.children.length > 0) {
+    // 应用已经 mount 成功，运行时错误不打整版面板，让业务 toast 接管。
+    console.error(`[${label}]`, detail)
+    return
+  }
+  const id = 'memex-startup-error-overlay'
+  let el = document.getElementById(id) as HTMLPreElement | null
+  if (el == null) {
+    el = document.createElement('pre')
+    el.id = id
+    el.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'margin:0',
+      'padding:24px',
+      'background:#1a1a1a',
+      'color:#ff6b6b',
+      'font:12px/1.55 ui-monospace,Menlo,monospace',
+      'white-space:pre-wrap',
+      'overflow:auto',
+      'z-index:2147483647',
+    ].join(';')
+    document.body?.appendChild(el)
+  }
+  el.textContent = `${el.textContent ?? ''}\n[${label}]\n${detail}\n`.trim()
+}
+
+window.addEventListener('error', (e) => {
+  const detail = e.error?.stack ?? e.message ?? String(e)
+  showStartupErrorOverlay('window.error', detail)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  const reason = e.reason
+  const detail =
+    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
+  showStartupErrorOverlay('unhandledrejection', detail)
+})
+
 initTheme()
 
 // 通过 Tauri 窗口 label 兜底纠正首屏 URL（防御 hash url 在某些场景丢失的问题）。
@@ -31,6 +84,15 @@ function bootstrapByWindowLabel(): void {
 bootstrapByWindowLabel()
 
 const app = createApp(App).use(router)
+
+// Vue 组件 setup / render 阶段抛错时，Vue 不会冒泡到 window.onerror，得在
+// app.config.errorHandler 里转发到同一个 overlay，否则 setup 里的 throw
+// 会让首屏白屏却没有任何痕迹。
+app.config.errorHandler = (err, _vm, info) => {
+  const detail = err instanceof Error ? (err.stack ?? err.message) : String(err)
+  showStartupErrorOverlay(`Vue:${info}`, detail)
+}
+
 router.isReady().then(() => app.mount('#app'))
 
 // 拉一次后台落库的 locale；新窗口启动时所有副本都看到同样的语言。
