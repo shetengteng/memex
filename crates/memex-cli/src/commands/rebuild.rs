@@ -22,15 +22,12 @@ pub fn run(json: bool) -> Result<()> {
     let stats = rebuild::rebuild_from_markdown(&memex, &db)?;
 
     if json {
-        crate::out!(
-            "{}",
-            serde_json::json!({
-                "sessions": stats.sessions,
-                "messages": stats.messages,
-                "chunks": stats.chunks,
-                "errors": stats.errors,
-            })
-        );
+        crate::io::json(&serde_json::json!({
+            "sessions": stats.sessions,
+            "messages": stats.messages,
+            "chunks": stats.chunks,
+            "errors": stats.errors,
+        }))?;
     } else {
         crate::out!("Rebuild complete:");
         crate::out!("  Sessions: {}", stats.sessions);

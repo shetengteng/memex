@@ -12,14 +12,11 @@ pub fn start(json: bool) -> Result<()> {
         daemon_client::read_lock(&memex).filter(|i| daemon_client::is_process_alive(i.pid))
     {
         if json {
-            crate::out!(
-                "{}",
-                serde_json::json!({
-                    "status": "already_running",
-                    "pid": info.pid,
-                    "port": info.port,
-                })
-            );
+            crate::io::json(&serde_json::json!({
+                "status": "already_running",
+                "pid": info.pid,
+                "port": info.port,
+            }))?;
         } else {
             crate::out!(
                 "daemon already running (pid={}, port={})",
@@ -40,13 +37,10 @@ pub fn start(json: bool) -> Result<()> {
         .with_context(|| format!("failed to start daemon: {}", daemon_bin))?;
 
     if json {
-        crate::out!(
-            "{}",
-            serde_json::json!({
-                "status": "started",
-                "pid": child.id(),
-            })
-        );
+        crate::io::json(&serde_json::json!({
+            "status": "started",
+            "pid": child.id(),
+        }))?;
     } else {
         crate::out!("daemon started (pid={})", child.id());
     }
@@ -63,10 +57,10 @@ pub fn stop(json: bool) -> Result<()> {
             let _ = std::fs::remove_file(memex.join("daemon.lock"));
 
             if json {
-                crate::out!(
-                    "{}",
-                    serde_json::json!({ "status": "stopped", "pid": info.pid })
-                );
+                crate::io::json(&serde_json::json!({
+                    "status": "stopped",
+                    "pid": info.pid,
+                }))?;
             } else {
                 crate::out!("daemon stopped (pid={})", info.pid);
             }
@@ -89,16 +83,13 @@ pub fn status(json: bool) -> Result<()> {
         Some(info) if daemon_client::is_process_alive(info.pid) => {
             let health = daemon_client::check_health(info.port);
             if json {
-                crate::out!(
-                    "{}",
-                    serde_json::json!({
-                        "running": true,
-                        "pid": info.pid,
-                        "port": info.port,
-                        "started_at": info.started_at,
-                        "http_ok": health,
-                    })
-                );
+                crate::io::json(&serde_json::json!({
+                    "running": true,
+                    "pid": info.pid,
+                    "port": info.port,
+                    "started_at": info.started_at,
+                    "http_ok": health,
+                }))?;
             } else {
                 crate::out!(
                     "daemon running (pid={}, port={}, http={})",

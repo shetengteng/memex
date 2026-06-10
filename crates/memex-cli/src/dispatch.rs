@@ -108,9 +108,18 @@ fn run_setup(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
         return Ok(());
     }
     if uninstall {
-        return commands::setup::uninstall(ide).map(|_| ());
+        let s = commands::setup::uninstall(ide)?;
+        if json {
+            crate::io::json(&s)?;
+        }
+        return Ok(());
     }
-    commands::setup::run(target)
+    commands::setup::run(target)?;
+    if json {
+        let s = commands::setup::status(ide)?;
+        crate::io::json(&s)?;
+    }
+    Ok(())
 }
 
 fn run_setup_status(json: bool) -> Result<()> {
@@ -154,9 +163,17 @@ fn run_skill(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
         return Ok(());
     }
     if uninstall {
-        return commands::skill::uninstall(ide).map(|_| ());
+        let s = commands::skill::uninstall(ide)?;
+        if json {
+            crate::io::json(&s)?;
+        }
+        return Ok(());
     }
-    commands::skill::install(ide).map(|_| ())
+    let s = commands::skill::install(ide)?;
+    if json {
+        crate::io::json(&s)?;
+    }
+    Ok(())
 }
 
 fn run_rules(target: &str, uninstall: bool, status: bool, json: bool) -> Result<()> {
@@ -178,9 +195,17 @@ fn run_rules(target: &str, uninstall: bool, status: bool, json: bool) -> Result<
         return Ok(());
     }
     if uninstall {
-        return commands::rules::uninstall(ide).map(|_| ());
+        let s = commands::rules::uninstall(ide)?;
+        if json {
+            crate::io::json(&s)?;
+        }
+        return Ok(());
     }
-    commands::rules::install(ide).map(|_| ())
+    let s = commands::rules::install(ide)?;
+    if json {
+        crate::io::json(&s)?;
+    }
+    Ok(())
 }
 
 fn run_rules_status(json: bool) -> Result<()> {

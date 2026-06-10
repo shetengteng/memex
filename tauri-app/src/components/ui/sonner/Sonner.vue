@@ -4,7 +4,7 @@ import {
   CircleCheckIcon,
   InfoIcon,
   TriangleAlertIcon,
-  OctagonXIcon,
+  OctagonAlertIcon,
   Loader2Icon,
   XIcon,
 } from 'lucide-vue-next';
@@ -58,7 +58,7 @@ const passthroughProps = computed(() => {
       <TriangleAlertIcon class="size-4" />
     </template>
     <template #error-icon>
-      <OctagonXIcon class="size-4" />
+      <OctagonAlertIcon class="size-4" />
     </template>
     <template #loading-icon>
       <div>

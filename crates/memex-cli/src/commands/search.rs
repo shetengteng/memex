@@ -126,10 +126,10 @@ fn run_direct(
     let db_path = memex_dir().join("memex.db");
     if !db_path.exists() {
         if json {
-            crate::out!(
-                "{}",
-                serde_json::json!({"results": [], "error": "database not found, run `memex ingest` first"})
-            );
+            crate::io::json(&serde_json::json!({
+                "results": [],
+                "error": "database not found, run `memex ingest` first",
+            }))?;
         } else {
             crate::err!("Database not found. Run `memex ingest` first.");
         }

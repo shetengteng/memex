@@ -39,10 +39,9 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         "data_dir" => config.data_dir = value.to_string(),
         _ => {
             if json {
-                crate::out!(
-                    "{}",
-                    serde_json::json!({"error": format!("unknown key: {}", key)})
-                );
+                crate::io::json(&serde_json::json!({
+                    "error": format!("unknown key: {}", key),
+                }))?;
             } else {
                 crate::err!("Unknown config key: {}", key);
             }
@@ -55,10 +54,11 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         .with_context(|| format!("failed to write {}", config_path.display()))?;
 
     if json {
-        crate::out!(
-            "{}",
-            serde_json::json!({"key": key, "value": value, "status": "ok"})
-        );
+        crate::io::json(&serde_json::json!({
+            "key": key,
+            "value": value,
+            "status": "ok",
+        }))?;
     } else {
         crate::out!("Set {} = {}", key, value);
     }

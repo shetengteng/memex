@@ -8,10 +8,9 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     let memex = memex_dir();
     if !memex.exists() {
         if json {
-            crate::out!(
-                "{}",
-                serde_json::json!({"error": "memex directory not found"})
-            );
+            crate::io::json(&serde_json::json!({
+                "error": "memex directory not found",
+            }))?;
         } else {
             crate::err!("Memex directory not found at {}", memex.display());
         }
@@ -70,14 +69,11 @@ pub fn run(output_path: &str, json: bool) -> Result<()> {
     let size = fs::metadata(output)?.len();
 
     if json {
-        crate::out!(
-            "{}",
-            serde_json::json!({
-                "path": output_path,
-                "files": file_count,
-                "size_bytes": size,
-            })
-        );
+        crate::io::json(&serde_json::json!({
+            "path": output_path,
+            "files": file_count,
+            "size_bytes": size,
+        }))?;
     } else {
         crate::out!(
             "Backup complete: {} ({} files, {} bytes)",
