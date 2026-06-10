@@ -13,7 +13,9 @@ use crate::storage::db::Db;
 #[test]
 fn list_project_summaries_excludes_empty_path() {
     let db = Db::open_in_memory().unwrap();
-    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S+08:00").to_string();
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S+08:00")
+        .to_string();
 
     ws_seed_session(&db, "s1", "cursor", Some("/Users/me/real"), &now, 10);
     ws_seed_session(&db, "s2", "cursor", Some(""), &now, 5);
@@ -21,7 +23,11 @@ fn list_project_summaries_excludes_empty_path() {
 
     let summaries = db.list_project_summaries().unwrap();
 
-    assert_eq!(summaries.len(), 1, "only the non-empty project_path row should survive");
+    assert_eq!(
+        summaries.len(),
+        1,
+        "only the non-empty project_path row should survive"
+    );
     assert_eq!(summaries[0].project_path, "/Users/me/real");
     assert_eq!(summaries[0].session_count, 1);
 }

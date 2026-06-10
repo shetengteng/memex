@@ -85,10 +85,7 @@ fn empty_content_error(
             max_tokens,
         )
     } else {
-        anyhow::anyhow!(
-            "Anthropic API returned empty content (model={})",
-            model,
-        )
+        anyhow::anyhow!("Anthropic API returned empty content (model={})", model,)
     }
 }
 
@@ -246,7 +243,10 @@ mod tests {
     fn empty_content_error_for_extended_thinking_runaway() {
         let err = empty_content_error("claude-3-7-sonnet", 8, true, 256);
         let msg = err.to_string();
-        assert!(msg.contains("thinking"), "msg should mention thinking: {msg}");
+        assert!(
+            msg.contains("thinking"),
+            "msg should mention thinking: {msg}"
+        );
         assert!(
             msg.contains("max_tokens"),
             "msg should suggest increasing max_tokens: {msg}"

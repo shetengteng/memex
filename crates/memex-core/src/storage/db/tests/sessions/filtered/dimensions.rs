@@ -1,7 +1,7 @@
 //! 维度特化：time 边界、L2 summary 完成度、query 跨字段全文匹配、
 //! adapter + project + time + query 复合命中。
 
-use super::{seed_filtered_session, SessionSeed};
+use super::{SessionSeed, seed_filtered_session};
 use crate::storage::db::sessions::SessionListFilter;
 use crate::storage::db::{self, Db};
 

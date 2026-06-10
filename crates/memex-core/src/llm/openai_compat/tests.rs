@@ -112,7 +112,10 @@ fn generate_emits_actionable_hint_when_reasoning_model_runs_out_of_tokens() {
         Err(err) => err,
     };
     let msg = err.to_string();
-    assert!(msg.contains("reasoning"), "msg should mention reasoning: {msg}");
+    assert!(
+        msg.contains("reasoning"),
+        "msg should mention reasoning: {msg}"
+    );
     assert!(
         msg.contains("max_tokens"),
         "msg should suggest increasing max_tokens: {msg}"
@@ -125,8 +128,7 @@ fn generate_emits_actionable_hint_when_reasoning_model_runs_out_of_tokens() {
 /// max_tokens，而不是含糊的 "empty content"。
 #[test]
 fn generate_emits_truncation_hint_when_finish_reason_is_length() {
-    let body =
-        r#"{"choices":[{"message":{"content":"   "},"finish_reason":"length"}],"model":"some-llm"}"#;
+    let body = r#"{"choices":[{"message":{"content":"   "},"finish_reason":"length"}],"model":"some-llm"}"#;
     let base_url = serve_json_once(body);
     let p = OpenAiCompatProvider::new("MockProvider", &base_url, "key", "some-llm");
 
