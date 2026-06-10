@@ -27,6 +27,7 @@ use json_backends::{
 /// 受支持的 IDE，对应 4 套差异极大的 MCP 配置格式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum Ide {
     Cursor,
     ClaudeCode,

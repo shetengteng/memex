@@ -35,6 +35,7 @@ pub struct RawMessage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Role {
     User,
     Assistant,
@@ -68,6 +69,7 @@ pub struct Chunk {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ChunkType {
     Text,
     CodeBlock,

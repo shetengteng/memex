@@ -23,6 +23,7 @@ use crate::storage::db::Db;
 /// 用户在 CLI 上选择的周期，解析后得到一组要拉取的 daily/weekly scope_key
 /// 和写回的反思 scope_key。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReflectPeriod {
     /// 本周（ISO 周：周一到周日）。回看到本周一为止。
     Week,

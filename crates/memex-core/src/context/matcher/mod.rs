@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use crate::storage::db::Db;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MatchTier {
     /// `cwd` 等于或是 `project_path` 的父级（最常见、最可靠）。
     ExactPath,
