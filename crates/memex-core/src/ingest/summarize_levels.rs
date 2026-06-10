@@ -87,6 +87,7 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
     // sessions.message_count（实际入库消息数）和这个快照：如果 session
     // 又涨了，就视为过期、重新摘要（方案 A）。
     let message_count_at_creation = detail.messages.len() as i64;
+    let current_project_path = detail.project_path.clone();
 
     let msgs: Vec<(String, String)> = detail
         .messages
@@ -94,7 +95,7 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
         .map(|m| (m.role.clone(), m.content.clone()))
         .collect();
 
-    match summarize::summarize_session(provider, &msgs) {
+    match summarize::summarize_session(provider, &msgs, current_project_path.as_deref()) {
         Ok(summary) => {
             if let Err(e) = db.upsert_summary(crate::storage::db::SummaryUpsert {
                 session_id,
@@ -112,7 +113,23 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
                 );
                 return false;
             }
-            if let Some(ref name) = summary.project_name
+            // 1. corrected_project_path 是 LLM 看完 current_project_path + 对话内容后
+            //    给出的「漂移纠正」建议，优先级最高 —— 直接覆盖现有 project_path。
+            //    parse 已经做过绝对路径校验，这里只需再确认它确实和当前路径不同
+            //    （避免无意义的 SQL 写入）。
+            // 2. project_name 是 LLM 推断的短名，作为「collector 完全没给路径时」的兜底，
+            //    保留旧的 fill-when-empty 语义。
+            if let Some(ref corrected) = summary.corrected_project_path
+                && current_project_path.as_deref() != Some(corrected.as_str())
+                && let Err(e) = db.force_update_session_project_path(session_id, corrected)
+            {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %e,
+                    "failed to persist LLM-corrected project_path"
+                );
+            } else if summary.corrected_project_path.is_none()
+                && let Some(ref name) = summary.project_name
                 && let Err(e) = db.update_session_project_path(session_id, name)
             {
                 warn!(

@@ -37,6 +37,16 @@ pub struct SessionSummary {
     pub decisions: Vec<String>,
     #[serde(default)]
     pub project_name: Option<String>,
+    /// L2 摘要新增字段：在 collector 给出 [`summarize_session`] 的
+    /// `current_project_path` 之后，LLM 判断该路径漂移到了子目录
+    /// （如 `tt-demo/src` / `repo/src/views/chat`）时，输出修正后的
+    /// 完整项目根路径；路径已经合理时为 `None`。
+    ///
+    /// 与 [`SessionSummary::project_name`] 的区别：`project_name` 是 LLM
+    /// 推断的**短名**（仅用于在 collector 没有路径时兜底）；本字段是
+    /// **完整路径**，会强制覆盖 collector 写入的可能漂移的路径。
+    #[serde(default)]
+    pub corrected_project_path: Option<String>,
     /// L2 摘要新增字段：用户在本次会话中真正想达成的目标，一句话。
     /// L3 / L4 项目级与周期级摘要不强制要求 LLM 输出此字段，因此默认 None。
     #[serde(default)]
@@ -46,8 +56,9 @@ pub struct SessionSummary {
 pub fn summarize_session(
     provider: &dyn LlmProvider,
     messages: &[(String, String)],
+    current_project_path: Option<&str>,
 ) -> Result<SessionSummary> {
-    let prompt = build_prompt(messages);
+    let prompt = build_prompt(messages, current_project_path);
     let request = LlmRequest::with_prompt(prompt).with_system(SUMMARY_SYSTEM);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)

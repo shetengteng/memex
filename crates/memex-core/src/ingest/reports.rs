@@ -240,6 +240,7 @@ fn run_report(
                 topics: row.topics,
                 decisions: row.decisions,
                 project_name: None,
+                corrected_project_path: None,
                 intent: None,
             });
         }

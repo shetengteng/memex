@@ -44,6 +44,7 @@ pub(super) fn try_l3_project_summaries(db: &Db, provider: &dyn LlmProvider) {
                     topics: row.topics,
                     decisions: row.decisions,
                     project_name: None,
+                    corrected_project_path: None,
                     intent: None,
                 });
             }

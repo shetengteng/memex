@@ -120,6 +120,26 @@ impl Db {
         Ok(())
     }
 
+    /// 强制覆盖式更新 `project_path`，用于 L2 摘要 LLM 对 collector 给出的
+    /// 漂移路径（如 `tt-demo/src`）给出修正后的完整路径时的回写。
+    ///
+    /// 区别 [`Self::update_session_project_path`]：后者带 `IS NULL OR = ''`
+    /// 保护，只在空时填；本函数无此保护，调用方必须确保新值确实更可信
+    /// （目前仅由 `summarize_session_by_id` 在 LLM 给出 `corrected_project_path`
+    /// 且通过绝对路径校验后调用）。
+    pub fn force_update_session_project_path(
+        &self,
+        session_id: &str,
+        project_path: &str,
+    ) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE sessions SET project_path = ?1 WHERE id = ?2",
+            params![project_path, session_id],
+        )?;
+        Ok(())
+    }
+
     /// 把 L2 摘要 LLM 推断出来的「用户真实意图」一句话写到 `sessions.intent`。
     /// 每次摘要重生成都覆盖这一列（即便从有值变成 None，也写入 None，
     /// 保证 UI 能反映最新摘要结果，不会出现"重新生成后旧 intent 留在那里"的尴尬）。

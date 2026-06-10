@@ -8,8 +8,21 @@ use anyhow::Result;
 
 use super::{MAX_INPUT_CHARS, SessionSummary};
 
-pub(super) fn build_prompt(messages: &[(String, String)]) -> String {
+pub(super) fn build_prompt(
+    messages: &[(String, String)],
+    current_project_path: Option<&str>,
+) -> String {
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
+
+    if let Some(path) = current_project_path.filter(|p| !p.is_empty()) {
+        prompt.push_str(&format!(
+            "当前 collector 推断的项目路径：{}\n\n请判断该路径是否漂移到了子目录\
+             （如末段是 src / views / components / utils 等），若是则在 \
+             corrected_project_path 字段输出修正后的完整路径；若路径已合理则输出 null。\n\n",
+            path
+        ));
+    }
+
     prompt.push_str("以下是一段对话：\n\n");
 
     let mut total_len = prompt.len();
@@ -60,6 +73,11 @@ pub(super) fn parse_summary(text: &str) -> Result<SessionSummary> {
             .intent
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
+        // corrected_project_path 在快速分支也要做绝对路径校验，避免 LLM 直接给短名。
+        summary.corrected_project_path = summary
+            .corrected_project_path
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && (s.starts_with('/') || s.starts_with("~/")));
         return Ok(summary);
     }
 
@@ -76,6 +94,7 @@ pub(super) fn parse_summary(text: &str) -> Result<SessionSummary> {
         topics: Vec::new(),
         decisions: Vec::new(),
         project_name: None,
+        corrected_project_path: None,
         intent: None,
     })
 }
@@ -126,6 +145,13 @@ fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
         .map(String::from)
         .filter(|s| !s.is_empty());
 
+    // corrected_project_path 必须是绝对路径（防 LLM 误给短名）；空串 / 短名一律视为 None。
+    let corrected_project_path = val
+        .get("corrected_project_path")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty() && (s.starts_with('/') || s.starts_with("~/")));
+
     let intent = val
         .get("intent")
         .and_then(|v| v.as_str())
@@ -138,6 +164,7 @@ fn extract_summary_from_value(val: &serde_json::Value) -> SessionSummary {
         topics,
         decisions,
         project_name,
+        corrected_project_path,
         intent,
     }
 }

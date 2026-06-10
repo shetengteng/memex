@@ -9,6 +9,7 @@ fn s(title: &str, summary: &str, topics: &[&str]) -> SessionSummary {
         topics: topics.iter().map(|t| (*t).into()).collect(),
         decisions: vec![],
         project_name: None,
+        corrected_project_path: None,
         intent: None,
     }
 }
@@ -20,6 +21,7 @@ fn sp(title: &str, summary: &str, topics: &[&str], project: &str) -> SessionSumm
         topics: topics.iter().map(|t| (*t).into()).collect(),
         decisions: vec![],
         project_name: Some(project.into()),
+        corrected_project_path: None,
         intent: None,
     }
 }

@@ -116,6 +116,7 @@ fn collect_recent_l2(db: &Db, limit: usize) -> Result<Vec<(String, summarize::Se
                 topics: row.topics,
                 decisions: row.decisions,
                 project_name,
+                corrected_project_path: None,
                 intent: None,
             },
         ));

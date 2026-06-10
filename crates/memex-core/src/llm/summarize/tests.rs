@@ -110,8 +110,27 @@ fn test_build_prompt_truncation() {
     let messages: Vec<(String, String)> = (0..100)
         .map(|i| ("user".to_string(), format!("Message {} with content", i)))
         .collect();
-    let prompt = build_prompt(&messages);
+    let prompt = build_prompt(&messages, None);
     assert!(prompt.len() <= MAX_INPUT_CHARS + 100);
+}
+
+/// 当 collector 给出 current_project_path 时，build_prompt 应把它嵌进 prompt，
+/// 让 LLM 知道这是一个待校验的路径而非完全凭空推断。
+#[test]
+fn test_build_prompt_embeds_current_project_path_when_present() {
+    let messages = vec![("user".into(), "hello".into())];
+    let with_path = build_prompt(&messages, Some("/Users/me/Documents/tt-demo/src"));
+    assert!(with_path.contains("/Users/me/Documents/tt-demo/src"));
+    assert!(with_path.contains("corrected_project_path"));
+}
+
+/// 空字符串 path 应当被视作"没有给"，不污染 prompt（避免占用 token）。
+#[test]
+fn test_build_prompt_skips_empty_current_project_path() {
+    let messages = vec![("user".into(), "hello".into())];
+    let without_path = build_prompt(&messages, Some(""));
+    assert!(!without_path.contains("corrected_project_path"));
+    assert!(!without_path.contains("当前 collector"));
 }
 
 #[test]
@@ -159,6 +178,7 @@ fn test_summarize_project() {
             topics: vec!["search".into()],
             decisions: vec![],
             project_name: None,
+            corrected_project_path: None,
             intent: None,
         },
         SessionSummary {
@@ -167,6 +187,7 @@ fn test_summarize_project() {
             topics: vec!["adapters".into()],
             decisions: vec![],
             project_name: None,
+            corrected_project_path: None,
             intent: None,
         },
     ];
@@ -186,6 +207,7 @@ fn test_summarize_period() {
         topics: vec!["feature".into()],
         decisions: vec!["use trait pattern".into()],
         project_name: None,
+        corrected_project_path: None,
         intent: None,
     }];
     let result = summarize_period(&provider, "2026-06-01", &sessions).unwrap();
@@ -224,6 +246,7 @@ fn test_condense_for_period_monthly_uses_project_grouping() {
         topics: vec![topic.into()],
         decisions: vec![format!("decision for {}", title)],
         project_name: project.map(String::from),
+        corrected_project_path: None,
         intent: None,
     };
     // 两个 project 共用 "bug" 这个 topic 应该被分到两个组里
