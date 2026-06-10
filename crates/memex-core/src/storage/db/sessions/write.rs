@@ -37,8 +37,8 @@ impl Db {
             session_mtime_secs,
             title,
         } = opts;
+        let now = self.now_utc();
         let conn = self.conn.lock();
-        let now = chrono::Utc::now();
         let now_str = now.to_rfc3339();
 
         let created_str = if session_created_secs > 0 {

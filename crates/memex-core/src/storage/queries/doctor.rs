@@ -21,6 +21,7 @@ impl Db {
         result_count: usize,
         latency_ms: u64,
     ) -> Result<()> {
+        let now = self.now_utc().to_rfc3339();
         let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO access_log (query, result_count, latency_ms, created_at) VALUES (?1, ?2, ?3, ?4)",
@@ -28,7 +29,7 @@ impl Db {
                 query,
                 result_count as i64,
                 latency_ms as i64,
-                chrono::Utc::now().to_rfc3339()
+                now
             ],
         )?;
         Ok(())

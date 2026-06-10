@@ -13,8 +13,8 @@ impl Db {
     /// Sessions / messages bucketed per local-time day × adapter for
     /// the last `days` days. Powers the "活动趋势" chart.
     pub fn timeline(&self, days: u32) -> Result<Vec<TimelineEntry>> {
+        let cutoff = (self.now_utc() - chrono::Duration::days(days as i64)).to_rfc3339();
         let conn = self.conn.lock();
-        let cutoff = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
         // 按本地时间分桶，让用户看到的是自己时区的日期
         //（跨 UTC 0 点的会话特别需要这样处理）。
         let mut stmt = conn.prepare_cached(
@@ -66,7 +66,7 @@ impl Db {
                 by_project.insert(r.0, r.1);
             }
         }
-        let now = chrono::Utc::now();
+        let now = self.now_utc();
         let d7 = (now - chrono::Duration::days(7)).to_rfc3339();
         let d30 = (now - chrono::Duration::days(30)).to_rfc3339();
         let recent_7d: (i64, i64) = conn.query_row(

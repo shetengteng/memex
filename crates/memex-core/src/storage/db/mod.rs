@@ -23,10 +23,14 @@ mod tests;
 mod threads;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use rusqlite::Connection;
+
+use crate::clock::{ArcClock, SystemClock};
 
 pub use providers::LlmProviderRow;
 pub use sessions::{MessageRow, NewSession, SessionDetail, SessionListFilter, SessionRow};
@@ -35,26 +39,46 @@ pub use threads::{ThreadDetail, ThreadDraft, ThreadRow};
 
 pub struct Db {
     pub(crate) conn: Mutex<Connection>,
+    pub(crate) clock: ArcClock,
 }
 
 impl Db {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_with_clock(path, Arc::new(SystemClock))
+    }
+
+    /// 与 [`Self::open`] 同语义，但允许调用方注入自定义 [`Clock`](crate::clock::Clock)
+    /// 实现。生产代码不必使用；测试中需要确定性时间戳时改走这个入口。
+    pub fn open_with_clock(path: &Path, clock: ArcClock) -> Result<Self> {
         let conn = Connection::open(path)
             .with_context(|| format!("failed to open database: {}", path.display()))?;
         let db = Self {
             conn: Mutex::new(conn),
+            clock,
         };
         db.init_schema()?;
         Ok(db)
     }
 
     pub fn open_in_memory() -> Result<Self> {
+        Self::open_in_memory_with_clock(Arc::new(SystemClock))
+    }
+
+    /// 内存数据库 + 注入自定义 [`Clock`](crate::clock::Clock)，仅给单元测试使用。
+    pub fn open_in_memory_with_clock(clock: ArcClock) -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         let db = Self {
             conn: Mutex::new(conn),
+            clock,
         };
         db.init_schema()?;
         Ok(db)
+    }
+
+    /// 注入的 clock "现在"。Db 内部所有需要 `chrono::Utc::now()` 的位置
+    /// 一律走这个 helper，让 `FrozenClock` 注入下时间戳完全确定。
+    pub(crate) fn now_utc(&self) -> DateTime<Utc> {
+        self.clock.now_utc()
     }
 
     fn init_schema(&self) -> Result<()> {

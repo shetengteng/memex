@@ -49,9 +49,8 @@ fn default_true() -> bool {
     true
 }
 
-fn now_iso() -> String {
-    chrono::Utc::now().to_rfc3339()
-}
+// `now_iso` 由 `Db::now_utc()` + `to_rfc3339()` 提供，使得测试可注入
+// FrozenClock 拿到确定性时间戳。模块级 free function 已不再需要。
 
 impl Db {
     pub fn provider_list(&self) -> Result<Vec<LlmProviderRow>> {
@@ -111,8 +110,8 @@ impl Db {
     }
 
     pub fn provider_upsert(&self, p: LlmProviderUpsert) -> Result<LlmProviderRow> {
+        let now = self.now_utc().to_rfc3339();
         let conn = self.conn.lock();
-        let now = now_iso();
 
         if p.is_default {
             conn.execute(
@@ -163,10 +162,11 @@ impl Db {
         status: &str,
         latency_ms: Option<i64>,
     ) -> Result<()> {
+        let now = self.now_utc().to_rfc3339();
         let conn = self.conn.lock();
         conn.execute(
             "UPDATE llm_providers SET status = ?1, latency_ms = ?2, updated_at = ?3 WHERE id = ?4",
-            params![status, latency_ms, now_iso(), id],
+            params![status, latency_ms, now, id],
         )?;
         Ok(())
     }

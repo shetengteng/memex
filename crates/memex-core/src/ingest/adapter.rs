@@ -103,7 +103,7 @@ pub(super) fn ingest_adapter(adapter: &dyn Adapter, db: &Db, memex: &Path) -> Re
             file_path: session.file_path.clone(),
             last_offset: max_offset,
             last_mtime: session.mtime,
-            last_scan: chrono::Utc::now(),
+            last_scan: db.now_utc(),
         };
         db.upsert_source(&source_state)?;
     }

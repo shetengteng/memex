@@ -35,6 +35,7 @@ impl Db {
         original_length: usize,
     ) -> Result<()> {
         let conn = self.conn.lock();
+        let now = self.now_utc().to_rfc3339();
         conn.execute(
             "INSERT INTO redactions (message_id, session_id, redaction_type, original_length, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -43,7 +44,7 @@ impl Db {
                 session_id,
                 redaction_type,
                 original_length as i64,
-                chrono::Utc::now().to_rfc3339()
+                now
             ],
         )?;
         Ok(())

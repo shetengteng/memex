@@ -29,10 +29,10 @@ impl Db {
             decisions,
             message_count_at_creation,
         } = opts;
+        let now = self.now_utc().to_rfc3339();
         let conn = self.conn.lock();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
-        let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO summaries (session_id, level, title, summary, topics_json, decisions_json, created_at, message_count_at_creation)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -138,7 +138,6 @@ impl Db {
         limit: usize,
         cool_down_secs: u64,
     ) -> Result<Vec<String>> {
-        let conn = self.conn.lock();
         // SQLite 接受 ISO 8601 字符串比较（按字典序等价于时间序）。
         // 用 cutoff = now - cool_down_secs，selector 选 updated_at <= cutoff 的会话。
         let cutoff = if cool_down_secs == 0 {
@@ -146,8 +145,9 @@ impl Db {
             "9999-12-31T23:59:59Z".to_string()
         } else {
             let cd = chrono::Duration::seconds(cool_down_secs as i64);
-            (chrono::Utc::now() - cd).to_rfc3339()
+            (self.now_utc() - cd).to_rfc3339()
         };
+        let conn = self.conn.lock();
 
         let mut stmt = conn.prepare_cached(
             "SELECT s.id FROM sessions s
@@ -211,10 +211,10 @@ impl Db {
             decisions,
             session_count,
         } = opts;
+        let now = self.now_utc().to_rfc3339();
         let conn = self.conn.lock();
         let topics_json = serde_json::to_string(topics)?;
         let decisions_json = serde_json::to_string(decisions)?;
-        let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO aggregate_summaries (scope_type, scope_key, title, summary, topics_json, decisions_json, session_count, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)

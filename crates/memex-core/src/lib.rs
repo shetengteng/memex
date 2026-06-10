@@ -14,6 +14,7 @@
 #![warn(rust_2018_idioms)]
 #![warn(clippy::all)]
 
+pub mod clock;
 pub mod collector;
 pub mod config;
 pub mod context;

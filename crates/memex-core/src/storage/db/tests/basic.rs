@@ -1,5 +1,8 @@
 //! Schema bring-up + insert / dedup / fts / source_offset / kv 基础冒烟。
 
+use std::sync::Arc;
+
+use crate::clock::FrozenClock;
 use crate::storage::db::Db;
 use crate::storage::models::{Chunk, ChunkMetadata, ChunkType, SourceState};
 
@@ -143,4 +146,35 @@ fn test_kv_roundtrip() {
     assert_eq!(db.kv_get("k").unwrap().as_deref(), Some("v1"));
     db.kv_set("k", "v2").unwrap();
     assert_eq!(db.kv_get("k").unwrap().as_deref(), Some("v2"));
+}
+
+/// 验证 [`crate::clock::FrozenClock`] 通过 [`Db::open_in_memory_with_clock`]
+/// 注入后，所有内部走 `self.now_utc()` 的写路径都拿到固定时间戳。
+///
+/// 这条用例同时充当 Clock trait 的 contract regression：未来如果有人
+/// 把某个 Db 内部 `chrono::Utc::now()` 的位置忘了改成 `self.now_utc()`，
+/// 时间戳会不等于 frozen 锚点，断言立刻失败。
+#[test]
+fn db_with_frozen_clock_pins_session_timestamps() {
+    use rusqlite::params;
+
+    let frozen = Arc::new(FrozenClock::epoch_2026());
+    let expected = "2026-01-01T00:00:00+00:00";
+    let db = Db::open_in_memory_with_clock(frozen).unwrap();
+
+    db.insert_session("s1", "cursor", Some("/proj"), "/f.jsonl", 0, 0)
+        .unwrap();
+
+    let (created, updated): (String, String) = {
+        let conn = db.conn.lock();
+        conn.query_row(
+            "SELECT created_at, updated_at FROM sessions WHERE id = ?1",
+            params!["s1"],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap()
+    };
+
+    assert_eq!(created, expected, "created_at must come from frozen clock");
+    assert_eq!(updated, expected, "updated_at must come from frozen clock");
 }
