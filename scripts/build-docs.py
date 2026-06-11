@@ -4,9 +4,12 @@
 Inputs (auto-discovered):
   - README.md             → index.html
   - SKILL.md              → SKILL.html
-  - design/*.md           → design/<slug>.html
+  - design/**/*.md        → design/<slug>.html   (递归扫 specs/todos/decisions/prototypes)
   - skills/*/SKILL.md     → skills/<ide>.html
-  - design/*.html         → 原样 copy 到 site/design/
+  - design/**/*.html      → 原样 copy 到 site/design/<basename>.html
+
+  注：design 输出目录始终扁平（不复制子目录结构），slug 取自文件名，
+  跨子目录的文件名不能重名。
 
 Output: site/  (用于 GitHub Pages artifact)
 
@@ -163,7 +166,7 @@ def collect_pages() -> tuple[list[dict], list[dict], list[dict]]:
         )
 
     design_pages: list[dict] = []
-    for p in sorted((ROOT / "design").glob("*.md")):
+    for p in sorted((ROOT / "design").rglob("*.md")):
         slug = slugify(p.name)
         text = p.read_text(encoding="utf-8")
         design_pages.append(
@@ -249,7 +252,7 @@ def main() -> None:
         print(f"[docs] {pg['src'].relative_to(ROOT)} → {pg['out'].relative_to(ROOT)}")
 
     design_html_src = ROOT / "design"
-    for p in design_html_src.glob("*.html"):
+    for p in design_html_src.rglob("*.html"):
         target = OUT / "design" / p.name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(p, target)
