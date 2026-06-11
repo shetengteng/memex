@@ -299,14 +299,33 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("INVARIANT: tauri Builder::build() failed — app is unstartable")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| match event {
             // 兜底：托盘 quit 已显式调用 stop_daemon_blocking；但其他退出路径
             // （`app.exit(0)` 来自其他模块、菜单 Cmd+Q、`launchctl bootout`）
             // 同样应该清理 daemon，避免后台游离进程。RunEvent::ExitRequested
             // 在 `app.exit()` 即将真正退出前触发，是最后一道闸口。
-            if let tauri::RunEvent::ExitRequested { .. } = event {
+            tauri::RunEvent::ExitRequested { .. } => {
                 tracing::info!("exit requested: stopping daemon");
                 commands::daemon::stop_daemon_blocking();
             }
+            // macOS：用户点 Dock 图标 / `open -a Memex` 二次启动 → 系统派发
+            // `applicationShouldHandleReopen` → Tauri 转成 `RunEvent::Reopen`。
+            // 托盘被 macOS 折叠到屏幕外的现场，Dock 是用户唤起主窗口的主要路径，
+            // 必须显式 show + focus，否则点击 Dock 图标会"看起来打不开"。
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } => {
+                if !has_visible_windows
+                    && let Some(win) = app_handle.get_webview_window("main")
+                {
+                    let _ = win.show();
+                    let _ = win.unminimize();
+                    let _ = win.set_focus();
+                }
+                update_activation_policy(app_handle);
+            }
+            _ => {}
         });
 }

@@ -13,6 +13,7 @@ use crate::protocol::{
 };
 use memex_core::retriever::{Retriever, SearchFilter};
 use memex_core::storage::db::Db;
+use memex_core::storage::mcp_call_log::truncate_payload;
 
 pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse {
     let tool_name = req
@@ -47,7 +48,33 @@ pub(super) fn handle_tool_call(req: &JsonRpcRequest, db: &Db) -> JsonRpcResponse
         Ok(_) => (true, None),
         Err(m) => (false, Some(m.as_str())),
     };
-    let _ = db.insert_mcp_call(tool_name, latency_ms, success, err_msg);
+
+    // arguments 一定能序列化（args 本来就是 Value）；result 是 String，包成
+    // {"text": ...} 便于 UI 用统一 JSON 视图渲染（"text"|"data" 两态）。
+    // 失败时 result_json 记 error 原文，跟 error_message 字段重复但能让 UI
+    // 详情对话框只看一个字段就拿到完整故障上下文。
+    let args_str = truncate_payload(
+        serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string()),
+    );
+    let result_str = match &result {
+        Ok(content) => truncate_payload(
+            serde_json::to_string(&serde_json::json!({ "text": content }))
+                .unwrap_or_else(|_| content.clone()),
+        ),
+        Err(msg) => truncate_payload(
+            serde_json::to_string(&serde_json::json!({ "error": msg }))
+                .unwrap_or_else(|_| msg.clone()),
+        ),
+    };
+
+    let _ = db.insert_mcp_call(
+        tool_name,
+        latency_ms,
+        success,
+        err_msg,
+        Some(args_str.as_str()),
+        Some(result_str.as_str()),
+    );
 
     match result {
         Ok(content) => JsonRpcResponse::success(

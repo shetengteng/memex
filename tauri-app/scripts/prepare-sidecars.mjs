@@ -25,9 +25,14 @@ const isCrossArch = target !== hostTarget
 console.log(`[sidecars] host triple: ${hostTarget}`)
 console.log(`[sidecars] build target: ${target}${isCrossArch ? ' (cross)' : ''}`)
 
+// 注：`memex` CLI 的 dest name 必须避开主 binary `Memex`（CFBundleExecutable）。
+// macOS APFS 默认大小写不敏感，`memex` 与 `Memex` 会被视为同一个文件，后写
+// 的会物理覆盖前写的——bundle 启动直接坏掉。把 CLI sidecar 改名为 `memex-cli`
+// 后没有冲突；用户访问 CLI 路径变成 `/Applications/Memex.app/Contents/MacOS/memex-cli`，
+// brew cask 通过 `target: "memex"` 仍然能把命令暴露成 `memex`。
 const sidecars = [
   { crate: 'memex-daemon', binary: 'memex-daemon', destName: 'memex-daemon' },
-  { crate: 'memex-cli', binary: 'memex', destName: 'memex' },
+  { crate: 'memex-cli', binary: 'memex', destName: 'memex-cli' },
 ]
 
 const binDir = resolve(tauriRoot, 'src-tauri/binaries')

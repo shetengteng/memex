@@ -3,7 +3,7 @@
 #
 # 步骤：
 #   1. 校验版本（package.json / tauri.conf.json / Cargo.toml 三处一致）
-#   2. 停掉所有 memex-menubar / memex-daemon 进程
+#   2. 停掉所有 Memex (menubar) / memex-daemon 进程
 #   3. 备份 ~/.memex（保留数据；用户数据不会丢）
 #   4. 完整重 build .app bundle（tauri build --bundles app）
 #   5. 删除 /Applications/Memex.app 与 target 旧 bundle，再部署新 bundle
@@ -60,12 +60,17 @@ echo "   ✓ 版本一致: v$PKG_VER"
 echo
 
 echo "==> 2. 停止运行中的 memex 进程"
-pkill -9 memex-menubar 2>/dev/null || true
-pkill -9 memex-daemon 2>/dev/null || true
+# binary 名 v0.3.5 起改为 `Memex`（之前是 `memex-menubar`），都要 cover。
+# 用 `-x` 精确匹配 progname，避免误杀 Cursor / VSCode 等 cmdline 里出现
+# "Memex" 字串的进程。
+pkill -9 -x Memex 2>/dev/null || true
+pkill -9 -x memex-menubar 2>/dev/null || true
+pkill -9 -x memex-daemon 2>/dev/null || true
 sleep 1
-REMAINING=$(pgrep -f memex-menubar 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
-DAEMON_REMAINING=$(pgrep -f memex-daemon 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
-echo "   menubar 进程: $REMAINING | daemon 进程: $DAEMON_REMAINING"
+REMAINING=$(pgrep -x Memex 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
+LEGACY=$(pgrep -x memex-menubar 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
+DAEMON_REMAINING=$(pgrep -x memex-daemon 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
+echo "   menubar 进程: $REMAINING (legacy: $LEGACY) | daemon 进程: $DAEMON_REMAINING"
 echo
 
 echo "==> 3. 备份用户数据（~/.memex/）"
@@ -126,8 +131,8 @@ echo "==> 7. 启动新版"
 open "$APP_PATH"
 sleep 2
 
-NEW_PID=$(pgrep -f memex-menubar 2>/dev/null | head -1 || true)
-DAEMON_PID=$(pgrep -f memex-daemon 2>/dev/null | head -1 || true)
+NEW_PID=$(pgrep -x Memex 2>/dev/null | head -1 || true)
+DAEMON_PID=$(pgrep -x memex-daemon 2>/dev/null | head -1 || true)
 
 echo "==> 8. 完成"
 echo "   menubar PID: ${NEW_PID:-N/A}"

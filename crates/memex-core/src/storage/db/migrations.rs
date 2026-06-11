@@ -78,9 +78,24 @@ CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
     ON mcp_call_log(tool_name);
 ";
 
+/// v3: `mcp_call_log` 增列 `arguments_json` / `result_json`，把 MCP 调用 payload
+/// 落库给 UI 详情卡用。`ALTER TABLE ADD COLUMN` 在 SQLite 里是 O(1) 元数据改动，
+/// 不会重写数据页；对历史行新列为 NULL，符合 `Option<String>` 语义。
+///
+/// 用 `ALTER TABLE` 而不是 baseline 重建，是因为存量用户的 mcp_call_log 行不能丢
+/// （UI 上是 \"24h 聚合 / 准实时事件流\" 的唯一数据源）。
+const ADD_MCP_CALL_PAYLOAD_SQL: &str = "
+ALTER TABLE mcp_call_log ADD COLUMN arguments_json TEXT;
+ALTER TABLE mcp_call_log ADD COLUMN result_json TEXT;
+";
+
 /// Build the migration set.
 pub(super) fn build_migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(baseline_sql()), M::up(ADD_MCP_CALL_LOG_SQL)])
+    Migrations::new(vec![
+        M::up(baseline_sql()),
+        M::up(ADD_MCP_CALL_LOG_SQL),
+        M::up(ADD_MCP_CALL_PAYLOAD_SQL),
+    ])
 }
 
 #[cfg(test)]

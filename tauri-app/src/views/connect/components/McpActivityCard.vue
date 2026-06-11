@@ -15,6 +15,8 @@ import {
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
 import type { McpCallEntry, McpCallStats24h } from '@/types'
+import McpCallDetailDialog from './McpCallDetailDialog.vue'
+import { asMetric, formatFullTime, formatLatency, formatRelative } from './mcp-format'
 
 // 轮询间隔。3s 足以营造"实时"观感，又不会把 SQLite I/O 拉得很满
 // （一次 stats + 一次 recent，本地 db 综合 < 10ms）。
@@ -31,6 +33,7 @@ const recent = ref<McpCallEntry[]>([])
 const loading = ref(true)
 const errorMsg = ref<string | null>(null)
 const tick = ref(0)
+const selectedEntry = ref<McpCallEntry | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let tickTimer: ReturnType<typeof setInterval> | null = null
@@ -134,37 +137,6 @@ function widthRatio(count: number): string {
   return `${Math.max(4, Math.min(100, pct))}%`
 }
 
-function formatLatency(ms: number): string {
-  if (ms < 10) return `${ms} ms`
-  if (ms < 1_000) return `${Math.round(ms)} ms`
-  return `${(ms / 1_000).toFixed(2)} s`
-}
-
-function formatRelative(d: Date): string {
-  const sec = Math.floor((Date.now() - d.getTime()) / 1_000)
-  if (sec < 5) return '刚刚'
-  if (sec < 60) return `${sec} 秒前`
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min} 分钟前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} 小时前`
-  return `${Math.floor(hr / 24)} 天前`
-}
-
-function formatClock(s: string): string {
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return s
-  const h = String(d.getHours()).padStart(2, '0')
-  const m = String(d.getMinutes()).padStart(2, '0')
-  const sec = String(d.getSeconds()).padStart(2, '0')
-  return `${h}:${m}:${sec}`
-}
-
-// 表头数字卡里的"近 24h 调用数"，避免 0 时空荡荡，统一显示 "—" 占位。
-function asMetric(n: number): string {
-  if (n === 0) return '—'
-  return n.toLocaleString()
-}
 </script>
 
 <template>
@@ -304,11 +276,12 @@ function asMetric(n: number): string {
           <li
             v-for="ev in recent"
             :key="ev.id"
-            class="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/40"
-            :title="ev.error_message ?? ''"
+            class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 transition-colors hover:bg-muted/60"
+            :title="ev.error_message ?? '点击查看详情'"
+            @click="selectedEntry = ev"
           >
-            <span class="w-[58px] shrink-0 tabular-nums text-muted-foreground">
-              {{ formatClock(ev.occurred_at) }}
+            <span class="w-[132px] shrink-0 tabular-nums text-muted-foreground">
+              {{ formatFullTime(ev.occurred_at) }}
             </span>
             <CheckCircle2
               v-if="ev.success"
@@ -327,5 +300,10 @@ function asMetric(n: number): string {
     <p v-if="errorMsg" class="mt-2 text-[10.5px] text-rose-500">
       读取失败：{{ errorMsg }}
     </p>
+
+    <McpCallDetailDialog
+      :entry="selectedEntry"
+      @close="selectedEntry = null"
+    />
   </section>
 </template>

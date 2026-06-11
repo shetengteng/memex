@@ -234,8 +234,14 @@ CREATE INDEX IF NOT EXISTS idx_threads_updated_at
 -- / 最近一次发生在什么时候\" 这类问题无能为力。这张表把每次 MCP 调用作为单
 -- 独一行写入，给 menubar \"MCP 活动\" 卡片做 24h 聚合 + 准实时事件流。
 -- 写入路径：crates/memex-mcp/src/server/tools.rs::handle_tool_call。
--- 写入开销控制：只记 tool_name / latency_ms / success / error_message，
--- 不记 arguments / result（避免把用户的 query / project path 落库）。
+--
+-- 注意：`arguments_json` / `result_json` 两列是 v3 migration 才追加的，
+-- baseline 这里**故意不包含**——否则 fresh install 跑完 baseline 再跑 v3 的
+-- `ALTER TABLE ADD COLUMN` 会撞 \"duplicate column name\"。rusqlite_migration
+-- 总是从 v1 baseline 跑到最新版本，最终 schema 一定有这两列。隐私权衡：
+-- v3 起 query / project path / result 都会进 SQLite，但 db 本身就只在本机
+-- 用户目录，跟 sessions / messages 已经入库的隐私层级一致；为防写爆，单字段
+-- ≥ 32KB 时由写入端截断。
 CREATE TABLE IF NOT EXISTS mcp_call_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     occurred_at TEXT NOT NULL,

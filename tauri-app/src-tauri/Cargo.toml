@@ -11,6 +11,14 @@ license.workspace = true
 name = "memex_menubar_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# 显式让二进制名 = `Memex`（而非默认的 `memex-menubar`）。这样 macOS bundle
+# 里 `Contents/MacOS/Memex` 会成为 CFBundleExecutable，消除 macOS Menu Bar
+# 设置面板里 `memex-menubar` 这条 fallback 显示（详见 design 文档 menu-bar 节）。
+# `cargo run -p memex-menubar` 仍然可用 —— crate name 不变，只是 bin name 不同。
+[[bin]]
+name = "Memex"
+path = "src/main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

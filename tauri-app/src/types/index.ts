@@ -368,6 +368,18 @@ export interface McpCallEntry {
   latency_ms: number
   success: boolean
   error_message: string | null
+  /**
+   * MCP tools/call 的 `params.arguments`，JSON 字符串形态。
+   * - v3 schema 之前的存量行为 `null`
+   * - 写入端 ≥ 32KB 会截断并附带 `…[truncated N bytes]` 标记，
+   *   此时 `JSON.parse` 会失败 —— 调用方应当 try/catch 后退化为 plain text
+   */
+  arguments_json: string | null
+  /**
+   * 工具调用返回的内容，被包装成 `{"text": "..."}` 或 `{"error": "..."}` 后序列化。
+   * 截断规则同 `arguments_json`。
+   */
+  result_json: string | null
 }
 
 export interface McpToolBreakdown {

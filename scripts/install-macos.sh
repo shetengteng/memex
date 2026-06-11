@@ -39,9 +39,11 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 # Step 1：终止可能运行中的旧版进程
+# 新版 CFBundleExecutable = Memex（旧版 = memex-menubar），都要 cover
 log_info "终止旧进程（如果有）"
-pkill -9 -f memex-menubar 2>/dev/null || true
-pkill -9 -f memex-daemon 2>/dev/null || true
+pkill -9 -x Memex 2>/dev/null || true
+pkill -9 -x memex-menubar 2>/dev/null || true
+pkill -9 -x memex-daemon 2>/dev/null || true
 rm -f "$HOME/.memex/daemon.lock" 2>/dev/null || true
 sleep 1
 
@@ -77,13 +79,13 @@ log_info "启动 Memex"
 open "$APP_PATH"
 sleep 2
 
-if pgrep -f memex-menubar >/dev/null; then
+if pgrep -x Memex >/dev/null; then
     log_ok "Memex 已启动 ✓"
     echo ""
     echo "$(color green '安装完成！') 菜单栏右上角应该看到 Memex 图标，点击或按 ⌘⇧M 唤出 popup"
-    echo "命令行工具位于 /Applications/Memex.app/Contents/MacOS/memex"
-    echo "建议加入 PATH："
-    echo "  echo 'export PATH=\"/Applications/Memex.app/Contents/MacOS:\$PATH\"' >> ~/.zshrc"
+    echo "命令行工具位于 /Applications/Memex.app/Contents/MacOS/memex-cli"
+    echo "建议在 ~/.zshrc 加 alias："
+    echo "  alias memex='/Applications/Memex.app/Contents/MacOS/memex-cli'"
 else
     log_err "Memex 未能启动，请手动 open $APP_PATH 查看错误"
     exit 1
