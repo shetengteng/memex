@@ -20,8 +20,11 @@
 #![warn(rust_2018_idioms)]
 #![warn(clippy::all)]
 
+pub mod client;
 pub mod protocol;
 pub mod server;
+
+pub use client::McpClient;
 
 #[cfg(test)]
 mod tests;

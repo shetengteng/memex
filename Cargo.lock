@@ -2512,10 +2512,12 @@ version = "0.3.4"
 dependencies = [
  "anyhow",
  "blake3",
+ "libc",
  "memex-core",
  "serde",
  "serde_json",
  "tempfile",
+ "ureq",
 ]
 
 [[package]]

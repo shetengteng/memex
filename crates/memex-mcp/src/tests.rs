@@ -1,31 +1,17 @@
-//! MCP 工具契约测试 —— 校验 JSON-RPC 请求 / 响应的字段结构。
+//! MCP 协议层契约测试。
+//!
+//! 5c 起 mcp 不再直连 db；`tools/call` 的端到端覆盖由 daemon 端 routes
+//! 测试 + 部署验证负责，本文件只测**协议层 / dispatch 行为**（不需要任何
+//! fixture data）：
+//! * `initialize` 返回正确的 protocolVersion / serverInfo
+//! * `tools/list` 返回完整的 6 个工具
+//! * `tools/list` 的 schema 字段齐全（required / properties / type）
+//! * 未知方法返回 JSON-RPC `-32601 method not found`
+//! * `tools/call` 在没有 client 的测试入口下被拒（保持契约：tools/call 必须
+//!   被 routed 到 client handler）
 
 use super::protocol::*;
-use super::server::handle_request_for_test;
-use memex_core::storage::db::Db;
-use memex_core::storage::models::{Chunk, ChunkMetadata, ChunkType};
-
-fn setup_db() -> Db {
-    let db = Db::open_in_memory().unwrap();
-    db.insert_session("sess-001", "claude_code", Some("/proj"), "/f.jsonl", 0, 0)
-        .unwrap();
-    let hash = blake3::hash(b"hello redis").to_hex().to_string();
-    db.insert_message("msg-001", "sess-001", "user", "hello redis", None, 0, &hash)
-        .unwrap();
-    db.insert_chunk(&Chunk {
-        id: None,
-        message_id: "msg-001".into(),
-        session_id: "sess-001".into(),
-        chunk_type: ChunkType::Text,
-        content: "hello redis pipeline".into(),
-        redacted_content: None,
-        position: 0,
-        token_count: 5,
-        metadata: ChunkMetadata::default(),
-    })
-    .unwrap();
-    db
-}
+use super::server::handle_protocol_request_for_test;
 
 fn make_request(method: &str, params: serde_json::Value) -> JsonRpcRequest {
     JsonRpcRequest {
@@ -37,21 +23,19 @@ fn make_request(method: &str, params: serde_json::Value) -> JsonRpcRequest {
 }
 
 #[test]
-fn test_initialize() {
-    let db = setup_db();
+fn test_initialize_returns_protocol_version() {
     let req = make_request("initialize", serde_json::json!({}));
-    let resp = handle_request_for_test(&req, &db);
+    let resp = handle_protocol_request_for_test(&req);
     assert!(resp.error.is_none());
     let result = resp.result.unwrap();
     assert_eq!(result["protocolVersion"], "2024-11-05");
-    assert!(result["serverInfo"]["name"] == "memex");
+    assert_eq!(result["serverInfo"]["name"], "memex");
 }
 
 #[test]
-fn test_tools_list() {
-    let db = setup_db();
+fn test_tools_list_returns_six_tools() {
     let req = make_request("tools/list", serde_json::json!({}));
-    let resp = handle_request_for_test(&req, &db);
+    let resp = handle_protocol_request_for_test(&req);
     assert!(resp.error.is_none());
     let tools = resp.result.unwrap();
     let tool_list = tools["tools"].as_array().unwrap();
@@ -60,84 +44,73 @@ fn test_tools_list() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert!(names.contains(&"search_memory"));
-    assert!(names.contains(&"get_session"));
-    assert!(names.contains(&"list_recent"));
-    assert!(names.contains(&"stats"));
-    assert!(names.contains(&"get_project_context"));
-    assert!(names.contains(&"list_sessions_by_range"));
+    for expected in [
+        "search_memory",
+        "get_session",
+        "list_recent",
+        "stats",
+        "get_project_context",
+        "list_sessions_by_range",
+    ] {
+        assert!(
+            names.contains(&expected),
+            "tool {} missing from list: {:?}",
+            expected,
+            names
+        );
+    }
 }
 
 #[test]
-fn test_tool_search_memory() {
-    let db = setup_db();
-    let req = make_request(
-        "tools/call",
-        serde_json::json!({
-            "name": "search_memory",
-            "arguments": { "query": "redis", "limit": 5 }
-        }),
-    );
-    let resp = handle_request_for_test(&req, &db);
-    assert!(resp.error.is_none());
-    let result = resp.result.unwrap();
-    let content = result["content"][0]["text"].as_str().unwrap();
-    let parsed: Vec<serde_json::Value> = serde_json::from_str(content).unwrap();
-    assert!(!parsed.is_empty());
+fn test_tools_list_schemas_have_required_fields() {
+    let req = make_request("tools/list", serde_json::json!({}));
+    let resp = handle_protocol_request_for_test(&req);
+    let tools = resp.result.unwrap()["tools"].as_array().unwrap().clone();
+
+    // search_memory: 必须有 inputSchema.required = ["query"]
+    let search = tools
+        .iter()
+        .find(|t| t["name"] == "search_memory")
+        .unwrap();
+    let req_arr = search["inputSchema"]["required"].as_array().unwrap();
     assert!(
-        parsed[0]["session_id"]
-            .as_str()
-            .unwrap()
-            .contains("sess-001")
+        req_arr.iter().any(|v| v == "query"),
+        "search_memory required must contain 'query'"
     );
-    assert_eq!(
-        parsed[0]["deep_link"].as_str().unwrap(),
-        "memex://session/sess-001"
-    );
+
+    // list_sessions_by_range: 必须有 inputSchema.required = ["after","before"]
+    let range = tools
+        .iter()
+        .find(|t| t["name"] == "list_sessions_by_range")
+        .unwrap();
+    let req_arr = range["inputSchema"]["required"].as_array().unwrap();
+    assert!(req_arr.iter().any(|v| v == "after"));
+    assert!(req_arr.iter().any(|v| v == "before"));
 }
 
 #[test]
-fn test_tool_get_session() {
-    let db = setup_db();
-    let req = make_request(
-        "tools/call",
-        serde_json::json!({
-            "name": "get_session",
-            "arguments": { "session_id": "sess-001" }
-        }),
-    );
-    let resp = handle_request_for_test(&req, &db);
+fn test_unknown_method_returns_method_not_found() {
+    let req = make_request("unknown/method", serde_json::json!({}));
+    let resp = handle_protocol_request_for_test(&req);
+    assert!(resp.error.is_some());
+    let err = resp.error.unwrap();
+    assert_eq!(err.code, -32601);
+    assert!(err.message.contains("unknown/method"));
+}
+
+#[test]
+fn test_notifications_initialized_returns_ack() {
+    let req = make_request("notifications/initialized", serde_json::json!({}));
+    let resp = handle_protocol_request_for_test(&req);
     assert!(resp.error.is_none());
-    let result = resp.result.unwrap();
-    let content = result["content"][0]["text"].as_str().unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
-    assert_eq!(parsed["id"], "sess-001");
-    assert_eq!(parsed["source"], "claude_code");
-    assert_eq!(parsed["deep_link"], "memex://session/sess-001");
+    // 协议要求 ack 一个空对象，调用方靠 id 区分 request/response。
+    assert!(resp.result.is_some());
 }
 
 #[test]
-fn test_tool_list_recent() {
-    let db = setup_db();
-    let req = make_request(
-        "tools/call",
-        serde_json::json!({
-            "name": "list_recent",
-            "arguments": { "limit": 10 }
-        }),
-    );
-    let resp = handle_request_for_test(&req, &db);
-    assert!(resp.error.is_none());
-    let result = resp.result.unwrap();
-    let content = result["content"][0]["text"].as_str().unwrap();
-    let parsed: Vec<serde_json::Value> = serde_json::from_str(content).unwrap();
-    assert!(!parsed.is_empty());
-    assert_eq!(parsed[0]["deep_link"], "memex://session/sess-001");
-}
-
-#[test]
-fn test_tool_stats() {
-    let db = setup_db();
+fn test_tools_call_is_routed_to_client_handler() {
+    // 协议层入口必须不直接处理 tools/call（必须依赖 client）。
+    // handle_protocol_request_for_test 会把 tools/call 转成 -32601 兜底响应。
     let req = make_request(
         "tools/call",
         serde_json::json!({
@@ -145,114 +118,7 @@ fn test_tool_stats() {
             "arguments": {}
         }),
     );
-    let resp = handle_request_for_test(&req, &db);
-    assert!(resp.error.is_none());
-    let result = resp.result.unwrap();
-    let content = result["content"][0]["text"].as_str().unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
-    assert_eq!(parsed["sessions"], 1);
-    assert_eq!(parsed["messages"], 1);
-    assert_eq!(parsed["chunks"], 1);
-}
-
-#[test]
-fn test_unknown_method() {
-    let db = setup_db();
-    let req = make_request("unknown/method", serde_json::json!({}));
-    let resp = handle_request_for_test(&req, &db);
+    let resp = handle_protocol_request_for_test(&req);
     assert!(resp.error.is_some());
     assert_eq!(resp.error.unwrap().code, -32601);
-}
-
-#[test]
-fn test_tool_get_project_context_with_explicit_project() {
-    let db = setup_db(); // 已经 seed 了 /proj 项目下一条 session
-    // 给 session 补一条 user 消息确保 message_count >= 2，再上一条 L2 摘要
-    let hash = blake3::hash(b"ack").to_hex().to_string();
-    db.insert_message("msg-002", "sess-001", "assistant", "ack", None, 1, &hash)
-        .unwrap();
-    db.upsert_summary(memex_core::storage::db::SummaryUpsert {
-        session_id: "sess-001",
-        level: "L2_session",
-        title: Some("Redis pipeline talk"),
-        summary: "Discussion of using redis pipeline for batching",
-        topics: &["redis".into()],
-        decisions: &["batch writes via pipeline".into()],
-        message_count_at_creation: 2,
-    })
-    .unwrap();
-
-    let req = make_request(
-        "tools/call",
-        serde_json::json!({
-            "name": "get_project_context",
-            "arguments": { "project": "/proj", "top": 3 }
-        }),
-    );
-    let resp = handle_request_for_test(&req, &db);
-    assert!(resp.error.is_none(), "tool error: {:?}", resp.error);
-    let result = resp.result.unwrap();
-    let content = result["content"][0]["text"].as_str().unwrap();
-    assert!(
-        content.contains("**Memex 工作记忆**"),
-        "missing banner:\n{}",
-        content
-    );
-    assert!(
-        content.contains("**proj**"),
-        "missing project name:\n{}",
-        content
-    );
-    assert!(
-        content.contains("Redis pipeline talk"),
-        "missing L2 title:\n{}",
-        content
-    );
-    assert!(
-        content.contains("batch writes via pipeline"),
-        "missing decision:\n{}",
-        content
-    );
-}
-
-#[test]
-fn test_tool_get_project_context_returns_banner_when_no_match() {
-    let db = Db::open_in_memory().unwrap();
-    let req = make_request(
-        "tools/call",
-        serde_json::json!({
-            "name": "get_project_context",
-            "arguments": { "cwd": "/nonexistent/path" }
-        }),
-    );
-    let resp = handle_request_for_test(&req, &db);
-    assert!(resp.error.is_none(), "MCP tool 不该报 error，应返回 banner");
-    let content = resp.result.unwrap()["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    assert!(content.contains("**Memex 工作记忆**"));
-    assert!(
-        content.contains("/nonexistent/path"),
-        "banner 应展示出用户传入的 cwd:\n{}",
-        content,
-    );
-}
-
-#[test]
-fn test_tools_list_includes_get_project_context() {
-    let db = setup_db();
-    let req = make_request("tools/list", serde_json::json!({}));
-    let resp = handle_request_for_test(&req, &db);
-    let names: Vec<String> = resp.result.unwrap()["tools"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|t| t["name"].as_str().unwrap().to_string())
-        .collect();
-    assert!(
-        names.contains(&"get_project_context".to_string()),
-        "工具列表应包含 get_project_context，实际：{:?}",
-        names
-    );
 }

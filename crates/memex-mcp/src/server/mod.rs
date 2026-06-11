@@ -14,4 +14,4 @@ mod transport;
 pub use transport::run_stdio;
 
 #[cfg(test)]
-pub use dispatch::handle_request_for_test;
+pub use dispatch::handle_protocol_request_for_test;

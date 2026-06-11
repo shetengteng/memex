@@ -9,6 +9,8 @@ license.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ureq = "3"
+libc = "0.2"
 memex-core = { path = "../memex-core", version = "0.3" }
 
 [dev-dependencies]

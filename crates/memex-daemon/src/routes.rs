@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
+use memex_core::context::{ContextOptions, build_context, search_by_project};
 use memex_core::ingest;
 use memex_core::retriever::{Retriever, SearchFilter};
 use memex_core::storage::db::Db;
@@ -285,6 +286,186 @@ pub async fn get_session_summary(
         Ok(None) => Json(serde_json::json!(null)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
     }
+}
+
+#[derive(Deserialize)]
+pub struct ContextParams {
+    /// 调用方 cwd。可选：当 caller 没法提供 cwd（例如 IDE 通过 MCP 触发）时
+    /// daemon 会回退到 `std::env::current_dir`，跟 CLI `memex context` 行为一致。
+    pub cwd: Option<String>,
+    /// 显式项目路径，优先级高于 `cwd`。
+    pub project: Option<String>,
+    /// 最近会话数；缺省 3。
+    pub top: Option<usize>,
+    /// 是否脱敏；缺省 true（MCP 路径默认脱敏，跟 daemon 内部 hook 路径一致）。
+    pub redact: Option<bool>,
+}
+
+/// GET /context —— 返回项目工作记忆的 TARS-style markdown。
+///
+/// 该端点被 memex-mcp 的 `get_project_context` 工具调用。CLI 的
+/// `memex context` 不走这条路径（hook 高频路径，daemon 关机时仍需可用）。
+pub async fn context(
+    State(db): State<AppState>,
+    Query(params): Query<ContextParams>,
+) -> impl IntoResponse {
+    let top = params.top.unwrap_or(3);
+    let redact = params.redact.unwrap_or(true);
+
+    let project_path = if let Some(p) = params.project {
+        p
+    } else {
+        let cwd = match params.cwd {
+            Some(s) => std::path::PathBuf::from(s),
+            None => match std::env::current_dir() {
+                Ok(c) => c,
+                Err(e) => {
+                    return (StatusCode::BAD_REQUEST, Json(err_msg(&e.to_string())))
+                        .into_response();
+                }
+            },
+        };
+        match search_by_project(&db, &cwd) {
+            Ok(Some(m)) => m.project_path,
+            Ok(None) => {
+                let banner = format!(
+                    "**Memex 工作记忆**\n\n当前目录 {} 暂无关联项目会话；新的 AI 会话会被自动采集。",
+                    cwd.display()
+                );
+                return Json(serde_json::json!({
+                    "project_path": serde_json::Value::Null,
+                    "markdown": banner,
+                }))
+                .into_response();
+            }
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+        }
+    };
+
+    let opts = ContextOptions { top_n: top, redact };
+    match build_context(&db, &project_path, &opts) {
+        Ok(md) => Json(serde_json::json!({
+            "project_path": project_path,
+            "markdown": md,
+        }))
+        .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SessionsRangeParams {
+    pub after: String,
+    pub before: String,
+    pub limit: Option<usize>,
+    pub project: Option<String>,
+}
+
+/// GET /sessions/range —— 给 MCP `list_sessions_by_range` 工具用。
+///
+/// 跟 CLI 的"by date range"查询同源，但 daemon 这里负责一次性把每条 session
+/// 关联的 L2 summary 内嵌进去，免得 mcp 端再多打 N 次 HTTP。
+pub async fn sessions_range(
+    State(db): State<AppState>,
+    Query(params): Query<SessionsRangeParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    let after = normalize_date_bound(&params.after, true);
+    let before = normalize_date_bound(&params.before, false);
+
+    let sessions = match db.list_sessions_in_range(&after, &before) {
+        Ok(v) => v,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    };
+
+    let mut enriched: Vec<serde_json::Value> = Vec::with_capacity(sessions.len());
+    for s in sessions.iter().take(limit * 2) {
+        if let Some(proj) = params.project.as_deref()
+            && s.project_path.as_deref() != Some(proj)
+        {
+            continue;
+        }
+        let summary = db.get_summary(&s.id, "L2_session").ok().flatten();
+        let mut obj = serde_json::json!({
+            "id": s.id,
+            "source": s.source,
+            "project_path": s.project_path,
+            "title": s.title,
+            "message_count": s.message_count,
+            "updated_at": s.updated_at,
+        });
+        if let Some(sum) = summary {
+            obj["l2_summary"] = serde_json::json!({
+                "title": sum.title,
+                "summary": sum.summary,
+                "topics": sum.topics,
+                "decisions": sum.decisions,
+            });
+        }
+        enriched.push(obj);
+        if enriched.len() >= limit {
+            break;
+        }
+    }
+
+    Json(serde_json::json!({
+        "range": { "after": after, "before": before },
+        "total": enriched.len(),
+        "sessions": enriched,
+    }))
+    .into_response()
+}
+
+fn normalize_date_bound(raw: &str, is_start: bool) -> String {
+    if raw.contains('T') {
+        return raw.to_string();
+    }
+    if is_start {
+        format!("{}T00:00:00+00:00", raw)
+    } else {
+        format!("{}T23:59:59+00:00", raw)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct McpLogBody {
+    pub tool: String,
+    pub latency_ms: u64,
+    pub success: bool,
+    pub error: Option<String>,
+    pub args: Option<String>,
+    pub result: Option<String>,
+}
+
+/// POST /mcp/log —— 记录 mcp_call_log 一行 + 自增 mcp_calls metric。
+///
+/// memex-mcp 在每次工具调用完成后调一次这个端点，把 latency / args / result
+/// 异步沉淀到 db。daemon 失败时静默忽略：mcp 调用本身的语义不应受 telemetry
+/// 影响。
+pub async fn mcp_log(
+    State(db): State<AppState>,
+    Json(body): Json<McpLogBody>,
+) -> impl IntoResponse {
+    use memex_core::storage::mcp_call_log::truncate_payload;
+
+    let args = body.args.map(truncate_payload);
+    let result = body.result.map(truncate_payload);
+
+    let _ = db.increment_metric(memex_core::storage::metrics::METRIC_MCP_CALLS);
+    let _ = db.insert_mcp_call(
+        &body.tool,
+        body.latency_ms,
+        body.success,
+        body.error.as_deref(),
+        args.as_deref(),
+        result.as_deref(),
+    );
+
+    Json(serde_json::json!({ "ok": true }))
+}
+
+fn err_msg(msg: &str) -> serde_json::Value {
+    serde_json::json!({ "error": msg })
 }
 
 #[derive(Deserialize, Default)]
