@@ -21,6 +21,8 @@ memex ingest
 | `get_session` | Get full session by ID/prefix | `session_id` (string) |
 | `list_recent` | List recent sessions | — |
 | `stats` | Show index statistics | — |
+| `get_project_context` | TARS-style work-memory summary for current project | — (auto cwd) |
+| `list_sessions_by_range` | List sessions within ISO date range with L2 summaries | `after`, `before` |
 
 ### search_memory
 
@@ -49,6 +51,22 @@ Returns recent sessions with ID, adapter, project, timestamp, and message count.
 ### stats
 
 Returns total sessions, messages, and chunks in the index.
+
+### get_project_context
+
+```json
+{ "cwd": "/path/to/repo", "top": 3 }
+```
+
+Returns a TARS-style markdown summary: project overview, recent sessions list, and likely next steps. `cwd` defaults to the MCP client's working directory; pass `project` to bypass cwd matching.
+
+### list_sessions_by_range
+
+```json
+{ "after": "2026-06-01", "before": "2026-06-07", "limit": 100, "project": "my-app" }
+```
+
+Returns sessions within an ISO date range with their L2 summaries — useful for AI-generated daily/weekly reports.
 
 ## CLI Commands
 

@@ -78,7 +78,7 @@ export interface PrettyPayload {
 
 /**
  * Result payload 的常见形态是 `{"text": "...实际返回..."}` 或 `{"error": "..."}`，
- * 这两种 wrapper 由 `crates/memex-mcp/src/server/tools.rs::handle_tool_call` 注入。
+ * 这两种 wrapper 由 `crates/memex-cli/src/commands/mcp/server/tools.rs::handle_tool_call` 注入。
  * 详情对话框对人类阅读体验要求高，wrapper 一层等同噪音，因此识别后**直接拆掉一层**，
  * 把内层 text/error 字符串作为主体；如果内层又是合法 JSON 再二次缩进。
  */

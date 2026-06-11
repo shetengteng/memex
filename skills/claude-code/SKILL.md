@@ -34,7 +34,7 @@ memex ingest                # 拉一遍历史
 }
 ```
 
-注入后**重启 Claude Code**，工具以 `mcp__memex__*` 命名空间出现在工具列表。
+注入后**重启 Claude Code**，工具以 `mcp__memex__*` 命名空间出现在工具列表（当前 6 个工具）。
 
 ## 工具调用样例（Claude Code 内）
 
@@ -47,6 +47,8 @@ Claude Code 的 MCP 工具调用统一前缀为 `mcp__memex__`：
 | "把 abc12 这个 session 的全文拿给我" | `mcp__memex__get_session` | `session_id="abc12"` |
 | "最近 10 个 Claude Code session" | `mcp__memex__list_recent` | `limit=10` |
 | "我索引了多少东西？" | `mcp__memex__stats` | — |
+| "把这个 repo 的项目工作记忆拉出来" | `mcp__memex__get_project_context` | —（自动 cwd），可加 `top=5` |
+| "把 6 月 1-7 号所有会话列出来" | `mcp__memex__list_sessions_by_range` | `after="2026-06-01"`, `before="2026-06-07"` |
 
 ### search_memory 推荐用法
 

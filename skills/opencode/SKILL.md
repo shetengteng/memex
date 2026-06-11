@@ -53,6 +53,8 @@ memex ingest               # 拉一遍历史
 | "拉个 9a8b session 给我看" | `get_session` | `session_id="9a8b"` |
 | "最近 10 个会话" | `list_recent` | `limit=10` |
 | "看一下索引规模" | `stats` | — |
+| "把当前 repo 的工作记忆带进来" | `get_project_context` | —（自动 cwd），可加 `top=5` |
+| "把上周（6 月 1-7 号）所有 session 列出来" | `list_sessions_by_range` | `after="2026-06-01"`, `before="2026-06-07"` |
 
 ### search_memory 推荐用法
 

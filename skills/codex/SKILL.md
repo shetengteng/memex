@@ -36,7 +36,7 @@ args = ["mcp"]
 enabled = true
 ```
 
-注入后**重启 Codex CLI**（`codex` 二进制），运行 `/mcp` 应该能看到 `memex` 服务器及它暴露的 4 个工具。
+注入后**重启 Codex CLI**（`codex` 二进制），运行 `/mcp` 应该能看到 `memex` 服务器及它暴露的 6 个工具（search_memory / get_session / list_recent / stats / get_project_context / list_sessions_by_range）。
 
 ## 工具调用样例（Codex 内）
 
@@ -47,6 +47,8 @@ enabled = true
 | "拉一下 9a8b 那个 session" | `get_session` | `session_id="9a8b"` |
 | "最近 5 个会话" | `list_recent` | `limit=5` |
 | "memex 现在索引了多少" | `stats` | — |
+| "看下当前 repo 之前讨论到哪了" | `get_project_context` | —（自动 cwd），可加 `top=5` |
+| "拉一下 6 月 1-7 号所有 session" | `list_sessions_by_range` | `after="2026-06-01"`, `before="2026-06-07"` |
 
 ### search_memory 推荐用法
 

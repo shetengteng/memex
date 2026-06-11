@@ -303,7 +303,7 @@ pub struct ContextParams {
 
 /// GET /context —— 返回项目工作记忆的 TARS-style markdown。
 ///
-/// 该端点被 memex-mcp 的 `get_project_context` 工具调用。CLI 的
+/// 该端点被 memex-cli mcp 子模块的 `get_project_context` 工具调用。CLI 的
 /// `memex context` 不走这条路径（hook 高频路径，daemon 关机时仍需可用）。
 pub async fn context(
     State(db): State<AppState>,
@@ -439,9 +439,9 @@ pub struct McpLogBody {
 
 /// POST /mcp/log —— 记录 mcp_call_log 一行 + 自增 mcp_calls metric。
 ///
-/// memex-mcp 在每次工具调用完成后调一次这个端点，把 latency / args / result
-/// 异步沉淀到 db。daemon 失败时静默忽略：mcp 调用本身的语义不应受 telemetry
-/// 影响。
+/// memex-cli mcp 子模块在每次工具调用完成后调一次这个端点，把 latency / args /
+/// result 异步沉淀到 db。daemon 失败时静默忽略：mcp 调用本身的语义不应受
+/// telemetry 影响。
 pub async fn mcp_log(
     State(db): State<AppState>,
     Json(body): Json<McpLogBody>,

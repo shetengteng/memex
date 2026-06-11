@@ -1,6 +1,6 @@
 //! MCP 工具调用活动的查询 IPC，给 Connect 页「MCP 工具与活动」卡片用。
 //!
-//! 数据源：`mcp_call_log` 表（由 [`memex_mcp::server::tools::handle_tool_call`]
+//! 数据源：`mcp_call_log` 表（由 memex-cli `commands::mcp::server::tools::handle_tool_call`
 //! 写入）。前端 3s 轮询：先拉 [`mcp_call_stats_24h`] 拿顶部指标，再拉
 //! [`mcp_recent_calls`] 拿事件流；diff 出新事件用于"准实时"渲染。
 //!

@@ -43,8 +43,8 @@ pub fn remove_lock(memex_dir: &Path) {
 
 /// 读 lock 文件并反序列化。返回 `None` 表示文件不存在或损坏。
 ///
-/// 当前的非测试代码不需要读 lock —— memex-cli / memex-mcp 各自实现的 client
-/// 都自带 lock 读取逻辑。本函数主要给同模块下的集成测试用，所以打了
+/// 当前的非测试代码不需要读 lock —— memex-cli 顶层 client 和 mcp 子模块的
+/// client 都自带 lock 读取逻辑。本函数主要给同模块下的集成测试用，所以打了
 /// `cfg(test)` 避免 dead_code 警告。如果未来 main daemon 也需要读 lock（比如
 /// healthcheck 命令），可以摘掉这个 cfg。
 #[cfg(test)]

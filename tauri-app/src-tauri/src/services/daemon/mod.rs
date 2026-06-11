@@ -10,7 +10,7 @@
 //!   * [`routes`]   —— HTTP 端点实现（search / sessions / stats / context / ingest / mcp/log 等）
 //!   * [`watcher`]  —— notify-based 文件监听（IDE 写新 jsonl 时触发增量 ingest）
 //!   * [`web`]      —— 内嵌静态资源（前端 popup HTML/JS/CSS）
-//!   * [`lockfile`] —— `~/.memex/daemon.lock` 读写，给 memex-cli / memex-mcp 探活
+//!   * [`lockfile`] —— `~/.memex/daemon.lock` 读写，给 memex-cli（含 mcp 子模块）探活
 //!   * [`handle`]   —— `DaemonHandle` / `DaemonState` —— Tauri State 持有的运行时句柄
 
 mod handle;

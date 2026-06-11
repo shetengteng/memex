@@ -45,6 +45,8 @@ memex ingest                # 拉一遍历史
 | "把会话 abc12 的完整内容给我" | `get_session` | `session_id="abc12"` |
 | "最近 5 个会话" | `list_recent` | `limit=5` |
 | "memex 索引规模" | `stats` | — |
+| "把当前 repo 之前的进度拉出来" | `get_project_context` | —（自动取 cwd），可加 `top=5` |
+| "看一下 6 月 1-7 号都在做什么" | `list_sessions_by_range` | `after="2026-06-01"`, `before="2026-06-07"` |
 
 ### search_memory 推荐用法
 

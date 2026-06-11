@@ -7,7 +7,7 @@
 //!
 //! 关键差异 vs 早期 standalone binary 模式：
 //! * **lock 文件**：仍写 `~/.memex/daemon.lock`，但 `pid` 字段是**主进程 PID**，
-//!   `memex-cli`、`memex-mcp` 通过这把 lock 找到 daemon HTTP 端口。
+//!   memex-cli 顶层 client + mcp 子模块 client 通过这把 lock 找到 daemon HTTP 端口。
 //! * **signal handler**：不装。`shutdown` 由 Tauri 的 `ExitRequested` 调
 //!   [`DaemonState::shutdown_blocking`] 触发。
 //! * **db handle**：daemon 自己 open。Phase 7 可以再下沉到 Tauri State，跟前端
@@ -146,8 +146,8 @@ pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
     let db_path = memex_dir.join("memex.db");
     let db = Arc::new(Db::open(&db_path).context("Db::open failed")?);
 
-    // 写 lock：pid=主进程 PID。这样 memex-cli / memex-mcp 通过
-    // read_lock + is_process_alive 仍能正常发现 daemon。
+    // 写 lock：pid=主进程 PID。这样 memex-cli（顶层 client + mcp 子模块 client）
+    // 通过 read_lock + is_process_alive 仍能正常发现 daemon。
     super::lockfile::write_lock(&memex_dir, port).context("write daemon.lock failed")?;
     let started_at = chrono::Utc::now().to_rfc3339();
     let pid = std::process::id();
