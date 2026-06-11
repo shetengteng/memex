@@ -60,17 +60,12 @@ echo "   ✓ 版本一致: v$PKG_VER"
 echo
 
 echo "==> 2. 停止运行中的 memex 进程"
-# binary 名 v0.3.5 起改为 `Memex`（之前是 `memex-menubar`），都要 cover。
 # 用 `-x` 精确匹配 progname，避免误杀 Cursor / VSCode 等 cmdline 里出现
 # "Memex" 字串的进程。
 pkill -9 -x Memex 2>/dev/null || true
-pkill -9 -x memex-menubar 2>/dev/null || true
-pkill -9 -x memex-daemon 2>/dev/null || true
 sleep 1
 REMAINING=$(pgrep -x Memex 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
-LEGACY=$(pgrep -x memex-menubar 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
-DAEMON_REMAINING=$(pgrep -x memex-daemon 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
-echo "   menubar 进程: $REMAINING (legacy: $LEGACY) | daemon 进程: $DAEMON_REMAINING"
+echo "   Memex 进程: $REMAINING"
 echo
 
 echo "==> 3. 备份用户数据（~/.memex/）"
@@ -132,12 +127,10 @@ open "$APP_PATH"
 sleep 2
 
 NEW_PID=$(pgrep -x Memex 2>/dev/null | head -1 || true)
-DAEMON_PID=$(pgrep -x memex-daemon 2>/dev/null | head -1 || true)
 
 echo "==> 8. 完成"
-echo "   menubar PID: ${NEW_PID:-N/A}"
-echo "   daemon  PID: ${DAEMON_PID:-N/A}"
-echo "   版本:        v$BUNDLE_VER"
-echo "   数据目录:    $MEMEX_DIR (保留)"
+echo "   Memex PID:  ${NEW_PID:-N/A}"
+echo "   版本:       v$BUNDLE_VER"
+echo "   数据目录:   $MEMEX_DIR (保留)"
 echo ""
 echo "在屏幕右上角菜单栏点击 Memex (M) 图标验证 popup 是否正常弹出。"

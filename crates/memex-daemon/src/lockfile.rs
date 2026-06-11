@@ -1,3 +1,13 @@
+//! `~/.memex/daemon.lock` 的读 / 写 / 删。
+//!
+//! Phase 4 起 daemon 跑在 Tauri 主进程内，lockfile 的 `pid` 字段写的是
+//! 主进程 PID。lock 文件存在仅为给 **外部进程**（memex-cli）做 RPC discovery。
+//! 单进程内同步 / 防双开已经不需要靠文件锁 —— [`crate::run_in_process`] 一直只
+//! 起一份。
+//!
+//! 因此本模块只暴露 3 个原语：[`write_lock`] / [`remove_lock`] / [`read_lock`]，
+//! 旧版本 standalone binary 用的 `is_daemon_running` 已删除。
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,20 +45,6 @@ pub fn read_lock(memex_dir: &Path) -> Option<LockInfo> {
     let path = lock_path(memex_dir);
     let content = fs::read_to_string(path).ok()?;
     serde_json::from_str(&content).ok()
-}
-
-pub fn is_daemon_running(memex_dir: &Path) -> Option<LockInfo> {
-    let info = read_lock(memex_dir)?;
-    if is_process_alive(info.pid) {
-        Some(info)
-    } else {
-        remove_lock(memex_dir);
-        None
-    }
-}
-
-fn is_process_alive(pid: u32) -> bool {
-    unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
 #[cfg(test)]

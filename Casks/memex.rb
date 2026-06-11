@@ -33,8 +33,9 @@ cask "memex" do
 
   # bundle 内 CLI 二进制叫 `memex-cli`（避免与主 GUI binary `Memex` 在 APFS
   # 大小写不敏感文件系统上撞名）；通过 `target: "memex"` 把命令仍然暴露成 `memex`。
+  # Phase 4 起 `memex-daemon` 不再有独立 binary —— daemon 折叠成 Tauri 主进程
+  # 内的 in-process task，所以 cask 里不再 `binary` 那个文件。
   binary "#{appdir}/Memex.app/Contents/MacOS/memex-cli", target: "memex"
-  binary "#{appdir}/Memex.app/Contents/MacOS/memex-daemon"
 
   # 移除 macOS quarantine 属性，避免用户首次启动被 Gatekeeper 拦截
   # 由于使用 ad-hoc 签名（无 Apple Developer Program），必须显式 xattr -cr

@@ -13,7 +13,7 @@ use std::process::Command;
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
-use super::daemon::{daemon_restart_inner, stop_daemon_blocking};
+use super::daemon::daemon_restart_inner;
 use super::error::{CmdError, CmdResult};
 use crate::services::daemon::DaemonState;
 
@@ -43,11 +43,17 @@ pub struct BackupResult {
     pub size_bytes: u64,
 }
 
+/// 找到 memex CLI binary。优先 `<bundle>/Contents/MacOS/memex-cli`（与主进程
+/// 同目录的 sidecar），否则退到 PATH 上的 `memex`（用户通过 brew cask 装时，
+/// `target: "memex"` 把命令名重新暴露成 `memex`）。
+///
+/// 注意 binary 名是 `memex-cli`：bundle 里 GUI 主 binary 叫 `Memex`，CLI 不能
+/// 用同名（APFS 大小写不敏感会撞）。
 fn locate_memex_cli() -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
     {
-        let p = parent.join("memex");
+        let p = parent.join("memex-cli");
         if p.exists() {
             return Some(p);
         }
@@ -92,11 +98,11 @@ pub async fn export_db(target_path: String) -> CmdResult<BackupResult> {
 
 /// 把 `memex backup` 写成的 `.tar.gz` 恢复回 `~/.memex/`。
 ///
-/// 关键顺序：必须先停 daemon —— SQLite WAL 把 memex.db 锁着的时候，
-/// 解包覆盖文件可能拿到不一致的快照或者直接 fail，所以前置 stop_daemon_blocking。
-/// CLI 自己什么都不知道，只管解包；这边补上 daemon 边界。
+/// 关键顺序：必须先 `state.shutdown()` 释放 SQLite WAL 锁 —— daemon 还
+/// hold 着 db handle 时，CLI 解包覆盖文件可能拿到不一致的快照或者直接
+/// fail。解包完成后再 `daemon_restart_inner` 重新拉起，否则后台采集 / HTTP
+/// 健康会一直挂着。CLI 自己什么都不知道，只管解包；这边补上 daemon 边界。
 ///
-/// 解包完成后调 `daemon_restart`，否则后台采集 / HTTP 健康都会一直挂着。
 /// 把 `import_db` 入参的路径校验提成独立纯函数，方便单测：
 /// 不需要构造 `tauri::State<DaemonState>` 就能覆盖所有 reject 分支。
 /// 校验通过返回归一化的 `PathBuf`，否则带 `CmdError::Backend / NotFound`。
@@ -126,7 +132,14 @@ pub async fn import_db(
     source_path: String,
 ) -> CmdResult<ImportResult> {
     let source = validate_import_source(&source_path)?;
+
+    // 必须在 restore 之前 shutdown daemon：SQLite WAL 把 memex.db 锁着的时候，
+    // CLI 解包覆盖文件可能拿到不一致的快照或者直接 fail。shutdown 内部会触发
+    // oneshot + await task join + 清 lock，等返回时 db handle 已完全释放。
+    state.shutdown().await;
+
     let restore = run_restore_cli(&source)?;
+
     // 数据替换后立刻拉起 daemon，避免 UI 那边接下来的查询都打到一个空的 db state。
     let _ = daemon_restart_inner(&state).await;
     Ok(ImportResult {
@@ -174,13 +187,14 @@ struct RestoreCliOutput {
 }
 
 /// CLI `memex restore <input>` 的 JSON 输出契约，与 `commands::restore::RestoreResult`
-/// 对齐。调用前先停 daemon 防 SQLite WAL 锁竞争。
+/// 对齐。
+///
+/// **前置条件**：caller 必须已经 shutdown daemon（释放 SQLite WAL 锁），
+/// 否则 restore 解包可能跟 daemon 写 db 撞。
 fn run_restore_cli(source_path: &Path) -> CmdResult<RestoreCliOutput> {
     let bin = locate_memex_cli().ok_or_else(|| {
         CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
     })?;
-    // 同步停 daemon，等 SIGTERM/KILL 走完才解包，避免覆盖到一半 daemon 还在写。
-    stop_daemon_blocking();
     let source_str = source_path.to_string_lossy().to_string();
     let output = Command::new(&bin)
         .args(["--json", "restore", &source_str])

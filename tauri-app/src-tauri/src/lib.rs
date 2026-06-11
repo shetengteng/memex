@@ -188,17 +188,14 @@ pub fn run() {
                 tracing::error!("failed to install tray icon: {e:?}");
             }
 
-            // Phase 2：in-process daemon。Tauri 主进程负责生命周期管理：
-            // 1. 启动前先 kill 掉历史独立 daemon 进程（Phase 4 前可能仍存在）
-            //    stop_daemon_blocking 已有 self-pid 守卫，安全。
-            // 2. 早早 manage 一个空的 DaemonState（让 daemon_status / daemon_restart
+            // In-process daemon。Tauri 主进程负责整套生命周期：
+            // 1. 早早 manage 一个空的 DaemonState（让 daemon_status / daemon_restart
             //    IPC 即便 spawn 还没完成也能返回有意义的 snapshot=None）
-            // 3. 异步 spawn_in_process → state.install(handle)
-            // 4. ExitRequested 钩子调 state.shutdown_blocking()
+            // 2. 异步 spawn_in_process → state.install(handle)
+            // 3. ExitRequested 钩子调 state.shutdown_blocking() 收尾
             //
-            // 已知边界：lock 文件里的 pid 现在就是主进程 PID。memex-cli 通过
-            // is_process_alive(pid) 判活仍然 work（pid 活的就代表 daemon 活的）。
-            commands::daemon::stop_daemon_blocking();
+            // lock 文件 pid = 主进程 PID。memex-cli 通过 is_process_alive(pid)
+            // 判活仍然 work（pid 活的就代表 daemon 活的）。
             app.manage(services::daemon::DaemonState::new());
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -301,16 +298,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("INVARIANT: tauri Builder::build() failed — app is unstartable")
         .run(|app_handle, event| match event {
-            // Phase 2：in-process daemon 的 graceful shutdown。
-            // - 优先用 DaemonHandle::shutdown_blocking（trigger oneshot + await join + remove lock）
-            // - State 不存在（极少见，daemon 启动失败时）→ 旧的 stop_daemon_blocking 兜底
-            //   这条兜底也覆盖 Phase 4 之前可能残留的独立 daemon 进程。
+            // In-process daemon 的 graceful shutdown。
+            // DaemonState::shutdown_blocking 内部：trigger oneshot + await task join + remove lock。
+            // 启动失败 / 还没 install 完 handle 时 state 为空容器，shutdown() 是 no-op，
+            // 不需要额外兜底分支。
             tauri::RunEvent::ExitRequested { .. } => {
                 tracing::info!("exit requested: stopping daemon");
                 if let Some(state) = app_handle.try_state::<services::daemon::DaemonState>() {
                     state.shutdown_blocking();
-                } else {
-                    commands::daemon::stop_daemon_blocking();
                 }
             }
             // macOS：用户点 Dock 图标 / `open -a Memex` 二次启动 → 系统派发

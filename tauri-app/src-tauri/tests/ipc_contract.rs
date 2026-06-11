@@ -6,7 +6,7 @@
 
 use memex_core::storage::db::SessionListFilter;
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
-use memex_menubar_lib::commands::daemon::{DaemonStatus, LockInfo};
+use memex_menubar_lib::commands::daemon::DaemonStatus;
 use memex_menubar_lib::commands::sessions::SummaryProgress;
 use memex_menubar_lib::commands::stats::Stats;
 
@@ -251,17 +251,6 @@ fn session_list_filter_rejects_unknown_field() {
     );
 }
 
-#[test]
-fn lock_info_roundtrip() {
-    // LockInfo 既要 Serialize 也要 Deserialize（从 daemon.lock 文件读回来）
-    let original = LockInfo {
-        pid: 9999,
-        port: 45291,
-        started_at: "2026-06-07T03:00:00+00:00".into(),
-    };
-    let s = serde_json::to_string(&original).unwrap();
-    let back: LockInfo = serde_json::from_str(&s).unwrap();
-    assert_eq!(back.pid, 9999);
-    assert_eq!(back.port, 45291);
-    assert_eq!(back.started_at, "2026-06-07T03:00:00+00:00");
-}
+// Phase 4：原 `lock_info_roundtrip` 测试已删 —— `LockInfo` 类型不再暴露给
+// menubar crate（lock 文件由 `memex_daemon::lockfile` 写、`memex-cli` 通过
+// `daemon_client` 读，两边各自有 round-trip 测试）。

@@ -12,7 +12,7 @@ use serde_json::Value;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-use crate::lockfile::{is_daemon_running, read_lock, remove_lock, write_lock};
+use crate::lockfile::{read_lock, remove_lock, write_lock};
 
 fn empty_db_router() -> axum::Router {
     let db = Arc::new(Db::open_in_memory().unwrap());
@@ -190,19 +190,6 @@ fn test_lockfile_roundtrip() {
     assert!(info.pid > 0);
     remove_lock(tmp.path());
     assert!(read_lock(tmp.path()).is_none());
-}
-
-#[test]
-fn test_is_daemon_running_clears_dead_lock() {
-    let tmp = TempDir::new().unwrap();
-    let fake_path = crate::lockfile::lock_path(tmp.path());
-    let stale = serde_json::json!({
-        "pid": 1,
-        "port": 9999,
-        "started_at": "2026-01-01T00:00:00Z",
-    });
-    std::fs::write(&fake_path, stale.to_string()).unwrap();
-    let _ = is_daemon_running(tmp.path());
 }
 
 /// Phase 1 新增：验证 `run_in_process` 的核心契约 —— 启动后持续运行直到 caller

@@ -72,7 +72,6 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/memex-daemon",
       "binaries/memex-cli"
     ],
     "macOS": {

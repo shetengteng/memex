@@ -136,8 +136,9 @@ impl Default for DaemonState {
 /// * `memex.db` open 失败（schema migration 报错 / 文件损坏）
 /// * lock 写入失败（极小概率，磁盘只读）
 ///
-/// 注意：本函数不检查"是否已有 daemon 在跑"。调用方应在 Tauri 启动早期主动调
-/// `stop_daemon_blocking()`（含 self-pid 守卫）清掉历史独立 daemon 的 lock。
+/// 注意：本函数不检查"是否已有 daemon 在跑"。in-process 模式下整个 app 只起
+/// 一份 daemon（由 Tauri setup 钩子调一次），不需要外部去重；`write_lock` 直接
+/// 覆盖旧 lock 文件。
 pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
     let memex_dir = memex_core::memex_dir();
     ensure_memex_dir(&memex_dir).context("ensure_memex_dir failed")?;

@@ -39,11 +39,8 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 # Step 1：终止可能运行中的旧版进程
-# 新版 CFBundleExecutable = Memex（旧版 = memex-menubar），都要 cover
 log_info "终止旧进程（如果有）"
 pkill -9 -x Memex 2>/dev/null || true
-pkill -9 -x memex-menubar 2>/dev/null || true
-pkill -9 -x memex-daemon 2>/dev/null || true
 rm -f "$HOME/.memex/daemon.lock" 2>/dev/null || true
 sleep 1
 

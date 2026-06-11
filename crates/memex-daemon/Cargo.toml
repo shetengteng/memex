@@ -5,9 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "memex-daemon"
-path = "src/main.rs"
+# Phase 4 起 daemon 不再有独立 binary：被 Tauri 主进程通过
+# `memex_daemon::run_in_process(...)` 折叠成 in-process tokio task。
+# 旧的 `src/main.rs` 已删；`[[bin]]` 段一并去掉。
+# crate 仍以 lib 形态存在（`tauri-app/src-tauri` 通过 path 依赖），Phase 6 才会
+# 物理解散并把源码挪进 `tauri-app/src-tauri/src/services/daemon/`。
 
 [dependencies]
 memex-core = { path = "../memex-core", version = "0.3" }
@@ -18,13 +20,10 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
-tracing-appender = "0.2"
 chrono.workspace = true
 blake3.workspace = true
 dirs = "6"
 tower-http = { version = "0.6", features = ["cors", "fs"] }
-libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
