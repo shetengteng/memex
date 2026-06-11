@@ -10,6 +10,7 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 mod cli;
+mod client;
 mod commands;
 mod dispatch;
 #[macro_use]

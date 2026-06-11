@@ -2,7 +2,6 @@ pub mod backup;
 pub mod config;
 pub mod context;
 pub mod daemon;
-pub mod daemon_client;
 pub mod doctor;
 pub mod hooks;
 pub mod ingest;
