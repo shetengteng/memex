@@ -163,15 +163,8 @@ pub fn run() {
         .setup(|app| {
             app.manage(DeepLinkState::default());
 
-            // macOS NSStatusItem 在 Accessory（菜单栏模式）下分配位置最稳定。
-            // 之前 setup 入口无脑设 Regular，再立刻 show 主窗口 + 装 tray，会让
-            // macOS 26 (Tahoe) 把 status item 的 y 坐标错算成 -1（屏幕外，肉眼
-            // 看不到，但 AX 能拿到位置）。这里先装 tray 拿到稳定的状态栏位置，
-            // 再切到 Regular 显示主窗口，靠 update_activation_policy 维持
-            // "有非托盘窗口 → Regular / 全隐藏 → Accessory" 的真实状态。
-            if let Err(e) = tray::install(app.handle()) {
-                tracing::error!("failed to install tray icon: {e:?}");
-            }
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
             let handle_for_close = app.handle().clone();
             if let Some(main) = app.get_webview_window("main") {
@@ -190,8 +183,9 @@ pub fn run() {
                 });
             }
 
-            #[cfg(target_os = "macos")]
-            update_activation_policy(app.handle());
+            if let Err(e) = tray::install(app.handle()) {
+                tracing::error!("failed to install tray icon: {e:?}");
+            }
 
             // setup 阶段：daemon 探活 → 缺失则用现有命令拉起。无 monitor loop / shutdown hook。
             tauri::async_runtime::spawn(async {
