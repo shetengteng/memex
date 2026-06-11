@@ -17,7 +17,9 @@ pub mod web;
 #[cfg(test)]
 mod tests;
 
+use std::future::Future;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -33,6 +35,8 @@ use memex_core::storage::db::Db;
 
 pub const DEFAULT_PORT: u16 = 9999;
 
+/// Standalone binary 入口：负责整套生命周期 —— 文件日志、lockfile、SIGTERM/Ctrl-C
+/// 处理，最终把工作下放给 [`run_in_process`]。仅 `memex-daemon` binary main.rs 调用。
 pub async fn run(port: u16) -> Result<()> {
     let memex_dir = memex_core::memex_dir();
     ensure_memex_dir(&memex_dir)?;
@@ -58,6 +62,35 @@ pub async fn run(port: u16) -> Result<()> {
         port
     );
 
+    let lock_dir = memex_dir.clone();
+    let result = run_in_process(memex_dir, db, port, shutdown_signal()).await;
+
+    // 即便 run_in_process 报错也清 lock，避免下次启动卡在 "already running"。
+    lockfile::remove_lock(&lock_dir);
+    info!("daemon stopped");
+    result
+}
+
+/// In-process 入口：caller 已 open db、已设置 logger、已 ensure memex_dir。
+///
+/// 跟 [`run`] 的差异：
+/// * 不写 / 不读 `daemon.lock`（同一进程内只会有一个实例，不需要文件锁去重）
+/// * 不安装 SIGTERM/Ctrl-C handler —— 让 caller 通过 `shutdown` future 决定
+///   生命周期，避免 daemon 跟 Tauri 主进程抢同一个 signal stream
+/// * 不重置 tracing subscriber —— caller 已经有 logger 配置
+///
+/// 这条路径是后续合并到 Tauri 主进程的"标准接入点"：Tauri 启动时
+/// `tauri::async_runtime::spawn(memex_daemon::run_in_process(...))`，
+/// 退出时把 caller 持有的 shutdown trigger 取消即可。
+pub async fn run_in_process<F>(
+    memex_dir: PathBuf,
+    db: Arc<Db>,
+    port: u16,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let watcher_db = Arc::clone(&db);
     let watcher_dir = memex_dir.clone();
     watcher::start_watcher(watcher_db, watcher_dir).await?;
@@ -84,15 +117,13 @@ pub async fn run(port: u16) -> Result<()> {
     let app = build_router(Arc::clone(&db));
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
-    info!("HTTP server listening on http://{}", addr);
+    info!("daemon HTTP server listening on http://{}", addr);
 
-    let lock_dir = memex_dir.clone();
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown)
         .await?;
 
-    lockfile::remove_lock(&lock_dir);
-    info!("daemon stopped");
+    info!("daemon HTTP server stopped");
     Ok(())
 }
 

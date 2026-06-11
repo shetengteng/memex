@@ -204,3 +204,48 @@ fn test_is_daemon_running_clears_dead_lock() {
     std::fs::write(&fake_path, stale.to_string()).unwrap();
     let _ = is_daemon_running(tmp.path());
 }
+
+/// Phase 1 新增：验证 `run_in_process` 的核心契约 —— 启动后持续运行直到 caller
+/// 通过 `shutdown` future 触发退出，且不会自己写 lockfile（同进程内只跑一份）。
+///
+/// 这是把 daemon 嵌进 Tauri 主进程的基础：caller 必须能完全控制生命周期。
+/// 用 port=0 让 OS 动态分配端口，避免和真实 daemon (9999) 冲突。
+#[tokio::test]
+async fn test_run_in_process_obeys_external_shutdown() {
+    let tmp = TempDir::new().unwrap();
+    let memex_dir = tmp.path().to_path_buf();
+    let db = Arc::new(Db::open_in_memory().unwrap());
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let shutdown = async move {
+        let _ = shutdown_rx.await;
+    };
+
+    let server = tokio::spawn(crate::run_in_process(memex_dir, db, 0, shutdown));
+
+    // 给 axum / watcher / spawn_blocking 启动时间。100ms 在 macOS CI 下足够。
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(
+        !server.is_finished(),
+        "run_in_process must keep running until shutdown trigger",
+    );
+
+    // run_in_process 必须**不**写 lockfile —— in-process 模式同进程内只有一个
+    // 实例，文件锁没有意义；之所以现在能保留是因为 binary `run()` 才会写。
+    assert!(
+        !tmp.path().join("daemon.lock").exists(),
+        "run_in_process must not write daemon.lock",
+    );
+
+    let _ = shutdown_tx.send(());
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(3), server)
+        .await
+        .expect("server should shut down within 3s after trigger")
+        .expect("server task panicked");
+    assert!(
+        result.is_ok(),
+        "run_in_process should return Ok on graceful shutdown, got {:?}",
+        result.err(),
+    );
+}
