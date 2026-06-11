@@ -56,6 +56,91 @@ async fn test_stats_zero_for_empty_db() {
     assert_eq!(json["sessions"], 0);
     assert_eq!(json["messages"], 0);
     assert_eq!(json["chunks"], 0);
+    assert_eq!(json["sources"], 0);
+    // Phase 5b-2: today / last_7_days 永远是对象（空 db 时是空对象），CLI
+    // 端解析时不允许它们是 null。
+    assert!(json["today"].is_object(), "today must be object");
+    assert!(
+        json["last_7_days"].is_object(),
+        "last_7_days must be object"
+    );
+    assert!(json["today"].as_object().unwrap().is_empty());
+    assert!(json["last_7_days"].as_object().unwrap().is_empty());
+}
+
+/// POST /ingest 在空 ~/.memex 目录下应当跑成功（0 messages 0 chunks），不能 5xx。
+/// 由于 ingest 内部读 `memex_core::memex_dir()`，单测必须把 HOME 重定向到 tempdir
+/// 才能避免污染开发者真实 db。
+#[tokio::test]
+async fn test_ingest_returns_zero_on_empty_home() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let prev_home = std::env::var_os("HOME");
+    // SAFETY: tests 默认串行，且只改 HOME，不会污染并发线程。
+    unsafe {
+        std::env::set_var("HOME", tmp.path());
+    }
+
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    let app = crate::build_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ingest")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // 还原 HOME，无论后续 assert 是否失败都不能漏。
+    unsafe {
+        if let Some(v) = prev_home {
+            std::env::set_var("HOME", v);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let json = body_json(response.into_body()).await;
+    assert_eq!(json["messages_ingested"], 0);
+    assert_eq!(json["chunks_created"], 0);
+}
+
+#[tokio::test]
+async fn test_stats_aggregates_today_and_last_7_days() {
+    // 准备：插入两条 search 记录 + 一条 ingest 记录 + 一条 mcp 记录，
+    // 所有计数都打在"今天"。今日和 7 日累计的值应当一致。
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    db.record_search_latency(120).unwrap();
+    db.record_search_latency(300).unwrap();
+    db.increment_metric_by("ingest_messages", 42).unwrap();
+    db.increment_metric("mcp_calls").unwrap();
+
+    let app = crate::build_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let json = body_json(response.into_body()).await;
+
+    // record_search_latency 既写 search_count 也写 search_latency_ms_total，但
+    // 我们只校验 search_count，避免 latency-related 列名变动时打破测试。
+    assert_eq!(json["today"]["search_count"], 2);
+    assert_eq!(json["today"]["mcp_calls"], 1);
+    assert_eq!(json["today"]["ingest_messages"], 42);
+    // 既然全部 metric 都在今天，那 last_7_days 至少等于今天的值。
+    assert_eq!(json["last_7_days"]["search_count"], 2);
+    assert_eq!(json["last_7_days"]["mcp_calls"], 1);
+    assert_eq!(json["last_7_days"]["ingest_messages"], 42);
 }
 
 #[tokio::test]

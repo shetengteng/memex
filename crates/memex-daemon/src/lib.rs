@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
@@ -102,6 +102,7 @@ pub fn build_router(db: Arc<Db>) -> Router {
         .route("/stats", get(routes::stats))
         .route("/stats/breakdown", get(routes::stats_breakdown))
         .route("/timeline", get(routes::timeline))
+        .route("/ingest", post(routes::ingest))
         .route("/config", get(routes::get_config).post(routes::set_config))
         .route("/summaries/stats", get(routes::summary_stats))
         .route("/sessions/{id}/summary", get(routes::get_session_summary))

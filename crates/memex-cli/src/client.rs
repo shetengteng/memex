@@ -17,11 +17,17 @@ use anyhow::{Context, Result, anyhow};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-/// 单次 RPC 的 hard timeout。
+/// 单次 RPC 的 hard timeout（短操作 default）。
 ///
-/// search / ingest / rebuild-index 这类命令可能需要扫整个 db / 重建索引，
-/// 30 秒留足空间，过短会让 release 模式 CLI 看上去 flaky。
+/// search / sessions / stats 这类查询通常 < 1s，30 秒能覆盖到冷启动 fts 索引
+/// 加载的 worst case。过短会让 release 模式 CLI 看上去 flaky。
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// 长操作专用 timeout（ingest / rebuild-index 等扫全库的命令）。
+///
+/// cursor 全量首扫 + claude_code 全量首扫合计可能 60-120s（个例机器上看到过
+/// 180s）。给 10 分钟硬上限，既能拦死死锁的 daemon，又不会在合理负载下误杀。
+const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockInfo {
@@ -31,10 +37,17 @@ pub struct LockInfo {
 }
 
 /// HTTP 客户端入口。一次 CLI 命令只构造一份，连接池由内部 `Agent` 持有。
+///
+/// 持有两个独立的 `Agent`：
+/// * `agent` —— 默认短 timeout（30s），覆盖 search / sessions / stats 这类快查询。
+/// * `long_agent` —— 长 timeout（10 min），覆盖 ingest / rebuild-index 这类扫全库
+///   的写操作。两个 agent 不共享连接池，但 CLI 一次命令最多触发其中一个，不会有
+///   socket 浪费。
 #[derive(Debug)]
 pub struct MemexClient {
     base_url: String,
     agent: ureq::Agent,
+    long_agent: ureq::Agent,
     pub pid: u32,
     pub port: u16,
     pub started_at: String,
@@ -65,6 +78,10 @@ impl MemexClient {
             .timeout_global(Some(REQUEST_TIMEOUT))
             .build()
             .into();
+        let long_agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(LONG_REQUEST_TIMEOUT))
+            .build()
+            .into();
 
         // /health 探活：拿不到 200 说明 daemon 进程还在但 HTTP server 未就绪，
         // 例如刚启动还没 bind 完。提示用户重试比 silent 卡住更友好。
@@ -80,6 +97,7 @@ impl MemexClient {
         Ok(Self {
             base_url,
             agent,
+            long_agent,
             pid: info.pid,
             port: info.port,
             started_at: info.started_at,
@@ -111,14 +129,33 @@ impl MemexClient {
 
     /// POST 接口；request body 自动 JSON 序列化，response 反序列化为 `T`。
     ///
-    /// 5a 阶段只有 GET 命令切了 RPC，POST 路径暂时没人调；保留 API 是为了
-    /// 5b 的 ingest / rebuild-index / config-set 一旦准备好就能直接复用。
+    /// 默认用 30s timeout。需要扫全库 / 跑 LLM 的命令请改用 [`Self::post_long`]。
     #[allow(dead_code)]
     pub fn post<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
+        self.post_with(&self.agent, path, body)
+    }
+
+    /// 长操作专用 POST，10 分钟 timeout。
+    ///
+    /// 当前调用方：`memex ingest`。后续 rebuild-index 切 RPC 后也走这个。
+    pub fn post_long<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T> {
+        self.post_with(&self.long_agent, path, body)
+    }
+
+    fn post_with<B: Serialize, T: DeserializeOwned>(
+        &self,
+        agent: &ureq::Agent,
+        path: &str,
+        body: &B,
+    ) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
         let value = serde_json::to_value(body)
             .with_context(|| format!("serialize POST {} body failed", path))?;
-        self.agent
+        agent
             .post(&url)
             .send_json(value)
             .with_context(|| format!("HTTP POST {} failed", path))?

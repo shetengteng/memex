@@ -7,8 +7,10 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
+use memex_core::ingest;
 use memex_core::retriever::{Retriever, SearchFilter};
 use memex_core::storage::db::Db;
+use memex_core::storage::metrics::MetricEntry;
 
 pub type AppState = Arc<Db>;
 
@@ -91,13 +93,26 @@ pub async fn get_session(State(db): State<AppState>, Path(id): Path<String>) -> 
     }
 }
 
+/// 给前端 / CLI 的统一统计端点。
+///
+/// 4 个 totals 是 db 全表计数；`today` 和 `last_7_days` 是 metrics 表里按日
+/// 累积的运行时计数（search_count / mcp_calls / ingest_count 等）。CLI 的
+/// `memex stats` 命令、Tauri menubar 都消费同一份 JSON，避免出现"GUI 看到
+/// 一份数字、CLI 看到另一份"的语义漂移。
 #[derive(Serialize)]
 struct StatsResponse {
     sessions: u64,
     messages: u64,
     chunks: u64,
     sources: u64,
+    /// metric_name → value，仅当日的累积值。空对象表示今天还没有任何活动。
+    today: serde_json::Map<String, serde_json::Value>,
+    /// 过去 N 天（含今天）所有 metric 的求和。窗口大小由 `STATS_RANGE_DAYS` 控制。
+    last_7_days: serde_json::Map<String, serde_json::Value>,
 }
+
+/// 与 CLI `commands::stats::ACTIVITY_WINDOW_DAYS` 保持一致，避免两端窗口大小漂移。
+const STATS_RANGE_DAYS: u32 = 7;
 
 pub async fn stats(State(db): State<AppState>) -> impl IntoResponse {
     let resp = StatsResponse {
@@ -105,8 +120,36 @@ pub async fn stats(State(db): State<AppState>) -> impl IntoResponse {
         messages: db.message_count().unwrap_or(0),
         chunks: db.chunk_count().unwrap_or(0),
         sources: db.source_count().unwrap_or(0),
+        today: metric_map(&db.get_today_metrics().unwrap_or_default()),
+        last_7_days: aggregate_range(&db, STATS_RANGE_DAYS),
     };
     Json(resp)
+}
+
+fn metric_map(entries: &[MetricEntry]) -> serde_json::Map<String, serde_json::Value> {
+    let mut map = serde_json::Map::new();
+    for e in entries {
+        map.insert(e.name.clone(), serde_json::Value::from(e.value));
+    }
+    map
+}
+
+/// 把 `get_metrics_range` 拉回的 daily buckets 合并成 metric_name → 总和。
+fn aggregate_range(db: &Db, days: u32) -> serde_json::Map<String, serde_json::Value> {
+    let mut totals: std::collections::BTreeMap<String, i64> = Default::default();
+    let Ok(daily) = db.get_metrics_range(days) else {
+        return serde_json::Map::new();
+    };
+    for day in daily {
+        for entry in day.entries {
+            *totals.entry(entry.name).or_insert(0) += entry.value;
+        }
+    }
+    let mut map = serde_json::Map::new();
+    for (name, value) in totals {
+        map.insert(name, serde_json::Value::from(value));
+    }
+    map
 }
 
 #[derive(Deserialize)]
@@ -241,5 +284,48 @@ pub async fn get_session_summary(
         Ok(Some(summary)) => Json(serde_json::json!(summary)).into_response(),
         Ok(None) => Json(serde_json::json!(null)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+    }
+}
+
+#[derive(Deserialize, Default)]
+pub struct IngestBody {
+    /// 可选 adapter 过滤，对应 `memex ingest --adapter claude_code` 等。None = 跑全部已知 adapter。
+    #[serde(default)]
+    pub adapter: Option<String>,
+}
+
+/// POST /ingest —— 手动触发一次全量 ingest。
+///
+/// daemon 启动时已经跑了一次 bootstrap ingest（lib.rs），watcher 也在持续监听
+/// 文件变化。这个端点存在的意义是给 `memex ingest` 一个 RPC 通道，让用户手动
+/// 触发也能复用同一个 ingest 路径，避免出现 "CLI 跑出来的 db 跟 daemon 跑出来
+/// 的不一致" 这种诡异问题。
+///
+/// 用 `spawn_blocking` 把同步的 ingest::run_ingest 调进 tokio thread pool，避免
+/// 阻塞 axum runtime；其他端点（search / stats）该响应该响应。
+pub async fn ingest(
+    State(db): State<AppState>,
+    body: Option<Json<IngestBody>>,
+) -> impl IntoResponse {
+    let adapter = body.and_then(|Json(b)| b.adapter);
+    let memex = memex_core::memex_dir();
+    let db = Arc::clone(&db);
+    let join = tokio::task::spawn_blocking(move || {
+        ingest::run_ingest(&db, &memex, adapter.as_deref())
+    })
+    .await;
+
+    match join {
+        Ok(Ok(result)) => Json(serde_json::json!({
+            "messages_ingested": result.messages_ingested,
+            "chunks_created": result.chunks_created,
+        }))
+        .into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err_body(&e))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("ingest task join error: {}", e) })),
+        )
+            .into_response(),
     }
 }
