@@ -15,8 +15,8 @@ use std::time::Instant;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::client::McpClient;
-use crate::protocol::{
+use super::super::client::McpClient;
+use super::super::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
     TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
 };

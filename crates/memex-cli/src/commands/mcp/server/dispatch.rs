@@ -9,12 +9,12 @@
 //! * [`handle_tool_call`] —— `tools/call` 必须走 daemon RPC，由调用方传
 //!   `&McpClient`。
 
-use super::tools;
-use crate::client::McpClient;
-use crate::protocol::{
+use super::super::client::McpClient;
+use super::super::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
     TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
 };
+use super::tools;
 
 pub(super) fn handle_request(req: &JsonRpcRequest, client: &McpClient) -> JsonRpcResponse {
     if let Some(resp) = handle_protocol_request(req) {

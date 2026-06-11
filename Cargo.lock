@@ -2450,7 +2450,6 @@ dependencies = [
  "flate2",
  "libc",
  "memex-core",
- "memex-mcp",
  "serde",
  "serde_json",
  "tar",
@@ -2483,20 +2482,6 @@ dependencies = [
  "tracing",
  "ureq",
  "walkdir",
-]
-
-[[package]]
-name = "memex-mcp"
-version = "0.3.4"
-dependencies = [
- "anyhow",
- "blake3",
- "libc",
- "memex-core",
- "serde",
- "serde_json",
- "tempfile",
- "ureq",
 ]
 
 [[package]]

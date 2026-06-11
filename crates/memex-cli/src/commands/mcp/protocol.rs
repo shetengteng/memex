@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct JsonRpcRequest {
+    #[allow(dead_code)] // 协议合规字段，serde 解码后不再读取
     pub jsonrpc: String,
     pub id: Option<serde_json::Value>,
     pub method: String,

@@ -11,7 +11,6 @@ path = "src/main.rs"
 
 [dependencies]
 memex-core = { path = "../memex-core", version = "0.3" }
-memex-mcp = { path = "../memex-mcp", version = "0.3" }
 clap = { version = "4", features = ["derive"] }
 anyhow.workspace = true
 serde.workspace = true

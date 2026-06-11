@@ -1,20 +1,17 @@
 //! 给 MCP server 用的 daemon HTTP client。
 //!
-//! 跟 memex-cli 的 `client.rs` 是同一族实现，但 mcp 这里需求更窄：
+//! 跟 memex-cli 顶层的 `client.rs`（`crate::client::MemexClient`）是同族
+//! 实现，但 mcp 这里需求更窄：
 //! * 只有 GET（带 query string）和 POST（json body）两种调用。
 //! * 不需要 long timeout —— MCP tool 调用都是 < 5s 的查询，30s 默认 timeout
 //!   足够。真要扫全库的话用户会通过 menubar 直接跑，不会从 IDE MCP 触发。
 //! * 不抛 user-facing 文案 —— mcp 是 stdio JSON-RPC，错误会被 wrap 进 tool
 //!   response 的 `isError`。caller 决定怎么 surface。
 //!
-//! 这里的代码物理上跟 memex-cli/src/client.rs 高度相似（lock 三连验证 + ureq
-//! agent + ureq error handling），但**没有**抽到 memex-core 共享。
-//! 理由：
-//! * memex-core 是纯领域库，引入 HTTP / lockfile / pid 概念会污染依赖关系
-//! * memex-cli 是 binary crate，memex-mcp 反向依赖它不优雅
-//! * 重复 ≈ 80 行代码，phase 6 合并 daemon crate 时可以一起重新审视
-//!
-//! 现状是可接受的"代码重复换依赖纯净"。
+//! Phase 7 起 mcp 已经下沉到 memex-cli 内部，但 `McpClient` 跟 `MemexClient`
+//! 仍然保持独立两份：前者面向 IDE 端 stdio JSON-RPC 的错误语义，后者面向
+//! CLI 用户的 user-facing 文案。两份实现 ≈ 80 行重复但语义不同，没有强行
+//! 抽公共层的诉求。
 
 use std::path::Path;
 use std::time::Duration;

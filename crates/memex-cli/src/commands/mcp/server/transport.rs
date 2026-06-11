@@ -8,9 +8,9 @@ use std::io::{self, BufRead, Write};
 
 use anyhow::Result;
 
+use super::super::client::McpClient;
+use super::super::protocol::{JsonRpcRequest, JsonRpcResponse};
 use super::dispatch::handle_request;
-use crate::client::McpClient;
-use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
 
 pub fn run_stdio(client: &McpClient) -> Result<()> {
     let stdin = io::stdin();

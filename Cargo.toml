@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "crates/memex-core",
-    "crates/memex-mcp",
     "crates/memex-cli",
     "tauri-app/src-tauri",
 ]
