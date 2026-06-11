@@ -29,6 +29,8 @@ import {
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
 import { useDaemon } from '@/composables/useDaemon'
+import { toastBackendError } from '@/lib/toast-error'
+import { humanizeBackendError } from '@/lib/utils'
 import type { CliStatus, DoctorRunResult, UpdateInfo } from '@/types'
 
 const router = useRouter()
@@ -74,7 +76,7 @@ async function onRestartDaemon() {
       toast.warning('后台服务已重启，但 HTTP 尚未就绪，稍候片刻再试')
     }
   } catch (e) {
-    toast.error(`重启失败：${String(e)}`)
+    toastBackendError('重启失败', e)
   }
 }
 
@@ -128,7 +130,7 @@ async function installCli() {
     cli.value = await memex.cliInstall()
     toast.success('CLI 已安装')
   } catch (e) {
-    toast.error(`安装失败：${String(e)}`)
+    toastBackendError('安装失败', e)
   } finally {
     cliBusy.value = false
   }
@@ -140,7 +142,7 @@ async function uninstallCli() {
     cli.value = await memex.cliUninstall()
     toast.success('CLI 已卸载')
   } catch (e) {
-    toast.error(`卸载失败：${String(e)}`)
+    toastBackendError('卸载失败', e)
   } finally {
     cliBusy.value = false
   }
@@ -152,7 +154,7 @@ async function runDoctor() {
     doctor.value = await memex.runDoctor()
     toast.success('Doctor 检查完成')
   } catch (e) {
-    toast.error(`检查失败：${String(e)}`)
+    toastBackendError('检查失败', e)
   } finally {
     doctorRunning.value = false
   }
@@ -172,7 +174,7 @@ async function checkUpdate() {
       else updateMessage.value = `检测到新版本 ${info.latest_tag}`
     }
   } catch (e) {
-    updateMessage.value = `检查失败：${String(e)}`
+    updateMessage.value = `检查失败：${humanizeBackendError(e).friendly}`
   } finally {
     updateChecking.value = false
   }
@@ -183,7 +185,7 @@ async function openReleasePage() {
     try {
       await openUrl(update.value.html_url)
     } catch (e) {
-      toast.error(`打开链接失败：${String(e)}`)
+      toastBackendError('打开链接失败', e)
     }
   }
 }

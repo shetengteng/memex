@@ -36,6 +36,7 @@ import type { Provider } from '../types'
 import { useMemex } from '@/composables/useMemex'
 import type { LlmProvider } from '@/types'
 import { humanizeBackendError } from '@/lib/utils'
+import { toastBackendError } from '@/lib/toast-error'
 
 const memex = useMemex()
 const providers = ref<Provider[]>([])
@@ -73,8 +74,7 @@ async function loadProviders() {
     const list = await memex.llmProviderList()
     providers.value = list.map(fromBackend)
   } catch (e) {
-    const fe = humanizeBackendError(e)
-    toast.error('加载 Provider 失败', { description: fe.friendly, duration: 8000 })
+    toastBackendError('加载 Provider 失败', e)
   } finally {
     loading.value = false
   }
@@ -110,7 +110,7 @@ async function saveSummarizeInterval() {
     summarizeIntervalMs.value = v
     toast.success(`摘要间隔已保存为 ${v}ms`)
   } catch (err) {
-    toast.error(`保存失败：${String(err)}`)
+    toastBackendError('保存失败', err)
   } finally {
     savingInterval.value = false
   }
@@ -170,7 +170,7 @@ async function saveProvider() {
     editOpen.value = false
     toast.success(`Provider ${next.name} 已保存`)
   } catch (err) {
-    toast.error(`保存失败：${String(err)}`)
+    toastBackendError('保存失败', err)
   }
 }
 
@@ -191,7 +191,7 @@ async function setDefault(id: string) {
     providers.value = providers.value.map((p) => ({ ...p, isDefault: p.id === saved.id }))
     toast.success(`已将 ${saved.name} 设为默认`)
   } catch (err) {
-    toast.error(`设默认失败：${String(err)}`)
+    toastBackendError('设默认失败', err)
   }
 }
 
@@ -201,7 +201,7 @@ async function removeProvider(id: string) {
     providers.value = providers.value.filter((p) => p.id !== id)
     toast.success('Provider 已删除')
   } catch (err) {
-    toast.error(`删除失败：${String(err)}`)
+    toastBackendError('删除失败', err)
   }
 }
 
@@ -221,7 +221,7 @@ async function toggleEnabled(p: Provider, value: boolean | string) {
     const idx = providers.value.findIndex((x) => x.id === p.id)
     if (idx >= 0) providers.value[idx] = fromBackend(saved)
   } catch (err) {
-    toast.error(`切换失败：${String(err)}`)
+    toastBackendError('切换失败', err)
   }
 }
 
@@ -265,7 +265,7 @@ async function savePromptTemplate() {
     await memex.setConfig('llm.prompt_template', prompt.value)
     toast.success('模板已保存')
   } catch (err) {
-    toast.error(`保存失败：${String(err)}`)
+    toastBackendError('保存失败', err)
   } finally {
     savingPrompt.value = false
   }

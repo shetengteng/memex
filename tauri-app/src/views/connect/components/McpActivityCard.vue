@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
+import { humanizeBackendError } from '@/lib/utils'
 import type { McpCallEntry, McpCallStats24h } from '@/types'
 
 // 轮询间隔。3s 足以营造"实时"观感，又不会把 SQLite I/O 拉得很满
@@ -56,7 +57,7 @@ async function refresh() {
     errorMsg.value = null
   } catch (e) {
     // 留住上次成功的数据，只在 footer 显示错误，避免一次抖动就把整卡清空。
-    errorMsg.value = String(e)
+    errorMsg.value = humanizeBackendError(e).friendly
   } finally {
     loading.value = false
   }

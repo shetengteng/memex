@@ -16,6 +16,7 @@ import { sessions, totals, daemon, daemonStatus, ADAPTER_MAP, refreshSessions } 
 import { useMemex } from '@/composables/useMemex'
 import { useDaemon } from '@/composables/useDaemon'
 import { formatNumber } from '@/lib/utils'
+import { toastBackendError } from '@/lib/toast-error'
 
 const memex = useMemex()
 // useDaemon 内部会启动 5s 轮询 + onMounted refresh，把结果写回 stores/memex.daemon。
@@ -41,7 +42,7 @@ async function onRestartDaemon(e: MouseEvent) {
     if (r?.running) toast.success('后台服务已重启')
     else toast.error('重启后服务未运行，请检查日志')
   } catch (err) {
-    toast.error(`重启失败：${String(err)}`)
+    toastBackendError('重启失败', err)
   }
 }
 

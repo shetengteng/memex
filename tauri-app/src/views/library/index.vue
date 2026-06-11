@@ -36,6 +36,7 @@ import type { SessionListFilter } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { startScanning, stopScanning } from '@/composables/useScanState'
 import { toast } from 'vue-sonner'
+import { toastBackendError } from '@/lib/toast-error'
 import LibraryFacets from './components/LibraryFacets.vue'
 import LibrarySessionListItem from './components/LibrarySessionListItem.vue'
 import LibrarySessionDrawer from './components/LibrarySessionDrawer.vue'
@@ -62,7 +63,7 @@ async function runIngest() {
     toast.success(`采集完成：新消息 ${r.messages_ingested} 条，新片段 ${r.chunks_created} 块`)
     await Promise.all([reloadLibrarySessions(currentFilter.value), refreshProjects()])
   } catch (e) {
-    toast.error(`采集失败：${String(e)}`)
+    toastBackendError('采集失败', e)
   } finally {
     stopScanning()
     ingesting.value = false

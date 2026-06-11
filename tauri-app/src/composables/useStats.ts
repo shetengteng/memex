@@ -2,6 +2,7 @@ import { onMounted, onScopeDispose, ref } from 'vue'
 import type { Stats } from '@/types'
 import { useMemex } from './useMemex'
 import { stats as storeStats } from '@/stores/memex'
+import { humanizeBackendError } from '@/lib/utils'
 
 // 模块单例：直接复用 stores/memex 里的 stats ref，所有调用方共享同一份数据
 // + 同一个轮询定时器（refCount=0 时停轮询）
@@ -25,7 +26,7 @@ async function refresh(): Promise<Stats | null> {
     lastError.value = null
     return v
   } catch (e) {
-    lastError.value = String(e)
+    lastError.value = humanizeBackendError(e).friendly
     return stats.value
   } finally {
     loading.value = false

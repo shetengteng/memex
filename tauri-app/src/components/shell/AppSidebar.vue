@@ -23,6 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { formatNumber, humanizeBackendError } from '@/lib/utils'
+import { toastBackendError } from '@/lib/toast-error'
 import {
   ChevronUp,
   Library,
@@ -139,7 +140,7 @@ async function abortBatchSummarize() {
     if (was) toast.message('已请求暂停，当前会话完成后停止')
     else toast.info('没有在跑的摘要任务')
   } catch (e) {
-    toast.error(`暂停失败：${String(e)}`)
+    toastBackendError('暂停失败', e)
   } finally {
     aborting.value = false
   }

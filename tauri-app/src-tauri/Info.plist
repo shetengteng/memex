@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-  <dict>
-    <key>NSHumanReadableCopyright</key>
-    <string>Memex — Local AI Memory Hub</string>
-    <key>CFBundleURLTypes</key>
-    <array>
-      <dict>
-        <key>CFBundleURLName</key>
-        <string>ttshe.memex</string>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>memex</string>
-        </array>
-      </dict>
-    </array>
-  </dict>
+<dict>
+	<!--
+		LSUIElement=true 让 macOS Launch Services 在启动阶段就把 Memex
+		视为 menu bar app（accessory），而不是常规桌面 app。这是修复
+		macOS 26 (Tahoe) 上 NSStatusItem 被自动折叠到屏幕外（y=1111+）的
+		根因 —— 见 tauri-apps/tauri#15005。
+
+		运行时 lib.rs 仍然根据"是否有非托盘窗口可见"动态切换
+		ActivationPolicy::Regular / Accessory，让用户切到主窗口时 Dock
+		图标依然出现，不影响 hybrid menu bar + desktop app 体验。
+	-->
+	<key>LSUIElement</key>
+	<true/>
+</dict>
 </plist>

@@ -10,6 +10,7 @@ import IdeDot from '@/components/shell/IdeDot.vue'
 import { toast } from 'vue-sonner'
 import { adapters, breakdownByAdapter, refreshBreakdown } from '@/stores/memex'
 import { useMemex } from '@/composables/useMemex'
+import { toastBackendError } from '@/lib/toast-error'
 
 const memex = useMemex()
 const activeCount = computed(() => adapters.filter((a) => a.status === 'active').length)
@@ -61,7 +62,7 @@ async function toggleAdapter(id: string, enabled: boolean) {
     if (target) target.status = enabled ? 'active' : 'disabled'
     toast.success(`${id} 已${enabled ? '启用' : '停用'}`)
   } catch (e) {
-    toast.error(`切换失败：${String(e)}`)
+    toastBackendError('切换失败', e)
   } finally {
     toggling.value[id] = false
   }
@@ -74,7 +75,7 @@ async function rescanAdapter(id: string) {
     toast.success(`${id} 采集完成：${r.messages_ingested} 条消息`)
     await refreshBreakdown()
   } catch (e) {
-    toast.error(`${id} 采集失败：${String(e)}`)
+    toastBackendError(`${id} 采集失败`, e)
   } finally {
     rescanning.value[id] = false
   }
@@ -88,7 +89,7 @@ async function rescanAll() {
     toast.success(`采集完成：${r.messages_ingested} 条消息`)
     await refreshBreakdown()
   } catch (e) {
-    toast.error(`采集失败：${String(e)}`)
+    toastBackendError('采集失败', e)
   } finally {
     globalScanning.value = false
   }

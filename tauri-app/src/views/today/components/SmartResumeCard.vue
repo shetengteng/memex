@@ -12,6 +12,7 @@ import { toast } from 'vue-sonner'
 import IdeChip from '@/components/shell/IdeChip.vue'
 import { sessions, type Session } from '@/stores/memex'
 import LibrarySessionDrawer from '@/views/library/components/LibrarySessionDrawer.vue'
+import { toastBackendError } from '@/lib/toast-error'
 
 // 后端暂未暴露"未完成/被中断"信号，先把最近 3 条 session 当候选
 const resumeCandidates = computed(() => sessions.slice(0, 3))
@@ -65,7 +66,7 @@ async function sendToIde(s: Session) {
       duration: 6_000,
     })
   } catch (e) {
-    toast.error(`复制失败：${String(e)}`)
+    toastBackendError('复制失败', e)
   }
 }
 </script>

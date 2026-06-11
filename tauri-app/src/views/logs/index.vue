@@ -14,6 +14,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'vue-sonner'
 import { ArrowLeft, RefreshCw, Filter as FilterIcon, AlertTriangle } from 'lucide-vue-next'
+import { humanizeBackendError } from '@/lib/utils'
+import { toastBackendError } from '@/lib/toast-error'
 
 const router = useRouter()
 function goBackToSystemTab() {
@@ -82,7 +84,7 @@ async function loadFiles() {
       activeFile.value = files.value[0].name
     }
   } catch (e) {
-    lastError.value = `列出日志失败：${String(e)}`
+    lastError.value = `列出日志失败：${humanizeBackendError(e).friendly}`
     files.value = []
   }
 }
@@ -97,7 +99,7 @@ async function loadContent() {
     })
     lastError.value = ''
   } catch (e) {
-    lastError.value = `读取日志失败：${String(e)}`
+    lastError.value = `读取日志失败：${humanizeBackendError(e).friendly}`
     raw.value = null
   } finally {
     loading.value = false
@@ -115,7 +117,7 @@ async function copyAll() {
     await navigator.clipboard.writeText(raw.value.lines.join('\n'))
     toast.success('已复制日志到剪贴板')
   } catch (e) {
-    toast.error(`复制失败：${String(e)}`)
+    toastBackendError('复制失败', e)
   }
 }
 

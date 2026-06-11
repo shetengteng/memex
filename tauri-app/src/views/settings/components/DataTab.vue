@@ -28,6 +28,7 @@ import {
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
 import { stats } from '@/stores/memex'
+import { toastBackendError } from '@/lib/toast-error'
 
 const memex = useMemex()
 const dbPath = ref<string>('')
@@ -70,13 +71,13 @@ async function onBackupNow() {
         label: '在 Finder 显示',
         onClick: () => {
           void revealItemInDir(r.path).catch((e) =>
-            toast.error(`无法打开文件位置：${String(e)}`),
+            toastBackendError('无法打开文件位置', e),
           )
         },
       },
     })
   } catch (e) {
-    toast.error(`备份失败：${String(e)}`)
+    toastBackendError('备份失败', e)
   } finally {
     backingUp.value = false
   }
@@ -93,7 +94,7 @@ async function onOpenBackupFolder() {
     })
     await revealItemInDir(backupDir.value)
   } catch (e) {
-    toast.error(`无法打开备份目录：${String(e)}`)
+    toastBackendError('无法打开备份目录', e)
   } finally {
     openingFolder.value = false
   }
@@ -123,7 +124,7 @@ async function rebuildIndex() {
     await memex.systemResetIndex()
     toast.success('索引已重建')
   } catch (e) {
-    toast.error(`重建失败：${String(e)}`)
+    toastBackendError('重建失败', e)
   } finally {
     rebuilding.value = false
   }
@@ -137,7 +138,7 @@ async function clearAll() {
     await memex.systemResetAll()
     toast.success('已清空全部数据')
   } catch (e) {
-    toast.error(`清空失败：${String(e)}`)
+    toastBackendError('清空失败', e)
   } finally {
     clearing.value = false
   }
@@ -166,14 +167,14 @@ async function exportDb() {
         label: '在 Finder 显示',
         onClick: () => {
           void revealItemInDir(r.path).catch((e) =>
-            toast.error(`无法打开文件位置：${String(e)}`),
+            toastBackendError('无法打开文件位置', e),
           )
         },
       },
     })
   } catch (e) {
     toast.dismiss(loadingId)
-    toast.error(`导出失败：${String(e)}`)
+    toastBackendError('导出失败', e)
   } finally {
     exporting.value = false
   }
@@ -209,7 +210,7 @@ async function importDb() {
     if (r.before_path) lastBackupPath.value = r.before_path
   } catch (e) {
     toast.dismiss(loadingId)
-    toast.error(`导入失败：${String(e)}`)
+    toastBackendError('导入失败', e)
   } finally {
     importing.value = false
   }

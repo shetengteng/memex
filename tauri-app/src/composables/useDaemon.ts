@@ -2,6 +2,7 @@ import { onMounted, onScopeDispose, ref } from 'vue'
 import type { DaemonStatus } from '@/types'
 import { useMemex } from './useMemex'
 import { daemon as storeDaemon } from '@/stores/memex'
+import { humanizeBackendError } from '@/lib/utils'
 
 // 复用 stores/memex 的 daemon ref，让 view 和 composable 共享同一份状态
 const status = storeDaemon
@@ -28,7 +29,7 @@ async function refresh(): Promise<DaemonStatus | null> {
     lastError.value = null
     return v
   } catch (e) {
-    lastError.value = String(e)
+    lastError.value = humanizeBackendError(e).friendly
     return status.value
   } finally {
     polling.value = false
@@ -43,7 +44,7 @@ async function restart(): Promise<DaemonStatus | null> {
     lastError.value = null
     return v
   } catch (e) {
-    lastError.value = String(e)
+    lastError.value = humanizeBackendError(e).friendly
     return status.value
   } finally {
     loading.value = false

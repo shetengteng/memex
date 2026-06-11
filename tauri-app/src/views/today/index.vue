@@ -17,6 +17,7 @@ import WeeklySummaryCard from './components/WeeklySummaryCard.vue'
 import ReflectionCard from './components/ReflectionCard.vue'
 import SmartResumeCard from './components/SmartResumeCard.vue'
 import SystemStatusCard from './components/SystemStatusCard.vue'
+import { toastBackendError } from '@/lib/toast-error'
 
 const refreshing = ref(false)
 
@@ -39,7 +40,7 @@ async function onRefresh() {
     toast.success('已刷新')
   } catch (e) {
     toast.dismiss(loadingId)
-    toast.error(`刷新失败：${String(e)}`)
+    toastBackendError('刷新失败', e)
   } finally {
     refreshing.value = false
   }
