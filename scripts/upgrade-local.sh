@@ -3,7 +3,7 @@
 #
 # 步骤：
 #   1. 校验版本（package.json / tauri.conf.json / Cargo.toml 三处一致）
-#   2. 停掉所有 Memex (menubar) / memex-daemon 进程
+#   2. 停掉所有 Memex 进程
 #   3. 备份 ~/.memex（保留数据；用户数据不会丢）
 #   4. 完整重 build .app bundle（tauri build --bundles app）
 #   5. 删除 /Applications/Memex.app 与 target 旧 bundle，再部署新 bundle
