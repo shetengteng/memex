@@ -12,10 +12,13 @@ use std::time::Duration;
 use memex_core::maintenance::{ResetReport, reset_all, reset_index_only};
 use memex_core::memex_dir;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
-use super::daemon::{daemon_restart, is_process_alive_for_maintenance, read_lock_for_maintenance};
+use super::daemon::{
+    daemon_restart_inner, is_process_alive_for_maintenance, read_lock_for_maintenance,
+};
 use super::error::{CmdError, CmdResult};
+use crate::services::daemon::DaemonState;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemResetResult {
@@ -104,7 +107,8 @@ fn stop_daemon_blocking() {
 fn restart_after_reset(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(300)).await;
-        if let Err(e) = daemon_restart().await {
+        let state = app.state::<DaemonState>();
+        if let Err(e) = daemon_restart_inner(&state).await {
             tracing::warn!(error = %e, "failed to restart daemon after reset");
         }
         // app.emit failures here mean no subscribers — UI is free to refresh

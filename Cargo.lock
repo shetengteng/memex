@@ -2528,6 +2528,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "memex-core",
+ "memex-daemon",
  "serde",
  "serde_json",
  "serial_test",

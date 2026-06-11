@@ -1,10 +1,10 @@
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
-use super::error::{CmdError, CmdResult};
+use super::error::CmdResult;
+use crate::services::daemon::DaemonState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockInfo {
@@ -53,11 +53,25 @@ fn is_process_alive(pid: u32) -> bool {
 /// 优雅地停止 daemon：先 SIGTERM 等 800ms，仍存活则 SIGKILL。最后清掉
 /// 过期 lock 文件。Quit 流程、`daemon_restart` 都复用这条路径，确保单一事实源。
 ///
+/// Phase 2 self-pid 守卫：从 Phase 2 起 in-process daemon 把主进程 PID 写进
+/// lock，如果不加守卫这个函数会把 Tauri 主进程自己杀掉。pid==self 时只清 lock
+/// 不发信号，真正的 in-process shutdown 走
+/// [`crate::services::daemon::DaemonHandle::shutdown_blocking`]。
+///
 /// fire-and-forget：信号发了 + lock 清了即可，不阻塞等内核 reap zombie。
 pub(crate) fn stop_daemon_blocking() {
     let Some(info) = read_lock() else {
         return;
     };
+    let self_pid = std::process::id();
+    if info.pid == self_pid {
+        tracing::info!(
+            pid = info.pid,
+            "daemon.lock points to self (in-process daemon); skip kill, only clear lock"
+        );
+        let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
+        return;
+    }
     if !is_process_alive(info.pid) {
         let _ = std::fs::remove_file(memex_dir().join("daemon.lock"));
         return;
@@ -99,29 +113,10 @@ fn http_health_ok(port: u16) -> bool {
         .unwrap_or(false)
 }
 
-fn find_daemon_binary() -> Option<PathBuf> {
-    // 优先用跟 menubar 主程序同目录的二进制；
-    // bundle 打包出来的目录结构就是这样放的。
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(parent) = exe.parent()
-    {
-        let p = parent.join("memex-daemon");
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    // 退而求其次：从 PATH 里找。
-    if let Ok(out) = Command::new("which").arg("memex-daemon").output() {
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !s.is_empty() {
-            return Some(PathBuf::from(s));
-        }
-    }
-    None
-}
-
 /// 返回 daemon 写 stdout 日志的绝对路径，方便 GUI 直接 `open` 这个文件。
-/// 该路径与 `memex-daemon` 自身写入逻辑保持一致（`~/.memex/daemon.stdout.log`）。
+/// Phase 2 后 daemon 是 in-process 跑在 Tauri 主进程里，没有独立 stdout 日志文件，
+/// 该路径会指向一个不存在的位置；前端会优雅降级到"日志面板"。保留 API 是
+/// 为了不打破前端，待 Phase 5 清理。
 #[tauri::command]
 pub fn daemon_log_path() -> String {
     memex_dir()
@@ -130,73 +125,67 @@ pub fn daemon_log_path() -> String {
         .into_owned()
 }
 
-#[tauri::command]
-pub async fn daemon_status() -> CmdResult<DaemonStatus> {
-    let info = read_lock();
-    let mut status = DaemonStatus {
-        running: false,
-        pid: None,
-        port: None,
-        http_ok: false,
-        started_at: None,
+/// 返回当前 in-process daemon 的状态。
+///
+/// Phase 2 之后唯一可信的真相源是 `DaemonState`（内存里的句柄），lock 文件只是
+/// 给 memex-cli 这种外部进程发现 port 用。所以这里优先读 state：
+/// * `state.snapshot() == Some` → running=true，再用 HTTP `/health` 探活
+///   （HTTP 没起来时 running 仍为 true，前端按 `http_ok` 区分"启动中"vs"就绪"）
+/// * `state.snapshot() == None`  → daemon 还没起来或启动失败 → running=false
+fn build_status_from_state(state: &DaemonState) -> DaemonStatus {
+    let snapshot = match tauri::async_runtime::block_on(state.snapshot()) {
+        Some(s) => s,
+        None => {
+            return DaemonStatus {
+                running: false,
+                pid: None,
+                port: None,
+                http_ok: false,
+                started_at: None,
+            };
+        }
     };
-    if let Some(info) = info {
-        let alive = is_process_alive(info.pid);
-        let http = if alive {
-            http_health_ok(info.port)
-        } else {
-            false
-        };
-        status.running = alive;
-        status.pid = Some(info.pid);
-        status.port = Some(info.port);
-        status.http_ok = http;
-        status.started_at = Some(info.started_at);
+    let http_ok = http_health_ok(snapshot.port);
+    DaemonStatus {
+        running: true,
+        pid: Some(snapshot.pid),
+        port: Some(snapshot.port),
+        http_ok,
+        started_at: Some(snapshot.started_at),
     }
-    Ok(status)
 }
 
 #[tauri::command]
-pub async fn daemon_restart() -> CmdResult<DaemonStatus> {
-    // 复用 stop_daemon_blocking：保证停 daemon 的 TERM → KILL 顺序、超时、
-    // lock 清理逻辑只有一份实现。
-    stop_daemon_blocking();
+pub async fn daemon_status(state: tauri::State<'_, DaemonState>) -> CmdResult<DaemonStatus> {
+    Ok(build_status_from_state(&state))
+}
 
-    let bin = find_daemon_binary().ok_or_else(|| {
-        CmdError::NotFound("在 app 同目录和 PATH 上都找不到 memex-daemon 可执行文件".into())
-    })?;
+#[tauri::command]
+pub async fn daemon_restart(state: tauri::State<'_, DaemonState>) -> CmdResult<DaemonStatus> {
+    daemon_restart_inner(&state).await
+}
 
-    Command::new(&bin)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
+/// 同 crate 内部复用的重启入口。
+///
+/// `daemon_restart` IPC、`backup::import_db`、`maintenance::restart_after_reset`
+/// 三处都需要"停掉当前 daemon → 起新 daemon → 等 HTTP 就绪"这同一段流程，
+/// 提取这个函数避免逻辑漂移。
+///
+/// `?` 把 `state.restart` 的 anyhow::Error 自动转 `CmdError::Backend`，保留完整 context chain。
+pub(crate) async fn daemon_restart_inner(state: &DaemonState) -> CmdResult<DaemonStatus> {
+    state.restart(memex_daemon::DEFAULT_PORT).await?;
 
-    // 等 daemon 写 lock 文件、绑端口。
+    // axum::serve 是异步起的，restart 返回时 HTTP 未必立刻可用。轮询 20 次，
+    // 每次 150ms，总共最多等 3s；命中就立即返回，超时也返回当前 state 的
+    // 快照，让前端区分"启动中"和"未启动"。
     for _ in 0..20 {
         std::thread::sleep(std::time::Duration::from_millis(150));
-        if let Some(info) = read_lock()
-            && is_process_alive(info.pid)
-            && http_health_ok(info.port)
-        {
-            return Ok(DaemonStatus {
-                running: true,
-                pid: Some(info.pid),
-                port: Some(info.port),
-                http_ok: true,
-                started_at: Some(info.started_at),
-            });
+        let status = build_status_from_state(state);
+        if status.http_ok {
+            return Ok(status);
         }
     }
-    // 即使 HTTP 还没就绪，也把已知的状态返回给 UI，
-    // 让它能显示"启动中"而不是"未运行"。
-    Ok(daemon_status().await.unwrap_or(DaemonStatus {
-        running: false,
-        pid: None,
-        port: None,
-        http_ok: false,
-        started_at: None,
-    }))
+    Ok(build_status_from_state(state))
 }
 
 #[cfg(test)]

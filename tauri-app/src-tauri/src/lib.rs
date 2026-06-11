@@ -11,6 +11,7 @@
 #![warn(clippy::all)]
 
 pub mod commands;
+pub mod services;
 mod tray;
 
 use std::sync::Mutex;
@@ -187,27 +188,27 @@ pub fn run() {
                 tracing::error!("failed to install tray icon: {e:?}");
             }
 
-            // setup 阶段：daemon 探活 → 缺失则用现有命令拉起。无 monitor loop / shutdown hook。
-            tauri::async_runtime::spawn(async {
-                match commands::daemon::daemon_status().await {
-                    Ok(status) if status.running && status.http_ok => {
-                        tracing::info!(
-                            "daemon already running pid={:?} port={:?}, skip auto-start",
-                            status.pid,
-                            status.port
-                        );
+            // Phase 2：in-process daemon。Tauri 主进程负责生命周期管理：
+            // 1. 启动前先 kill 掉历史独立 daemon 进程（Phase 4 前可能仍存在）
+            //    stop_daemon_blocking 已有 self-pid 守卫，安全。
+            // 2. 早早 manage 一个空的 DaemonState（让 daemon_status / daemon_restart
+            //    IPC 即便 spawn 还没完成也能返回有意义的 snapshot=None）
+            // 3. 异步 spawn_in_process → state.install(handle)
+            // 4. ExitRequested 钩子调 state.shutdown_blocking()
+            //
+            // 已知边界：lock 文件里的 pid 现在就是主进程 PID。memex-cli 通过
+            // is_process_alive(pid) 判活仍然 work（pid 活的就代表 daemon 活的）。
+            commands::daemon::stop_daemon_blocking();
+            app.manage(services::daemon::DaemonState::new());
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match services::daemon::spawn_in_process(memex_daemon::DEFAULT_PORT).await {
+                    Ok(handle) => {
+                        let state = app_handle.state::<services::daemon::DaemonState>();
+                        state.install(handle).await;
                     }
-                    _ => {
-                        tracing::info!("daemon not running, auto-starting…");
-                        match commands::daemon::daemon_restart().await {
-                            Ok(status) => tracing::info!(
-                                "auto-start daemon ok pid={:?} port={:?} http_ok={}",
-                                status.pid,
-                                status.port,
-                                status.http_ok
-                            ),
-                            Err(e) => tracing::error!("auto-start daemon failed: {e}"),
-                        }
+                    Err(e) => {
+                        tracing::error!("in-process daemon start failed: {e}");
                     }
                 }
             });
@@ -300,13 +301,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("INVARIANT: tauri Builder::build() failed — app is unstartable")
         .run(|app_handle, event| match event {
-            // 兜底：托盘 quit 已显式调用 stop_daemon_blocking；但其他退出路径
-            // （`app.exit(0)` 来自其他模块、菜单 Cmd+Q、`launchctl bootout`）
-            // 同样应该清理 daemon，避免后台游离进程。RunEvent::ExitRequested
-            // 在 `app.exit()` 即将真正退出前触发，是最后一道闸口。
+            // Phase 2：in-process daemon 的 graceful shutdown。
+            // - 优先用 DaemonHandle::shutdown_blocking（trigger oneshot + await join + remove lock）
+            // - State 不存在（极少见，daemon 启动失败时）→ 旧的 stop_daemon_blocking 兜底
+            //   这条兜底也覆盖 Phase 4 之前可能残留的独立 daemon 进程。
             tauri::RunEvent::ExitRequested { .. } => {
                 tracing::info!("exit requested: stopping daemon");
-                commands::daemon::stop_daemon_blocking();
+                if let Some(state) = app_handle.try_state::<services::daemon::DaemonState>() {
+                    state.shutdown_blocking();
+                } else {
+                    commands::daemon::stop_daemon_blocking();
+                }
             }
             // macOS：用户点 Dock 图标 / `open -a Memex` 二次启动 → 系统派发
             // `applicationShouldHandleReopen` → Tauri 转成 `RunEvent::Reopen`。

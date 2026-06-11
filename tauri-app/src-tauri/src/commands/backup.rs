@@ -13,8 +13,9 @@ use std::process::Command;
 use memex_core::memex_dir;
 use serde::{Deserialize, Serialize};
 
-use super::daemon::{daemon_restart, stop_daemon_blocking};
+use super::daemon::{daemon_restart_inner, stop_daemon_blocking};
 use super::error::{CmdError, CmdResult};
+use crate::services::daemon::DaemonState;
 
 /// 返回 memex 数据目录（`~/.memex`）的绝对路径，给前端展示用。
 /// DataTab 用它显示数据库路径，避免之前为了拿一个路径把 doctor 全跑一遍。
@@ -96,12 +97,14 @@ pub async fn export_db(target_path: String) -> CmdResult<BackupResult> {
 /// CLI 自己什么都不知道，只管解包；这边补上 daemon 边界。
 ///
 /// 解包完成后调 `daemon_restart`，否则后台采集 / HTTP 健康都会一直挂着。
-#[tauri::command]
-pub async fn import_db(source_path: String) -> CmdResult<ImportResult> {
-    let source = PathBuf::from(&source_path);
-    if source.as_os_str().is_empty() {
+/// 把 `import_db` 入参的路径校验提成独立纯函数，方便单测：
+/// 不需要构造 `tauri::State<DaemonState>` 就能覆盖所有 reject 分支。
+/// 校验通过返回归一化的 `PathBuf`，否则带 `CmdError::Backend / NotFound`。
+fn validate_import_source(source_path: &str) -> CmdResult<PathBuf> {
+    if source_path.is_empty() {
         return Err(CmdError::Backend("导入路径为空".into()));
     }
+    let source = PathBuf::from(source_path);
     if !source.exists() {
         return Err(CmdError::NotFound(format!(
             "导入文件不存在：{}",
@@ -114,10 +117,18 @@ pub async fn import_db(source_path: String) -> CmdResult<ImportResult> {
             source.display()
         )));
     }
+    Ok(source)
+}
 
+#[tauri::command]
+pub async fn import_db(
+    state: tauri::State<'_, DaemonState>,
+    source_path: String,
+) -> CmdResult<ImportResult> {
+    let source = validate_import_source(&source_path)?;
     let restore = run_restore_cli(&source)?;
     // 数据替换后立刻拉起 daemon，避免 UI 那边接下来的查询都打到一个空的 db state。
-    let _ = daemon_restart().await;
+    let _ = daemon_restart_inner(&state).await;
     Ok(ImportResult {
         source: restore.source,
         before_path: restore.before_path,
@@ -245,9 +256,12 @@ mod tests {
     }
 
     /// 导入空路径应被前置校验拒绝。
-    #[tokio::test]
-    async fn import_db_rejects_empty_path() {
-        let err = import_db(String::new()).await.unwrap_err();
+    /// 注：单测改测 `validate_import_source`，因为顶层 `import_db` 现在依赖
+    /// `tauri::State<DaemonState>`，在测试环境里没法零成本构造；校验逻辑已
+    /// 单独抽出来，等价覆盖了 reject 分支。
+    #[test]
+    fn import_db_rejects_empty_path() {
+        let err = validate_import_source("").unwrap_err();
         assert!(
             matches!(err, CmdError::Backend(_)),
             "expected Backend error, got {:?}",
@@ -256,13 +270,11 @@ mod tests {
     }
 
     /// 导入不存在的归档路径应返回 NotFound，避免静默把 daemon 停了之后什么都不做。
-    #[tokio::test]
-    async fn import_db_rejects_missing_file() {
+    #[test]
+    fn import_db_rejects_missing_file() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let missing = tmp.path().join("nope.tar.gz");
-        let err = import_db(missing.to_string_lossy().to_string())
-            .await
-            .unwrap_err();
+        let err = validate_import_source(&missing.to_string_lossy()).unwrap_err();
         assert!(
             matches!(err, CmdError::NotFound(_)),
             "expected NotFound, got {:?}",
@@ -272,14 +284,12 @@ mod tests {
 
     /// 给一个目录路径（不是 file）应被拒绝。否则后端会傻乎乎地把目录传给 `memex restore`，
     /// CLI 那边再 fail 一次，错误信息很模糊。
-    #[tokio::test]
-    async fn import_db_rejects_directory() {
+    #[test]
+    fn import_db_rejects_directory() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir_path = tmp.path().join("subdir");
         std::fs::create_dir_all(&dir_path).unwrap();
-        let err = import_db(dir_path.to_string_lossy().to_string())
-            .await
-            .unwrap_err();
+        let err = validate_import_source(&dir_path.to_string_lossy()).unwrap_err();
         assert!(
             matches!(err, CmdError::Backend(_)),
             "expected Backend error, got {:?}",
