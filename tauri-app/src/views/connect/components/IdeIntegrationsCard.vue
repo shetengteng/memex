@@ -200,7 +200,7 @@ async function toggleHook(row: IdeRow, next: boolean) {
             </TooltipTrigger>
             <TooltipContent side="top" class="max-w-xs text-[11px]">
               <span v-if="row.hookSupported">
-                Hook 钩子：AI 会话启动时自动注入「项目工作记忆」（最近的 L3 摘要 + 相关决策）
+                Hook 钩子：AI 会话启动时自动注入「项目工作记忆」（最近的叙述摘要 + 相关决策）
               </span>
               <span v-else>该 IDE 暂不支持自动注入项目记忆（仅 Claude Code Hook 支持）</span>
             </TooltipContent>

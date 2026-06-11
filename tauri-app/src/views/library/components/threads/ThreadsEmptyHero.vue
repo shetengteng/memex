@@ -8,7 +8,7 @@ import { Sparkles } from 'lucide-vue-next'
 
 const SUGGESTIONS = [
   'Tauri 多窗口',
-  'L2 摘要 prompt',
+  '会话摘要 prompt',
   'memex 桌面化',
   'cursor 适配器',
   'LLM 节流',

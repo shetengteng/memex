@@ -134,8 +134,7 @@ onBeforeUnmount(() => {
           </div>
           <h2 class="text-[16px] font-semibold leading-tight">{{ session.title }}</h2>
           <p class="mt-1 text-[12px] text-muted-foreground">
-            {{ session.messages }} 条消息 · L2 摘要
-            {{ session.l2Done ? '已生成' : '待生成' }}
+            {{ session.messages }} 条消息 · 会话摘要{{ session.l2Done ? '已生成' : '待生成' }}
           </p>
         </div>
       </header>
@@ -154,7 +153,7 @@ onBeforeUnmount(() => {
 
         <section v-if="detail?.summary">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            LLM 摘要（L2）
+            会话摘要
           </div>
           <p class="whitespace-pre-line text-[13px] leading-relaxed">{{ detail.summary }}</p>
         </section>

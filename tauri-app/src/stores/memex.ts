@@ -486,7 +486,7 @@ export async function deleteThread(threadId: number): Promise<void> {
 }
 
 /**
- * 按关键词让 LLM 在所有 L2 摘要里挑出相关 session，作为新线索落库。
+ * 按关键词让 LLM 在所有「会话摘要」（L2）里挑出相关 session，作为新线索落库。
  * 返回新线索的 thread_id（调用方一般会再 refreshThreads 并自动选中它）。
  *
  * 失败处理同上：原样把 `{kind, message}` 抛出。

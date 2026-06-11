@@ -66,17 +66,19 @@ const groupFmt = (iso: string, group: string) => {
             v-if="session.l2Done"
             variant="outline"
             class="h-5 gap-1 border-emerald-500/30 bg-emerald-500/5 px-1.5 font-normal text-emerald-700 dark:text-emerald-400"
+            title="已生成会话摘要（L2）"
           >
             <Check class="size-2.5" />
-            L2 已生成
+            已摘要
           </Badge>
           <Badge
             v-else
             variant="outline"
             class="h-5 gap-1 border-amber-500/40 bg-amber-500/5 px-1.5 font-normal text-amber-700 dark:text-amber-500"
+            title="尚未生成会话摘要（L2）"
           >
             <Clock class="size-2.5" />
-            L2 待生成
+            未摘要
           </Badge>
           <template v-if="session.topics.length">
             <span class="mx-0.5 size-1 shrink-0 rounded-full bg-border" />

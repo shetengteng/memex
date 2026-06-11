@@ -55,7 +55,7 @@ const weekBadge = computed(() => {
       <div class="flex items-center gap-2">
         <BrainCircuit class="size-4" :style="{ color: 'var(--adapter-claude)' }" />
         <h3 class="text-[14px] font-semibold">本周自动摘要</h3>
-        <Badge variant="secondary">L3</Badge>
+        <Badge variant="secondary" title="叙述摘要（L3）：跨会话的时段总结">叙述</Badge>
       </div>
       <span class="text-[11px] text-muted-foreground">{{ weekBadge }}</span>
     </div>

@@ -73,7 +73,8 @@ async function loadProviders() {
     const list = await memex.llmProviderList()
     providers.value = list.map(fromBackend)
   } catch (e) {
-    toast.error(`加载 Provider 失败：${String(e)}`)
+    const fe = humanizeBackendError(e)
+    toast.error('加载 Provider 失败', { description: fe.friendly, duration: 8000 })
   } finally {
     loading.value = false
   }
@@ -462,12 +463,12 @@ function kindLabel(k: Provider['kind']) {
       </CardContent>
     </Card>
 
-    <!-- 摘要节流：每条 L2 摘要之间的间隔，避免 Ollama 一次性把 GPU 拉满。 -->
+    <!-- 摘要节流：每条会话摘要（L2）之间的间隔，避免 Ollama 一次性把 GPU 拉满。 -->
     <Card>
       <CardHeader class="pb-2">
         <CardTitle class="text-base">摘要节流</CardTitle>
         <CardDescription class="text-xs">
-          批量生成 L2 摘要时，每条之间等待的毫秒数。设大一点让 Ollama / Apple Silicon 散热并给系统留呼吸空间；设 0 跑满。
+          批量生成会话摘要时，每条之间等待的毫秒数。设大一点让 Ollama / Apple Silicon 散热并给系统留呼吸空间；设 0 跑满。
         </CardDescription>
       </CardHeader>
       <CardContent class="flex items-center gap-3">
@@ -495,7 +496,10 @@ function kindLabel(k: Provider['kind']) {
     <Card>
       <CardHeader>
         <CardDescription>提示词</CardDescription>
-        <CardTitle class="text-base">L3 叙述模板</CardTitle>
+        <CardTitle class="text-base">叙述摘要模板</CardTitle>
+        <CardDescription class="text-xs">
+          按周 / 月 / 自定义时段把多条「会话摘要」再聚合成一段叙述（旧称 L3）；这里改的是 LLM 拿到的 prompt 骨架。
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Textarea v-model="prompt" rows="6" />
