@@ -21,10 +21,12 @@ pub struct HookStatus {
 }
 
 fn locate_memex_cli() -> Option<PathBuf> {
+    // bundle 里 sidecar 名是 `memex-cli`（GUI 主 binary 占了 `Memex`，APFS 大小写
+    // 不敏感会撞名）。详见 commands/cli_path.rs 的 CLI_LINKS。
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
     {
-        let p = parent.join("memex");
+        let p = parent.join("memex-cli");
         if p.exists() {
             return Some(p);
         }

@@ -16,11 +16,13 @@ pub struct IdeStatus {
 }
 
 fn locate_memex_cli() -> Option<PathBuf> {
-    // bundle 里跟 menubar 同目录的 memex。
+    // bundle 里跟 menubar 同目录的 sidecar。注意名字是 `memex-cli` 而不是 `memex`：
+    // bundle 内 GUI 主 binary 叫 `Memex`，CLI 不能用同名（APFS 大小写不敏感会撞）。
+    // 用户视角的命令名仍是 `memex`，靠 `~/.local/bin/memex` symlink 映射（见 cli_path.rs）。
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
     {
-        let p = parent.join("memex");
+        let p = parent.join("memex-cli");
         if p.exists() {
             return Some(p);
         }
