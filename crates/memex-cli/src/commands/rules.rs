@@ -2,7 +2,7 @@
 //! 的全局规则文件。
 //!
 //! 设计：
-//! - **规则正文单源化**：`rules/shared/memex-rules.md` 通过 `include_str!` 嵌入
+//! - **规则正文单源化**：`rules/memex-rules.md` 通过 `include_str!` 嵌入
 //!   binary，所有 IDE 共用，避免 4 份近似副本漂移。
 //! - **两套部署形态**：
 //!   - **Cursor**：mdc 单文件直接写到 `~/.cursor/rules/memex.mdc`（Cursor 自带的
@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use super::setup::Ide;
 
-const SHARED_RULE_BODY: &str = include_str!("../../../../rules/shared/memex-rules.md");
+const SHARED_RULE_BODY: &str = include_str!("../../../../rules/memex-rules.md");
 
 /// Cursor `.mdc` 的 frontmatter；强制让 Cursor `alwaysApply` 这条规则。
 const CURSOR_FRONTMATTER: &str = "---\nalwaysApply: true\n---\n\n";
