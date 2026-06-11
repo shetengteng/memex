@@ -1,25 +1,11 @@
-//! Memex 后台守护进程的 **library** 入口 —— 提供 HTTP API（search / hooks /
-//! summary）、周期性 ingest、watcher 监听。
+//! axum HTTP server 入口 + 路由表。
 //!
-//! Phase 4 起本 crate 不再产出独立 binary：原 `pub async fn run(port)`、
-//! `src/main.rs`、`logging.rs`（独立文件日志）、`launchd.rs`（launchd plist
-//! helper）都已删除，因为 daemon 跑在 Tauri 主进程内不需要这些。
+//! Phase 6 起，daemon 的代码物理上沉到 `crate::services::daemon::*`。
+//! 这里负责 wire 起 watcher + bootstrap ingest + axum 三件套，跑在
+//! Tauri 主进程的 tokio runtime 上。
 //!
-//! **唯一对外入口** = [`run_in_process`]，由 Tauri 主进程调，主进程负责：
-//! * shutdown future（来自 oneshot channel）
-//! * lockfile 的 write / remove（仍写在 `~/.memex/daemon.lock`，pid=主进程 PID）
-//! * 文件日志（沿用 Tauri 的 tracing subscriber）
-
-#![warn(rust_2018_idioms)]
-#![warn(clippy::all)]
-
-pub mod lockfile;
-pub mod routes;
-pub mod watcher;
-pub mod web;
-
-#[cfg(test)]
-mod tests;
+//! 唯一对外（crate 内）入口 = [`run_in_process`]，由 [`super::handle::spawn_in_process`]
+//! 调起。
 
 use std::future::Future;
 use std::net::SocketAddr;
@@ -35,19 +21,17 @@ use tracing::{info, warn};
 use memex_core::ingest;
 use memex_core::storage::db::Db;
 
+use super::{routes, watcher, web};
+
 pub const DEFAULT_PORT: u16 = 9999;
 
 /// In-process 入口：caller 已 open db、已 ensure memex_dir、已设置 logger。
 ///
-/// **lifecycle 期望**（与 standalone binary 模式的差异）：
+/// **lifecycle 期望**（与早期 standalone binary 模式的差异）：
 /// * 不写 / 不读 `daemon.lock`（lockfile 由 caller 在调用前后管理，本函数只跑 axum + watcher）
 /// * 不安装 SIGTERM/Ctrl-C handler —— 让 caller 通过 `shutdown` future 决定
 ///   生命周期，避免 daemon 跟 Tauri 主进程抢同一个 signal stream
 /// * 不重置 tracing subscriber —— caller 已经有 logger 配置
-///
-/// 调用方：`tauri-app/src-tauri/src/services/daemon.rs::spawn_in_process`
-/// 通过 `tauri::async_runtime::spawn(memex_daemon::run_in_process(...))` 调起，
-/// 退出时把 caller 持有的 oneshot::Sender 触发即可。
 pub async fn run_in_process<F>(
     memex_dir: PathBuf,
     db: Arc<Db>,

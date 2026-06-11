@@ -1,17 +1,17 @@
-//! In-process daemon host —— Phase 2 的核心。
+//! In-process daemon host —— Tauri 主进程持有的 daemon 句柄 / 状态。
 //!
-//! 过去 `memex-daemon` 是独立 binary，由 Tauri 主进程 `Command::spawn` 出去跑。
-//! 现在把它折叠成 `tauri::async_runtime::spawn` 出去的 in-process task，
-//! 跟主进程共享同一个 PID / tokio runtime / db handle。
+//! Phase 2 起 daemon 跑在 Tauri 主进程的 tokio runtime 上（`tauri::async_runtime::spawn`），
+//! 跟主进程共享 PID / runtime / db handle。Phase 6 起 daemon 的源代码物理上
+//! 也下沉到 `crate::services::daemon::*`，本文件只负责 lifecycle 管理（spawn /
+//! shutdown / restart），HTTP server 实现见 [`super::server`]。
 //!
-//! 关键差异 vs binary 模式：
-//! * **lock 文件**：仍写 `~/.memex/daemon.lock`，但 `pid` 字段是**主进程 PID**。
-//!   这是为了向后兼容 `memex-cli daemon_client`（Phase 5 前还得让它能通过 lock
-//!   读 port + 探活）。
+//! 关键差异 vs 早期 standalone binary 模式：
+//! * **lock 文件**：仍写 `~/.memex/daemon.lock`，但 `pid` 字段是**主进程 PID**，
+//!   `memex-cli`、`memex-mcp` 通过这把 lock 找到 daemon HTTP 端口。
 //! * **signal handler**：不装。`shutdown` 由 Tauri 的 `ExitRequested` 调
 //!   [`DaemonState::shutdown_blocking`] 触发。
-//! * **db handle**：现阶段还是 daemon 自己 open（跟 binary 模式一致）；Phase 后续
-//!   可以再下沉到 Tauri State，跟前端 commands 共享。
+//! * **db handle**：daemon 自己 open。Phase 7 可以再下沉到 Tauri State，跟前端
+//!   commands 共享。
 //!
 //! ## State 模型
 //!
@@ -53,7 +53,7 @@ impl DaemonHandle {
                 Err(join_err) => tracing::warn!("in-process daemon join failed: {join_err}"),
             }
         }
-        memex_daemon::lockfile::remove_lock(&memex_core::memex_dir());
+        super::lockfile::remove_lock(&memex_core::memex_dir());
     }
 }
 
@@ -146,9 +146,9 @@ pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
     let db_path = memex_dir.join("memex.db");
     let db = Arc::new(Db::open(&db_path).context("Db::open failed")?);
 
-    // 写 lock：pid=主进程 PID。这样 memex-cli/daemon_client 通过
+    // 写 lock：pid=主进程 PID。这样 memex-cli / memex-mcp 通过
     // read_lock + is_process_alive 仍能正常发现 daemon。
-    memex_daemon::lockfile::write_lock(&memex_dir, port).context("write daemon.lock failed")?;
+    super::lockfile::write_lock(&memex_dir, port).context("write daemon.lock failed")?;
     let started_at = chrono::Utc::now().to_rfc3339();
     let pid = std::process::id();
     tracing::info!(
@@ -162,7 +162,7 @@ pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
         let _ = shutdown_rx.await;
     };
 
-    let join = tauri::async_runtime::spawn(memex_daemon::run_in_process(
+    let join = tauri::async_runtime::spawn(super::server::run_in_process(
         memex_dir,
         db,
         port,

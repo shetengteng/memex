@@ -2,7 +2,7 @@
 //!
 //! Phase 4 起 daemon 跑在 Tauri 主进程内，lockfile 的 `pid` 字段写的是
 //! 主进程 PID。lock 文件存在仅为给 **外部进程**（memex-cli）做 RPC discovery。
-//! 单进程内同步 / 防双开已经不需要靠文件锁 —— [`crate::run_in_process`] 一直只
+//! 单进程内同步 / 防双开已经不需要靠文件锁 —— [`super::server::run_in_process`] 一直只
 //! 起一份。
 //!
 //! 因此本模块只暴露 3 个原语：[`write_lock`] / [`remove_lock`] / [`read_lock`]，
@@ -41,6 +41,13 @@ pub fn remove_lock(memex_dir: &Path) {
     let _ = fs::remove_file(lock_path(memex_dir));
 }
 
+/// 读 lock 文件并反序列化。返回 `None` 表示文件不存在或损坏。
+///
+/// 当前的非测试代码不需要读 lock —— memex-cli / memex-mcp 各自实现的 client
+/// 都自带 lock 读取逻辑。本函数主要给同模块下的集成测试用，所以打了
+/// `cfg(test)` 避免 dead_code 警告。如果未来 main daemon 也需要读 lock（比如
+/// healthcheck 命令），可以摘掉这个 cfg。
+#[cfg(test)]
 pub fn read_lock(memex_dir: &Path) -> Option<LockInfo> {
     let path = lock_path(memex_dir);
     let content = fs::read_to_string(path).ok()?;

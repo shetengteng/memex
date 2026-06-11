@@ -2486,27 +2486,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memex-daemon"
-version = "0.3.4"
-dependencies = [
- "anyhow",
- "axum",
- "blake3",
- "chrono",
- "dirs",
- "http-body-util",
- "memex-core",
- "notify",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
-]
-
-[[package]]
 name = "memex-mcp"
 version = "0.3.4"
 dependencies = [
@@ -2525,9 +2504,13 @@ name = "memex-menubar"
 version = "0.3.4"
 dependencies = [
  "anyhow",
+ "axum",
+ "blake3",
  "chrono",
+ "dirs",
+ "http-body-util",
  "memex-core",
- "memex-daemon",
+ "notify",
  "serde",
  "serde_json",
  "serial_test",
@@ -2542,6 +2525,8 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "toml 0.8.2",
+ "tower",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
  "ureq",
@@ -4666,7 +4651,6 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

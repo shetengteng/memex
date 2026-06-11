@@ -28,7 +28,6 @@ tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 memex-core = { path = "../../crates/memex-core", version = "0.3" }
-memex-daemon = { path = "../../crates/memex-daemon", version = "0.3" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = [
@@ -47,7 +46,17 @@ tauri-plugin-single-instance = { version = "2.4.2", features = ["deep-link"] }
 tauri-plugin-deep-link = "2"
 url = "2"
 ureq = { version = "3", features = ["json"] }
+# Phase 6: 原 memex-daemon crate 解散后下沉到 services::daemon::*，相应依赖
+# 一并迁移到这里。
+axum = "0.8"
+notify = { version = "7", features = ["macos_kqueue"] }
+blake3 = "1"
+dirs = "6"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
 
 [dev-dependencies]
 tempfile = "3"
 serial_test = "3"
+# 给 services::daemon::tests 的 axum oneshot 测试用，原 memex-daemon dev-deps 迁移。
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

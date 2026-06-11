@@ -12,11 +12,12 @@ use serde_json::Value;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-use crate::lockfile::{read_lock, remove_lock, write_lock};
+use super::lockfile::{read_lock, remove_lock, write_lock};
+use super::server::build_router;
 
 fn empty_db_router() -> axum::Router {
     let db = Arc::new(Db::open_in_memory().unwrap());
-    crate::build_router(db)
+    build_router(db)
 }
 
 async fn body_json(body: Body) -> Value {
@@ -81,7 +82,7 @@ async fn test_ingest_returns_zero_on_empty_home() {
     }
 
     let db = Arc::new(Db::open_in_memory().unwrap());
-    let app = crate::build_router(db);
+    let app = build_router(db);
     let response = app
         .oneshot(
             Request::builder()
@@ -119,7 +120,7 @@ async fn test_stats_aggregates_today_and_last_7_days() {
     db.increment_metric_by("ingest_messages", 42).unwrap();
     db.increment_metric("mcp_calls").unwrap();
 
-    let app = crate::build_router(db);
+    let app = build_router(db);
     let response = app
         .oneshot(
             Request::builder()
@@ -180,7 +181,7 @@ async fn test_search_returns_seeded_chunk() {
     })
     .unwrap();
 
-    let app = crate::build_router(db);
+    let app = build_router(db);
     let response = app
         .oneshot(
             Request::builder()
@@ -226,7 +227,7 @@ async fn test_search_records_access_log_and_metric() {
         .map(|m| m.value)
         .unwrap_or(0);
 
-    let app = crate::build_router(db.clone());
+    let app = build_router(db.clone());
     let response = app
         .oneshot(
             Request::builder()
@@ -293,7 +294,7 @@ async fn test_run_in_process_obeys_external_shutdown() {
         let _ = shutdown_rx.await;
     };
 
-    let server = tokio::spawn(crate::run_in_process(memex_dir, db, 0, shutdown));
+    let server = tokio::spawn(super::server::run_in_process(memex_dir, db, 0, shutdown));
 
     // 给 axum / watcher / spawn_blocking 启动时间。100ms 在 macOS CI 下足够。
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;

@@ -3,7 +3,6 @@ members = [
     "crates/memex-core",
     "crates/memex-mcp",
     "crates/memex-cli",
-    "crates/memex-daemon",
     "tauri-app/src-tauri",
 ]
 resolver = "2"
