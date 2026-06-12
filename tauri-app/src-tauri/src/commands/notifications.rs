@@ -61,6 +61,33 @@ pub async fn notifications_mark_all_read() -> CmdResult<u32> {
     Ok(db.mark_all_notifications_read()? as u32)
 }
 
+/// 标记单条为未读（清掉 read_at）。已经是未读则 no-op。
+#[tauri::command]
+pub async fn notification_mark_unread(id: i64) -> CmdResult<bool> {
+    let Some(db) = open_db_optional()? else {
+        return Ok(false);
+    };
+    Ok(db.mark_notification_unread(id)? > 0)
+}
+
+/// 删除单条通知。Db 不存在或 id 不存在都静默返回 false，避免 UI 抖动。
+#[tauri::command]
+pub async fn notification_delete(id: i64) -> CmdResult<bool> {
+    let Some(db) = open_db_optional()? else {
+        return Ok(false);
+    };
+    Ok(db.delete_notification(id)? > 0)
+}
+
+/// 清空所有通知（含已读）。返回被删除的行数。
+#[tauri::command]
+pub async fn notifications_clear_all() -> CmdResult<u32> {
+    let Some(db) = open_db_optional()? else {
+        return Ok(0);
+    };
+    Ok(db.clear_all_notifications()? as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

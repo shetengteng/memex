@@ -120,6 +120,33 @@ impl Db {
         Ok(n)
     }
 
+    /// 标记某条通知"未读"（清掉 read_at）。前端"标记未读"按钮用。
+    /// 不存在的 id 返回 Ok(0)。
+    pub fn mark_notification_unread(&self, id: i64) -> Result<usize> {
+        let conn = self.conn.lock();
+        let n = conn.execute(
+            "UPDATE notifications SET read_at = NULL
+             WHERE id = ?1 AND read_at IS NOT NULL",
+            params![id],
+        )?;
+        Ok(n)
+    }
+
+    /// 删除单条通知。前端 popover 单条 hover 显示的 ✕ 按钮、或 dialog 里的
+    /// 删除按钮用。返回删除的行数（0 或 1）。
+    pub fn delete_notification(&self, id: i64) -> Result<usize> {
+        let conn = self.conn.lock();
+        let n = conn.execute("DELETE FROM notifications WHERE id = ?1", params![id])?;
+        Ok(n)
+    }
+
+    /// 清空所有通知（含未读）。前端"清空"按钮用，前面有确认对话框由 UI 负责。
+    pub fn clear_all_notifications(&self) -> Result<usize> {
+        let conn = self.conn.lock();
+        let n = conn.execute("DELETE FROM notifications", [])?;
+        Ok(n)
+    }
+
     /// 当前未读通知数。前端 Bell badge 用这个值，3s 轮询。
     pub fn count_unread_notifications(&self) -> Result<i64> {
         let conn = self.conn.lock();
@@ -223,6 +250,52 @@ mod tests {
         let unread = db.list_notifications(10, true).unwrap();
         assert_eq!(unread.len(), 1);
         assert!(unread[0].read_at.is_none());
+    }
+
+    #[test]
+    fn mark_unread_reverts_only_read_rows() {
+        let db = Db::open_in_memory().unwrap();
+        let id1 = db.insert_notification(KIND_INGEST_FAILED, "a", "b", None).unwrap();
+        db.mark_notification_read(id1).unwrap();
+        assert_eq!(db.count_unread_notifications().unwrap(), 0);
+
+        let n = db.mark_notification_unread(id1).unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(db.count_unread_notifications().unwrap(), 1);
+        // 已经未读再标未读 = noop
+        let n = db.mark_notification_unread(id1).unwrap();
+        assert_eq!(n, 0);
+        // 不存在的 id
+        assert_eq!(db.mark_notification_unread(99999).unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_notification_removes_one_row() {
+        let db = Db::open_in_memory().unwrap();
+        let id1 = db.insert_notification(KIND_INGEST_FAILED, "a", "b", None).unwrap();
+        let id2 = db.insert_notification(KIND_INGEST_FAILED, "c", "d", None).unwrap();
+
+        let n = db.delete_notification(id1).unwrap();
+        assert_eq!(n, 1);
+        let rows = db.list_notifications(10, false).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, id2);
+
+        // 不存在的 id 静默返回 0
+        assert_eq!(db.delete_notification(id1).unwrap(), 0);
+    }
+
+    #[test]
+    fn clear_all_drops_everything_including_read() {
+        let db = Db::open_in_memory().unwrap();
+        let id1 = db.insert_notification(KIND_INGEST_FAILED, "a", "b", None).unwrap();
+        db.insert_notification(KIND_INGEST_FAILED, "c", "d", None).unwrap();
+        db.mark_notification_read(id1).unwrap();
+
+        let n = db.clear_all_notifications().unwrap();
+        assert_eq!(n, 2);
+        assert!(db.list_notifications(10, false).unwrap().is_empty());
+        assert_eq!(db.count_unread_notifications().unwrap(), 0);
     }
 
     #[test]

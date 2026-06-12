@@ -9,9 +9,16 @@
 //! 因为它是纯函数（基于 project_path 字符串）且 daemon 的 `/search`、
 //! `/sessions` 端点同时服务 GUI（不需要 mcp 那种"对外部 LLM 不暴露 personal
 //! repo"语义）。所以保留是合理的，不算冗余直连 db。
+//!
+//! 过滤受 `config.privacy.skip_private_sessions` 控制：true 时按
+//! `~/.memex/privacy.yaml` 规则过滤；false 时 mcp 也照常返回。开关默认 true
+//! （隐私优先），跟 Settings 里"对 MCP 隐藏私有会话"的 UI 文案一致 ——
+//! 开关 on = "隐藏" = 过滤生效。
 
 use std::time::Instant;
 
+use memex_core::config::MemexConfig;
+use memex_core::memex_dir;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -20,6 +27,17 @@ use super::super::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
     TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
 };
+
+/// 每次 MCP 工具调用都读一次 config.toml。fail-closed：load 失败按"过滤"
+/// 处理（隐私优先），加载成功后跟随 `skip_private_sessions` 字段。
+///
+/// 不缓存值：MCP server 是 IDE spawn 的长跑子进程，用户切开关后不应等到
+/// MCP server 重启才生效。toml 解析 < 1ms，对 MCP 工具网络往返可忽略。
+fn should_filter_private() -> bool {
+    MemexConfig::load(&memex_dir())
+        .map(|c| c.privacy.skip_private_sessions)
+        .unwrap_or(true)
+}
 
 pub(super) fn handle_tool_call(req: &JsonRpcRequest, client: &McpClient) -> JsonRpcResponse {
     let tool_name = req
@@ -161,11 +179,13 @@ fn tool_search(
         None => return Ok("[]".to_string()),
     };
 
-    results.retain(|item| {
-        let sid = item.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
-        let proj = item.get("project").and_then(|v| v.as_str());
-        !memex_core::processor::privacy::is_private_session(sid, proj)
-    });
+    if should_filter_private() {
+        results.retain(|item| {
+            let sid = item.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+            let proj = item.get("project").and_then(|v| v.as_str());
+            !memex_core::processor::privacy::is_private_session(sid, proj)
+        });
+    }
     results.truncate(limit_raw);
     for item in results.iter_mut() {
         enrich_search_result(item);
@@ -229,12 +249,14 @@ fn tool_list_recent(
         Some(arr) => arr.clone(),
         None => return Ok("[]".to_string()),
     };
-    sessions.retain(|s| {
-        let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        // daemon SessionEntry 用 rename_all=camelCase，注意字段是 `projectPath`。
-        let proj = s.get("projectPath").and_then(|v| v.as_str());
-        !memex_core::processor::privacy::is_private_session(id, proj)
-    });
+    if should_filter_private() {
+        sessions.retain(|s| {
+            let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            // daemon SessionEntry 用 rename_all=camelCase，注意字段是 `projectPath`。
+            let proj = s.get("projectPath").and_then(|v| v.as_str());
+            !memex_core::processor::privacy::is_private_session(id, proj)
+        });
+    }
     sessions.truncate(limit_raw);
     for s in sessions.iter_mut() {
         enrich_session_value(s);
@@ -317,11 +339,13 @@ fn tool_list_sessions_by_range(
         Some(arr) => arr.clone(),
         None => return Ok("[]".to_string()),
     };
-    sessions.retain(|s| {
-        let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        let proj = s.get("project_path").and_then(|v| v.as_str());
-        !memex_core::processor::privacy::is_private_session(id, proj)
-    });
+    if should_filter_private() {
+        sessions.retain(|s| {
+            let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let proj = s.get("project_path").and_then(|v| v.as_str());
+            !memex_core::processor::privacy::is_private_session(id, proj)
+        });
+    }
     // 一次性给每条加 deep_link，跟旧 mcp 行为对齐。
     for s in sessions.iter_mut() {
         enrich_session_value(s);

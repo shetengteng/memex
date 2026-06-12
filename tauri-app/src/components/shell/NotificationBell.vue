@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Bell, Inbox, AlertTriangle, FileCheck, Brain, CalendarClock } from 'lucide-vue-next'
+import { Bell, Inbox, AlertTriangle, FileCheck, Brain, CalendarClock, X, Trash2, MailOpen, Mail } from 'lucide-vue-next'
 import {
   Popover,
   PopoverContent,
@@ -17,7 +17,8 @@ import { Button } from '@/components/ui/button'
 import { useNotifications } from '@/composables/useNotifications'
 import type { NotificationEntry } from '@/types'
 
-const { items, unreadCount, refreshList, markRead, markAllRead } = useNotifications()
+const { items, unreadCount, refreshList, markRead, markAllRead, markUnread, remove, clearAll } =
+  useNotifications()
 
 const popoverOpen = ref(false)
 const dialogOpen = ref(false)
@@ -116,6 +117,52 @@ function openDetail(it: NotificationEntry) {
 function onMarkAllRead() {
   void markAllRead()
 }
+
+// 单条删除：阻止冒泡，避免触发 button.click → openDetail。
+// 删除完用户的 active item 时一起关掉 dialog 防止显示 stale 内容。
+function onDeleteItem(e: Event, it: NotificationEntry) {
+  e.stopPropagation()
+  if (activeItem.value?.id === it.id) {
+    dialogOpen.value = false
+    activeItem.value = null
+  }
+  void remove(it.id)
+}
+
+function onClearAll() {
+  if (items.value.length === 0) return
+  // 用原生 confirm 而不是另起 AlertDialog 组件：清空是个一次性破坏性操作，
+  // 弹个原生确认就够了，再叠一层 Dialog 反而显得重。
+  const ok = window.confirm(`确认清空全部 ${items.value.length} 条通知？此操作不可撤销。`)
+  if (!ok) return
+  void clearAll()
+}
+
+function onToggleReadInDialog() {
+  if (!activeItem.value) return
+  const id = activeItem.value.id
+  if (activeItem.value.read_at === null) {
+    void markRead(id).then(() => {
+      if (activeItem.value?.id === id) {
+        activeItem.value = { ...activeItem.value, read_at: new Date().toISOString() }
+      }
+    })
+  } else {
+    void markUnread(id).then(() => {
+      if (activeItem.value?.id === id) {
+        activeItem.value = { ...activeItem.value, read_at: null }
+      }
+    })
+  }
+}
+
+function onDeleteFromDialog() {
+  if (!activeItem.value) return
+  const id = activeItem.value.id
+  dialogOpen.value = false
+  activeItem.value = null
+  void remove(id)
+}
 </script>
 
 <template>
@@ -154,15 +201,27 @@ function onMarkAllRead() {
             {{ unreadCount }} 条未读
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-          :disabled="unreadCount === 0"
-          @click="onMarkAllRead"
-        >
-          全部已读
-        </Button>
+        <div class="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            :disabled="unreadCount === 0"
+            @click="onMarkAllRead"
+          >
+            全部已读
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            :disabled="items.length === 0"
+            :title="items.length === 0 ? '无可清空的通知' : `清空全部 ${items.length} 条`"
+            @click="onClearAll"
+          >
+            清空
+          </Button>
+        </div>
       </div>
 
       <div v-if="items.length === 0" class="flex flex-col items-center justify-center gap-2 px-3 py-10 text-center">
@@ -172,37 +231,52 @@ function onMarkAllRead() {
       </div>
 
       <div v-else class="max-h-[420px] overflow-y-auto">
-        <button
+        <!-- 每条用相对定位 + group hover：右上角 ✕ 按钮在 hover 时浮现。
+             ✕ 单独成 button 避免点击穿透到外层 openDetail 按钮。 -->
+        <div
           v-for="it in items"
           :key="it.id"
-          type="button"
-          class="flex w-full gap-2.5 border-b px-3 py-2.5 text-left last:border-b-0 hover:bg-muted/60"
+          class="group relative flex border-b last:border-b-0 hover:bg-muted/60"
           :class="{ 'bg-muted/30': it.read_at === null }"
-          @click="openDetail(it)"
         >
-          <div class="relative mt-0.5 shrink-0">
-            <component :is="kindIcon(it.kind)" class="size-4" :class="kindIconClass(it.kind)" />
-            <span
-              v-if="it.read_at === null"
-              class="absolute -right-1 -top-1 size-1.5 rounded-full bg-rose-500"
-              aria-label="未读"
-            />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between gap-2">
-              <span class="truncate text-[12.5px] font-medium">{{ it.title }}</span>
-              <span class="shrink-0 text-[10.5px] text-muted-foreground tabular-nums">
-                {{ relativeTime(it.created_at) }}
-              </span>
+          <button
+            type="button"
+            class="flex w-full gap-2.5 px-3 py-2.5 pr-9 text-left"
+            @click="openDetail(it)"
+          >
+            <div class="relative mt-0.5 shrink-0">
+              <component :is="kindIcon(it.kind)" class="size-4" :class="kindIconClass(it.kind)" />
+              <span
+                v-if="it.read_at === null"
+                class="absolute -right-1 -top-1 size-1.5 rounded-full bg-rose-500"
+                aria-label="未读"
+              />
             </div>
-            <div class="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground">
-              {{ it.body }}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="truncate text-[12.5px] font-medium">{{ it.title }}</span>
+                <span class="shrink-0 text-[10.5px] text-muted-foreground tabular-nums">
+                  {{ relativeTime(it.created_at) }}
+                </span>
+              </div>
+              <div class="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground">
+                {{ it.body }}
+              </div>
+              <div class="mt-1 text-[10.5px] text-muted-foreground/70">
+                {{ KIND_LABEL[it.kind] ?? it.kind }}
+              </div>
             </div>
-            <div class="mt-1 text-[10.5px] text-muted-foreground/70">
-              {{ KIND_LABEL[it.kind] ?? it.kind }}
-            </div>
-          </div>
-        </button>
+          </button>
+          <button
+            type="button"
+            class="absolute right-1.5 top-1.5 inline-flex size-6 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:bg-background hover:text-rose-500 group-hover:opacity-100 focus:opacity-100"
+            :aria-label="`删除：${it.title}`"
+            title="删除此条通知"
+            @click="(e) => onDeleteItem(e, it)"
+          >
+            <X class="size-3.5" />
+          </button>
+        </div>
       </div>
     </PopoverContent>
   </Popover>
@@ -230,6 +304,22 @@ function onMarkAllRead() {
             class="max-h-[280px] overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 text-[11.5px] leading-relaxed"
           >{{ payloadView.kind === 'json' ? JSON.stringify(payloadView.value, null, 2) : payloadView.value }}</pre>
         </div>
+      </div>
+
+      <!-- footer actions：标记已读/未读切换 + 删除。两个按钮风格区分明显，
+           删除按钮 destructive 视觉以提醒用户。 -->
+      <div class="flex items-center justify-end gap-2 border-t pt-3">
+        <Button variant="outline" size="sm" class="gap-1.5" @click="onToggleReadInDialog">
+          <component
+            :is="activeItem.read_at === null ? MailOpen : Mail"
+            class="size-3.5"
+          />
+          {{ activeItem.read_at === null ? '标记已读' : '标记未读' }}
+        </Button>
+        <Button variant="destructive" size="sm" class="gap-1.5" @click="onDeleteFromDialog">
+          <Trash2 class="size-3.5" />
+          删除
+        </Button>
       </div>
     </DialogContent>
   </Dialog>

@@ -28,9 +28,11 @@ const rows = ref<IdeRow[]>([])
 const loading = ref(false)
 const busy = ref<Record<string, boolean>>({})
 
+// 注意：CLI 返回的 IDE id 是 `claude-code`（横线），不是 `claude_code`。
+// 旧版误用下划线导致 Claude Code 一行 fallback 显示成 "claude-code" 小写裸串。
 const IDE_LABEL: Record<string, string> = {
   cursor: 'Cursor',
-  claude_code: 'Claude Code',
+  'claude-code': 'Claude Code',
   codex: 'Codex',
   opencode: 'OpenCode',
 }

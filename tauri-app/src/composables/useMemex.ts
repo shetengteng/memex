@@ -235,6 +235,21 @@ export function useMemex() {
     return invoke<number>('notifications_mark_all_read')
   }
 
+  /** 标记单条为未读（清掉 read_at）。已经是未读则 noop，返回 false。 */
+  async function notificationMarkUnread(id: number): Promise<boolean> {
+    return invoke<boolean>('notification_mark_unread', { id })
+  }
+
+  /** 删除单条通知。返回是否真的删了一行（false=id 不存在/db 缺失）。 */
+  async function notificationDelete(id: number): Promise<boolean> {
+    return invoke<boolean>('notification_delete', { id })
+  }
+
+  /** 清空所有通知（含已读）。返回被删除的行数。 */
+  async function notificationsClearAll(): Promise<number> {
+    return invoke<number>('notifications_clear_all')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, listSessionsFiltered, searchMemex, getSession,
     retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
@@ -252,5 +267,6 @@ export function useMemex() {
     checkForUpdates,
     mcpRecentCalls, mcpCallStats24h,
     notificationsList, notificationsUnreadCount, notificationMarkRead, notificationsMarkAllRead,
+    notificationMarkUnread, notificationDelete, notificationsClearAll,
   }
 }

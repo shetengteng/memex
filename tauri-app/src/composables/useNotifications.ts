@@ -56,6 +56,33 @@ async function markAllRead(): Promise<void> {
   unreadCount.value = 0
 }
 
+async function markUnread(id: number): Promise<void> {
+  const changed = await memex.notificationMarkUnread(id)
+  if (!changed) return
+  const idx = items.value.findIndex((n) => n.id === id)
+  if (idx >= 0 && items.value[idx].read_at !== null) {
+    items.value[idx] = { ...items.value[idx], read_at: null }
+    unreadCount.value = unreadCount.value + 1
+  }
+}
+
+async function remove(id: number): Promise<void> {
+  const ok = await memex.notificationDelete(id)
+  if (!ok) return
+  const target = items.value.find((n) => n.id === id)
+  items.value = items.value.filter((n) => n.id !== id)
+  if (target && target.read_at === null) {
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  }
+}
+
+async function clearAll(): Promise<void> {
+  const n = await memex.notificationsClearAll()
+  if (n <= 0) return
+  items.value = []
+  unreadCount.value = 0
+}
+
 function startPolling() {
   if (timer) return
   timer = setInterval(() => {
@@ -102,6 +129,9 @@ export function useNotifications() {
     refreshList,
     markRead,
     markAllRead,
+    markUnread,
+    remove,
+    clearAll,
   }
 }
 
@@ -114,4 +144,7 @@ export const notificationsState = {
   refreshList,
   markRead,
   markAllRead,
+  markUnread,
+  remove,
+  clearAll,
 }
