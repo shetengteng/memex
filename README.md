@@ -42,7 +42,7 @@ Memex 是一个**本地优先**的"AI 记忆中枢"：
 
 ## 快速开始
 
-> **当前状态**：v0.3.4 release pipeline 已就绪，DMG 与 Homebrew Cask 待首次 GitHub Release 上线后可用。在那之前，推荐使用「方式 1：从源码构建」。
+> **当前状态**：v1.0.0 — daemon 完全内嵌、端口 fallback、CLI 自动重试、通知中心、隐私开关、清空数据韧性、UI 全部 shadcn 化。DMG 与 Homebrew Cask 待首次 GitHub Release 上线后可用，在那之前推荐使用「方式 1：从源码构建」。
 
 ### 方式 1：从源码构建（推荐）
 

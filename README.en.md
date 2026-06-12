@@ -42,7 +42,7 @@ Memex is a **local-first** "AI memory hub":
 
 ## Quick Start
 
-> **Status**: v0.3.4 release pipeline is ready. DMG and Homebrew Cask will be enabled once the first GitHub Release ships. Until then prefer **Option 1: build from source**.
+> **Status**: v1.0.0 — daemon fully embedded, port fallback, CLI auto-retry, notification center, privacy switches, resilient wipe-all, shadcn UI everywhere. DMG and Homebrew Cask will be enabled once the first GitHub Release ships. Until then prefer **Option 1: build from source**.
 
 ### Option 1: Build from source (recommended)
 

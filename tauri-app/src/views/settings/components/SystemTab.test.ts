@@ -28,7 +28,7 @@ vi.mock('@/composables/useDaemon', () => ({
 }))
 
 vi.mock('@tauri-apps/api/app', () => ({
-  getVersion: vi.fn().mockResolvedValue('0.3.4'),
+  getVersion: vi.fn().mockResolvedValue('1.0.0'),
 }))
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
@@ -65,7 +65,7 @@ describe('SystemTab', () => {
       cursor_probe: { status: 'ok', composer_count: 2148, db_path: '/tmp/cursor.db' },
     })
     ipcMocks.checkForUpdates.mockResolvedValue({
-      latest_tag: 'v0.3.4',
+      latest_tag: 'v1.0.0',
       html_url: 'https://example.com/release',
     })
   })
@@ -93,7 +93,7 @@ describe('SystemTab', () => {
     expect(ipcMocks.cliStatus).toHaveBeenCalled()
     expect(ipcMocks.runDoctor).not.toHaveBeenCalled()
     const text = wrapper.text()
-    expect(text).toContain('v0.3.4')
+    expect(text).toContain('v1.0.0')
     expect(text).toContain('未检查')
   })
 

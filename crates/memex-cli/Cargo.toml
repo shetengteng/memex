@@ -10,7 +10,7 @@ name = "memex"
 path = "src/main.rs"
 
 [dependencies]
-memex-core = { path = "../memex-core", version = "0.3" }
+memex-core = { path = "../memex-core", version = "1" }
 clap = { version = "4", features = ["derive"] }
 anyhow.workspace = true
 serde.workspace = true
