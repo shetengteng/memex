@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNotifications } from '@/composables/useNotifications'
 import type { NotificationEntry } from '@/types'
 
@@ -121,27 +120,26 @@ function onMarkAllRead() {
 
 <template>
   <Popover v-model:open="popoverOpen">
-    <Tooltip :delay-duration="200">
-      <TooltipTrigger as-child>
-        <PopoverTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="relative size-8 text-muted-foreground hover:text-foreground"
-            aria-label="通知中心"
-          >
-            <Bell class="size-4" />
-            <span
-              v-if="unreadCount > 0"
-              class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-medium leading-none text-white"
-            >
-              {{ unreadBadge }}
-            </span>
-          </Button>
-        </PopoverTrigger>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">通知中心</TooltipContent>
-    </Tooltip>
+    <!-- 之前 Tooltip + PopoverTrigger 双层 as-child 包 Button，reka-ui 会把
+         click 事件吃掉，导致点击图标无反应。改成 PopoverTrigger 直接挂 Button，
+         tooltip 用原生 title 兜底（hover 时浏览器自带浮窗）。 -->
+    <PopoverTrigger as-child>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="relative size-8 text-muted-foreground hover:text-foreground"
+        aria-label="通知中心"
+        title="通知中心"
+      >
+        <Bell class="size-4" />
+        <span
+          v-if="unreadCount > 0"
+          class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-medium leading-none text-white"
+        >
+          {{ unreadBadge }}
+        </span>
+      </Button>
+    </PopoverTrigger>
 
     <PopoverContent
       side="bottom"

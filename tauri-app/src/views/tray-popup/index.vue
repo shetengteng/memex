@@ -12,7 +12,7 @@ import {
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
-import { sessions, totals, daemon, daemonStatus, ADAPTER_MAP, refreshSessions } from '@/stores/memex'
+import { sessions, totals, daemon, daemonStatus, stats, ADAPTER_MAP, refreshSessions } from '@/stores/memex'
 import { useMemex } from '@/composables/useMemex'
 import { useDaemon } from '@/composables/useDaemon'
 import { formatNumber } from '@/lib/utils'
@@ -79,8 +79,15 @@ onMounted(async () => {
   // 每次弹出时拉最新 5 条 session（store 已经初始化过，这里只是增量刷新）
   void refreshSessions(5)
 
-  // 顺手拉一次 stats 让"sessions"数字也保持准确（轻量调用）
-  void memex.getStats().catch(() => {})
+  // 顺手拉一次 stats 让"sessions/messages"数字也保持准确（轻量调用）。
+  // 这里必须把 IPC 结果写回 `stats` ref，否则 `totals.messages` 永远保持初始值 0
+  // —— popup 是临时窗口，没有 useStats 的轮询常驻给它兜底。
+  void memex
+    .getStats()
+    .then((v) => {
+      stats.value = v
+    })
+    .catch(() => {})
 
   appWindow.onFocusChanged(({ payload: focused }) => {
     if (!focused) appWindow.hide().catch(() => {})
