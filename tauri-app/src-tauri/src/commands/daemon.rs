@@ -28,24 +28,31 @@ pub struct DaemonStatus {
     pub started_at: Option<String>,
 }
 
-fn http_health_ok(port: u16) -> bool {
+/// 异步探活：用 `tokio::task::spawn_blocking` 把同步 curl 调用挪到 blocking 线程池，
+/// 不再阻塞 tokio worker。原来在 axum/Tauri 共享 runtime 上同步 `Command::output()`
+/// 会卡住一整个 worker 最多 2 秒，连带影响其他 IPC 与 daemon 自身的 HTTP 处理。
+async fn http_health_ok(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
-    Command::new("curl")
-        .args([
-            "-s",
-            "-o",
-            "/dev/null",
-            "-w",
-            "%{http_code}",
-            "--max-time",
-            "2",
-            &url,
-        ])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim() == "200")
-        .unwrap_or(false)
+    let result = tokio::task::spawn_blocking(move || {
+        Command::new("curl")
+            .args([
+                "-s",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                "--max-time",
+                "2",
+                &url,
+            ])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim() == "200")
+            .unwrap_or(false)
+    })
+    .await;
+    result.unwrap_or(false)
 }
 
 /// 返回 daemon 写 stdout 日志的绝对路径，方便 GUI 直接 `open` 这个文件。
@@ -65,8 +72,8 @@ pub fn daemon_log_path() -> String {
 /// * `state.snapshot() == Some` → running=true，再调 HTTP `/health` 探活，
 ///   未就绪时 running 仍是 true，前端按 `http_ok` 区分"启动中" vs "就绪"
 /// * `state.snapshot() == None`  → 还没起 / 启动失败 → running=false
-fn build_status_from_state(state: &DaemonState) -> DaemonStatus {
-    let snapshot = match tauri::async_runtime::block_on(state.snapshot()) {
+async fn build_status_from_state(state: &DaemonState) -> DaemonStatus {
+    let snapshot = match state.snapshot().await {
         Some(s) => s,
         None => {
             return DaemonStatus {
@@ -78,7 +85,7 @@ fn build_status_from_state(state: &DaemonState) -> DaemonStatus {
             };
         }
     };
-    let http_ok = http_health_ok(snapshot.port);
+    let http_ok = http_health_ok(snapshot.port).await;
     DaemonStatus {
         running: true,
         pid: Some(snapshot.pid),
@@ -90,7 +97,7 @@ fn build_status_from_state(state: &DaemonState) -> DaemonStatus {
 
 #[tauri::command]
 pub async fn daemon_status(state: tauri::State<'_, DaemonState>) -> CmdResult<DaemonStatus> {
-    Ok(build_status_from_state(&state))
+    Ok(build_status_from_state(&state).await)
 }
 
 #[tauri::command]
@@ -111,12 +118,16 @@ pub(crate) async fn daemon_restart_inner(state: &DaemonState) -> CmdResult<Daemo
     // axum::serve 是异步起的，restart 返回时 HTTP 未必立刻可用。轮询 20 次，
     // 每次 150ms，总共最多等 3s；命中就立即返回，超时也返回当前 state 的
     // 快照，让前端区分"启动中"和"未启动"。
+    //
+    // 注意：必须用 `tokio::time::sleep` 而不是 `std::thread::sleep`。后者会
+    // 阻塞整个 tokio worker 线程，把 axum 的其他请求和后续 IPC 都拖慢；in-process
+    // daemon 跟所有 IPC 共享同一 runtime，3s 的同步 sleep 会让用户感觉「点了没反应」。
     for _ in 0..20 {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        let status = build_status_from_state(state);
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        let status = build_status_from_state(state).await;
         if status.http_ok {
             return Ok(status);
         }
     }
-    Ok(build_status_from_state(state))
+    Ok(build_status_from_state(state).await)
 }
