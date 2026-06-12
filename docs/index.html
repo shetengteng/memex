@@ -24,7 +24,7 @@
         <button id="btn-theme" class="nav-btn" onclick="toggleTheme()">
           <svg id="icon-theme" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
-        <a href="https://github.com" class="nav-btn">
+        <a href="https://github.com/shetengteng/memex" class="nav-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
         </a>
       </div>
@@ -116,7 +116,7 @@
     </div>
   </section>
 
-  <!-- Screenshots Gallery (mockups with fake but realistic data) -->
+  <!-- Screenshots Gallery (real screenshots of Memex.app v1.0.0) -->
   <section id="screens" class="section">
     <div class="container container-wide">
       <div class="section-header reveal">
@@ -125,540 +125,53 @@
       </div>
       <div class="screenshots-grid">
 
-        <!-- ─── 1. Today ─── -->
         <div class="shot-card shot-card-wide reveal">
-          <div class="shot-frame">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex</span>
-            </div>
-            <div class="shot-body app">
-              <!-- sidebar -->
-              <aside class="app-side">
-                <div class="side-brand">
-                  <span class="brand-mark">M</span>
-                  <div>
-                    <b>Memex</b>
-                    <em data-i18n="brandSub">AI 记忆中枢</em>
-                  </div>
-                </div>
-                <nav class="side-nav">
-                  <a class="side-link active"><span class="ico">◐</span><span data-i18n="navToday">今天</span></a>
-                  <a class="side-link"><span class="ico">▤</span><span data-i18n="navLibrary">资料库</span><span class="side-badge">28</span></a>
-                  <a class="side-link"><span class="ico">✦</span><span data-i18n="navInsights">洞察</span></a>
-                </nav>
-                <div class="side-group" data-i18n="sideWorkspace">工作区</div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">⌖</span><span data-i18n="navConnect">连接</span><span class="side-dot"></span></a>
-                  <a class="side-link"><span class="ico">⚙</span><span data-i18n="navSettings">设置</span></a>
-                </nav>
-                <div class="side-foot">
-                  <span class="status-dot"></span>
-                  <span data-i18n="sideStatus">记忆中 · 4 312</span>
-                </div>
-              </aside>
-              <!-- main -->
-              <section class="app-main">
-                <header class="app-topbar">
-                  <span class="topbar-icon">☰</span>
-                  <span class="topbar-title" data-i18n="navToday">今天</span>
-                  <div class="topbar-spacer"></div>
-                  <div class="topbar-search">
-                    <span>⌕</span>
-                    <span data-i18n="topbarSearch">搜索会话、项目、命令…</span>
-                    <span class="kbd">⌘K</span>
-                  </div>
-                  <span class="topbar-bell">◔<span class="bell-badge">3</span></span>
-                </header>
-                <div class="app-content">
-                  <h3 class="today-greet" data-i18n="todayGreet">下午好，Terrell</h3>
-                  <p class="today-sub" data-i18n="todaySub">2026 年 6 月 12 日 · 上次采集 2 分钟前 · 4 个 IDE 在线</p>
-                  <div class="stat-row">
-                    <div class="stat-card">
-                      <span class="stat-label" data-i18n="statToday">今天</span>
-                      <div class="stat-line"><b>28</b><em data-i18n="statSessions">会话</em></div>
-                      <div class="stat-line muted"><b>147</b><em data-i18n="statMsgs">消息</em></div>
-                    </div>
-                    <div class="stat-card">
-                      <span class="stat-label" data-i18n="statWeek">本周</span>
-                      <div class="stat-line"><b>147</b><em data-i18n="statSessions">会话</em></div>
-                      <div class="stat-line muted"><b>1 284</b><em data-i18n="statMsgs">消息</em></div>
-                    </div>
-                    <div class="stat-card">
-                      <span class="stat-label" data-i18n="statMonth">本月</span>
-                      <div class="stat-line"><b>612</b><em data-i18n="statSessions">会话</em></div>
-                      <div class="stat-line muted"><b>4 312</b><em data-i18n="statMsgs">消息</em></div>
-                    </div>
-                  </div>
-                  <div class="activity-card">
-                    <div class="card-head">
-                      <b data-i18n="todayActivityTitle">你今天的活动</b>
-                      <span class="card-meta">06-12</span>
-                    </div>
-                    <div class="spark">
-                      <i style="--h: 30%"></i><i style="--h: 55%"></i><i style="--h: 42%"></i>
-                      <i style="--h: 70%"></i><i style="--h: 88%"></i><i style="--h: 60%"></i>
-                      <i style="--h: 75%"></i><i style="--h: 50%"></i><i style="--h: 92%"></i>
-                      <i style="--h: 65%"></i><i style="--h: 48%"></i><i style="--h: 80%"></i>
-                    </div>
-                    <div class="activity-stats">
-                      <div><b>28</b><em data-i18n="statSessions">会话</em></div>
-                      <div><b>147</b><em data-i18n="statMsgs">消息</em></div>
-                      <div><b>3</b><em data-i18n="statProjects">项目</em></div>
-                      <div><b>6</b><em data-i18n="statTools">工具</em></div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <a class="shot-frame shot-real" href="screenshots/01-today.png" target="_blank" rel="noopener">
+            <img src="screenshots/01-today.png" alt="Memex Today page" loading="lazy" />
+          </a>
           <div class="shot-caption">
             <span class="shot-badge">Today</span>
-            <span data-i18n="shotTodayLabel">问候 + 统计 + 今日活动趋势</span>
+            <span data-i18n="shotTodayLabel">问候 + 三段时间统计 + 你今天的活动 + 本周摘要 + 反思 + Smart Resume</span>
           </div>
         </div>
 
-        <!-- ─── 2. Library ─── -->
         <div class="shot-card shot-card-wide reveal reveal-d1">
-          <div class="shot-frame">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex · Library</span>
-            </div>
-            <div class="shot-body app">
-              <aside class="app-side">
-                <div class="side-brand">
-                  <span class="brand-mark">M</span>
-                  <div><b>Memex</b><em data-i18n="brandSub">AI 记忆中枢</em></div>
-                </div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">◐</span><span data-i18n="navToday">今天</span></a>
-                  <a class="side-link active"><span class="ico">▤</span><span data-i18n="navLibrary">资料库</span><span class="side-badge">28</span></a>
-                  <a class="side-link"><span class="ico">✦</span><span data-i18n="navInsights">洞察</span></a>
-                </nav>
-                <div class="side-group" data-i18n="sideWorkspace">工作区</div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">⌖</span><span data-i18n="navConnect">连接</span><span class="side-dot"></span></a>
-                  <a class="side-link"><span class="ico">⚙</span><span data-i18n="navSettings">设置</span></a>
-                </nav>
-                <div class="side-foot"><span class="status-dot"></span><span data-i18n="sideStatus">记忆中 · 4 312</span></div>
-              </aside>
-              <section class="app-main">
-                <header class="app-topbar">
-                  <span class="topbar-icon">☰</span>
-                  <span class="topbar-title" data-i18n="navLibrary">资料库</span>
-                  <span class="topbar-sub" data-i18n="libSubtitle">28 个会话 · 147 条消息</span>
-                  <div class="topbar-spacer"></div>
-                  <div class="seg">
-                    <span class="seg-on" data-i18n="libTabSessions">会话</span>
-                    <span data-i18n="libTabProjects">项目</span>
-                    <span data-i18n="libTabThreads">线索</span>
-                  </div>
-                  <button class="btn-mini btn-mini-solid" data-i18n="libCollect">立即采集</button>
-                </header>
-                <div class="app-content app-content-split">
-                  <div class="lib-filter">
-                    <div class="filter-head" data-i18n="filterTools">工具</div>
-                    <label class="check on"><span></span>Cursor</label>
-                    <label class="check on"><span></span>Claude Code</label>
-                    <label class="check on"><span></span>Codex</label>
-                    <label class="check"><span></span>OpenCode</label>
-                    <div class="filter-head" data-i18n="filterTime">时间</div>
-                    <label class="radio"><span></span><span data-i18n="filter7d">今天</span></label>
-                    <label class="radio on"><span></span><span data-i18n="filter7d">近 7 天</span></label>
-                    <label class="radio"><span></span><span data-i18n="filter30d">近 30 天</span></label>
-                  </div>
-                  <div class="lib-list">
-                    <div class="lib-search">
-                      <span>⌕</span>
-                      <span data-i18n="libSearch">按标题、摘要或片段搜索…</span>
-                    </div>
-                    <div class="lib-item">
-                      <span class="row-dot c-cursor"></span>
-                      <div>
-                        <b>清空全部失败：fsevent 余晖导致 Directory not empty</b>
-                        <span class="row-meta">cursor · memex · 6 分钟前 · 12 msgs</span>
-                      </div>
-                    </div>
-                    <div class="lib-item">
-                      <span class="row-dot c-claude"></span>
-                      <div>
-                        <b>WKWebView confirm/prompt 自动 no-op 的 workaround</b>
-                        <span class="row-meta">claude-code · memex · 42 分钟前 · 8 msgs</span>
-                      </div>
-                    </div>
-                    <div class="lib-item">
-                      <span class="row-dot c-codex"></span>
-                      <div>
-                        <b>CLI client transport-error 后重读 daemon.lock 重试</b>
-                        <span class="row-meta">codex · memex · 2 小时前 · 23 msgs</span>
-                      </div>
-                    </div>
-                    <div class="lib-item">
-                      <span class="row-dot c-opencode"></span>
-                      <div>
-                        <b>scheduler 周日 22:00 触发 weekly_report 单测</b>
-                        <span class="row-meta">opencode · memex · 昨天 · 17 msgs</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <a class="shot-frame shot-real" href="screenshots/02-library.png" target="_blank" rel="noopener">
+            <img src="screenshots/02-library.png" alt="Memex Library page" loading="lazy" />
+          </a>
           <div class="shot-caption">
             <span class="shot-badge">Library</span>
-            <span data-i18n="shotLibraryLabel">左侧过滤面板 + 主列表 + 搜索</span>
+            <span data-i18n="shotLibraryLabel">工具 / 项目 / 时间 / 摘要状态四维过滤 + 主列表 + 全文搜索</span>
           </div>
         </div>
 
-        <!-- ─── 3. Insights ─── -->
         <div class="shot-card shot-card-wide reveal">
-          <div class="shot-frame">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex · Insights</span>
-            </div>
-            <div class="shot-body app">
-              <aside class="app-side">
-                <div class="side-brand">
-                  <span class="brand-mark">M</span>
-                  <div><b>Memex</b><em data-i18n="brandSub">AI 记忆中枢</em></div>
-                </div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">◐</span><span data-i18n="navToday">今天</span></a>
-                  <a class="side-link"><span class="ico">▤</span><span data-i18n="navLibrary">资料库</span><span class="side-badge">28</span></a>
-                  <a class="side-link active"><span class="ico">✦</span><span data-i18n="navInsights">洞察</span></a>
-                </nav>
-                <div class="side-group" data-i18n="sideWorkspace">工作区</div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">⌖</span><span data-i18n="navConnect">连接</span><span class="side-dot"></span></a>
-                  <a class="side-link"><span class="ico">⚙</span><span data-i18n="navSettings">设置</span></a>
-                </nav>
-                <div class="side-foot"><span class="status-dot"></span><span data-i18n="sideStatus">记忆中 · 4 312</span></div>
-              </aside>
-              <section class="app-main">
-                <header class="app-topbar">
-                  <span class="topbar-icon">☰</span>
-                  <span class="topbar-title" data-i18n="navInsights">洞察</span>
-                  <span class="topbar-sub" data-i18n="insightsSub">AI 帮你回顾、提炼、找规律</span>
-                  <div class="topbar-spacer"></div>
-                  <div class="seg">
-                    <span class="seg-on" data-i18n="insTabReports">报告</span>
-                    <span data-i18n="insTabReflect">反思</span>
-                    <span data-i18n="insTabTrends">趋势</span>
-                  </div>
-                </header>
-                <div class="app-content">
-                  <div class="insights-tabs">
-                    <span class="ins-tab-on" data-i18n="insWeek">周报</span>
-                    <span class="ins-tab" data-i18n="insMonth">月报</span>
-                    <span class="ins-tab" data-i18n="insDay">日报</span>
-                    <div class="topbar-spacer"></div>
-                    <button class="btn-mini" data-i18n="insRegenerate">重新生成</button>
-                  </div>
-                  <div class="report-card">
-                    <div class="report-head">
-                      <span class="report-week">Week of 06-08 → 06-14</span>
-                      <span class="report-tag">LLM · Ollama llama3.1</span>
-                    </div>
-                    <div class="report-title">Daemon 合并 & 清空数据稳定性收尾</div>
-                    <p class="report-sum">
-                      本周把 memex-daemon 完全并入 Tauri 主进程，端口段从 9999 fallback 到 10009，
-                      SO_REUSEADDR 解决重启 EADDRINUSE。修了 macOS WKWebView 上 confirm/prompt
-                      不弹框的连锁 bug：清空全部数据不再卡半截，并补了 broken-db 自动 rename 安全网。
-                    </p>
-                    <ul class="report-facts">
-                      <li>147 sessions · 4 IDEs (cursor/claude/codex/opencode)</li>
-                      <li>4 318 messages indexed · +12% wow</li>
-                      <li>9 个 commit · 38 + 5 单测全过</li>
-                    </ul>
-                    <div class="spark spark-tall">
-                      <i style="--h: 35%"></i><i style="--h: 60%"></i><i style="--h: 48%"></i>
-                      <i style="--h: 72%"></i><i style="--h: 90%"></i><i style="--h: 64%"></i>
-                      <i style="--h: 55%"></i>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <a class="shot-frame shot-real" href="screenshots/03-insights.png" target="_blank" rel="noopener">
+            <img src="screenshots/03-insights.png" alt="Memex Insights page" loading="lazy" />
+          </a>
           <div class="shot-caption">
             <span class="shot-badge">Insights</span>
-            <span data-i18n="shotInsightsLabel">LLM 生成的周报 + 关键事实 + 活动柱状图</span>
+            <span data-i18n="shotInsightsLabel">日报 / 周报 / 月报 · LLM 生成 · 报告 / 反思 / 趋势三视图</span>
           </div>
         </div>
 
-        <!-- ─── 4. Connect ─── -->
         <div class="shot-card shot-card-wide reveal reveal-d1">
-          <div class="shot-frame">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex · Connect</span>
-            </div>
-            <div class="shot-body app">
-              <aside class="app-side">
-                <div class="side-brand">
-                  <span class="brand-mark">M</span>
-                  <div><b>Memex</b><em data-i18n="brandSub">AI 记忆中枢</em></div>
-                </div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">◐</span><span data-i18n="navToday">今天</span></a>
-                  <a class="side-link"><span class="ico">▤</span><span data-i18n="navLibrary">资料库</span><span class="side-badge">28</span></a>
-                  <a class="side-link"><span class="ico">✦</span><span data-i18n="navInsights">洞察</span></a>
-                </nav>
-                <div class="side-group" data-i18n="sideWorkspace">工作区</div>
-                <nav class="side-nav">
-                  <a class="side-link active"><span class="ico">⌖</span><span data-i18n="navConnect">连接</span><span class="side-dot"></span></a>
-                  <a class="side-link"><span class="ico">⚙</span><span data-i18n="navSettings">设置</span></a>
-                </nav>
-                <div class="side-foot"><span class="status-dot"></span><span data-i18n="sideStatus">记忆中 · 4 312</span></div>
-              </aside>
-              <section class="app-main">
-                <header class="app-topbar">
-                  <span class="topbar-icon">☰</span>
-                  <span class="topbar-title" data-i18n="navConnect">连接</span>
-                  <span class="topbar-sub" data-i18n="connSubtitle">让你的 AI 编辑器记住一切</span>
-                  <div class="topbar-spacer"></div>
-                  <button class="btn-mini" data-i18n="connRescan">立即扫描</button>
-                </header>
-                <div class="app-content">
-                  <div class="conn-section">
-                    <div class="conn-section-head">
-                      <span class="conn-section-title" data-i18n="connSourcesTitle">采集源</span>
-                      <span class="badge-pill" data-i18n="connSourcesCount">4 / 7 已启用</span>
-                    </div>
-                    <div class="src-row">
-                      <span class="src-dot c-claude"></span>
-                      <div class="src-info">
-                        <b>Claude Code</b>
-                        <code>~/.claude/projects/**/*.jsonl</code>
-                      </div>
-                      <span class="src-count">42 个会话</span>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="src-row">
-                      <span class="src-dot c-cursor"></span>
-                      <div class="src-info">
-                        <b>Cursor</b>
-                        <code>~/Library/Application Support/Cursor/User/workspaceStorage</code>
-                      </div>
-                      <span class="src-count">58 个会话</span>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="src-row">
-                      <span class="src-dot c-codex"></span>
-                      <div class="src-info">
-                        <b>Codex</b>
-                        <code>~/.codex/sessions/*.json</code>
-                      </div>
-                      <span class="src-count">19 个会话</span>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="src-row">
-                      <span class="src-dot c-opencode"></span>
-                      <div class="src-info">
-                        <b>OpenCode</b>
-                        <code>~/.local/share/opencode/projects/**/*.jsonl</code>
-                      </div>
-                      <span class="src-count">28 个会话</span>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="src-row dim">
-                      <span class="src-dot c-aider"></span>
-                      <div class="src-info">
-                        <b>Aider</b>
-                        <code>~/.aider.chat.history.md</code>
-                      </div>
-                      <span class="src-count">— 个会话</span>
-                      <span class="switch"></span>
-                    </div>
-                  </div>
-                  <div class="conn-section">
-                    <div class="conn-section-head">
-                      <span class="conn-section-title" data-i18n="connIDETitle">IDE 集成</span>
-                      <span class="badge-pill" data-i18n="connIDECount">4 / 4 已接入</span>
-                    </div>
-                    <p class="conn-section-sub" data-i18n="connIDESub">一键把 Memex MCP / SKILL / 项目记忆注入到目标 IDE</p>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <a class="shot-frame shot-real" href="screenshots/04-connect.png" target="_blank" rel="noopener">
+            <img src="screenshots/04-connect.png" alt="Memex Connect page" loading="lazy" />
+          </a>
           <div class="shot-caption">
             <span class="shot-badge">Connect</span>
-            <span data-i18n="shotConnectLabel">采集源开关 + 一键 MCP/SKILL 注入</span>
+            <span data-i18n="shotConnectLabel">7 个采集源开关 + 4 个 IDE 集成 · MCP / SKILL / Hook 钩子三栏</span>
           </div>
         </div>
 
-        <!-- ─── 5. Settings ─── -->
         <div class="shot-card shot-card-wide reveal">
-          <div class="shot-frame">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex · Settings</span>
-            </div>
-            <div class="shot-body app">
-              <aside class="app-side">
-                <div class="side-brand">
-                  <span class="brand-mark">M</span>
-                  <div><b>Memex</b><em data-i18n="brandSub">AI 记忆中枢</em></div>
-                </div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">◐</span><span data-i18n="navToday">今天</span></a>
-                  <a class="side-link"><span class="ico">▤</span><span data-i18n="navLibrary">资料库</span><span class="side-badge">28</span></a>
-                  <a class="side-link"><span class="ico">✦</span><span data-i18n="navInsights">洞察</span></a>
-                </nav>
-                <div class="side-group" data-i18n="sideWorkspace">工作区</div>
-                <nav class="side-nav">
-                  <a class="side-link"><span class="ico">⌖</span><span data-i18n="navConnect">连接</span><span class="side-dot"></span></a>
-                  <a class="side-link active"><span class="ico">⚙</span><span data-i18n="navSettings">设置</span></a>
-                </nav>
-                <div class="side-foot"><span class="status-dot"></span><span data-i18n="sideStatus">记忆中 · 4 312</span></div>
-              </aside>
-              <section class="app-main">
-                <header class="app-topbar">
-                  <span class="topbar-icon">☰</span>
-                  <span class="topbar-title" data-i18n="navSettings">设置</span>
-                  <div class="topbar-spacer"></div>
-                  <div class="seg">
-                    <span data-i18n="setTabLLM">LLM</span>
-                    <span class="seg-on" data-i18n="setTabPref">偏好</span>
-                    <span data-i18n="setTabData">数据</span>
-                    <span data-i18n="setTabSys">系统</span>
-                  </div>
-                </header>
-                <div class="app-content">
-                  <div class="set-card">
-                    <div class="set-card-head">
-                      <b data-i18n="settingsPrivacy">隐私</b>
-                      <span class="card-meta" data-i18n="settingsPrivacySub">数据保护</span>
-                    </div>
-                    <div class="set-row">
-                      <div>
-                        <b data-i18n="settingsAutoRedact">入库前自动移除 API Key、密码等敏感信息</b>
-                        <span data-i18n="settingsAutoRedactSub">实时生效，无需重启</span>
-                      </div>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="set-row">
-                      <div>
-                        <b data-i18n="settingsSkipPrivate">标记为「私有」的会话不会通过 MCP 暴露给 IDE</b>
-                        <span data-i18n="settingsSkipPrivateSub">在 privacy.yaml 中维护匹配规则</span>
-                      </div>
-                      <span class="switch on"></span>
-                    </div>
-                  </div>
-                  <div class="set-card">
-                    <div class="set-card-head">
-                      <b data-i18n="settingsNotif">通知</b>
-                      <span class="card-meta" data-i18n="settingsNotifSub">在以下情况通知我</span>
-                    </div>
-                    <div class="set-row">
-                      <div>
-                        <b data-i18n="notifWeekly">每周日 22:00 生成本周报告</b>
-                        <span>避免提示词放置太久</span>
-                      </div>
-                      <span class="switch on"></span>
-                    </div>
-                    <div class="set-row">
-                      <div>
-                        <b data-i18n="notifReflect">当无法解析某个会话时通知</b>
-                        <span>采集失败或损坏的 session 文件</span>
-                      </div>
-                      <span class="switch on"></span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <a class="shot-frame shot-real" href="screenshots/05-settings.png" target="_blank" rel="noopener">
+            <img src="screenshots/05-settings.png" alt="Memex Settings page" loading="lazy" />
+          </a>
           <div class="shot-caption">
             <span class="shot-badge">Settings</span>
-            <span data-i18n="shotSettingsLabel">LLM/偏好/数据/系统 四个分组 · 隐私开关实时生效</span>
-          </div>
-        </div>
-
-        <!-- ─── 6. Tray Popup ─── -->
-        <div class="shot-card reveal reveal-d1">
-          <div class="shot-frame shot-frame-narrow">
-            <div class="shot-titlebar">
-              <span class="tl red"></span>
-              <span class="tl yellow"></span>
-              <span class="tl green"></span>
-              <span class="shot-title">Memex · Tray</span>
-            </div>
-            <div class="shot-body tray">
-              <div class="tray-head">
-                <span class="brand-mark sm">M</span>
-                <div>
-                  <b>Memex</b>
-                  <em data-i18n="brandSub">AI 记忆中枢</em>
-                </div>
-                <span class="topbar-bell">◔<span class="bell-badge">3</span></span>
-              </div>
-              <div class="tray-stats">
-                <div><b>28</b><em data-i18n="statToday">今天</em></div>
-                <div><b>147</b><em data-i18n="statWeek">本周</em></div>
-                <div><b>4 312</b><em data-i18n="statAll">总计</em></div>
-              </div>
-              <div class="tray-label" data-i18n="trayRecent">最近 5 条会话</div>
-              <ul class="tray-list">
-                <li>
-                  <span class="row-dot c-cursor"></span>
-                  <div>
-                    <b>清空全部失败：fsevent 余晖</b>
-                    <span>cursor · 4 分钟前</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="row-dot c-claude"></span>
-                  <div>
-                    <b>WKWebView confirm workaround</b>
-                    <span>claude-code · 38 分钟前</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="row-dot c-codex"></span>
-                  <div>
-                    <b>shadcn ScrollArea overflow fix</b>
-                    <span>codex · 1 小时前</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="row-dot c-opencode"></span>
-                  <div>
-                    <b>SO_REUSEADDR 端口 fallback 测试</b>
-                    <span>opencode · 3 小时前</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="row-dot c-cursor"></span>
-                  <div>
-                    <b>MCP 隐私过滤 + skip_private</b>
-                    <span>cursor · 昨天</span>
-                  </div>
-                </li>
-              </ul>
-              <div class="tray-foot-bar">
-                <button class="btn-mini btn-mini-solid" data-i18n="trayOpen">打开 Memex</button>
-                <button class="btn-mini" data-i18n="traySettings">设置</button>
-              </div>
-            </div>
-          </div>
-          <div class="shot-caption">
-            <span class="shot-badge">Tray</span>
-            <span data-i18n="shotTrayLabel">360 × 520 · ⌘⇧M 切换主窗口</span>
+            <span data-i18n="shotSettingsLabel">LLM / 偏好 / 数据 / 系统 四个分组 · Provider 失败自动 fallback</span>
           </div>
         </div>
 

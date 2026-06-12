@@ -43,7 +43,7 @@ const sidebarWidth = ref(DEFAULT_WIDTH)
 
 const unlisteners: UnlistenFn[] = []
 
-// memex://session/<id> / memex://search / memex://projects
+// memex://session/<id> / memex://search / memex://projects / memex://goto/<page>
 function handleDeepLink(raw: string) {
   try {
     const u = new URL(raw)
@@ -52,10 +52,20 @@ function handleDeepLink(raw: string) {
     if (host === 'session') {
       const id = u.pathname.replace(/^\/+/, '').split('/').filter(Boolean).pop()
       if (id) router.push(`/library?session=${id}`)
-    } else if (host === 'search') {
+      return
+    }
+    if (host === 'search') {
       palette.open()
-    } else if (host === 'projects') {
+      return
+    }
+    if (host === 'projects') {
       router.push('/library')
+      return
+    }
+    if (host === 'goto') {
+      const page = u.pathname.replace(/^\/+/, '').split('/').filter(Boolean)[0] || ''
+      const allow = new Set(['today', 'library', 'insights', 'connect', 'settings'])
+      if (allow.has(page)) router.push(`/${page}`)
     }
   } catch {
     /* ignore */
