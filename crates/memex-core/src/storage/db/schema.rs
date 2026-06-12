@@ -258,4 +258,31 @@ CREATE INDEX IF NOT EXISTS idx_mcp_call_log_occurred_desc
 -- 按 tool 聚合 24h 调用计数 / 平均延迟用。
 CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
     ON mcp_call_log(tool_name);
+
+-- v12: notifications —— 用户通知中心数据源。
+-- 后端在以下场景调 Db::insert_notification 写一行：
+--   * 采集失败（ingest_failed）—— 解析某个 jsonl 出错
+--   * 摘要完成（summary_done）—— LLM 摘要生成成功
+--   * 反思待处理（reflect_pending）—— 超过 24h 没处理
+--   * 周报生成（weekly_report）—— 每周日 22:00 触发
+-- 前端 SiteHeader Bell 按钮通过 list_notifications + count_unread_notifications 拉数据；
+-- 点击通知 → 弹 Dialog 显示详情（payload_json 解析后渲染）。
+-- 写入路径：crates/memex-core/src/storage/notifications.rs。
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    payload_json TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT
+);
+
+-- 列表页倒序拉最近 N 条用。
+CREATE INDEX IF NOT EXISTS idx_notifications_created_desc
+    ON notifications(created_at DESC);
+
+-- count_unread 与 unread_only 查询用（部分索引：只索引未读行，更紧凑）。
+CREATE INDEX IF NOT EXISTS idx_notifications_unread
+    ON notifications(read_at) WHERE read_at IS NULL;
 ";

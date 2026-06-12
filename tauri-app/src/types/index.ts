@@ -401,3 +401,26 @@ export interface McpCallStats24h {
   by_tool: McpToolBreakdown[]
   last_call_at: string | null
 }
+
+/**
+ * 通知中心单条记录。后端在以下场景写入：
+ *
+ * - `ingest_failed`    —— watcher 自动 ingest 失败
+ * - `summary_done`     —— LLM 摘要生成完成（预留）
+ * - `reflect_pending`  —— 反思待处理超时（预留）
+ * - `weekly_report`    —— 周报生成（预留）
+ *
+ * `payload_json` 是任意 JSON 字符串（由 caller 决定语义），前端在 Dialog 详情卡
+ * 里 try-parse 显示；parse 失败时退化为纯文本展示。`read_at=null` 表示未读。
+ *
+ * 字段命名跟 Rust struct serde 默认输出对齐（snake_case），不做 camelCase 转换。
+ */
+export interface NotificationEntry {
+  id: number
+  kind: string
+  title: string
+  body: string
+  payload_json: string | null
+  created_at: string
+  read_at: string | null
+}

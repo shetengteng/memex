@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
 ";
 
 /// v3: `mcp_call_log` 增列 `arguments_json` / `result_json`，把 MCP 调用 payload
-/// 落库给 UI 详情卡用。`ALTER TABLE ADD COLUMN` 在 SQLite 里是 O(1) 元数据改动，
+/// 落库给 UI 详情卡用。`ALTER TABLE ADD COLUMN` 在 SQLite 里是 O(1) 元数据改动,
 /// 不会重写数据页；对历史行新列为 NULL，符合 `Option<String>` 语义。
 ///
 /// 用 `ALTER TABLE` 而不是 baseline 重建，是因为存量用户的 mcp_call_log 行不能丢
@@ -89,12 +89,31 @@ ALTER TABLE mcp_call_log ADD COLUMN arguments_json TEXT;
 ALTER TABLE mcp_call_log ADD COLUMN result_json TEXT;
 ";
 
+/// v4: `notifications` 表 —— 用户通知中心数据源。给已有库追加这张表 + 两个索引,
+/// 全 `IF NOT EXISTS`，对 fresh install 是 no-op（baseline 已经包含）。
+const ADD_NOTIFICATIONS_SQL: &str = "
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    payload_json TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_desc
+    ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread
+    ON notifications(read_at) WHERE read_at IS NULL;
+";
+
 /// Build the migration set.
 pub(super) fn build_migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(baseline_sql()),
         M::up(ADD_MCP_CALL_LOG_SQL),
         M::up(ADD_MCP_CALL_PAYLOAD_SQL),
+        M::up(ADD_NOTIFICATIONS_SQL),
     ])
 }
 

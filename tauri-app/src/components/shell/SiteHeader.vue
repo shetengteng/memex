@@ -12,11 +12,11 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Bell, Search } from 'lucide-vue-next'
-import { toast } from 'vue-sonner'
+import { Search } from 'lucide-vue-next'
 import { totals } from '@/stores/memex'
 import { formatNumber } from '@/lib/utils'
 import { useCommandPalette } from '@/composables/useCommandPalette'
+import NotificationBell from './NotificationBell.vue'
 
 const route = useRoute()
 const { open: openPalette } = useCommandPalette()
@@ -26,13 +26,6 @@ const isToday = computed(() => route.path === '/today')
 const isLibrary = computed(() => route.path === '/library')
 const isInsights = computed(() => route.path === '/insights')
 const isConnect = computed(() => route.path === '/connect')
-
-function onBellClick() {
-  // 通知系统尚未接入；保留按钮位置 + 给个明确 hint，让用户知道这里规划了功能。
-  toast.message('通知中心正在路上', {
-    description: '后续会接入摘要/反思生成完成、采集失败等系统通知。',
-  })
-}
 </script>
 
 <template>
@@ -125,20 +118,7 @@ function onBellClick() {
           <kbd class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
         </Button>
 
-        <Tooltip :delay-duration="200">
-          <TooltipTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="size-8 text-muted-foreground hover:text-foreground"
-              aria-label="通知中心"
-              @click="onBellClick"
-            >
-              <Bell class="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">通知中心（开发中）</TooltipContent>
-        </Tooltip>
+        <NotificationBell />
       </template>
     </div>
   </header>

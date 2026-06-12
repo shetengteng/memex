@@ -11,6 +11,7 @@ use tracing::{info, warn};
 use memex_core::config::MemexConfig;
 use memex_core::ingest;
 use memex_core::storage::db::Db;
+use memex_core::storage::notifications::KIND_INGEST_FAILED;
 
 const DEBOUNCE_SECS: u64 = 2;
 
@@ -125,7 +126,23 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
                         );
                     }
                 }
-                Err(e) => warn!("auto-ingest failed: {}", e),
+                Err(e) => {
+                    warn!("auto-ingest failed: {}", e);
+                    // 用户没法主动看到 watcher 的静默失败 —— 写一条通知，UI Bell badge
+                    // 会自动提示。通知写入失败时仍然继续（payload 序列化 + db.insert
+                    // 都 fallible，但不能让通知层影响主流程）。
+                    let payload = serde_json::json!({
+                        "error": e.to_string(),
+                        "trigger": "watcher",
+                    })
+                    .to_string();
+                    let _ = db.insert_notification(
+                        KIND_INGEST_FAILED,
+                        "采集源同步失败",
+                        &format!("自动 ingest 失败：{}", e),
+                        Some(&payload),
+                    );
+                }
             }
         }
     });

@@ -22,6 +22,7 @@ pub mod llm_test;
 pub mod logs;
 pub mod maintenance;
 pub mod mcp_activity;
+pub mod notifications;
 pub mod reflect;
 pub mod reports;
 pub mod search;

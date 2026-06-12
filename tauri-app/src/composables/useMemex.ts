@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Stats, SessionRow, SearchResult, SessionDetail, SessionListFilter, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo, McpCallEntry, McpCallStats24h } from '@/types'
+import type { Stats, SessionRow, SearchResult, SessionDetail, SessionListFilter, StatsBreakdown, TimelineEntry, ProjectSummary, AggregateSummary, DaemonStatus, CliStatus, LlmTestResult, LlmProvider, ProviderTestResult, DoctorRunResult, ReflectEntry, ReflectDetail, ReflectRunResult, WorkloadReport, SystemResetResult, IdeStatus, SkillStatus, HookStatus, UpdateInfo, McpCallEntry, McpCallStats24h, NotificationEntry } from '@/types'
 
 export function useMemex() {
   async function getStats(): Promise<Stats> {
@@ -212,6 +212,29 @@ export function useMemex() {
     return invoke<McpCallStats24h>('mcp_call_stats_24h')
   }
 
+  /**
+   * 最近 N 条通知，按 id 倒序。db 不存在时返回 [];
+   * unreadOnly=true 时只拉未读。
+   */
+  async function notificationsList(limit = 50, unreadOnly = false): Promise<NotificationEntry[]> {
+    return invoke<NotificationEntry[]>('notifications_list', { limit, unreadOnly })
+  }
+
+  /** 未读通知数。Bell badge 3s 轮询用。db 不存在时返回 0。 */
+  async function notificationsUnreadCount(): Promise<number> {
+    return invoke<number>('notifications_unread_count')
+  }
+
+  /** 标记某条通知已读。返回是否真正发生了状态变更。 */
+  async function notificationMarkRead(id: number): Promise<boolean> {
+    return invoke<boolean>('notification_mark_read', { id })
+  }
+
+  /** 全部已读。返回被标记的行数。 */
+  async function notificationsMarkAllRead(): Promise<number> {
+    return invoke<number>('notifications_mark_all_read')
+  }
+
   return {
     getStats, getBreakdown, getTimeline, listRecent, listSessionsFiltered, searchMemex, getSession,
     retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
@@ -228,5 +251,6 @@ export function useMemex() {
     hookListStatus, hookInstall, hookUninstall,
     checkForUpdates,
     mcpRecentCalls, mcpCallStats24h,
+    notificationsList, notificationsUnreadCount, notificationMarkRead, notificationsMarkAllRead,
   }
 }
