@@ -20,8 +20,8 @@ client: cursor
 ## 一次性启用（已通过 setup 自动完成则跳过）
 
 ```bash
-memex setup cursor          # 写入 ~/.cursor/mcp.json
-memex ingest                # 拉一遍历史
+memex-cli setup cursor          # 写入 ~/.cursor/mcp.json
+memex-cli ingest                # 拉一遍历史
 ```
 
 `setup cursor` 会向 `~/.cursor/mcp.json` 注入：
@@ -29,7 +29,7 @@ memex ingest                # 拉一遍历史
 ```json
 {
   "mcpServers": {
-    "memex": { "command": "<absolute-path>/memex", "args": ["mcp"] }
+    "memex": { "command": "<absolute-path>/memex-cli", "args": ["mcp"] }
   }
 }
 ```

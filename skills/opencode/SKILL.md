@@ -23,8 +23,8 @@ client: opencode
 ## 一次性启用（已通过 setup 自动完成则跳过）
 
 ```bash
-memex setup opencode       # 写入 ~/.config/opencode/opencode.json mcp.memex
-memex ingest               # 拉一遍历史
+memex-cli setup opencode       # 写入 ~/.config/opencode/opencode.json mcp.memex
+memex-cli ingest               # 拉一遍历史
 ```
 
 `setup opencode` 会向 `~/.config/opencode/opencode.json` 追加：
@@ -35,7 +35,7 @@ memex ingest               # 拉一遍历史
   "mcp": {
     "memex": {
       "type": "local",
-      "command": ["<absolute-path>/memex", "mcp"],
+      "command": ["<absolute-path>/memex-cli", "mcp"],
       "enabled": true
     }
   }

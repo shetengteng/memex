@@ -90,7 +90,7 @@ fn print_report(report: &DoctorReport, memex: &std::path::Path, json: bool) -> R
     );
 
     if !report.db_exists {
-        crate::out!("\nRun `memex ingest` to initialize the database.");
+        crate::out!("\nRun `memex-cli ingest` to initialize the database.");
         return Ok(());
     }
 
@@ -135,7 +135,7 @@ fn check_cursor_sqlite() -> String {
         }
         CursorSqliteProbe::NotFound { db_path } => format!("not found at {}", db_path),
         CursorSqliteProbe::PermissionDenied { db_path, .. } => format!(
-            "PERMISSION DENIED at {}\n     → Grant Full Disk Access to your terminal via\n       System Settings → Privacy & Security → Full Disk Access,\n       then re-run `memex doctor`.",
+            "PERMISSION DENIED at {}\n     → Grant Full Disk Access to your terminal via\n       System Settings → Privacy & Security → Full Disk Access,\n       then re-run `memex-cli doctor`.",
             db_path
         ),
         CursorSqliteProbe::Error { message, .. } => format!("ERROR: {}", message),

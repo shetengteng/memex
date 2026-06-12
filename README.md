@@ -97,30 +97,27 @@ bash scripts/upgrade-local.sh --skip-backup
 ### 首次运行
 
 ```bash
-# 1. 启动 daemon（自动创建 ~/.memex/ 目录和 config.toml）
-./target/release/memex-daemon
+# 1. 启动桌面应用（自动创建 ~/.memex/ 目录、内嵌 daemon、HTTP API、托盘）
+open target/release/bundle/macos/Memex.app
 
 # 2. 手动采集一次
-./target/release/memex ingest
+./target/release/memex-cli ingest
 
 # 3. 搜索你的 AI 历史
-./target/release/memex search "如何优化数据库查询"
+./target/release/memex-cli search "如何优化数据库查询"
 
 # 4. 查看统计
-./target/release/memex stats
-
-# 5. 启动桌面应用（含完整主窗口 + 极简托盘 popup）
-open target/release/bundle/macos/Memex.app
+./target/release/memex-cli stats
 ```
 
 ### MCP 接入
 
 ```bash
 # 为 Cursor 配置 MCP
-./target/release/memex setup cursor
+./target/release/memex-cli setup cursor
 
 # 为 Claude Code 配置 MCP
-./target/release/memex setup claude-code
+./target/release/memex-cli setup claude-code
 ```
 
 ---
@@ -131,16 +128,15 @@ open target/release/bundle/macos/Memex.app
 ┌──────────────────────────────────────────────────────┐
 │  AI 编辑器 (Cursor / Claude Code / Codex / ...)      │
 └────────────┬────────────────────────────┬────────────┘
-             │ MCP (stdio)               │ 写入 session 文件
-             ▼                           ▼
-┌─────────────────┐      ┌──────────────────────────┐
-│   memex mcp     │      │  memex-daemon            │
-│   (stdio 模式)   │      │  ├─ watcher (notify)     │
-│                 │      │  ├─ auto ingest           │
-│                 │      │  └─ HTTP API :9999        │
-└───────┬─────────┘      └──────────┬───────────────┘
-        │                           │
-        ▼                           ▼
+             │ MCP (stdio)                │ 写入 session 文件
+             ▼                            ▼
+┌──────────────────┐      ┌──────────────────────────┐
+│  memex-cli mcp   │ HTTP │  Memex.app (Tauri)        │
+│  (stdio 桥接)    │─────▶│  ├─ 内嵌 daemon           │
+│                  │      │  ├─ watcher (notify)      │
+└───────┬──────────┘      │  ├─ auto ingest            │
+        │  HTTP            │  ├─ HTTP API :9999         │
+        ▼                  │  └─ Tray / Main Window     │
 ┌──────────────────────────────────────────────────────┐
 │              memex-core                              │
 │  ├─ collector (7 adapters)                           │
@@ -170,18 +166,18 @@ open target/release/bundle/macos/Memex.app
 ## CLI 命令
 
 ```
-memex ingest [--adapter <name>]     # 手动采集
-memex search <query> [--json]       # 全文检索
-memex sessions [--recent N]          # 列出会话
-memex session <id>                   # 查看会话详情
-memex stats                          # 统计信息
-memex config show / set <key> <val>  # 配置管理
-memex backup <path>                  # 备份
-memex rebuild-index                  # 从 Markdown 重建索引
-memex doctor                         # 健康检查
-memex daemon start / stop / status   # Daemon 管理
-memex setup cursor / claude-code     # MCP 配置
-memex mcp                            # 进入 MCP 模式
+memex-cli ingest [--adapter <name>]     # 手动采集
+memex-cli search <query> [--json]       # 全文检索
+memex-cli sessions [--recent N]          # 列出会话
+memex-cli session <id>                   # 查看会话详情
+memex-cli stats                          # 统计信息
+memex-cli config show / set <key> <val>  # 配置管理
+memex-cli backup <path>                  # 备份
+memex-cli restore <path>                 # 恢复备份
+memex-cli rebuild-index                  # 从 Markdown 重建索引
+memex-cli doctor                         # 健康检查
+memex-cli setup cursor / claude-code     # MCP 配置
+memex-cli mcp                            # 进入 MCP 模式
 ```
 
 ---

@@ -170,7 +170,7 @@ fn run_backup_cli(output_path: &Path) -> CmdResult<BackupResult> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(CmdError::Backend(format!(
-            "memex backup 返回非零（{}）：{}",
+            "memex-cli backup 返回非零（{}）：{}",
             output.status, stderr
         )));
     }
@@ -202,7 +202,7 @@ fn run_restore_cli(source_path: &Path) -> CmdResult<RestoreCliOutput> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(CmdError::Backend(format!(
-            "memex restore 返回非零（{}）：{}",
+            "memex-cli restore 返回非零（{}）：{}",
             output.status, stderr
         )));
     }

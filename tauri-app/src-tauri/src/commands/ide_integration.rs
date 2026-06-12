@@ -71,7 +71,7 @@ pub async fn ide_install(ide: String) -> CmdResult<IdeStatus> {
     let install = Command::new(&bin).args(["setup", &ide]).output()?;
     if !install.status.success() {
         return Err(CmdError::Backend(format!(
-            "memex setup {} 失败：{}",
+            "memex-cli setup {} 失败：{}",
             ide,
             String::from_utf8_lossy(&install.stderr)
         )));
@@ -87,7 +87,7 @@ pub async fn ide_uninstall(ide: String) -> CmdResult<IdeStatus> {
         .output()?;
     if !res.status.success() {
         return Err(CmdError::Backend(format!(
-            "memex setup {} --uninstall 失败：{}",
+            "memex-cli setup {} --uninstall 失败：{}",
             ide,
             String::from_utf8_lossy(&res.stderr)
         )));

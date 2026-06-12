@@ -23,15 +23,15 @@ client: codex
 ## 一次性启用（已通过 setup 自动完成则跳过）
 
 ```bash
-memex setup codex          # 写入 ~/.codex/config.toml [mcp_servers.memex]
-memex ingest               # 拉一遍历史
+memex-cli setup codex          # 写入 ~/.codex/config.toml [mcp_servers.memex]
+memex-cli ingest               # 拉一遍历史
 ```
 
 `setup codex` 会向 `~/.codex/config.toml` 追加：
 
 ```toml
 [mcp_servers.memex]
-command = "<absolute-path>/memex"
+command = "<absolute-path>/memex-cli"
 args = ["mcp"]
 enabled = true
 ```

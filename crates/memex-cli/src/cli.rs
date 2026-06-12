@@ -64,7 +64,7 @@ pub enum Commands {
         /// 输出文件路径
         path: String,
     },
-    /// 从 `memex backup` 产出的 tar.gz 恢复数据（旧数据自动搬到 .before-restore-*）
+    /// 从 `memex-cli backup` 产出的 tar.gz 恢复数据（旧数据自动搬到 .before-restore-*）
     Restore {
         /// 输入归档路径
         path: String,
@@ -138,7 +138,7 @@ pub enum Commands {
     Reflect {
         #[command(subcommand)]
         action: Option<ReflectAction>,
-        /// 直接调用 run 的快捷写法：`memex reflect --period week`
+        /// 直接调用 run 的快捷写法：`memex-cli reflect --period week`
         /// 与 `Run` 子命令互斥；如果同时给了 action，以 action 为准。
         #[arg(long, default_value = "week")]
         period: String,

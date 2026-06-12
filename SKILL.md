@@ -7,10 +7,10 @@ Local-first cross-LLM session memory hub. Search, retrieve, and browse AI conver
 ```bash
 # One-time: install and configure
 cargo install --path crates/memex-cli
-memex setup cursor       # or: memex setup claude-code
+memex-cli setup cursor       # or: memex-cli setup claude-code
 
 # Ingest sessions
-memex ingest
+memex-cli ingest
 ```
 
 ## MCP Tools
@@ -72,18 +72,18 @@ Returns sessions within an ISO date range with their L2 summaries — useful for
 
 | Command | Description |
 |---------|-------------|
-| `memex ingest [--adapter X]` | Ingest sessions from AI tool history |
-| `memex search <query> [--limit N] [--adapter X] [--project X]` | Search indexed sessions |
-| `memex sessions [--recent N]` | List sessions |
-| `memex session <id>` | Show a specific session |
-| `memex stats` | Show statistics |
-| `memex config show` | Show configuration |
-| `memex config set <key> <value>` | Set configuration value |
-| `memex setup <target>` | Configure MCP for cursor/claude-code |
-| `memex doctor` | Run diagnostics |
-| `memex backup <path>` | Export data archive |
-| `memex rebuild-index` | Rebuild SQLite from Markdown |
-| `memex mcp` | Start MCP server (stdio) |
+| `memex-cli ingest [--adapter X]` | Ingest sessions from AI tool history |
+| `memex-cli search <query> [--limit N] [--adapter X] [--project X]` | Search indexed sessions |
+| `memex-cli sessions [--recent N]` | List sessions |
+| `memex-cli session <id>` | Show a specific session |
+| `memex-cli stats` | Show statistics |
+| `memex-cli config show` | Show configuration |
+| `memex-cli config set <key> <value>` | Set configuration value |
+| `memex-cli setup <target>` | Configure MCP for cursor/claude-code |
+| `memex-cli doctor` | Run diagnostics |
+| `memex-cli backup <path>` | Export data archive |
+| `memex-cli rebuild-index` | Rebuild SQLite from Markdown |
+| `memex-cli mcp` | Start MCP server (stdio) |
 
 ## Configuration Keys
 

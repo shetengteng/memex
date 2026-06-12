@@ -34,7 +34,7 @@ pub fn run(period_input: &str, json: bool) -> Result<()> {
     let db_path = memex.join("memex.db");
     if !db_path.exists() {
         return Err(anyhow!(
-            "数据库不存在（{}）。请先运行 `memex ingest`。",
+            "数据库不存在（{}）。请先运行 `memex-cli ingest`。",
             db_path.display()
         ));
     }
@@ -94,7 +94,7 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
     let db_path = memex.join("memex.db");
     if !db_path.exists() {
         return Err(anyhow!(
-            "数据库不存在（{}）。请先运行 `memex ingest`。",
+            "数据库不存在（{}）。请先运行 `memex-cli ingest`。",
             db_path.display()
         ));
     }
@@ -116,7 +116,7 @@ pub fn list(limit: u32, json: bool) -> Result<()> {
     }
 
     if rows.is_empty() {
-        crate::out!("还没有 reflect 记录。先跑 `memex reflect run --period week` 生成一份。");
+        crate::out!("还没有 reflect 记录。先跑 `memex-cli reflect run --period week` 生成一份。");
         return Ok(());
     }
 
@@ -151,7 +151,7 @@ pub fn show(scope_key: &str, json: bool) -> Result<()> {
     let db_path = memex.join("memex.db");
     if !db_path.exists() {
         return Err(anyhow!(
-            "数据库不存在（{}）。请先运行 `memex ingest`。",
+            "数据库不存在（{}）。请先运行 `memex-cli ingest`。",
             db_path.display()
         ));
     }
@@ -160,7 +160,7 @@ pub fn show(scope_key: &str, json: bool) -> Result<()> {
         .get_aggregate_summary("reflect", scope_key)?
         .ok_or_else(|| {
             anyhow!(
-                "没有找到 scope_key={}。试试 `memex reflect list` 看可用 keys。",
+                "没有找到 scope_key={}。试试 `memex-cli reflect list` 看可用 keys。",
                 scope_key
             )
         })?;
