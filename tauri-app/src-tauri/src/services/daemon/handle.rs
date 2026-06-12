@@ -206,7 +206,7 @@ pub async fn spawn_in_process() -> Result<DaemonHandle> {
 ///
 /// `SO_REUSEADDR` 主要解决：用户连点重启时，旧 listener 的 TCP socket 还在
 /// OS 内部清理窗口里，新 bind 会偶发 EADDRINUSE。
-fn bind_listener(preferred: u16) -> Result<tokio::net::TcpListener> {
+pub(crate) fn bind_listener(preferred: u16) -> Result<tokio::net::TcpListener> {
     let mut last_err: Option<std::io::Error> = None;
     for offset in 0..=PORT_FALLBACK_MAX {
         let port = preferred.saturating_add(offset);

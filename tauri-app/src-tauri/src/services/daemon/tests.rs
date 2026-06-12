@@ -278,6 +278,51 @@ fn test_lockfile_roundtrip() {
     assert!(read_lock(tmp.path()).is_none());
 }
 
+/// Phase 9 新增：端口 fallback。占住一个 ephemeral port 作为"首选"，再调
+/// `bind_listener(preferred)` —— 它应该跳过被占用端口，落到 `preferred + N`。
+///
+/// 不直接用 9999 做首选，避免跟本地真实 Memex.app 抢端口；用 OS 分配的临时端口
+/// 模拟"被占"状态，等价于现网 9999 被外部进程占用的情况。
+#[tokio::test]
+async fn test_bind_listener_falls_back_when_preferred_busy() {
+    use std::net::SocketAddr;
+
+    // 拿一个 OS 分配的临时端口，固定下来作为"被占用的首选端口"。
+    // 不释放它（_blocker 持有），bind_listener 必然会绕开它。
+    let blocker = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .expect("bind blocker");
+    let preferred = blocker.local_addr().unwrap().port();
+
+    let listener = super::handle::bind_listener(preferred).expect("fallback should succeed");
+    let actual = listener.local_addr().unwrap().port();
+
+    assert_ne!(
+        actual, preferred,
+        "fallback must skip the occupied preferred port {}",
+        preferred,
+    );
+    assert!(
+        actual > preferred && actual <= preferred.saturating_add(10),
+        "fallback must land within preferred..=preferred+10 (got {})",
+        actual,
+    );
+
+    // 验证 SO_REUSEADDR：把第一个 fallback listener 释放掉再用同样的首选 bind，
+    // 应该能直接抢到刚释放出来的端口，而不是再 +1。这是 SO_REUSEADDR 解决"上次
+    // listener 还在 OS 缓冲里"瞬态的关键证据。
+    drop(listener);
+    let again = super::handle::bind_listener(preferred).expect("rebind should succeed");
+    let actual2 = again.local_addr().unwrap().port();
+    assert!(
+        actual2 > preferred && actual2 <= preferred.saturating_add(10),
+        "second bind also stays in fallback range (got {})",
+        actual2,
+    );
+
+    drop(blocker);
+}
+
 /// Phase 1 新增：验证 `run_in_process` 的核心契约 —— 启动后持续运行直到 caller
 /// 通过 `shutdown` future 触发退出，且不会自己写 lockfile（同进程内只跑一份）。
 ///

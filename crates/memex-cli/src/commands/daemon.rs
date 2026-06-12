@@ -52,7 +52,7 @@ pub fn status(json: bool) -> Result<()> {
                 crate::io::json(&serde_json::json!({
                     "running": true,
                     "pid": client.pid,
-                    "port": client.port,
+                    "port": client.port(),
                     "started_at": client.started_at,
                     "http_ok": true,
                 }))?;
@@ -60,7 +60,7 @@ pub fn status(json: bool) -> Result<()> {
                 crate::out!(
                     "daemon running (pid={}, port={}, started_at={})",
                     client.pid,
-                    client.port,
+                    client.port(),
                     client.started_at
                 );
             }

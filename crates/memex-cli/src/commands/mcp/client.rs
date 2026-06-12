@@ -13,7 +13,8 @@
 //! CLI 用户的 user-facing 文案。两份实现 ≈ 80 行重复但语义不同，没有强行
 //! 抽公共层的诉求。
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
@@ -21,6 +22,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// HTTP 失败时允许"重读 lock + 切端口 + 重试"的最大次数。跟 [`crate::client`]
+/// 保持一致，1 次足够覆盖 daemon 重启 + 端口 fallback 的常见情况。
+const TRANSPORT_RETRY_MAX: u8 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LockInfo {
@@ -32,10 +37,22 @@ struct LockInfo {
 
 /// MCP 用的 daemon 客户端。一次 `run_stdio` 调用持有一份，下面所有 tool
 /// 都通过这个 client 跟 daemon 通信。
+///
+/// 跟顶层 [`crate::client::MemexClient`] 一样，`endpoint` 用 `Mutex` 包装支持
+/// "请求失败 → 重读 lock → 切端口 → 重试一次"，覆盖 daemon 重启 + 端口 fallback
+/// 的瞬时窗口。MCP stdio 进程通常长跑（IDE 会话期间一直在），daemon 重启端口
+/// 跳到 10001 时若没有这个重试，整段 IDE 会话就丢了 daemon 连接。
 #[derive(Debug)]
 pub struct McpClient {
-    base_url: String,
+    endpoint: Mutex<Endpoint>,
     agent: ureq::Agent,
+    memex_dir: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct Endpoint {
+    base_url: String,
+    port: u16,
 }
 
 impl McpClient {
@@ -76,19 +93,57 @@ impl McpClient {
             )
         })?;
 
-        Ok(Self { base_url, agent })
+        Ok(Self {
+            endpoint: Mutex::new(Endpoint {
+                base_url,
+                port: info.port,
+            }),
+            agent,
+            memex_dir: memex_dir.to_path_buf(),
+        })
     }
 
-    /// 不带 query string 的 GET。
+    fn snapshot_base_url(&self) -> String {
+        self.endpoint
+            .lock()
+            .expect("endpoint mutex poisoned")
+            .base_url
+            .clone()
+    }
+
+    /// 重读 `daemon.lock`；端口变了就更新内部 endpoint 并返回 true，否则 false。
+    /// 跟 [`crate::client::MemexClient::try_pick_up_new_port`] 同语义。
+    fn try_pick_up_new_port(&self) -> bool {
+        let info = match read_lock(&self.memex_dir) {
+            Some(i) => i,
+            None => return false,
+        };
+        if !is_process_alive(info.pid) {
+            return false;
+        }
+        let mut ep = self.endpoint.lock().expect("endpoint mutex poisoned");
+        if info.port == ep.port {
+            return false;
+        }
+        ep.base_url = format!("http://127.0.0.1:{}", info.port);
+        ep.port = info.port;
+        true
+    }
+
+    /// 不带 query string 的 GET。失败若是 transport 错误，会重读 lock + 重试一次。
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
-        self.agent
-            .get(&url)
-            .call()
-            .with_context(|| format!("HTTP GET {} failed", path))?
-            .body_mut()
-            .read_json::<T>()
-            .with_context(|| format!("HTTP GET {} parse json failed", path))
+        let mut attempts: u8 = 0;
+        loop {
+            let result = self.do_get(path, &[]);
+            if result.is_ok() || attempts >= TRANSPORT_RETRY_MAX {
+                return result;
+            }
+            let err = result.as_ref().err().unwrap();
+            if !looks_like_transport_error(err) || !self.try_pick_up_new_port() {
+                return result;
+            }
+            attempts += 1;
+        }
     }
 
     /// GET 带 query string。query 不会再次 URL-encode value（caller 自己负责）。
@@ -97,7 +152,22 @@ impl McpClient {
         path: &str,
         query: &[(&str, &str)],
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        let mut attempts: u8 = 0;
+        loop {
+            let result = self.do_get(path, query);
+            if result.is_ok() || attempts >= TRANSPORT_RETRY_MAX {
+                return result;
+            }
+            let err = result.as_ref().err().unwrap();
+            if !looks_like_transport_error(err) || !self.try_pick_up_new_port() {
+                return result;
+            }
+            attempts += 1;
+        }
+    }
+
+    fn do_get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
+        let url = format!("{}{}", self.snapshot_base_url(), path);
         let mut req = self.agent.get(&url);
         for (k, v) in query {
             req = req.query(*k, *v);
@@ -109,19 +179,50 @@ impl McpClient {
             .with_context(|| format!("HTTP GET {} parse json failed", path))
     }
 
-    /// POST + JSON body。
+    /// POST + JSON body。失败时同样支持一次端口跳变重试。
     pub fn post<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
         let value = serde_json::to_value(body)
             .with_context(|| format!("serialize POST {} body failed", path))?;
+        let mut attempts: u8 = 0;
+        loop {
+            let result = self.do_post(path, &value);
+            if result.is_ok() || attempts >= TRANSPORT_RETRY_MAX {
+                return result;
+            }
+            let err = result.as_ref().err().unwrap();
+            if !looks_like_transport_error(err) || !self.try_pick_up_new_port() {
+                return result;
+            }
+            attempts += 1;
+        }
+    }
+
+    fn do_post<T: DeserializeOwned>(&self, path: &str, body: &serde_json::Value) -> Result<T> {
+        let url = format!("{}{}", self.snapshot_base_url(), path);
         self.agent
             .post(&url)
-            .send_json(value)
+            .send_json(body.clone())
             .with_context(|| format!("HTTP POST {} failed", path))?
             .body_mut()
             .read_json::<T>()
             .with_context(|| format!("HTTP POST {} parse json failed", path))
     }
+}
+
+/// 同 [`crate::client::looks_like_transport_error`]，独立一份避免跨模块依赖。
+fn looks_like_transport_error(err: &anyhow::Error) -> bool {
+    let msg = format!("{:#}", err).to_lowercase();
+    const NEEDLES: &[&str] = &[
+        "connection refused",
+        "connection reset",
+        "connection aborted",
+        "broken pipe",
+        "not connected",
+        "host unreachable",
+        "network unreachable",
+        "connect failed",
+    ];
+    NEEDLES.iter().any(|n| msg.contains(n))
 }
 
 fn read_lock(memex_dir: &Path) -> Option<LockInfo> {
@@ -164,5 +265,73 @@ mod tests {
             err
         );
         assert!(!lock.exists(), "stale lock should be removed");
+    }
+
+    /// transport-error 启发式：connection refused / reset 应被识别；
+    /// "parse json" / "500 Internal" 不该误判（不重试）。
+    #[test]
+    fn transport_error_detection_matches_io_keywords() {
+        for needle in [
+            "connection refused",
+            "Connection Reset by peer",
+            "BROKEN PIPE",
+        ] {
+            let err = anyhow!("HTTP GET /stats failed").context(needle.to_string());
+            assert!(
+                looks_like_transport_error(&err),
+                "should detect transport error in: {}",
+                needle
+            );
+        }
+        let parse_err = anyhow!("parse json failed");
+        assert!(!looks_like_transport_error(&parse_err));
+    }
+
+    /// 端口跳变：lock 文件写新端口时，`try_pick_up_new_port` 应返回 true
+    /// 并把内部 endpoint 切到新端口；端口没变或 pid 已死应返回 false。
+    #[test]
+    fn pick_up_new_port_updates_endpoint_when_port_changes() {
+        let tmp = TempDir::new().unwrap();
+        let my_pid = std::process::id();
+        let info = LockInfo {
+            pid: my_pid,
+            port: 9999,
+            started_at: "test".into(),
+        };
+        std::fs::write(
+            tmp.path().join("daemon.lock"),
+            serde_json::to_string(&info).unwrap(),
+        )
+        .unwrap();
+
+        // 跳过 connect() 的 /health 探活，直接手工构造 client。
+        let client = McpClient {
+            endpoint: Mutex::new(Endpoint {
+                base_url: "http://127.0.0.1:9999".into(),
+                port: 9999,
+            }),
+            agent: ureq::Agent::config_builder().build().into(),
+            memex_dir: tmp.path().to_path_buf(),
+        };
+
+        assert!(!client.try_pick_up_new_port(), "no change -> false");
+        assert_eq!(client.endpoint.lock().unwrap().port, 9999);
+
+        let info2 = LockInfo {
+            pid: my_pid,
+            port: 10001,
+            started_at: "test".into(),
+        };
+        std::fs::write(
+            tmp.path().join("daemon.lock"),
+            serde_json::to_string(&info2).unwrap(),
+        )
+        .unwrap();
+        assert!(client.try_pick_up_new_port(), "port change -> true");
+        assert_eq!(client.endpoint.lock().unwrap().port, 10001);
+        assert_eq!(
+            client.endpoint.lock().unwrap().base_url,
+            "http://127.0.0.1:10001"
+        );
     }
 }
