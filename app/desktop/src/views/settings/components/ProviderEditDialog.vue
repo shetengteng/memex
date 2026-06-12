@@ -35,6 +35,7 @@ import { toast } from 'vue-sonner'
 import type { Provider } from '../types'
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 
 const props = defineProps<{ open: boolean; editing: Partial<Provider> }>()
 const emit = defineEmits<{
@@ -44,6 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const memex = useMemex()
+const { t } = useI18n()
 const isEdit = computed(() => Boolean(props.editing.id))
 const showApiKey = ref(false)
 const testing = ref(false)
@@ -101,7 +103,7 @@ async function fetchModels(quiet = false) {
   const baseUrl = (e.baseUrl || '').trim()
   const apiKey = (e.apiKey || '').trim()
   if (!baseUrl) {
-    if (!quiet) toast.error('请先填写 Base URL')
+    if (!quiet) toast.error(t('settings.provider.toast.need_base_url'))
     return
   }
   modelsLoading.value = true
@@ -110,14 +112,14 @@ async function fetchModels(quiet = false) {
     const ids = await memex.llmListModels(kind, baseUrl, apiKey)
     models.value = ids
     if (!quiet) {
-      if (ids.length === 0) toast.info('未查到模型清单')
-      else toast.success(`发现 ${ids.length} 个可用模型`)
+      if (ids.length === 0) toast.info(t('settings.provider.toast.no_models'))
+      else toast.success(t('settings.provider.toast.found_n', { n: ids.length }))
     }
   } catch (err) {
     const fe = humanizeBackendError(err)
     modelsError.value = fe.friendly
     models.value = []
-    if (!quiet) toast.error('拉取模型失败', { description: fe.friendly, duration: 8000 })
+    if (!quiet) toast.error(t('settings.provider.toast.fetch_failed'), { description: fe.friendly, duration: 8000 })
   } finally {
     modelsLoading.value = false
   }
@@ -170,31 +172,31 @@ async function testDraft() {
   const apiKey = (e.apiKey || '').trim()
 
   if (!name || !baseUrl || !model) {
-    toast.error('请先填写 名称 / Base URL / 模型 再测试')
+    toast.error(t('settings.provider.toast.need_fields'))
     return
   }
   if (kind !== 'ollama' && !apiKey) {
-    toast.error('请先填写 API Key 再测试')
+    toast.error(t('settings.provider.toast.need_apikey'))
     return
   }
 
   testing.value = true
-  const loadingId = toast.loading(`正在测试 ${name}…`)
+  const loadingId = toast.loading(t('settings.llm.toast.testing', { name }))
   try {
     const r = await memex.llmProviderTestDraft(name, kind, baseUrl, model, apiKey)
     toast.dismiss(loadingId)
     if (r.ok) {
-      toast.success(`测试通过 · ${r.latencyMs}ms`, {
+      toast.success(t('settings.provider.toast.test_ok', { ms: r.latencyMs }), {
         description: r.responseText ? r.responseText.slice(0, 120) : undefined,
       })
     } else {
       const fe = humanizeBackendError(r.error || 'unknown')
-      toast.error('测试失败', { description: fe.friendly, duration: 8000 })
+      toast.error(t('settings.provider.toast.test_failed'), { description: fe.friendly, duration: 8000 })
     }
   } catch (err) {
     toast.dismiss(loadingId)
     const fe = humanizeBackendError(err)
-    toast.error('测试失败', { description: fe.friendly, duration: 8000 })
+    toast.error(t('settings.provider.toast.test_failed'), { description: fe.friendly, duration: 8000 })
   } finally {
     testing.value = false
   }
@@ -207,16 +209,16 @@ async function testDraft() {
       class="sm:max-w-[720px] lg:max-w-[860px]"
     >
       <DialogHeader>
-        <DialogTitle>{{ isEdit ? '编辑 Provider' : '添加 Provider' }}</DialogTitle>
+        <DialogTitle>{{ isEdit ? t('settings.provider.title_edit') : t('settings.provider.title_add') }}</DialogTitle>
         <DialogDescription>
-          配置 LLM 服务商：从模板快速填充，或手动输入 Base URL 与 API Key
+          {{ t('settings.provider.desc') }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="-mx-4 min-h-0 flex-1 space-y-4 overflow-y-auto px-4">
 
       <div v-if="!isEdit" class="space-y-2">
-        <Label class="text-xs">从模板新建</Label>
+        <Label class="text-xs">{{ t('settings.provider.from_template') }}</Label>
         <div class="grid grid-cols-3 gap-2">
           <button
             v-for="tpl in providerTemplates"
@@ -234,39 +236,39 @@ async function testDraft() {
 
       <div class="grid gap-4 md:grid-cols-2">
         <div class="space-y-1.5">
-          <Label class="text-xs">名称</Label>
+          <Label class="text-xs">{{ t('settings.provider.field.name') }}</Label>
           <Input
             :model-value="editing.name"
             @update:model-value="(v) => update('name', v)"
-            placeholder="给这个 Provider 起个名"
+            :placeholder="t('settings.provider.field.name_ph')"
             class="h-9"
           />
         </div>
         <div class="space-y-1.5">
-          <Label class="text-xs">类型</Label>
+          <Label class="text-xs">{{ t('settings.provider.field.kind') }}</Label>
           <Select
             :model-value="editing.kind"
             @update:model-value="(v) => update('kind', v)"
           >
             <SelectTrigger class="h-9 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="openai_compat">OpenAI 兼容</SelectItem>
-              <SelectItem value="anthropic">Anthropic</SelectItem>
-              <SelectItem value="ollama">Ollama</SelectItem>
+              <SelectItem value="openai_compat">{{ t('settings.llm.kind.openai_compat') }}</SelectItem>
+              <SelectItem value="anthropic">{{ t('settings.llm.kind.anthropic') }}</SelectItem>
+              <SelectItem value="ollama">{{ t('settings.llm.kind.ollama') }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div class="space-y-1.5 md:col-span-2">
-          <Label class="text-xs">Base URL</Label>
+          <Label class="text-xs">{{ t('settings.provider.field.base_url') }}</Label>
           <Input
             :model-value="editing.baseUrl"
             @update:model-value="(v) => update('baseUrl', v)"
-            placeholder="https://api.example.com/v1"
+            :placeholder="t('settings.provider.field.base_url_ph')"
             class="h-9 font-mono text-xs"
           />
         </div>
         <div class="space-y-1.5 md:col-span-2">
-          <Label class="text-xs">API Key</Label>
+          <Label class="text-xs">{{ t('settings.provider.field.api_key') }}</Label>
           <div class="relative">
             <Input
               :model-value="editing.apiKey"
@@ -288,7 +290,7 @@ async function testDraft() {
         </div>
         <div class="space-y-1.5 md:col-span-2">
           <div class="flex items-center justify-between">
-            <Label class="text-xs">模型</Label>
+            <Label class="text-xs">{{ t('settings.provider.field.model') }}</Label>
             <Button
               type="button"
               variant="ghost"
@@ -299,14 +301,14 @@ async function testDraft() {
             >
               <Loader2 v-if="modelsLoading" class="mr-1 size-3 animate-spin" />
               <RefreshCw v-else class="mr-1 size-3" />
-              {{ modelsLoading ? '拉取中…' : '拉取可用模型' }}
+              {{ modelsLoading ? t('settings.provider.fetching') : t('settings.provider.fetch_models') }}
             </Button>
           </div>
           <!-- 单 Input；下方紧跟 chip 标签横排（DiskMind 同款）：点 chip 直接填入 Input -->
           <Input
             :model-value="editing.model"
             @update:model-value="(v) => update('model', v)"
-            placeholder="deepseek-chat / gpt-4o-mini / qwen2.5:3b"
+            :placeholder="t('settings.provider.field.model_ph')"
             class="h-9 font-mono text-xs"
             autocomplete="off"
             spellcheck="false"
@@ -323,30 +325,30 @@ async function testDraft() {
               {{ m }}
             </button>
             <span v-if="models.length > 12" class="px-1 py-0.5 text-[10px] text-muted-foreground">
-              +{{ models.length - 12 }} 个未展示，可直接在输入框搜索
+              {{ t('settings.provider.chip_more', { n: models.length - 12 }) }}
             </span>
           </div>
           <p v-if="modelsError" class="text-[10px] text-rose-500">
-            拉取失败：{{ modelsError }}
+            {{ t('settings.provider.fetch_failed', { err: modelsError }) }}
           </p>
           <p v-else-if="modelsLoading" class="text-[10px] text-muted-foreground">
-            正在拉取可用模型…
+            {{ t('settings.provider.fetching_status') }}
           </p>
           <p v-else-if="!canFetchModels" class="text-[10px] text-muted-foreground">
-            填好 Base URL 与 API Key 后会自动拉取该 Provider 支持的模型
+            {{ t('settings.provider.fetch_hint') }}
           </p>
           <p v-else-if="models.length === 0" class="text-[10px] text-muted-foreground">
-            未发现模型，可点上方「拉取可用模型」或直接手动输入
+            {{ t('settings.provider.fetch_empty') }}
           </p>
           <p v-else class="text-[10px] text-muted-foreground">
-            共 {{ models.length }} 个可用模型 · 点击下方 chip 填入或手动编辑
+            {{ t('settings.provider.fetch_total', { total: models.length }) }}
           </p>
         </div>
         <div class="flex items-center justify-between rounded-md border px-3 py-2 md:col-span-2">
           <div>
-            <Label class="text-xs">设为默认</Label>
+            <Label class="text-xs">{{ t('settings.provider.set_default') }}</Label>
             <p class="text-[11px] text-muted-foreground">
-              LLM 调用会优先使用默认 Provider，失败后按链路 fallback
+              {{ t('settings.provider.set_default_hint') }}
             </p>
           </div>
           <Switch
@@ -366,10 +368,10 @@ async function testDraft() {
         >
           <RefreshCw v-if="testing" class="mr-1.5 size-3.5 animate-spin" />
           <Zap v-else class="mr-1.5 size-3.5" />
-          {{ testing ? '测试中…' : '测试连接' }}
+          {{ testing ? t('settings.provider.test_busy') : t('settings.provider.test_btn') }}
         </Button>
-        <Button variant="outline" @click="emit('update:open', false)">取消</Button>
-        <Button @click="emit('save')">保存</Button>
+        <Button variant="outline" @click="emit('update:open', false)">{{ t('settings.provider.cancel') }}</Button>
+        <Button @click="emit('save')">{{ t('settings.provider.save') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

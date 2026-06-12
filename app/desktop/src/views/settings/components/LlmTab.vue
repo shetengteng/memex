@@ -37,14 +37,16 @@ import { useMemex } from '@/composables/useMemex'
 import type { LlmProvider } from '@/types'
 import { humanizeBackendError } from '@/lib/utils'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
 
 const memex = useMemex()
+const { t } = useI18n()
 const providers = ref<Provider[]>([])
 const loading = ref(false)
 const testing = ref<Record<string, boolean>>({})
-const DEFAULT_TEMPLATE =
-  '生成一句话主旨、用户的真实意图、1~3 条关键决策、1~3 条具体的下一步。风格：精炼，不要废话。'
-const prompt = ref<string>(DEFAULT_TEMPLATE)
+// 取默认 prompt：跟随 locale 重算（zh / en 不同）。
+const defaultPrompt = computed(() => t('settings.llm.prompt_default'))
+const prompt = ref<string>('')
 const savingPrompt = ref(false)
 
 // 摘要节流：通过 set_config 持久化到 config.toml 的 llm.summarize_interval_ms
@@ -74,7 +76,7 @@ async function loadProviders() {
     const list = await memex.llmProviderList()
     providers.value = list.map(fromBackend)
   } catch (e) {
-    toastBackendError('加载 Provider 失败', e)
+    toastBackendError(t('settings.llm.toast.list_failed'), e)
   } finally {
     loading.value = false
   }
@@ -83,9 +85,9 @@ async function loadProviders() {
 async function loadPrompt() {
   try {
     const v = await memex.getConfig('llm.prompt_template')
-    if (v) prompt.value = v
+    prompt.value = v || defaultPrompt.value
   } catch {
-    /* ignore */
+    prompt.value = defaultPrompt.value
   }
 }
 
@@ -108,9 +110,9 @@ async function saveSummarizeInterval() {
   try {
     await memex.setConfig('llm.summarize_interval_ms', String(v))
     summarizeIntervalMs.value = v
-    toast.success(`摘要间隔已保存为 ${v}ms`)
+    toast.success(t('settings.llm.throttle_toast', { ms: v }))
   } catch (err) {
-    toastBackendError('保存失败', err)
+    toastBackendError(t('settings.llm.toast.save_failed'), err)
   } finally {
     savingInterval.value = false
   }
@@ -168,9 +170,9 @@ async function saveProvider() {
       providers.value = providers.value.map((p) => ({ ...p, isDefault: p.id === next.id }))
     }
     editOpen.value = false
-    toast.success(`Provider ${next.name} 已保存`)
+    toast.success(t('settings.llm.toast.provider_saved', { name: next.name }))
   } catch (err) {
-    toastBackendError('保存失败', err)
+    toastBackendError(t('settings.llm.toast.save_failed'), err)
   }
 }
 
@@ -189,9 +191,9 @@ async function setDefault(id: string) {
       isDefault: true,
     })
     providers.value = providers.value.map((p) => ({ ...p, isDefault: p.id === saved.id }))
-    toast.success(`已将 ${saved.name} 设为默认`)
+    toast.success(t('settings.llm.toast.set_default', { name: saved.name }))
   } catch (err) {
-    toastBackendError('设默认失败', err)
+    toastBackendError(t('settings.llm.toast.set_default_failed'), err)
   }
 }
 
@@ -199,9 +201,9 @@ async function removeProvider(id: string) {
   try {
     await memex.llmProviderDelete(id)
     providers.value = providers.value.filter((p) => p.id !== id)
-    toast.success('Provider 已删除')
+    toast.success(t('settings.llm.toast.deleted'))
   } catch (err) {
-    toastBackendError('删除失败', err)
+    toastBackendError(t('settings.llm.toast.delete_failed'), err)
   }
 }
 
@@ -221,7 +223,7 @@ async function toggleEnabled(p: Provider, value: boolean | string) {
     const idx = providers.value.findIndex((x) => x.id === p.id)
     if (idx >= 0) providers.value[idx] = fromBackend(saved)
   } catch (err) {
-    toastBackendError('切换失败', err)
+    toastBackendError(t('settings.llm.toast.toggle_failed'), err)
   }
 }
 
@@ -230,7 +232,7 @@ async function testProvider(p: Provider) {
   testing.value[p.id] = true
   // 立刻给视觉反馈：HTTP 调用最长可能要 30s（特别是 ollama 服务连不上时），
   // 旧版只切按钮 spin 图标用户经常没看到，会以为"按了没反应"。
-  const loadingId = toast.loading(`正在测试 ${p.name}…`)
+  const loadingId = toast.loading(t('settings.llm.toast.testing', { name: p.name }))
   try {
     const r = await memex.llmProviderTest(p.id)
     const idx = providers.value.findIndex((x) => x.id === p.id)
@@ -242,10 +244,10 @@ async function testProvider(p: Provider) {
       }
     }
     toast.dismiss(loadingId)
-    if (r.ok) toast.success(`${p.name} 测试通过 · ${r.latencyMs}ms`)
+    if (r.ok) toast.success(t('settings.llm.toast.test_ok', { name: p.name, ms: r.latencyMs }))
     else {
       const fe = humanizeBackendError(r.error || 'unknown')
-      toast.error(`${p.name} 测试失败`, {
+      toast.error(t('settings.llm.toast.test_failed_fmt', { name: p.name }), {
         description: fe.friendly,
         duration: 8000,
       })
@@ -253,7 +255,7 @@ async function testProvider(p: Provider) {
   } catch (err) {
     toast.dismiss(loadingId)
     const fe = humanizeBackendError(err)
-    toast.error('测试失败', { description: fe.friendly, duration: 8000 })
+    toast.error(t('settings.llm.toast.test_failed'), { description: fe.friendly, duration: 8000 })
   } finally {
     testing.value[p.id] = false
   }
@@ -263,16 +265,16 @@ async function savePromptTemplate() {
   savingPrompt.value = true
   try {
     await memex.setConfig('llm.prompt_template', prompt.value)
-    toast.success('模板已保存')
+    toast.success(t('settings.llm.toast.template_saved'))
   } catch (err) {
-    toastBackendError('保存失败', err)
+    toastBackendError(t('settings.llm.toast.save_failed'), err)
   } finally {
     savingPrompt.value = false
   }
 }
 
 function resetPromptTemplate() {
-  prompt.value = DEFAULT_TEMPLATE
+  prompt.value = defaultPrompt.value
 }
 
 function iconForKind(kind: string) {
@@ -283,16 +285,16 @@ function iconForKind(kind: string) {
 }
 
 function statusLabel(s: Provider['status']) {
-  if (s === 'ok') return '在线'
-  if (s === 'error') return '错误'
-  if (s === 'local') return '本地'
-  return '未测试'
+  if (s === 'ok') return t('settings.llm.status.ok')
+  if (s === 'error') return t('settings.llm.status.error')
+  if (s === 'local') return t('settings.llm.status.local')
+  return t('settings.llm.status.untested')
 }
 
 function kindLabel(k: Provider['kind']) {
-  if (k === 'openai_compat') return 'OpenAI 兼容'
-  if (k === 'anthropic') return 'Anthropic'
-  if (k === 'ollama') return 'Ollama'
+  if (k === 'openai_compat') return t('settings.llm.kind.openai_compat')
+  if (k === 'anthropic') return t('settings.llm.kind.anthropic')
+  if (k === 'ollama') return t('settings.llm.kind.ollama')
   return k
 }
 </script>
@@ -302,9 +304,9 @@ function kindLabel(k: Provider['kind']) {
     <!-- Fallback Chain -->
     <Card>
       <CardHeader class="pb-2">
-        <CardTitle class="text-base">默认与备用链路</CardTitle>
+        <CardTitle class="text-base">{{ t('settings.llm.fallback_title') }}</CardTitle>
         <CardDescription class="text-xs">
-          当默认 Provider 失败时，按以下顺序自动切换备用
+          {{ t('settings.llm.fallback_desc') }}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -314,7 +316,7 @@ function kindLabel(k: Provider['kind']) {
         >
           <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-500" />
           <p class="text-xs text-muted-foreground">
-            暂未启用任何 Provider，请在下方添加并启用至少一个
+            {{ t('settings.llm.fallback_empty') }}
           </p>
         </div>
         <div v-else class="space-y-3">
@@ -340,7 +342,7 @@ function kindLabel(k: Provider['kind']) {
           >
             <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-500" />
             <p class="text-xs text-muted-foreground">
-              只有一个 Provider，建议至少再启用一个备用，避免单点失效
+              {{ t('settings.llm.fallback_single_warn') }}
             </p>
           </div>
         </div>
@@ -351,19 +353,19 @@ function kindLabel(k: Provider['kind']) {
     <Card>
       <CardHeader class="flex flex-row items-center justify-between pb-3">
         <div>
-          <CardTitle class="text-base">Provider 列表</CardTitle>
+          <CardTitle class="text-base">{{ t('settings.llm.list_title') }}</CardTitle>
           <CardDescription class="text-xs">
-            共 {{ providers.length }} 个，已启用 {{ enabledCount }}
+            {{ t('settings.llm.list_count', { total: providers.length, enabled: enabledCount }) }}
           </CardDescription>
         </div>
         <div class="flex items-center gap-2">
           <Button size="sm" variant="ghost" :disabled="loading" @click="loadProviders">
             <RefreshCw :class="['mr-1.5 size-3.5', loading && 'animate-spin']" />
-            刷新
+            {{ t('settings.llm.refresh') }}
           </Button>
           <Button size="sm" @click="openAdd">
             <Plus class="mr-1.5 size-3.5" />
-            添加 Provider
+            {{ t('settings.llm.add_provider') }}
           </Button>
         </div>
       </CardHeader>
@@ -372,7 +374,7 @@ function kindLabel(k: Provider['kind']) {
           v-if="providers.length === 0"
           class="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground"
         >
-          {{ loading ? '加载中…' : '暂无 Provider，点击右上角添加' }}
+          {{ loading ? t('settings.llm.list_loading') : t('settings.llm.list_empty') }}
         </div>
         <div
           v-for="p in providers"
@@ -386,7 +388,7 @@ function kindLabel(k: Provider['kind']) {
           <div class="min-w-0 flex-1 space-y-0.5">
             <div class="flex items-center gap-2">
               <span class="text-[13px] font-medium">{{ p.name }}</span>
-              <Badge v-if="p.isDefault" variant="secondary" class="text-[10px]">默认</Badge>
+              <Badge v-if="p.isDefault" variant="secondary" class="text-[10px]">{{ t('settings.llm.default_badge') }}</Badge>
               <Badge variant="outline" class="text-[10px]">{{ kindLabel(p.kind) }}</Badge>
             </div>
             <Tooltip>
@@ -432,7 +434,7 @@ function kindLabel(k: Provider['kind']) {
                 <Zap v-else class="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">测试连接</TooltipContent>
+            <TooltipContent side="top">{{ t('settings.llm.test_tooltip') }}</TooltipContent>
           </Tooltip>
           <Button
             variant="ghost"
@@ -466,9 +468,9 @@ function kindLabel(k: Provider['kind']) {
     <!-- 摘要节流：每条会话摘要（L2）之间的间隔，避免 Ollama 一次性把 GPU 拉满。 -->
     <Card>
       <CardHeader class="pb-2">
-        <CardTitle class="text-base">摘要节流</CardTitle>
+        <CardTitle class="text-base">{{ t('settings.llm.throttle_title') }}</CardTitle>
         <CardDescription class="text-xs">
-          批量生成会话摘要时，每条之间等待的毫秒数。设大一点让 Ollama / Apple Silicon 散热并给系统留呼吸空间；设 0 跑满。
+          {{ t('settings.llm.throttle_desc') }}
         </CardDescription>
       </CardHeader>
       <CardContent class="flex items-center gap-3">
@@ -479,7 +481,7 @@ function kindLabel(k: Provider['kind']) {
           step="500"
           class="h-9 w-32 font-mono text-sm"
         />
-        <span class="text-xs text-muted-foreground">ms（推荐 2000–5000）</span>
+        <span class="text-xs text-muted-foreground">{{ t('settings.llm.throttle_unit') }}</span>
         <Button
           size="sm"
           variant="outline"
@@ -487,7 +489,7 @@ function kindLabel(k: Provider['kind']) {
           :disabled="savingInterval"
           @click="saveSummarizeInterval"
         >
-          {{ savingInterval ? '保存中…' : '保存' }}
+          {{ savingInterval ? t('settings.llm.throttle_saving') : t('settings.llm.throttle_save') }}
         </Button>
       </CardContent>
     </Card>
@@ -495,19 +497,19 @@ function kindLabel(k: Provider['kind']) {
     <!-- Prompt Template -->
     <Card>
       <CardHeader>
-        <CardDescription>提示词</CardDescription>
-        <CardTitle class="text-base">叙述摘要模板</CardTitle>
+        <CardDescription>{{ t('settings.llm.prompt_section') }}</CardDescription>
+        <CardTitle class="text-base">{{ t('settings.llm.prompt_title') }}</CardTitle>
         <CardDescription class="text-xs">
-          按周 / 月 / 自定义时段把多条「会话摘要」再聚合成一段叙述（旧称 L3）；这里改的是 LLM 拿到的 prompt 骨架。
+          {{ t('settings.llm.prompt_desc') }}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Textarea v-model="prompt" rows="6" />
       </CardContent>
       <CardFooter class="gap-2">
-        <Button size="sm" variant="outline" @click="resetPromptTemplate">恢复默认</Button>
+        <Button size="sm" variant="outline" @click="resetPromptTemplate">{{ t('settings.llm.prompt_reset') }}</Button>
         <Button size="sm" class="ml-auto" :disabled="savingPrompt" @click="savePromptTemplate">
-          {{ savingPrompt ? '保存中…' : '保存模板' }}
+          {{ savingPrompt ? t('settings.llm.prompt_saving') : t('settings.llm.prompt_save') }}
         </Button>
       </CardFooter>
     </Card>

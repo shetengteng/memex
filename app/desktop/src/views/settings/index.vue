@@ -7,8 +7,10 @@ import LlmTab from './components/LlmTab.vue'
 import PreferencesTab from './components/PreferencesTab.vue'
 import DataTab from './components/DataTab.vue'
 import SystemTab from './components/SystemTab.vue'
+import { useI18n } from '@/i18n'
 
 const route = useRoute()
+const { t } = useI18n()
 
 const ALLOWED = new Set(['llm', 'prefs', 'data', 'system'])
 function pickTab(raw: unknown): string {
@@ -32,19 +34,19 @@ watch(queryTab, (v) => {
             <TabsList class="h-8">
               <TabsTrigger value="llm" class="gap-1.5 text-[12px]">
                 <Brain class="size-3.5" />
-                LLM
+                {{ t('settings.tab.llm') }}
               </TabsTrigger>
               <TabsTrigger value="prefs" class="gap-1.5 text-[12px]">
                 <Bell class="size-3.5" />
-                偏好
+                {{ t('settings.tab.prefs') }}
               </TabsTrigger>
               <TabsTrigger value="data" class="gap-1.5 text-[12px]">
                 <Database class="size-3.5" />
-                数据
+                {{ t('settings.tab.data') }}
               </TabsTrigger>
               <TabsTrigger value="system" class="gap-1.5 text-[12px]">
                 <Stethoscope class="size-3.5" />
-                系统
+                {{ t('settings.tab.system') }}
               </TabsTrigger>
             </TabsList>
           </Teleport>
