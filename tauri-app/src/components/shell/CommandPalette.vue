@@ -161,7 +161,7 @@ const tFmt = (iso: string) => {
           v-for="p in projects"
           :key="`proj-${p.id}`"
           :value="`project ${p.name}`"
-          @select="go(`/library?project=${p.name}`)"
+          @select="go(`/library?project=${encodeURIComponent(p.path)}`)"
         >
           <FolderGit2 class="mr-2 size-4 shrink-0" />
           <span class="truncate">{{ p.name }}</span>

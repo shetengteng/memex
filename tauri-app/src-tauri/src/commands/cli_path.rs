@@ -12,10 +12,20 @@ use super::error::{CmdError, CmdResult};
 /// 选这里而不是 `/usr/local/bin`，是为了避免 macOS 上 SIP 与 sudo 摩擦。
 ///
 /// CLI symlink 映射表：`(link_name_in_.local/bin, sidecar_binary_in_bundle)`。
-/// 解耦两边是因为 APFS 大小写不敏感：bundle 里 GUI 主 binary `Memex` 跟 CLI
-/// `memex` 会撞名，所以 sidecar 物理改名为 `memex-cli`，但用户视角的命令名
-/// 仍要保留 `memex`。
-const CLI_LINKS: &[(&str, &str)] = &[("memex", "memex-cli")];
+/// 两边同名 `memex-cli`：bundle 里 GUI 主 binary 叫 `Memex`（APFS 大小写不敏感
+/// 强制 sidecar 物理改名），且用户视角的命令名也直接保留为 `memex-cli`，
+/// 不再做 `memex` → `memex-cli` 的别名映射，减少一层隐藏逻辑。
+const CLI_LINKS: &[(&str, &str)] = &[("memex-cli", "memex-cli")];
+
+/// 历史上 cli_install 曾经把 `memex` 和 `memex-daemon` 两条 symlink 也写到
+/// `~/.local/bin/`：
+///
+/// * `memex`         —— 老版本的 CLI 别名（现已统一为 `memex-cli`，删除映射）。
+/// * `memex-daemon`  —— Phase 6 之前的独立 daemon 二进制（现已合并到 in-process daemon）。
+///
+/// 两者在新版部署后都成了悬空链接（指向 bundle 里已不存在的 binary）。cli_install
+/// 主动把它们清掉，避免 PATH 污染。只删 symlink 不删真实文件。
+const LEGACY_LINK_NAMES: &[&str] = &["memex", "memex-daemon"];
 
 fn target_dir() -> PathBuf {
     let home = env::var("HOME").unwrap_or_default();
@@ -91,6 +101,18 @@ pub async fn cli_install() -> CmdResult<CliStatus> {
         .ok_or_else(|| CmdError::NotFound("无法确定 Memex.app 的 MacOS 目录".into()))?;
 
     fs::create_dir_all(&dir)?;
+
+    // 清掉历史遗留的 `memex` symlink（不论它当前指向哪里）。只删 symlink，
+    // 不动用户自己放的真实文件；用 `symlink_metadata` 而不是 `metadata` 避免
+    // 被 dangling symlink 的 ENOENT 误判为「不存在」。
+    for legacy_name in LEGACY_LINK_NAMES {
+        let legacy = dir.join(legacy_name);
+        if let Ok(meta) = fs::symlink_metadata(&legacy)
+            && meta.file_type().is_symlink()
+        {
+            let _ = fs::remove_file(&legacy);
+        }
+    }
 
     for (link_name, target_name) in CLI_LINKS {
         let link = dir.join(link_name);

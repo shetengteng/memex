@@ -31,7 +31,7 @@ fn locate_memex_cli() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    if let Ok(out) = Command::new("which").arg("memex").output() {
+    if let Ok(out) = Command::new("which").arg("memex-cli").output() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
             return Some(PathBuf::from(s));

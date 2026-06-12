@@ -82,7 +82,7 @@ if pgrep -x Memex >/dev/null; then
     echo "$(color green '安装完成！') 菜单栏右上角应该看到 Memex 图标，点击或按 ⌘⇧M 唤出 popup"
     echo "命令行工具位于 /Applications/Memex.app/Contents/MacOS/memex-cli"
     echo "建议在 ~/.zshrc 加 alias："
-    echo "  alias memex='/Applications/Memex.app/Contents/MacOS/memex-cli'"
+    echo "  alias memex-cli='/Applications/Memex.app/Contents/MacOS/memex-cli'"
 else
     log_err "Memex 未能启动，请手动 open $APP_PATH 查看错误"
     exit 1

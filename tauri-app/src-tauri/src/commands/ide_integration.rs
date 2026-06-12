@@ -16,9 +16,9 @@ pub struct IdeStatus {
 }
 
 fn locate_memex_cli() -> Option<PathBuf> {
-    // bundle 里跟 menubar 同目录的 sidecar。注意名字是 `memex-cli` 而不是 `memex`：
-    // bundle 内 GUI 主 binary 叫 `Memex`，CLI 不能用同名（APFS 大小写不敏感会撞）。
-    // 用户视角的命令名仍是 `memex`，靠 `~/.local/bin/memex` symlink 映射（见 cli_path.rs）。
+    // bundle 里跟 menubar 同目录的 sidecar，名字就是 `memex-cli`：bundle 内 GUI
+    // 主 binary 叫 `Memex`，CLI 不能用同名（APFS 大小写不敏感会撞），所以物理
+    // 名 + 用户视角命令名都统一为 `memex-cli`。
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
     {
@@ -28,7 +28,7 @@ fn locate_memex_cli() -> Option<PathBuf> {
         }
     }
     // PATH 兜底，方便 dev 模式直接跑。
-    if let Ok(out) = Command::new("which").arg("memex").output() {
+    if let Ok(out) = Command::new("which").arg("memex-cli").output() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
             return Some(PathBuf::from(s));

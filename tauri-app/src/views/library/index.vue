@@ -238,6 +238,24 @@ watch(
   { immediate: true },
 )
 
+// `?project=<encoded path>` 入口：CommandPalette / TodayCard 跳到资料库时，
+// 用 URL query 携带项目 path，进入 Library 后把它写到 fProjects 触发筛选。
+// 不复用 openProject() 是为了让 watch 自己负责清掉 watch trigger 之外的副作用，
+// 也确保用户在 Library 内打开浏览器历史返回时筛选状态正确恢复。
+watch(
+  () => route.query.project,
+  (raw) => {
+    if (typeof raw !== 'string' || !raw) return
+    fProjects.value = [raw]
+    fAdapters.value = []
+    fSummary.value = 'all'
+    fTime.value = 'all'
+    query.value = ''
+    tab.value = 'sessions'
+  },
+  { immediate: true },
+)
+
 const sortLabel = computed(() => {
   if (sort.value === 'duration') return '时长'
   if (sort.value === 'messages') return '消息数'

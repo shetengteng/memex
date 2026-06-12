@@ -44,11 +44,11 @@ pub struct BackupResult {
 }
 
 /// 找到 memex CLI binary。优先 `<bundle>/Contents/MacOS/memex-cli`（与主进程
-/// 同目录的 sidecar），否则退到 PATH 上的 `memex`（用户通过 brew cask 装时，
-/// `target: "memex"` 把命令名重新暴露成 `memex`）。
+/// 同目录的 sidecar），否则退到 PATH 上的 `memex-cli`（cli_install 创建的
+/// `~/.local/bin/memex-cli` symlink，或 dev 模式 `cargo install` 装的）。
 ///
 /// 注意 binary 名是 `memex-cli`：bundle 里 GUI 主 binary 叫 `Memex`，CLI 不能
-/// 用同名（APFS 大小写不敏感会撞）。
+/// 用同名（APFS 大小写不敏感会撞），所以物理名与用户命令名都统一为 `memex-cli`。
 fn locate_memex_cli() -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
@@ -58,7 +58,7 @@ fn locate_memex_cli() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    if let Ok(out) = Command::new("which").arg("memex").output() {
+    if let Ok(out) = Command::new("which").arg("memex-cli").output() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
             return Some(PathBuf::from(s));
