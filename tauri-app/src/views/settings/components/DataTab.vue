@@ -14,9 +14,19 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import {
+  AlertTriangle,
   Download,
   FolderArchive,
   FolderOpen,
@@ -40,6 +50,16 @@ const backingUp = ref(false)
 const openingFolder = ref(false)
 const exporting = ref(false)
 const importing = ref(false)
+
+// 改用 shadcn Dialog 替代 window.confirm / window.prompt：
+// macOS WKWebView 默认不会弹原生 confirm / prompt 框 —— confirm() 直接返回 true，
+// prompt() 直接返回 null。clearAll() 用 prompt('DELETE') 因此永远走不到 IPC，
+// 表现为"点击清空全部完全没反应"。统一改成 shadcn Dialog 后既可见、又跨平台一致。
+const rebuildDialogOpen = ref(false)
+const clearDialogOpen = ref(false)
+const clearConfirmText = ref('')
+const importDialogOpen = ref(false)
+const pendingImportSource = ref<string | null>(null)
 
 interface BackupResult {
   path: string
@@ -117,8 +137,12 @@ onMounted(async () => {
   }
 })
 
-async function rebuildIndex() {
-  if (!confirm('确认重建 FTS 索引？此操作不会删除数据，但需要数分钟。')) return
+function openRebuildDialog() {
+  rebuildDialogOpen.value = true
+}
+
+async function confirmRebuildIndex() {
+  rebuildDialogOpen.value = false
   rebuilding.value = true
   try {
     await memex.systemResetIndex()
@@ -130,9 +154,17 @@ async function rebuildIndex() {
   }
 }
 
-async function clearAll() {
-  const txt = prompt('请输入 DELETE 确认清空全部数据（不可恢复）：')
-  if (txt !== 'DELETE') return
+const clearConfirmValid = computed(() => clearConfirmText.value.trim() === 'DELETE')
+
+function openClearDialog() {
+  clearConfirmText.value = ''
+  clearDialogOpen.value = true
+}
+
+async function confirmClearAll() {
+  if (!clearConfirmValid.value) return
+  clearDialogOpen.value = false
+  clearConfirmText.value = ''
   clearing.value = true
   try {
     await memex.systemResetAll()
@@ -182,14 +214,9 @@ async function exportDb() {
 
 async function importDb() {
   if (importing.value) return
-  if (
-    !confirm(
-      '导入会先停止后台服务、用归档替换 ~/.memex/{memex.db, config.toml, sessions/}，' +
-        '然后重启服务。原数据会先搬到 ~/.memex/.before-restore-* 作为安全网。\n\n确认继续？',
-    )
-  )
-    return
 
+  // 调换顺序：先让用户选文件，再走 dialog 二次确认。这样文件选错可以直接取消，
+  // 不用经历"先弹个 confirm 才打开文件选择"两步打断流。
   const source = await openDialog({
     title: '选择 Memex 归档（.tar.gz）',
     multiple: false,
@@ -198,6 +225,17 @@ async function importDb() {
   })
   if (!source || typeof source !== 'string') return
 
+  pendingImportSource.value = source
+  importDialogOpen.value = true
+}
+
+async function confirmImportDb() {
+  const source = pendingImportSource.value
+  if (!source) {
+    importDialogOpen.value = false
+    return
+  }
+  importDialogOpen.value = false
   importing.value = true
   const loadingId = toast.loading('正在导入…（会先停 daemon 再解包，重启后此处会刷新）')
   try {
@@ -213,6 +251,7 @@ async function importDb() {
     toastBackendError('导入失败', e)
   } finally {
     importing.value = false
+    pendingImportSource.value = null
   }
 }
 </script>
@@ -335,7 +374,7 @@ async function importDb() {
             variant="outline"
             class="gap-1.5 border-amber-500/50 text-amber-700 hover:bg-amber-500/10"
             :disabled="rebuilding"
-            @click="rebuildIndex"
+            @click="openRebuildDialog"
           >
             <RefreshCw :class="['size-3.5', rebuilding && 'animate-spin']" />
             {{ rebuilding ? '重建中…' : '重建索引' }}
@@ -349,12 +388,103 @@ async function importDb() {
               删除所有会话、摘要和索引，此操作不可恢复
             </p>
           </div>
-          <Button size="sm" variant="destructive" class="gap-1.5" :disabled="clearing" @click="clearAll">
+          <Button size="sm" variant="destructive" class="gap-1.5" :disabled="clearing" @click="openClearDialog">
             <Trash2 class="size-3.5" />
             {{ clearing ? '清空中…' : '清空全部' }}
           </Button>
         </div>
       </CardContent>
     </Card>
+
+    <!--
+      下面三个 Dialog 替代了原来的 window.confirm / window.prompt。
+      Tauri 2 macOS 端 WKWebView 默认不弹原生对话框，否则点击会"看似无反应"。
+    -->
+
+    <Dialog v-model:open="rebuildDialogOpen">
+      <DialogContent class="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <RefreshCw class="size-4 text-amber-500" />
+            重建 FTS 索引
+          </DialogTitle>
+          <DialogDescription>
+            此操作仅删除并重建全文检索索引，不会删除任何会话、摘要或配置。重建可能需要数十秒到数分钟，期间搜索可能短暂不可用。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" size="sm" @click="rebuildDialogOpen = false">取消</Button>
+          <Button size="sm" class="gap-1.5" @click="confirmRebuildIndex">
+            <RefreshCw class="size-3.5" />
+            开始重建
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="clearDialogOpen">
+      <DialogContent class="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2 text-destructive">
+            <AlertTriangle class="size-4" />
+            清空全部数据
+          </DialogTitle>
+          <DialogDescription>
+            将永久删除全部会话、消息、摘要、索引和配置。<strong class="text-destructive">此操作不可恢复</strong>。如有需要请先「立即备份」或「导出到…」。
+          </DialogDescription>
+        </DialogHeader>
+        <div class="space-y-2">
+          <Label for="clear-confirm-input" class="text-xs text-muted-foreground">
+            请输入 <code class="font-mono text-destructive">DELETE</code> 以确认操作
+          </Label>
+          <Input
+            id="clear-confirm-input"
+            v-model="clearConfirmText"
+            placeholder="DELETE"
+            autocomplete="off"
+            @keydown.enter.prevent="confirmClearAll"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" @click="clearDialogOpen = false">取消</Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            class="gap-1.5"
+            :disabled="!clearConfirmValid"
+            @click="confirmClearAll"
+          >
+            <Trash2 class="size-3.5" />
+            清空全部
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="importDialogOpen">
+      <DialogContent class="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Upload class="size-4 text-amber-500" />
+            导入归档
+          </DialogTitle>
+          <DialogDescription>
+            将先停止后台服务，再用归档替换 <code class="font-mono">~/.memex/{memex.db, config.toml, sessions/}</code>，
+            然后重启服务。原数据会先搬到 <code class="font-mono">~/.memex/.before-restore-*</code> 作为安全网。
+          </DialogDescription>
+        </DialogHeader>
+        <div v-if="pendingImportSource" class="rounded-md bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+          <span class="text-muted-foreground/70">归档：</span>
+          <code class="break-all font-mono">{{ pendingImportSource }}</code>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" @click="importDialogOpen = false">取消</Button>
+          <Button size="sm" class="gap-1.5" @click="confirmImportDb">
+            <Upload class="size-3.5" />
+            开始导入
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
