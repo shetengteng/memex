@@ -162,7 +162,7 @@ pub async fn spawn_in_process() -> Result<DaemonHandle> {
     ensure_memex_dir(&memex_dir).context("ensure_memex_dir failed")?;
 
     let db_path = memex_dir.join("memex.db");
-    let db = Arc::new(Db::open(&db_path).context("Db::open failed")?);
+    let db = Arc::new(open_db_with_recovery(&db_path)?);
 
     let listener = bind_listener(PREFERRED_PORT)?;
     let port = listener.local_addr().context("listener missing local_addr")?.port();
@@ -238,6 +238,42 @@ pub(crate) fn bind_listener(preferred: u16) -> Result<tokio::net::TcpListener> {
             .map(|e| e.to_string())
             .unwrap_or_else(|| "unknown".into())
     ))
+}
+
+/// 打开 db，遇到 SQLite 损坏（"disk I/O error" / "file is not a database" / 0 字节文件等）
+/// 时把它 rename 到 `memex.db.broken.<unix-ts>`，然后用空 db 重新 open。
+///
+/// 这条 fallback 专门针对一个真实事故：
+/// 上一次 `system_reset_all` 在删 sessions/ 时被 fsevent 余晖卡住，半途短路；
+/// db 文件已经被 truncate 但还在原位。这里如果不 recover，daemon 启动就会
+/// 一直报 "Error code 522 file truncated"，前端永远看到 HTTP 异常。
+fn open_db_with_recovery(db_path: &std::path::Path) -> Result<Db> {
+    match Db::open(db_path) {
+        Ok(db) => Ok(db),
+        Err(first_err) => {
+            let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%S").to_string();
+            let broken = db_path.with_extension(format!("db.broken.{stamp}"));
+            tracing::warn!(
+                error = %first_err,
+                from = %db_path.display(),
+                to = %broken.display(),
+                "Db::open failed, renaming damaged file and starting fresh"
+            );
+            // 同时清掉 wal/shm — 留着会导致 SQLite 启动尝试 recover 它们，又报错
+            for sidecar in ["db-wal", "db-shm", "db-journal"] {
+                let p = db_path.with_extension(sidecar);
+                if p.exists() {
+                    let _ = std::fs::remove_file(&p);
+                }
+            }
+            if let Err(e) = std::fs::rename(db_path, &broken) {
+                // rename 失败的话至少直接删，让 SQLite 从空文件起来。
+                tracing::warn!(error = %e, "rename damaged db failed, falling back to remove");
+                let _ = std::fs::remove_file(db_path);
+            }
+            Db::open(db_path).context("Db::open failed after recovery rename")
+        }
+    }
 }
 
 fn try_bind_reuse(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
