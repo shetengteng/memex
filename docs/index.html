@@ -16,6 +16,7 @@
       <div class="nav-logo"><span class="logo-mark">M</span>EMEX</div>
       <div class="nav-links">
         <a href="#features" class="nav-link" data-i18n-nav="navFeatures">Features</a>
+        <a href="#screens" class="nav-link" data-i18n-nav="navScreens">Screens</a>
         <a href="#how-it-works" class="nav-link" data-i18n-nav="navHow">How it Works</a>
       </div>
       <div class="nav-actions">
@@ -111,6 +112,330 @@
           <h3 data-i18n="feat6Title">macOS Tray App</h3>
           <p data-i18n="feat6Desc"></p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots Gallery (mockups with fake but realistic data) -->
+  <section id="screens" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <h2 data-i18n="shotsTitle">Inside the App</h2>
+        <p data-i18n="shotsSub"></p>
+      </div>
+      <div class="screenshots-grid">
+
+        <!-- ─── 1. Tray Popup ─── -->
+        <div class="shot-card reveal">
+          <div class="shot-frame shot-frame-narrow">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex · Tray</span>
+              <span class="shot-bell">●</span>
+            </div>
+            <div class="shot-body shot-tray-body">
+              <div class="tray-stats">
+                <div><b>28</b><span data-i18n="trayToday">Today</span></div>
+                <div><b>147</b><span data-i18n="trayWeek">7d</span></div>
+                <div><b>4 312</b><span data-i18n="trayAll">All</span></div>
+              </div>
+              <div class="tray-section-label" data-i18n="trayRecent">Recent sessions</div>
+              <ul class="tray-list">
+                <li>
+                  <span class="dot c-cursor"></span>
+                  <div><b>Refactor MCP retry into loop</b><span>memex · 4m ago</span></div>
+                </li>
+                <li>
+                  <span class="dot c-claude"></span>
+                  <div><b>WKWebView confirm() workaround</b><span>memex · 38m ago</span></div>
+                </li>
+                <li>
+                  <span class="dot c-codex"></span>
+                  <div><b>Tailwind ScrollArea overflow fix</b><span>memex · 1h ago</span></div>
+                </li>
+                <li>
+                  <span class="dot c-opencode"></span>
+                  <div><b>Port fallback SO_REUSEADDR test</b><span>memex · 3h ago</span></div>
+                </li>
+                <li>
+                  <span class="dot c-cursor"></span>
+                  <div><b>Privacy filter for MCP responses</b><span>memex · yesterday</span></div>
+                </li>
+              </ul>
+              <div class="tray-foot">
+                <button class="tray-pill" data-i18n="trayOpen">Open</button>
+                <button class="tray-pill tray-ghost" data-i18n="traySettings">Settings</button>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Tray</span>
+            <span data-i18n="shotTrayLabel">360 × 520 · ⌘⇧M toggles main window</span>
+          </div>
+        </div>
+
+        <!-- ─── 2. Today ─── -->
+        <div class="shot-card reveal reveal-d1">
+          <div class="shot-frame">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex</span>
+              <span class="shot-bell">●</span>
+            </div>
+            <div class="shot-body app-body">
+              <div class="app-sidebar">
+                <span class="nav-item active">● <em data-i18n="navToday">Today</em></span>
+                <span class="nav-item">○ <em data-i18n="navLibrary">Library</em></span>
+                <span class="nav-item">○ <em data-i18n="navInsights">Insights</em></span>
+                <span class="nav-item">○ <em data-i18n="navConnect">Connect</em></span>
+                <span class="nav-item">○ <em data-i18n="navSettings">Settings</em></span>
+              </div>
+              <div class="app-main">
+                <div class="cmd-palette">
+                  <input value="refactor mcp retry" readonly>
+                  <span class="kbd">⌘K</span>
+                </div>
+                <div class="today-row">
+                  <span class="row-dot c-cursor"></span>
+                  <b>Refactor MCP retry into loop</b>
+                  <span class="row-meta">cursor · memex · 12 msgs</span>
+                </div>
+                <div class="today-row">
+                  <span class="row-dot c-claude"></span>
+                  <b>WKWebView confirm() workaround</b>
+                  <span class="row-meta">claude-code · memex · 8 msgs</span>
+                </div>
+                <div class="today-row">
+                  <span class="row-dot c-codex"></span>
+                  <b>Tailwind ScrollArea overflow fix</b>
+                  <span class="row-meta">codex · memex · 5 msgs</span>
+                </div>
+                <div class="today-row">
+                  <span class="row-dot c-opencode"></span>
+                  <b>Port fallback SO_REUSEADDR test</b>
+                  <span class="row-meta">opencode · memex · 14 msgs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Today</span>
+            <span data-i18n="shotTodayLabel">Cross-project ⌘K palette + today's activity</span>
+          </div>
+        </div>
+
+        <!-- ─── 3. Library ─── -->
+        <div class="shot-card reveal">
+          <div class="shot-frame">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex · Library</span>
+            </div>
+            <div class="shot-body app-body">
+              <div class="app-sidebar">
+                <span class="nav-item">○ <em data-i18n="navToday">Today</em></span>
+                <span class="nav-item active">● <em data-i18n="navLibrary">Library</em></span>
+                <span class="nav-item">○ <em data-i18n="navInsights">Insights</em></span>
+                <span class="nav-item">○ <em data-i18n="navConnect">Connect</em></span>
+                <span class="nav-item">○ <em data-i18n="navSettings">Settings</em></span>
+              </div>
+              <div class="app-main">
+                <div class="filter-bar">
+                  <span class="pill pill-on">memex</span>
+                  <span class="pill">cursor</span>
+                  <span class="pill">claude-code</span>
+                  <span class="pill">codex</span>
+                </div>
+                <div class="lib-row">
+                  <b>Notification bell scrollarea on macOS</b>
+                  <span class="row-meta">cursor · 6m ago · 9 msgs</span>
+                </div>
+                <div class="lib-row">
+                  <b>System reset all from settings</b>
+                  <span class="row-meta">cursor · 42m ago · 14 msgs</span>
+                </div>
+                <div class="lib-row">
+                  <b>CLI client retries on transport error</b>
+                  <span class="row-meta">claude-code · 2h ago · 23 msgs</span>
+                </div>
+                <div class="lib-row">
+                  <b>Privacy filter in MCP search</b>
+                  <span class="row-meta">codex · yesterday · 11 msgs</span>
+                </div>
+                <div class="lib-row">
+                  <b>Weekly report scheduler unit test</b>
+                  <span class="row-meta">opencode · 2d ago · 17 msgs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Library</span>
+            <span data-i18n="shotLibraryLabel">Filter by project, drill into session detail</span>
+          </div>
+        </div>
+
+        <!-- ─── 4. Insights ─── -->
+        <div class="shot-card reveal reveal-d1">
+          <div class="shot-frame">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex · Insights</span>
+            </div>
+            <div class="shot-body app-body">
+              <div class="app-sidebar">
+                <span class="nav-item">○ <em data-i18n="navToday">Today</em></span>
+                <span class="nav-item">○ <em data-i18n="navLibrary">Library</em></span>
+                <span class="nav-item active">● <em data-i18n="navInsights">Insights</em></span>
+                <span class="nav-item">○ <em data-i18n="navConnect">Connect</em></span>
+                <span class="nav-item">○ <em data-i18n="navSettings">Settings</em></span>
+              </div>
+              <div class="app-main">
+                <div class="report-card">
+                  <div class="report-head">
+                    <span class="report-week">Week of Jun 8 – 14</span>
+                    <span class="report-tag">LLM · Ollama</span>
+                  </div>
+                  <div class="report-title">Inside the daemon merge</div>
+                  <p class="report-sum">
+                    Daemon was folded into the Tauri main process; port fallback (9999 → 10009) with
+                    SO_REUSEADDR shipped, and CLI retries now resilient to lock-file churn…
+                  </p>
+                  <ul class="report-facts">
+                    <li>147 sessions across 6 IDEs</li>
+                    <li>4 318 messages indexed (+12% wow)</li>
+                    <li>9 active project namespaces</li>
+                  </ul>
+                </div>
+                <div class="report-bars">
+                  <i style="--h: 35%"></i><i style="--h: 60%"></i><i style="--h: 48%"></i>
+                  <i style="--h: 72%"></i><i style="--h: 90%"></i><i style="--h: 64%"></i>
+                  <i style="--h: 55%"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Insights</span>
+            <span data-i18n="shotInsightsLabel">LLM-generated weekly digest + activity bars</span>
+          </div>
+        </div>
+
+        <!-- ─── 5. Connect ─── -->
+        <div class="shot-card reveal">
+          <div class="shot-frame">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex · Connect</span>
+            </div>
+            <div class="shot-body app-body">
+              <div class="app-sidebar">
+                <span class="nav-item">○ <em data-i18n="navToday">Today</em></span>
+                <span class="nav-item">○ <em data-i18n="navLibrary">Library</em></span>
+                <span class="nav-item">○ <em data-i18n="navInsights">Insights</em></span>
+                <span class="nav-item active">● <em data-i18n="navConnect">Connect</em></span>
+                <span class="nav-item">○ <em data-i18n="navSettings">Settings</em></span>
+              </div>
+              <div class="app-main">
+                <div class="conn-head">
+                  <span class="conn-count">4 / 4</span>
+                  <span class="conn-text" data-i18n="connText">IDEs wired up</span>
+                </div>
+                <div class="conn-grid">
+                  <div class="ide-card">
+                    <span class="ide-dot c-cursor"></span>
+                    <b>Cursor</b>
+                    <span class="ide-ok">✓ MCP · SKILL · Hooks</span>
+                  </div>
+                  <div class="ide-card">
+                    <span class="ide-dot c-claude"></span>
+                    <b>Claude Code</b>
+                    <span class="ide-ok">✓ MCP · SKILL · Hooks</span>
+                  </div>
+                  <div class="ide-card">
+                    <span class="ide-dot c-codex"></span>
+                    <b>Codex</b>
+                    <span class="ide-ok">✓ MCP · SKILL</span>
+                  </div>
+                  <div class="ide-card">
+                    <span class="ide-dot c-opencode"></span>
+                    <b>OpenCode</b>
+                    <span class="ide-ok">✓ MCP · SKILL</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Connect</span>
+            <span data-i18n="shotConnectLabel">One-click MCP + SKILL into 4 IDEs</span>
+          </div>
+        </div>
+
+        <!-- ─── 6. Settings (Privacy + Notifications) ─── -->
+        <div class="shot-card reveal reveal-d1">
+          <div class="shot-frame">
+            <div class="shot-titlebar">
+              <span class="tl red"></span>
+              <span class="tl yellow"></span>
+              <span class="tl green"></span>
+              <span class="shot-title">Memex · Settings</span>
+              <span class="shot-bell shot-bell-badge">3</span>
+            </div>
+            <div class="shot-body app-body">
+              <div class="app-sidebar">
+                <span class="nav-item">○ <em data-i18n="navToday">Today</em></span>
+                <span class="nav-item">○ <em data-i18n="navLibrary">Library</em></span>
+                <span class="nav-item">○ <em data-i18n="navInsights">Insights</em></span>
+                <span class="nav-item">○ <em data-i18n="navConnect">Connect</em></span>
+                <span class="nav-item active">● <em data-i18n="navSettings">Settings</em></span>
+              </div>
+              <div class="app-main">
+                <div class="settings-block">
+                  <div class="settings-head" data-i18n="settingsPrivacy">Privacy</div>
+                  <div class="settings-row">
+                    <span data-i18n="settingsAutoRedact">Auto-redact API keys &amp; tokens</span>
+                    <span class="switch on">●</span>
+                  </div>
+                  <div class="settings-row">
+                    <span data-i18n="settingsSkipPrivate">Hide private sessions from MCP</span>
+                    <span class="switch on">●</span>
+                  </div>
+                </div>
+                <div class="settings-block">
+                  <div class="settings-head" data-i18n="settingsNotif">Notifications</div>
+                  <div class="notif-row">
+                    <span class="notif-icon c-blue">▢</span>
+                    <div><b>Weekly report ready</b><span>3 min ago · Jun 8 – 14</span></div>
+                  </div>
+                  <div class="notif-row">
+                    <span class="notif-icon c-amber">▲</span>
+                    <div><b>2 sessions awaiting reflection</b><span>2 h ago</span></div>
+                  </div>
+                  <div class="notif-row">
+                    <span class="notif-icon c-rose">✕</span>
+                    <div><b>Ingest failed: cursor:foo.json</b><span>yesterday</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="shot-caption">
+            <span class="shot-badge">Settings</span>
+            <span data-i18n="shotSettingsLabel">Live privacy switches + notification center</span>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>

@@ -3,17 +3,20 @@
 > The Memex you imagined in 1945 — finally built for the AI era.
 > 让所有 AI 编辑器共享同一份"你和 AI 的全部历史"。
 
+**English README**: [README.en.md](./README.en.md)
+
 ---
 
 ## 为什么
 
-你现在每天在多个 AI 工具之间切换：Cursor、Claude Code、Codex、OpenCode、Aider、Continue、Cline……
-每打开一个新 session，AI 都从零开始。**你和 AI 几万次对话的经验全部在浪费。**
+你每天在多个 AI 工具之间切换：Cursor、Claude Code、Codex、OpenCode、Aider、Continue、Cline……每打开一个新 session，AI 都从零开始。**你和 AI 几万次对话的经验在被一遍遍丢弃。**
 
-Memex 是一个本地优先的"AI 记忆中枢"：
+Memex 是一个**本地优先**的"AI 记忆中枢"：
+
 - 自动采集所有主流 AI CLI / 编辑器的会话历史
 - 统一索引、全文检索、智能摘要
-- 通过 MCP 协议暴露给任意 AI 编辑器，让每个新 session 都能 "想起" 你之前说过什么
+- 通过 **MCP 协议**暴露给任意 AI 编辑器，让每个新 session 都能"想起"你之前说过什么
+- 桌面应用 + 系统托盘 + 内嵌 HTTP API，单进程零运维
 
 **致敬 1945 年** — Vannevar Bush 在 *As We May Think* 中提出 Memex 概念：一台能记住一切、随时调取关联的人类记忆扩展机器。AI 时代终于让这个 80 年前的愿景成真。
 
@@ -23,102 +26,81 @@ Memex 是一个本地优先的"AI 记忆中枢"：
 
 | 特性 | 说明 |
 |---|---|
-| 7 种 Adapter | Claude Code · Cursor · Codex · OpenCode · Aider · Continue · Cline |
-| 本地优先 | 所有数据留在本地 `~/.memex/`，默认不上传任何会话内容 |
-| 全文检索 | SQLite FTS5 + BM25 排序 + 时间衰减 + 中文 bigram |
-| 智能摘要 | Ollama 本地 LLM 四级摘要（chunk → session → project → 日报） |
-| MCP 协议 | 4 个工具：`search_memory` / `get_session` / `list_recent` / `stats` |
-| 桌面应用 | 完整 1100×720 主窗口（Today / Library / Insights / Connect / Settings 五大页），⌘⇧M 切换主窗口 |
-| 系统托盘 | 极简 360×520 popup（最近 5 条 + 跳板），左键弹出 / 右键菜单 / 失焦自动隐藏 |
-| Daemon HTTP API | `http://127.0.0.1:9999` 提供 stats / search / sessions REST 接口 |
-| 隐私保护 | 自动脱敏 + 云端 opt-in + private session 过滤 |
-| 实时监听 | 文件系统事件驱动，2 秒内自动入库 |
+| **7 种 Adapter** | Claude Code · Cursor · Codex · OpenCode · Aider · Continue · Cline |
+| **本地优先** | 所有数据留在本地 `~/.memex/`，默认不上传任何会话内容 |
+| **全文检索** | SQLite FTS5 + BM25 排序 + 时间衰减 + 中文 bigram |
+| **智能摘要** | Ollama 本地 LLM 四级摘要（chunk → session → project → 日报 / 周报） |
+| **MCP 协议** | 4 个工具：`search_memory` / `get_session` / `list_recent` / `stats` |
+| **桌面应用** | 1100×720 主窗口，五大页（今天 / 资料库 / 洞察 / 连接 / 设置） |
+| **系统托盘** | 极简 360×520 popup，最近 5 条会话 + 主窗口跳板，⌘⇧M 切换 |
+| **内嵌 Daemon** | HTTP API 与主程序同生共死，默认 9999 端口，被占用自动 fallback 到 10000-10009 |
+| **通知中心** | 周报 / 反思待处理 / 采集失败实时入口，支持已读/未读/单条删/清空 |
+| **隐私保护** | 入库前自动脱敏 + 私有会话不暴露给 MCP（两个开关均可在设置中切换） |
+| **实时监听** | 文件系统事件驱动，2 秒内自动入库 |
 
 ---
 
 ## 快速开始
 
-> **当前状态**：v0.2.0 release pipeline 已就绪，但首次 GitHub Release + Homebrew tap repo
-> 尚未上线。在 GitHub Release 上传 DMG 之前，推荐使用「方式 1：DMG 下载」或「方式 2：从源码构建」。
-> Homebrew Cask 方式将在首次正式 release 之后启用。
+> **当前状态**：v0.3.4 release pipeline 已就绪，DMG 与 Homebrew Cask 待首次 GitHub Release 上线后可用。在那之前，推荐使用「方式 1：从源码构建」。
 
-### 方式 1：DMG 下载（最简单，等 v1.0 GitHub Release 上线后可用）
-
-```bash
-# 1. 从 Releases 页下载 Memex_x.y.z_aarch64.dmg（M 系列）或 Memex_x.y.z_x64.dmg（Intel）
-#    https://github.com/shetengteng/memex/releases
-
-# 2. 双击 DMG 拖入 /Applications
-
-# 3. 跑一键安装脚本（清除 quarantine、刷新 LaunchServices、启动）
-curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/install-macos.sh | bash
-```
-
-> **为什么需要这个脚本？** 当前版本使用 ad-hoc 签名（无 Apple Developer 账号），
-> macOS Gatekeeper 会把从浏览器下载的 App 标记成 quarantine，
-> 双击启动时弹出 "已损坏" / "未识别开发者" 错误。
-> `xattr -cr Memex.app` 一次性清除 quarantine 标记即可正常使用。
->
-> 也可以**手动执行**（与脚本等价）：
-> ```bash
-> xattr -cr /Applications/Memex.app
-> open /Applications/Memex.app
-> ```
-
-### 方式 2：从源码构建（当前推荐）
+### 方式 1：从源码构建（推荐）
 
 ```bash
 git clone https://github.com/shetengteng/memex.git
 cd memex
 
-# 构建 CLI + Daemon
-cargo build --release
-
-# 构建 Tauri Menubar App（需要 Node.js）
-cd tauri-app && npm install && npx tauri build --bundles app
-cd ..
-
 # 一键部署到 /Applications + 清 quarantine + 启动
 bash scripts/upgrade-local.sh --skip-backup
 ```
 
-### 方式 3：Homebrew Cask（v1.0 正式发布后启用）
+脚本会自动：
 
-> 当前 `Casks/memex.rb` 在主 repo 内作为模板，但还未推送到独立 tap repo
-> `homebrew-memex`，SHA256 也是占位符。完整 brew 流程需要：
->
-> 1. 用 `git tag v0.2.0 && git push --tags` 触发 GHA `release.yml`，构建并上传 DMG
-> 2. 跑 `bash scripts/update-cask-sha.sh` 自动下载 DMG 并填入真实 SHA256
-> 3. 创建 `shetengteng/homebrew-memex` repo，把 `Casks/memex.rb` 复制过去
-> 4. `brew tap shetengteng/memex && brew install --cask memex`
->
-> 步骤完成后，本节会替换为标准 brew 命令。
+1. `cargo build --release` 编译 CLI + Daemon
+2. `npx tauri build --bundles app` 编译 Tauri 桌面应用
+3. 替换 `/Applications/Memex.app`
+4. `xattr -cr` 清除 Gatekeeper quarantine
+5. 重新注册 LaunchServices + 启动新版
 
-### 首次运行
+完成后，菜单栏点击 Memex (M) 图标即可使用。
+
+### 方式 2：DMG 下载（v1.0 正式 release 后启用）
 
 ```bash
-# 1. 启动桌面应用（自动创建 ~/.memex/ 目录、内嵌 daemon、HTTP API、托盘）
-open target/release/bundle/macos/Memex.app
+# 1. 从 Releases 页下载对应架构 DMG
+#    https://github.com/shetengteng/memex/releases
 
-# 2. 手动采集一次
-./target/release/memex-cli ingest
+# 2. 双击 DMG 拖入 /Applications
 
-# 3. 搜索你的 AI 历史
-./target/release/memex-cli search "如何优化数据库查询"
-
-# 4. 查看统计
-./target/release/memex-cli stats
+# 3. 跑一键安装脚本（清 quarantine、刷新 LaunchServices、启动）
+curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/install-macos.sh | bash
 ```
 
-### MCP 接入
+> **为什么需要这个脚本？** 当前版本使用 ad-hoc 签名（无 Apple Developer 账号），macOS Gatekeeper 会把从浏览器下载的 App 标记成 quarantine，双击启动时弹出"已损坏 / 未识别开发者"错误。`xattr -cr Memex.app` 一次性清除即可正常使用。
+
+### 方式 3：Homebrew Cask（v1.0 正式 release 后启用）
 
 ```bash
-# 为 Cursor 配置 MCP
-./target/release/memex-cli setup cursor
-
-# 为 Claude Code 配置 MCP
-./target/release/memex-cli setup claude-code
+brew tap shetengteng/memex
+brew install --cask memex
 ```
+
+---
+
+## 桌面应用一览
+
+启动 Memex 后，菜单栏会出现 (M) 图标，左键弹出 Tray Popup，右键打开主窗口或退出。⌘⇧M 全局快捷键可在任意位置切换主窗口。
+
+| 页面 | 路径 | 作用 |
+|---|---|---|
+| **今天 (Today)** | `/today` | 当日活跃会话 + 命令面板（⌘K）跨项目搜索 |
+| **资料库 (Library)** | `/library` | 全部会话 / 项目 / 主题，支持过滤、详情抽屉 |
+| **洞察 (Insights)** | `/insights` | LLM 生成的周报 / 月报 / 数据统计 / 主题图谱 |
+| **连接 (Connect)** | `/connect` | IDE 集成 (Cursor/Claude Code/Codex/OpenCode) 一键注入 MCP + SKILL |
+| **设置 (Settings)** | `/settings` | LLM 提供商、通知开关、隐私、数据备份/恢复、Daemon 状态 |
+| **托盘 (Tray)** | `/tray-popup` | 360×520，最近 5 条会话 + 跳板 |
+
+每页都集成了**通知铃铛**：周报生成完成、反思待处理、采集失败会实时浮现，支持详情 / 标记已读 / 单条删除 / 一键清空。
 
 ---
 
@@ -126,17 +108,21 @@ open target/release/bundle/macos/Memex.app
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  AI 编辑器 (Cursor / Claude Code / Codex / ...)      │
+│  AI 编辑器 (Cursor / Claude Code / Codex / ...)       │
 └────────────┬────────────────────────────┬────────────┘
              │ MCP (stdio)                │ 写入 session 文件
              ▼                            ▼
 ┌──────────────────┐      ┌──────────────────────────┐
-│  memex-cli mcp   │ HTTP │  Memex.app (Tauri)        │
-│  (stdio 桥接)    │─────▶│  ├─ 内嵌 daemon           │
-│                  │      │  ├─ watcher (notify)      │
-└───────┬──────────┘      │  ├─ auto ingest            │
-        │  HTTP            │  ├─ HTTP API :9999         │
-        ▼                  │  └─ Tray / Main Window     │
+│  memex-cli mcp   │ HTTP │  Memex.app (Tauri 2)     │
+│  (stdio 桥接)    │─────▶│  ├─ 内嵌 daemon          │
+│                  │      │  ├─ watcher (notify)     │
+└───────┬──────────┘      │  ├─ scheduler (周报/反思) │
+        │  HTTP             │  ├─ auto ingest          │
+        ▼                  │  ├─ HTTP API :9999       │
+                           │  └─ Tray / Main Window   │
+                           └──────────┬────────────────┘
+                                      │
+                                      ▼
 ┌──────────────────────────────────────────────────────┐
 │              memex-core                              │
 │  ├─ collector (7 adapters)                           │
@@ -147,6 +133,10 @@ open target/release/bundle/macos/Memex.app
 └──────────────────────────────────────────────────────┘
 ```
 
+**Daemon 内嵌**：v0.3.x 起，原来的独立 `memex-daemon` 进程已合并进 `Memex.app`，app 启动则自动拉起，退出则一并关闭。CLI / MCP 通过 `~/.memex/daemon.lock` 自动发现端口。
+
+**端口策略**：默认监听 `127.0.0.1:9999`，被占用时自动在 `10000-10009` 段内 fallback，使用 `SO_REUSEADDR` 避免重启时 TIME_WAIT 阻塞。CLI 客户端遇到传输错误时会自动重读 lock 文件并以新端口重试。
+
 ---
 
 ## 技术栈
@@ -154,8 +144,8 @@ open target/release/bundle/macos/Memex.app
 | 层 | 技术 |
 |---|---|
 | Core | Rust + SQLite (FTS5 / WAL) + blake3 |
-| CLI | clap |
-| Daemon | axum + tokio + notify |
+| CLI | clap + ureq |
+| Daemon | axum + tokio + notify + chrono |
 | MCP | 手写 stdio JSON-RPC |
 | Desktop App | Tauri 2 + Vue 3 + TypeScript + Vue Router 4 + shadcn-vue + reka-ui |
 | LLM | Ollama (本地) / Anthropic (可选云端) |
@@ -166,54 +156,62 @@ open target/release/bundle/macos/Memex.app
 ## CLI 命令
 
 ```
-memex-cli ingest [--adapter <name>]     # 手动采集
-memex-cli search <query> [--json]       # 全文检索
+memex-cli ingest [--adapter <name>]      # 手动采集
+memex-cli search <query> [--json]        # 全文检索
 memex-cli sessions [--recent N]          # 列出会话
 memex-cli session <id>                   # 查看会话详情
 memex-cli stats                          # 统计信息
 memex-cli config show / set <key> <val>  # 配置管理
-memex-cli backup <path>                  # 备份
-memex-cli restore <path>                 # 恢复备份
-memex-cli rebuild-index                  # 从 Markdown 重建索引
+memex-cli backup <path>                  # 备份归档
+memex-cli restore <path>                 # 从归档恢复
+memex-cli rebuild-index                  # 从 Markdown 重建 FTS 索引
 memex-cli doctor                         # 健康检查
-memex-cli setup cursor / claude-code     # MCP 配置
-memex-cli mcp                            # 进入 MCP 模式
+memex-cli setup cursor | claude-code     # 一键注入 MCP + SKILL
+memex-cli hooks <ide>                    # 查看/启用某个 IDE 的 hooks
+memex-cli mcp                            # 进入 MCP stdio 模式
+memex-cli daemon status                  # Daemon 健康检查
 ```
 
----
-
-## 设计文档
-
-在线浏览：**https://shetengteng.github.io/memex/**（GitHub Pages 自动发布）
-
-本地源文件在 [`design/`](design/) 目录：
-
-| 文档 | 内容 |
-|---|---|
-| `20260531-03-*最终设计文档.md` | v4 架构、模块边界、数据模型 |
-| `20260531-12-*技术栈.md` | 技术选型 + 代码复用来源 |
-| `20260602-01-*功能点开发清单-100%.md` | 功能模块视角的全集 checklist（v1.0 已 100%） |
-| `20260531-09-*交互原型-v3.html` | 单 popup 聚焦版原型 |
-
-本地预览 docs site：
-
-```bash
-pip install markdown pygments
-python3 scripts/build-docs.py
-open site/index.html
-```
+所有命令都通过 HTTP 与内嵌 daemon 通信，daemon 是唯一数据入口，不再有"绕开 daemon 直连 SQLite"的路径。
 
 ---
 
 ## MCP SKILL
 
-- [`SKILL.md`](SKILL.md) — 通用 SKILL（4 个 MCP 工具 + CLI 速查）
-- [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) — Cursor 专属
-- [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) — Claude Code 专属
-- [`skills/codex/SKILL.md`](skills/codex/SKILL.md) — Codex 专属
-- [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) — OpenCode 专属
+| 文件 | 适用 |
+|---|---|
+| [`SKILL.md`](SKILL.md) | 通用 SKILL（4 个 MCP 工具 + CLI 速查） |
+| [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) | Cursor 专属 |
+| [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) | Claude Code 专属 |
+| [`skills/codex/SKILL.md`](skills/codex/SKILL.md) | Codex 专属 |
+| [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) | OpenCode 专属 |
 
-> 用法：在 Memex 桌面应用 → Connect → IDE 集成 一键安装/卸载 MCP + SKILL 到 4 个 IDE。
+> 用法：在 Memex 桌面应用 → **连接 → IDE 集成** 一键安装/卸载 MCP + SKILL 到 4 个 IDE。安装后，在该 IDE 内新开 session，调 `search_memory("xxx")` 即可检索全部历史。
+
+---
+
+## 隐私模型
+
+Memex 默认采用最严格的隐私策略：
+
+- **入库前自动脱敏**：API Key / 邮箱 / Token / 信用卡号等模式由 `processor::redact` 在写入数据库前替换为占位符，规则可在 `~/.memex/redactions.yaml` 中扩展
+- **私有会话过滤**：被 `~/.memex/privacy.yaml` 标记为 `private: true` 的会话不会通过 MCP 暴露给 IDE
+- **两个开关均可关闭**：设置 → 隐私 中可分别关停 auto-redact 和 skip-private-from-mcp（关掉后会立即生效，无需重启）
+- **云端 LLM 严格 opt-in**：默认全本地 Ollama，使用 Anthropic / OpenAI 必须显式在配置中开启
+- **没有遥测**：Memex 不向任何外部服务上报使用数据
+
+---
+
+## 设计文档
+
+在线浏览：**<https://shetengteng.github.io/memex/>**（GitHub Pages 自动发布，含各页面截图）
+
+本地源文件在 [`design/`](design/) 目录。本地预览 docs site：
+
+```bash
+# 静态站点直接用浏览器打开
+open docs/index.html
+```
 
 ---
 
