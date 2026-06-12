@@ -28,9 +28,11 @@ import {
 } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { sessions, projects, ADAPTER_MAP } from '@/stores/memex'
+import { useI18n } from '@/i18n'
 
 const palette = useCommandPalette()
 const router = useRouter()
+const { t, locale } = useI18n()
 
 const onKey = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -53,7 +55,8 @@ const go = (to: string) => {
 
 const tFmt = (iso: string) => {
   const d = new Date(iso)
-  return d.toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
+  const tag = locale.value === 'en' ? 'en-US' : 'zh-CN'
+  return d.toLocaleString(tag, { dateStyle: 'short', timeStyle: 'short' })
 }
 </script>
 
@@ -72,16 +75,16 @@ const tFmt = (iso: string) => {
     v-model:open="palette.isOpen.value"
     class="w-[92vw] !max-w-2xl !top-1/2 !-translate-y-1/2"
   >
-    <CommandInput placeholder="搜索任何东西…" />
+    <CommandInput :placeholder="t('cmd.placeholder')" />
     <!--
       Scrollbar: CommandList 默认 `no-scrollbar`（彻底隐藏 webkit + firefox 滚动条），
       列表项很多时用户感知不到能滚。用 cmd-palette-scroll class 显式恢复滚动条
       （样式在 style.css 里定义为 6px 细滚动条，与全站一致）。
     -->
     <CommandList class="cmd-palette-scroll !max-h-[60vh]">
-      <CommandEmpty>没有匹配的结果</CommandEmpty>
+      <CommandEmpty>{{ t('cmd.empty') }}</CommandEmpty>
 
-      <CommandGroup heading="搜索结果">
+      <CommandGroup :heading="t('cmd.group.search_results')">
         <CommandItem
           v-for="s in sessions.slice(0, 2)"
           :key="`search-${s.id}`"
@@ -99,50 +102,50 @@ const tFmt = (iso: string) => {
 
       <CommandSeparator />
 
-      <CommandGroup heading="快速操作">
+      <CommandGroup :heading="t('cmd.group.quick_actions')">
         <CommandItem value="goto today" @select="go('/today')">
           <Sparkles class="mr-2 size-4" />
-          跳到「今天」
+          {{ t('cmd.action.goto_today') }}
           <CommandShortcut>⌘1</CommandShortcut>
         </CommandItem>
         <CommandItem value="goto library" @select="go('/library')">
           <Layers class="mr-2 size-4" />
-          跳到「资料库」
+          {{ t('cmd.action.goto_library') }}
           <CommandShortcut>⌘2</CommandShortcut>
         </CommandItem>
         <CommandItem value="goto insights" @select="go('/insights')">
           <TrendingUp class="mr-2 size-4" />
-          跳到「洞察」
+          {{ t('cmd.action.goto_insights') }}
           <CommandShortcut>⌘3</CommandShortcut>
         </CommandItem>
         <CommandItem value="goto connect" @select="go('/connect')">
           <Plug class="mr-2 size-4" />
-          跳到「连接」
+          {{ t('cmd.action.goto_connect') }}
           <CommandShortcut>⌘4</CommandShortcut>
         </CommandItem>
         <CommandItem value="ingest now" @select="palette.close()">
           <RefreshCw class="mr-2 size-4" />
-          立即采集一次
+          {{ t('cmd.action.ingest_now') }}
           <CommandShortcut>⌘R</CommandShortcut>
         </CommandItem>
         <CommandItem value="reflect weekly" @select="go('/insights')">
           <Bookmark class="mr-2 size-4" />
-          生成本周反思
+          {{ t('cmd.action.reflect_weekly') }}
         </CommandItem>
         <CommandItem value="copy mcp cursor" @select="palette.close()">
           <Copy class="mr-2 size-4" />
-          复制 MCP 配置（Cursor）
+          {{ t('cmd.action.copy_mcp') }}
         </CommandItem>
         <CommandItem value="open settings" @select="go('/settings')">
           <Settings class="mr-2 size-4" />
-          打开「设置」
+          {{ t('cmd.action.open_settings') }}
           <CommandShortcut>⌘,</CommandShortcut>
         </CommandItem>
       </CommandGroup>
 
       <CommandSeparator />
 
-      <CommandGroup heading="最近会话">
+      <CommandGroup :heading="t('cmd.group.recent')">
         <CommandItem
           v-for="s in sessions.slice(0, 5)"
           :key="`recent-${s.id}`"
@@ -156,7 +159,7 @@ const tFmt = (iso: string) => {
 
       <CommandSeparator />
 
-      <CommandGroup heading="项目">
+      <CommandGroup :heading="t('cmd.group.projects')">
         <CommandItem
           v-for="p in projects"
           :key="`proj-${p.id}`"
@@ -172,7 +175,7 @@ const tFmt = (iso: string) => {
             flex-1 + text-right 把 sessions span 撑满中间剩余空间，数字稳定贴右。
           -->
           <span class="flex-1 text-right text-xs text-muted-foreground tabular-nums">
-            {{ p.sessions }} 个会话
+            {{ t('cmd.proj.sessions', { count: p.sessions }) }}
           </span>
         </CommandItem>
       </CommandGroup>

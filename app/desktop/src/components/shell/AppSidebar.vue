@@ -37,6 +37,7 @@ import {
 import { toast } from 'vue-sonner'
 import { totals, daemonStatus, adapters, stats } from '@/stores/memex'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import packageJson from '../../../package.json'
 
 interface NavItem {
@@ -50,6 +51,7 @@ interface NavItem {
 const route = useRoute()
 const router = useRouter()
 const memex = useMemex()
+const { t } = useI18n()
 const batchSummarizing = ref(false)
 
 interface SummaryProgress {
@@ -66,19 +68,19 @@ const inFlight = computed(() => progress.value !== null && !progress.value.done)
 
 const librarySessionsBadge = computed(() => ({
   display: formatNumber(totals.sessions),
-  tooltip: `${totals.sessions.toLocaleString()} 个会话`,
+  tooltip: t('sidebar.library.badge_tooltip', { count: totals.sessions.toLocaleString() }),
 }))
 
 const navMain = computed<NavItem[]>(() => [
-  { title: '今天', to: '/today', icon: Sunrise },
-  { title: '资料库', to: '/library', icon: Library, badge: librarySessionsBadge.value },
-  { title: '洞察', to: '/insights', icon: Sparkles },
+  { title: t('sidebar.nav.today'), to: '/today', icon: Sunrise },
+  { title: t('sidebar.nav.library'), to: '/library', icon: Library, badge: librarySessionsBadge.value },
+  { title: t('sidebar.nav.insights'), to: '/insights', icon: Sparkles },
 ])
 
-const navWorkspace: NavItem[] = [
-  { title: '连接', to: '/connect', icon: Plug, trailing: 'status-ok' },
-  { title: '设置', to: '/settings', icon: SettingsIcon },
-]
+const navWorkspace = computed<NavItem[]>(() => [
+  { title: t('sidebar.nav.connect'), to: '/connect', icon: Plug, trailing: 'status-ok' },
+  { title: t('sidebar.nav.settings'), to: '/settings', icon: SettingsIcon },
+])
 
 const isActive = (to: string) => route.path === to || route.path.startsWith(to + '/')
 
@@ -104,7 +106,7 @@ async function runBatchSummarize() {
   try {
     const n = await memex.batchSummarize()
     if (n > 0) {
-      toast.success(`已触发 ${n} 个会话的摘要任务`)
+      toast.success(t('sidebar.toast.summary_triggered', { count: n }))
       // 预填一个 progress 占位 —— 后端 emit 第一条 summary-progress 之前 button
       // 也能展示 "running"，避免按钮在「触发完成」与「第一条进度」之间瞬间复位
       progress.value = {
@@ -116,11 +118,11 @@ async function runBatchSummarize() {
         aborted: false,
       }
     } else {
-      toast.info('暂无待处理的会话')
+      toast.info(t('sidebar.toast.no_pending'))
     }
   } catch (e) {
     const fe = humanizeBackendError(e)
-    toast.error('生成摘要失败', {
+    toast.error(t('sidebar.toast.summary_failed'), {
       description: fe.friendly,
       action: fe.action
         ? { label: fe.action.label, onClick: () => router.push(fe.action!.route) }
@@ -137,34 +139,34 @@ async function abortBatchSummarize() {
   aborting.value = true
   try {
     const was = await memex.abortSummarize()
-    if (was) toast.message('已请求暂停，当前会话完成后停止')
-    else toast.info('没有在跑的摘要任务')
+    if (was) toast.message(t('sidebar.toast.pause_requested'))
+    else toast.info(t('sidebar.toast.no_running'))
   } catch (e) {
-    toastBackendError('暂停失败', e)
+    toastBackendError(t('sidebar.toast.pause_failed'), e)
   } finally {
     aborting.value = false
   }
 }
 
 const summaryButtonLabel = computed(() => {
-  if (batchSummarizing.value) return '触发中…'
+  if (batchSummarizing.value) return t('sidebar.summary.triggering')
   const p = progress.value
   if (p && !p.done) {
-    return `生成中 ${p.current}/${p.total}`
+    return t('sidebar.summary.running', { current: p.current, total: p.total })
   }
-  return `触发 ${sessionsPending.value} 个待摘要`
+  return t('sidebar.summary.trigger_pending', { count: sessionsPending.value })
 })
 
 let unlistenProgress: UnlistenFn | null = null
 
 onMounted(async () => {
-  unlistenProgress = await listen<SummaryProgress>('summary-progress', (e) => {
+    unlistenProgress = await listen<SummaryProgress>('summary-progress', (e) => {
     progress.value = e.payload
     if (e.payload.done) {
       if (e.payload.aborted) {
-        toast.message(`已暂停（已完成 ${e.payload.current}/${e.payload.total}）`)
+        toast.message(t('sidebar.toast.paused', { current: e.payload.current, total: e.payload.total }))
       } else {
-        toast.success(`摘要全部完成 (${e.payload.total} 个)`)
+        toast.success(t('sidebar.toast.all_done', { count: e.payload.total }))
       }
       window.setTimeout(() => {
         if (progress.value && progress.value.done) progress.value = null
@@ -195,7 +197,7 @@ const appVersion = `v${packageJson.version}`
               </div>
               <div class="grid flex-1 text-left leading-tight">
                 <span class="truncate text-[15px] font-bold tracking-tight">Memex</span>
-                <span class="truncate text-[11px] text-muted-foreground">AI 记忆中枢</span>
+                <span class="truncate text-[11px] text-muted-foreground">{{ t('sidebar.tagline') }}</span>
               </div>
             </RouterLink>
           </SidebarMenuButton>
@@ -230,7 +232,7 @@ const appVersion = `v${packageJson.version}`
       </SidebarGroup>
 
       <SidebarGroup>
-        <SidebarGroupLabel>工作区</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ t('sidebar.workspace_group') }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in navWorkspace" :key="item.to">
@@ -263,13 +265,13 @@ const appVersion = `v${packageJson.version}`
             <span class="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
           </span>
           <span class="flex-1 truncate font-medium text-emerald-700 tabular-nums dark:text-emerald-400">
-            生成摘要 {{ progress?.current ?? 0 }}/{{ progress?.total ?? 0 }}
+            {{ t('sidebar.summary.progress_inflight', { current: progress?.current ?? 0, total: progress?.total ?? 0 }) }}
           </span>
           <Tooltip :delay-duration="120">
             <TooltipTrigger as-child>
               <button
                 type="button"
-                aria-label="暂停摘要生成"
+                :aria-label="t('sidebar.summary.pause_aria')"
                 class="flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-emerald-500/20 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="aborting"
                 @click="abortBatchSummarize"
@@ -278,7 +280,7 @@ const appVersion = `v${packageJson.version}`
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              <span>{{ aborting ? '暂停中…' : '暂停摘要生成' }}</span>
+              <span>{{ aborting ? t('sidebar.summary.pausing') : t('sidebar.summary.pause_aria') }}</span>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -297,14 +299,14 @@ const appVersion = `v${packageJson.version}`
               <SidebarMenuButton
                 size="sm"
                 class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                :tooltip="`记忆中 · ${totals.sessions.toLocaleString()} 个会话`"
+                :tooltip="t('sidebar.summary.collecting_tooltip', { count: totals.sessions.toLocaleString() })"
               >
                 <span class="relative flex size-2 shrink-0 items-center justify-center">
                   <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60" />
                   <span class="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
                 </span>
                 <span class="flex-1 truncate text-[12px]">
-                  记忆中 ·
+                  {{ t('sidebar.summary.collecting_label') }}
                   <span class="font-semibold tabular-nums text-foreground">
                     {{ formatNumber(totals.sessions) }}
                   </span>
@@ -322,9 +324,9 @@ const appVersion = `v${packageJson.version}`
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
                     <span class="status-dot status-dot-ok" />
-                    <span class="text-[12px] font-medium">采集中</span>
+                    <span class="text-[12px] font-medium">{{ t('sidebar.summary.ingesting') }}</span>
                   </div>
-                  <span class="text-[10px] text-muted-foreground">实时同步</span>
+                  <span class="text-[10px] text-muted-foreground">{{ t('sidebar.summary.realtime_sync') }}</span>
                 </div>
 
                 <div class="grid grid-cols-3 gap-2 rounded-md border bg-muted/30 p-2 text-center">
@@ -334,7 +336,7 @@ const appVersion = `v${packageJson.version}`
                         <div class="text-[14px] font-bold tabular-nums">
                           {{ formatNumber(totals.sessions) }}
                         </div>
-                        <div class="text-[10px] text-muted-foreground">会话</div>
+                        <div class="text-[10px] text-muted-foreground">{{ t('sidebar.summary.unit_sessions') }}</div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -347,7 +349,7 @@ const appVersion = `v${packageJson.version}`
                         <div class="text-[14px] font-bold tabular-nums">
                           {{ formatNumber(totals.messages) }}
                         </div>
-                        <div class="text-[10px] text-muted-foreground">消息</div>
+                        <div class="text-[10px] text-muted-foreground">{{ t('sidebar.summary.unit_messages') }}</div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -356,13 +358,13 @@ const appVersion = `v${packageJson.version}`
                   </Tooltip>
                   <div>
                     <div class="text-[14px] font-bold tabular-nums">{{ activeAdapters }} / {{ adapters.length }}</div>
-                    <div class="text-[10px] text-muted-foreground">采集源</div>
+                    <div class="text-[10px] text-muted-foreground">{{ t('sidebar.summary.unit_adapters') }}</div>
                   </div>
                 </div>
 
                 <div class="space-y-1.5">
                   <div class="flex items-center justify-between text-[11px]">
-                    <span class="text-muted-foreground">摘要进度</span>
+                    <span class="text-muted-foreground">{{ t('sidebar.summary.progress_label') }}</span>
                     <span class="font-medium text-emerald-600">{{ summaryPct }}%</span>
                   </div>
                   <div class="h-1 w-full overflow-hidden rounded-full bg-muted">
@@ -396,7 +398,7 @@ const appVersion = `v${packageJson.version}`
                     :disabled="aborting"
                     @click="abortBatchSummarize"
                   >
-                    {{ aborting ? '…' : '暂停' }}
+                    {{ aborting ? t('sidebar.summary.aborting_dots') : t('sidebar.summary.pause_button') }}
                   </Button>
                 </div>
               </div>

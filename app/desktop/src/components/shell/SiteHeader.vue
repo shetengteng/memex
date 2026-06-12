@@ -16,10 +16,12 @@ import { Search } from 'lucide-vue-next'
 import { totals } from '@/stores/memex'
 import { formatNumber } from '@/lib/utils'
 import { useCommandPalette } from '@/composables/useCommandPalette'
+import { useI18n } from '@/i18n'
 import NotificationBell from './NotificationBell.vue'
 
 const route = useRoute()
 const { open: openPalette } = useCommandPalette()
+const { t } = useI18n()
 
 const crumbs = computed<string[]>(() => (route.meta?.breadcrumb as string[]) ?? [])
 const isToday = computed(() => route.path === '/today')
@@ -59,11 +61,11 @@ const isConnect = computed(() => route.path === '/connect')
           <TooltipTrigger as-child>
             <span class="cursor-default tabular-nums underline-offset-2 hover:underline">
               <span class="font-medium text-foreground">{{ formatNumber(totals.sessions) }}</span>
-              <span class="ml-0.5">个会话</span>
+              <span class="ml-0.5">{{ t('header.library.sessions_unit') }}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom" :side-offset="4">
-            <span class="tabular-nums">{{ totals.sessions.toLocaleString() }} 个会话</span>
+            <span class="tabular-nums">{{ t('header.library.sessions_tooltip', { count: totals.sessions.toLocaleString() }) }}</span>
           </TooltipContent>
         </Tooltip>
         <span class="text-muted-foreground/40">·</span>
@@ -71,11 +73,11 @@ const isConnect = computed(() => route.path === '/connect')
           <TooltipTrigger as-child>
             <span class="cursor-default tabular-nums underline-offset-2 hover:underline">
               <span class="font-medium text-foreground">{{ formatNumber(totals.messages) }}</span>
-              <span class="ml-0.5">条消息</span>
+              <span class="ml-0.5">{{ t('header.library.messages_unit') }}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom" :side-offset="4">
-            <span class="tabular-nums">{{ totals.messages.toLocaleString() }} 条消息</span>
+            <span class="tabular-nums">{{ t('header.library.messages_tooltip', { count: totals.messages.toLocaleString() }) }}</span>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -85,7 +87,7 @@ const isConnect = computed(() => route.path === '/connect')
         class="hidden min-w-0 items-center gap-1.5 truncate whitespace-nowrap text-[12px] text-muted-foreground md:flex"
       >
         <span class="text-muted-foreground/40">·</span>
-        <span class="truncate">AI 帮你回顾、提炼、找规律</span>
+        <span class="truncate">{{ t('header.insights.tagline') }}</span>
       </div>
 
       <div
@@ -93,7 +95,7 @@ const isConnect = computed(() => route.path === '/connect')
         class="hidden min-w-0 items-center gap-1.5 truncate whitespace-nowrap text-[12px] text-muted-foreground md:flex"
       >
         <span class="text-muted-foreground/40">·</span>
-        <span class="truncate">让你的 AI 编辑器记住一切</span>
+        <span class="truncate">{{ t('header.connect.tagline') }}</span>
       </div>
     </div>
 
@@ -113,7 +115,7 @@ const isConnect = computed(() => route.path === '/connect')
         >
           <span class="flex items-center gap-2">
             <Search class="size-3.5" />
-            搜索会话、项目、命令…
+            {{ t('header.search.placeholder') }}
           </span>
           <kbd class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
         </Button>
