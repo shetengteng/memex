@@ -96,7 +96,7 @@ fn test_search_result_skips_none_fields() {
 /// SessionRow 的 IPC 序列化形态：所有多词字段都是 camelCase
 /// （`projectPath` / `messageCount` / `createdAt` / `updatedAt` /
 /// `summaryTitle` / `firstUserMessage`），snake_case 字段在 JSON 里
-/// 不再存在。前端 `tauri-app/src/types/index.ts::SessionRow` 必须
+/// 不再存在。前端 `app/desktop/src/types/index.ts::SessionRow` 必须
 /// 与此断言保持一致。
 ///
 /// 同时验证 SessionRow 仍能从 snake_case 形式（来自 SQL 列名经

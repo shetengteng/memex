@@ -181,10 +181,10 @@ memex-cli daemon status                  # Daemon 健康检查
 | 文件 | 适用 |
 |---|---|
 | [`SKILL.md`](SKILL.md) | 通用 SKILL（4 个 MCP 工具 + CLI 速查） |
-| [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) | Cursor 专属 |
-| [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) | Claude Code 专属 |
-| [`skills/codex/SKILL.md`](skills/codex/SKILL.md) | Codex 专属 |
-| [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) | OpenCode 专属 |
+| [`app/skills/cursor/SKILL.md`](app/skills/cursor/SKILL.md) | Cursor 专属 |
+| [`app/skills/claude-code/SKILL.md`](app/skills/claude-code/SKILL.md) | Claude Code 专属 |
+| [`app/skills/codex/SKILL.md`](app/skills/codex/SKILL.md) | Codex 专属 |
+| [`app/skills/opencode/SKILL.md`](app/skills/opencode/SKILL.md) | OpenCode 专属 |
 
 > 用法：在 Memex 桌面应用 → **连接 → IDE 集成** 一键安装/卸载 MCP + SKILL 到 4 个 IDE。安装后，在该 IDE 内新开 session，调 `search_memory("xxx")` 即可检索全部历史。
 

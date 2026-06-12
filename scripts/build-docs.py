@@ -2,11 +2,11 @@
 """Build the Memex docs site from Markdown sources.
 
 Inputs (auto-discovered):
-  - README.md             → index.html
-  - SKILL.md              → SKILL.html
-  - design/**/*.md        → design/<slug>.html   (递归扫 specs/todos/decisions/prototypes)
-  - skills/*/SKILL.md     → skills/<ide>.html
-  - design/**/*.html      → 原样 copy 到 site/design/<basename>.html
+  - README.md                 → index.html
+  - app/SKILL.md              → SKILL.html
+  - design/**/*.md            → design/<slug>.html   (递归扫 specs/todos/decisions/prototypes)
+  - app/skills/*/SKILL.md     → skills/<ide>.html
+  - design/**/*.html          → 原样 copy 到 site/design/<basename>.html
 
   注：design 输出目录始终扁平（不复制子目录结构），slug 取自文件名，
   跨子目录的文件名不能重名。
@@ -148,8 +148,11 @@ def slugify(name: str) -> str:
 def collect_pages() -> tuple[list[dict], list[dict], list[dict]]:
     """Return (root_pages, design_pages, skill_pages)."""
     root_pages: list[dict] = []
-    for fn in ("README.md", "SKILL.md"):
-        p = ROOT / fn
+    page_sources = [
+        ("README.md", ROOT / "README.md"),
+        ("SKILL.md", ROOT / "app" / "SKILL.md"),
+    ]
+    for fn, p in page_sources:
         if not p.exists():
             continue
         slug = "index" if fn == "README.md" else slugify(fn)
@@ -181,7 +184,7 @@ def collect_pages() -> tuple[list[dict], list[dict], list[dict]]:
         )
 
     skill_pages: list[dict] = []
-    for p in sorted((ROOT / "skills").glob("*/SKILL.md")):
+    for p in sorted((ROOT / "app" / "skills").glob("*/SKILL.md")):
         ide = p.parent.name
         text = p.read_text(encoding="utf-8")
         skill_pages.append(

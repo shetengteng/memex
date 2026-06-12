@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const tauriRoot = resolve(here, '..')
-const repoRoot = resolve(tauriRoot, '..')
+// Cargo workspace lives at app/Cargo.toml — one level up from app/desktop.
+// `cargo build` runs there so target/ also sits under app/target.
+const cargoRoot = resolve(tauriRoot, '..')
 
 const hostTarget = execSync('rustc -vV', { encoding: 'utf8' })
   .split('\n')
@@ -46,11 +48,11 @@ const targetSubdir = isCrossArch ? `${target}/release` : 'release'
 for (const { crate, binary, destName } of sidecars) {
   console.log(`[sidecars] building ${crate} (release)…`)
   execSync(`cargo build --release -p ${crate}${targetFlag}`, {
-    cwd: repoRoot,
+    cwd: cargoRoot,
     stdio: 'inherit',
   })
 
-  const src = resolve(repoRoot, `target/${targetSubdir}/${binary}`)
+  const src = resolve(cargoRoot, `target/${targetSubdir}/${binary}`)
   if (!existsSync(src)) {
     console.error(`[sidecars] ERROR: ${src} not produced`)
     process.exit(1)

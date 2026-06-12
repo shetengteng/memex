@@ -2,7 +2,7 @@
 members = [
     "crates/memex-core",
     "crates/memex-cli",
-    "tauri-app/src-tauri",
+    "desktop/src-tauri",
 ]
 resolver = "2"
 

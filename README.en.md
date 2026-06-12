@@ -181,10 +181,10 @@ Every command talks to the embedded daemon over HTTP. The daemon is the single d
 | File | For |
 |---|---|
 | [`SKILL.md`](SKILL.md) | Generic SKILL (4 MCP tools + CLI cheat sheet) |
-| [`skills/cursor/SKILL.md`](skills/cursor/SKILL.md) | Cursor-specific |
-| [`skills/claude-code/SKILL.md`](skills/claude-code/SKILL.md) | Claude Code-specific |
-| [`skills/codex/SKILL.md`](skills/codex/SKILL.md) | Codex-specific |
-| [`skills/opencode/SKILL.md`](skills/opencode/SKILL.md) | OpenCode-specific |
+| [`app/skills/cursor/SKILL.md`](app/skills/cursor/SKILL.md) | Cursor-specific |
+| [`app/skills/claude-code/SKILL.md`](app/skills/claude-code/SKILL.md) | Claude Code-specific |
+| [`app/skills/codex/SKILL.md`](app/skills/codex/SKILL.md) | Codex-specific |
+| [`app/skills/opencode/SKILL.md`](app/skills/opencode/SKILL.md) | OpenCode-specific |
 
 > Usage: in Memex desktop app → **Connect → IDE Integrations**, install/uninstall MCP + SKILL into the 4 IDEs in one click. After installing, open a new session in that IDE and call `search_memory("xxx")` to query all your history.
 

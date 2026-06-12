@@ -135,7 +135,7 @@ export interface TimelineEntry {
 /**
  * `list_projects` IPC 返回的项目聚合行，对齐后端 ProjectSummary 在
  * `#[serde(rename_all = "camelCase")]` 下的 JSON 形态。
- * 锁定形态见 tauri-app/src-tauri/tests/ipc_contract.rs::project_summary_contract。
+ * 锁定形态见 app/desktop/src-tauri/tests/ipc_contract.rs::project_summary_contract。
  */
 export interface ProjectSummary {
   projectPath: string

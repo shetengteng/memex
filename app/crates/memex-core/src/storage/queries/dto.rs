@@ -51,7 +51,7 @@ pub struct StatsBreakdown {
 /// `lastUpdated` / `byAdapter`。Rust 字段名仍是 snake_case，所以
 /// 后端代码（如 `summaries[i].project_path`）不受影响。
 ///
-/// 锁定形态见 `tauri-app/src-tauri/tests/ipc_contract.rs::project_summary_contract`。
+/// 锁定形态见 `app/desktop/src-tauri/tests/ipc_contract.rs::project_summary_contract`。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSummary {

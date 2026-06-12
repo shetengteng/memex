@@ -2,7 +2,7 @@
 //!
 //! Pins the JSON field shape exposed to the Vue frontend so we catch
 //! breaking renames before they ship. Keep these assertions in lock-step
-//! with `tauri-app/src/types/index.ts`.
+//! with `app/desktop/src/types/index.ts`.
 
 use memex_core::storage::db::SessionListFilter;
 use memex_core::storage::queries::{ProjectSummary, StatsBreakdown, TimelineEntry};
@@ -56,7 +56,7 @@ fn stats_contract() {
 /// ProjectSummary IPC 形态：所有多词字段都是 camelCase
 /// （`projectPath` / `sessionCount` / `messageCount` / `lastTitle` /
 /// `lastUpdated` / `byAdapter`），snake_case 不再出现。前端
-/// `tauri-app/src/types/index.ts::ProjectSummary` 必须与此保持一致。
+/// `app/desktop/src/types/index.ts::ProjectSummary` 必须与此保持一致。
 #[test]
 fn project_summary_contract() {
     let mut by_adapter = std::collections::BTreeMap::new();

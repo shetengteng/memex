@@ -233,7 +233,7 @@ CREATE INDEX IF NOT EXISTS idx_threads_updated_at
 -- metrics 表只能按日按 metric_name 聚合，对 \"哪个工具被调了多少次 / 平均延迟
 -- / 最近一次发生在什么时候\" 这类问题无能为力。这张表把每次 MCP 调用作为单
 -- 独一行写入，给 menubar \"MCP 活动\" 卡片做 24h 聚合 + 准实时事件流。
--- 写入路径：crates/memex-cli/src/commands/mcp/server/tools.rs::handle_tool_call。
+-- 写入路径：app/crates/memex-cli/src/commands/mcp/server/tools.rs::handle_tool_call。
 --
 -- 注意：`arguments_json` / `result_json` 两列是 v3 migration 才追加的，
 -- baseline 这里**故意不包含**——否则 fresh install 跑完 baseline 再跑 v3 的
@@ -267,7 +267,7 @@ CREATE INDEX IF NOT EXISTS idx_mcp_call_log_tool
 --   * 周报生成（weekly_report）—— 每周日 22:00 触发
 -- 前端 SiteHeader Bell 按钮通过 list_notifications + count_unread_notifications 拉数据；
 -- 点击通知 → 弹 Dialog 显示详情（payload_json 解析后渲染）。
--- 写入路径：crates/memex-core/src/storage/notifications.rs。
+-- 写入路径：app/crates/memex-core/src/storage/notifications.rs。
 CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL,

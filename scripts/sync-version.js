@@ -8,10 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 
 const files = {
-  workspaceCargo: path.join(rootDir, 'Cargo.toml'),
-  tauriConf: path.join(rootDir, 'tauri-app', 'src-tauri', 'tauri.conf.json'),
-  packageJson: path.join(rootDir, 'tauri-app', 'package.json'),
-  cask: path.join(rootDir, 'Casks', 'memex.rb'),
+  workspaceCargo: path.join(rootDir, 'app', 'Cargo.toml'),
+  tauriConf: path.join(rootDir, 'app', 'desktop', 'src-tauri', 'tauri.conf.json'),
+  packageJson: path.join(rootDir, 'app', 'desktop', 'package.json'),
+  cask: path.join(rootDir, 'app', 'Casks', 'memex.rb'),
 };
 
 const args = process.argv.slice(2);
@@ -59,23 +59,25 @@ if (!/^\d+\.\d+\.\d+/.test(version)) {
 
 console.log(`Syncing version: ${version}`);
 
+const rel = (p) => path.relative(rootDir, p);
+
 let cargo = fs.readFileSync(files.workspaceCargo, 'utf8');
 const cargoRe = /^version = ".*?"$/m;
 if (cargoRe.test(cargo)) {
   cargo = cargo.replace(cargoRe, `version = "${version}"`);
   fs.writeFileSync(files.workspaceCargo, cargo);
-  console.log(`  Updated Cargo.toml (workspace.package.version)`);
+  console.log(`  Updated ${rel(files.workspaceCargo)} (workspace.package.version)`);
 }
 
 const tauriConf = JSON.parse(fs.readFileSync(files.tauriConf, 'utf8'));
 tauriConf.version = version;
 fs.writeFileSync(files.tauriConf, JSON.stringify(tauriConf, null, 2) + '\n');
-console.log(`  Updated tauri.conf.json`);
+console.log(`  Updated ${rel(files.tauriConf)}`);
 
 const pkg = JSON.parse(fs.readFileSync(files.packageJson, 'utf8'));
 pkg.version = version;
 fs.writeFileSync(files.packageJson, JSON.stringify(pkg, null, 2) + '\n');
-console.log(`  Updated package.json`);
+console.log(`  Updated ${rel(files.packageJson)}`);
 
 if (fs.existsSync(files.cask)) {
   let cask = fs.readFileSync(files.cask, 'utf8');
@@ -83,7 +85,7 @@ if (fs.existsSync(files.cask)) {
   if (caskRe.test(cask)) {
     cask = cask.replace(caskRe, `$1"${version}"`);
     fs.writeFileSync(files.cask, cask);
-    console.log(`  Updated Casks/memex.rb`);
+    console.log(`  Updated ${rel(files.cask)}`);
   }
 }
 

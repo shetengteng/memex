@@ -3,11 +3,11 @@
 生成 macOS menubar tray icons (template image: 纯黑 + alpha)。
 
 输出:
-  tauri-app/src-tauri/icons/tray-16x16.png   (1x)
-  tauri-app/src-tauri/icons/tray-22x22.png   (1x default)
-  tauri-app/src-tauri/icons/tray-32x32.png   (2x retina)
-  tauri-app/src-tauri/icons/tray-64x64.png   (4x super-retina)
-  tauri-app/src-tauri/icons/tray-icon.png    -> 22x22 alias
+  app/desktop/src-tauri/icons/tray-16x16.png   (1x)
+  app/desktop/src-tauri/icons/tray-22x22.png   (1x default)
+  app/desktop/src-tauri/icons/tray-32x32.png   (2x retina)
+  app/desktop/src-tauri/icons/tray-64x64.png   (4x super-retina)
+  app/desktop/src-tauri/icons/tray-icon.png    -> 22x22 alias
 
 笔画做粗，字母 M 加大占满 padding，保证 22x22 也清晰可读。
 """
@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ICONS = ROOT / "tauri-app" / "src-tauri" / "icons"
+ICONS = ROOT / "app" / "desktop" / "src-tauri" / "icons"
 
 
 def find_bold_font():

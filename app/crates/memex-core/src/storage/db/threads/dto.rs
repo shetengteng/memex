@@ -59,7 +59,7 @@ mod tests {
     use super::*;
 
     /// 锁定 ThreadRow 的 IPC 序列化形态：所有多词字段为 camelCase，
-    /// snake_case 字段在 JSON 里不应再出现。前端 `tauri-app/src/types/index.ts`
+    /// snake_case 字段在 JSON 里不应再出现。前端 `app/desktop/src/types/index.ts`
     /// 的 `ThreadRow` 接口必须与本测试断言保持一致。
     #[test]
     fn thread_row_serializes_with_camel_case() {

@@ -21,7 +21,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PATH="/Applications/Memex.app"
-BUNDLE_PATH="$ROOT/target/release/bundle/macos/Memex.app"
+# Cargo workspace lives in app/ now, so build output is rooted at app/target/.
+BUNDLE_PATH="$ROOT/app/target/release/bundle/macos/Memex.app"
 MEMEX_DIR="$HOME/.memex"
 
 SKIP_BACKUP=false
@@ -44,9 +45,9 @@ done
 cd "$ROOT"
 
 echo "==> 1. 校验版本一致性"
-PKG_VER=$(node -p "require('./tauri-app/package.json').version")
-CONF_VER=$(node -p "require('./tauri-app/src-tauri/tauri.conf.json').version")
-CARGO_VER=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+PKG_VER=$(node -p "require('./app/desktop/package.json').version")
+CONF_VER=$(node -p "require('./app/desktop/src-tauri/tauri.conf.json').version")
+CARGO_VER=$(grep -m1 '^version = ' app/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
 
 echo "   package.json     = $PKG_VER"
 echo "   tauri.conf.json  = $CONF_VER"
@@ -94,7 +95,7 @@ else
   # tauri build 可能在生成 updater signature 时报错（缺 TAURI_SIGNING_PRIVATE_KEY），
   # 但 .app 已经先 bundle 完成。我们只关心 .app 是否生成 → 忽略 exit code，看产物。
   set +e
-  (cd tauri-app && npm run tauri:bundle:app) 2>&1 | tail -20
+  (cd app/desktop && npm run tauri:bundle:app) 2>&1 | tail -20
   set -e
   if [ ! -d "$BUNDLE_PATH" ]; then
     echo "   ✗ build 后仍找不到 $BUNDLE_PATH" >&2
