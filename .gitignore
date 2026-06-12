@@ -11,6 +11,7 @@ Thumbs.db
 
 # Local interaction
 prompts.txt
+userinput.py
 
 # Memex runtime data (path TBD)
 .memex/

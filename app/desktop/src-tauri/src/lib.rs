@@ -250,6 +250,7 @@ pub fn run() {
             commands::config::toggle_adapter,
             commands::reports::list_reports,
             commands::reports::regenerate_report,
+            commands::reports::export_text_file,
             commands::threads::list_threads,
             commands::threads::get_thread_detail,
             commands::threads::regenerate_threads,

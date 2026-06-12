@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,16 +12,28 @@ const router = useRouter()
 const memex = useMemex()
 const latest = ref<AggregateSummary | null>(null)
 const loading = ref(true)
+const errorText = ref<string | null>(null)
 
-onMounted(async () => {
+async function reload() {
+  loading.value = true
+  errorText.value = null
   try {
     const xs = await memex.listReports('weekly', 1)
     latest.value = xs[0] ?? null
   } catch (e) {
     console.warn('[WeeklySummaryCard] listReports failed', e)
+    errorText.value = String(e)
   } finally {
     loading.value = false
   }
+}
+
+onMounted(() => {
+  void reload()
+  window.addEventListener('today-refresh', reload)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('today-refresh', reload)
 })
 
 // 拆分摘要 markdown 第一段当 body
@@ -64,6 +76,9 @@ const weekBadge = computed(() => {
       {{ latest.session_count }} 个会话 · {{ latest.title ?? '本周摘要' }}
     </p>
     <p v-else-if="loading" class="mb-3 text-[13px] text-muted-foreground">加载中…</p>
+    <p v-else-if="errorText" class="mb-3 text-[13px] text-destructive">
+      读取摘要失败：{{ errorText }}
+    </p>
     <p v-else class="mb-3 text-[13px] text-muted-foreground">本周还没有自动摘要，可去洞察页生成。</p>
 
     <p v-if="body" class="mb-4 whitespace-pre-line text-[13px] leading-relaxed">{{ body }}</p>

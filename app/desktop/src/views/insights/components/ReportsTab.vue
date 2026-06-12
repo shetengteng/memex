@@ -15,6 +15,8 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import type { AggregateSummary } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
@@ -56,18 +58,18 @@ function onScopeChange(s: string | number) {
 }
 
 async function regenerate() {
-  if (!selectedReport.value || regenerating.value) return
+  if (regenerating.value) return
   regenerating.value = true
+  const scopeKey = selectedReport.value?.scope_key
   try {
-    const r = await memex.regenerateReport(scope.value, selectedReport.value.scope_key)
+    const r = await memex.regenerateReport(scope.value, scopeKey)
     if (r) {
-      toast.success('已重新生成')
+      toast.success(scopeKey ? '已重新生成' : '已生成最新报告')
       await loadReports()
-      // 保持选中同一个 scope_key
       const same = reports.value.find((x) => x.scope_key === r.scope_key)
       if (same) selectedId.value = same.id
     } else {
-      toast.info('未生成新报告，可能是数据不足')
+      toast.info('未生成新报告，可能数据不足或近期没有新会话')
     }
   } catch (e) {
     const fe = humanizeBackendError(e)
@@ -80,6 +82,61 @@ async function regenerate() {
     })
   } finally {
     regenerating.value = false
+  }
+}
+
+const exporting = ref(false)
+
+function buildExportMarkdown(r: AggregateSummary): string {
+  const lines: string[] = []
+  lines.push(`# ${r.title || r.scope_key}`)
+  lines.push('')
+  lines.push(`- Scope: \`${scope.value}\``)
+  lines.push(`- Scope key: \`${r.scope_key}\``)
+  lines.push(`- Sessions: ${r.session_count}`)
+  lines.push(`- Generated at: ${new Date(r.created_at).toISOString()}`)
+  lines.push('')
+  lines.push('## Summary')
+  lines.push('')
+  lines.push(r.summary || '_(empty)_')
+  if (r.decisions.length) {
+    lines.push('')
+    lines.push('## Key Decisions')
+    lines.push('')
+    for (const d of r.decisions) lines.push(`- ${d}`)
+  }
+  if (r.topics.length) {
+    lines.push('')
+    lines.push('## Topics')
+    lines.push('')
+    lines.push(r.topics.map((t) => `\`${t}\``).join(' · '))
+  }
+  lines.push('')
+  return lines.join('\n')
+}
+
+async function exportReport() {
+  if (!selectedReport.value || exporting.value) return
+  exporting.value = true
+  try {
+    const r = selectedReport.value
+    const safeKey = r.scope_key.replace(/[^A-Za-z0-9._-]+/g, '_')
+    const defaultName = `memex-${scope.value}-${safeKey}.md`
+    const target = await saveDialog({
+      title: '导出报告为 Markdown',
+      defaultPath: defaultName,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+    if (!target) return
+    await invoke('export_text_file', {
+      targetPath: target,
+      content: buildExportMarkdown(r),
+    })
+    toast.success(`已导出到 ${target}`)
+  } catch (e) {
+    toast.error('导出失败', { description: String(e) })
+  } finally {
+    exporting.value = false
   }
 }
 </script>
@@ -108,15 +165,22 @@ async function regenerate() {
           variant="ghost"
           size="sm"
           class="h-8 gap-1.5"
-          :disabled="!selectedReport || regenerating"
+          :title="selectedReport ? `重新生成 ${selectedReport.scope_key}` : `生成最新${scope === 'daily' ? '日' : scope === 'weekly' ? '周' : '月'}报`"
+          :disabled="regenerating"
           @click="regenerate"
         >
           <Sparkles class="size-3.5" />
-          {{ regenerating ? '生成中…' : '重新生成' }}
+          {{ regenerating ? '生成中…' : (selectedReport ? '重新生成' : '生成') }}
         </Button>
-        <Button variant="outline" size="sm" class="h-8 gap-1.5" disabled>
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-8 gap-1.5"
+          :disabled="!selectedReport || exporting"
+          @click="exportReport"
+        >
           <Download class="size-3.5" />
-          导出
+          {{ exporting ? '导出中…' : '导出' }}
         </Button>
       </div>
     </div>

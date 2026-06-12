@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use memex_core::config::MemexConfig;
 use memex_core::ingest::{
     regenerate_daily_report, regenerate_monthly_report, regenerate_report_by_key,
@@ -56,4 +58,22 @@ pub async fn regenerate_report(
         }
     };
     Ok(row)
+}
+
+/// 把任意文本（通常是 markdown）原样写入用户在 save dialog 里选的本地路径。
+/// 仅 UI 触发的导出走这里——前端已经在内存里把报告渲染好了，后端只负责落盘。
+#[tauri::command]
+pub async fn export_text_file(target_path: String, content: String) -> CmdResult<u64> {
+    let path = PathBuf::from(&target_path);
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CmdError::Backend(format!("创建目录 {} 失败: {}", parent.display(), e))
+            })?;
+        }
+    }
+    std::fs::write(&path, &content).map_err(|e| {
+        CmdError::Backend(format!("写入 {} 失败: {}", path.display(), e))
+    })?;
+    Ok(content.len() as u64)
 }

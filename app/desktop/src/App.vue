@@ -169,6 +169,6 @@ function resetSidebarWidth() {
     </SidebarInset>
     <CommandPalette />
     <OllamaSetupDialog />
-    <Toaster position="bottom-right" close-button />
+    <Toaster position="bottom-right" close-button rich-colors />
   </SidebarProvider>
 </template>

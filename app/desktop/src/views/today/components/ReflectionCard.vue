@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Lightbulb, Plus } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
 import type { ReflectEntry } from '@/types'
@@ -67,7 +67,6 @@ function openItem(item: ReflectionItemView) {
       <div class="flex items-center gap-2">
         <Lightbulb class="size-4" :style="{ color: 'var(--warning)' }" />
         <h3 class="text-[14px] font-semibold">等待你的反思</h3>
-        <Badge variant="secondary">L4</Badge>
       </div>
       <Badge class="border-amber-500/30 bg-amber-500/10 text-amber-700">{{ items.length }} 项</Badge>
     </div>
