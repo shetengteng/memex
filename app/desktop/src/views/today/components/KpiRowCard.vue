@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 
 interface KpiBucket {
-  label: string
+  labelKey: string
   days: number
   sessions: number | null
   messages: number | null
@@ -12,12 +13,15 @@ interface KpiBucket {
 }
 
 const memex = useMemex()
+const { t } = useI18n()
 
 const buckets = ref<KpiBucket[]>([
-  { label: '今天', days: 1, sessions: null, messages: null, loading: true },
-  { label: '本周', days: 7, sessions: null, messages: null, loading: true },
-  { label: '本月', days: 30, sessions: null, messages: null, loading: true },
+  { labelKey: 'today.kpi.today', days: 1, sessions: null, messages: null, loading: true },
+  { labelKey: 'today.kpi.week', days: 7, sessions: null, messages: null, loading: true },
+  { labelKey: 'today.kpi.month', days: 30, sessions: null, messages: null, loading: true },
 ])
+
+const bucketsView = computed(() => buckets.value.map((b) => ({ ...b, label: t(b.labelKey) })))
 
 async function loadOne(idx: number) {
   const b = buckets.value[idx]
@@ -60,18 +64,18 @@ function fmt(n: number | null): string {
 
 <template>
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-    <Card v-for="b in buckets" :key="b.label" class="p-4">
+    <Card v-for="b in bucketsView" :key="b.labelKey" class="p-4">
       <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">
         {{ b.label }}
       </div>
       <div class="flex items-baseline gap-3">
         <div class="flex items-baseline gap-1">
           <span class="text-2xl font-bold tabular-nums">{{ fmt(b.sessions) }}</span>
-          <span class="text-[11px] text-muted-foreground">会话</span>
+          <span class="text-[11px] text-muted-foreground">{{ t('today.kpi.unit_sessions') }}</span>
         </div>
         <div class="flex items-baseline gap-1 text-muted-foreground">
           <span class="text-[14px] tabular-nums">{{ fmt(b.messages) }}</span>
-          <span class="text-[11px]">条消息</span>
+          <span class="text-[11px]">{{ t('today.kpi.unit_messages') }}</span>
         </div>
       </div>
     </Card>

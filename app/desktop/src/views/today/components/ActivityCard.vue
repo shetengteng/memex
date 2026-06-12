@@ -11,7 +11,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import type { WorkloadReport } from '@/types'
+
+const { t } = useI18n()
 
 interface BarStyle {
   height: string
@@ -92,10 +95,10 @@ const todayProjects = computed(() => workload.value?.by_project.filter((p) => p.
 const todayAdapters = computed(() => workload.value?.by_adapter.filter((a) => a.sessions > 0).length ?? 0)
 
 const stats = computed(() => [
-  { value: todayDaily.value.sessions, label: '会话' },
-  { value: todayDaily.value.messages, label: '消息' },
-  { value: todayProjects.value, label: '项目' },
-  { value: todayAdapters.value, label: '工具' },
+  { value: todayDaily.value.sessions, label: t('today.activity.stat_sessions') },
+  { value: todayDaily.value.messages, label: t('today.activity.stat_messages') },
+  { value: todayProjects.value, label: t('today.activity.stat_projects') },
+  { value: todayAdapters.value, label: t('today.activity.stat_adapters') },
 ])
 
 // peak window：[peakHour, peakHour+2]
@@ -154,7 +157,7 @@ onBeforeUnmount(() => {
     <div class="mb-3 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <Activity class="size-4 text-primary" />
-        <h2 class="text-[15px] font-semibold">你今天的活动</h2>
+        <h2 class="text-[15px] font-semibold">{{ t('today.activity.title') }}</h2>
       </div>
       <Badge variant="outline">{{ todayBadge }}</Badge>
     </div>
@@ -175,10 +178,10 @@ onBeforeUnmount(() => {
                 <span
                   v-if="b.isPeak"
                   class="rounded-sm bg-primary/15 px-1 text-[9px] font-semibold tracking-wide text-primary"
-                >峰值</span>
+                >{{ t('today.activity.peak') }}</span>
               </div>
               <div class="mt-0.5 tabular-nums text-muted-foreground">
-                {{ b.sessions }} 会话 · {{ b.messages }} 消息
+                {{ t('today.activity.bar_tooltip', { sessions: b.sessions, messages: b.messages }) }}
               </div>
             </div>
           </TooltipContent>
@@ -195,7 +198,7 @@ onBeforeUnmount(() => {
 
     <div class="flex items-center justify-between text-[12px] text-muted-foreground">
       <div v-if="topProjects.length">
-        最活跃 <span class="font-medium text-foreground">{{ peakWindow }}</span> · 主要在
+        {{ t('today.activity.most_active') }} <span class="font-medium text-foreground">{{ peakWindow }}</span> · {{ t('today.activity.mainly_in') }}
         <span v-for="(p, i) in topProjects" :key="p.name">
           <span class="font-medium text-foreground">{{ p.name }}</span> ({{ p.sessions }})<span
             v-if="i < topProjects.length - 1"
@@ -203,7 +206,7 @@ onBeforeUnmount(() => {
           >
         </span>
       </div>
-      <div v-else class="italic">今天还没有会话</div>
+      <div v-else class="italic">{{ t('today.activity.empty') }}</div>
       <div class="flex items-center gap-2">
         <IdeChip v-for="a in topAdapters" :key="a.key" :adapter="a.key" :label="`${a.key} ${a.sessions}`" />
       </div>

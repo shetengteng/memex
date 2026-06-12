@@ -18,8 +18,10 @@ import ReflectionCard from './components/ReflectionCard.vue'
 import SmartResumeCard from './components/SmartResumeCard.vue'
 import SystemStatusCard from './components/SystemStatusCard.vue'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
 
 const refreshing = ref(false)
+const { t } = useI18n()
 
 /**
  * Today 页右上「刷新」按钮：用户主动触发数据重拉。
@@ -32,15 +34,15 @@ async function onRefresh() {
   refreshing.value = true
   // 立即弹一个 loading toast 让用户知道点击有反应；完成后 dismiss + 改成 success/error。
   // 之前只有 toast.success（end），如果数据刷新很快用户感觉不到任何反馈。
-  const loadingId = toast.loading('刷新中…')
+  const loadingId = toast.loading(t('today.toast.refreshing'))
   try {
     await Promise.all([refreshSessions(), refreshProjects(), refreshBreakdown()])
     window.dispatchEvent(new CustomEvent('today-refresh'))
     toast.dismiss(loadingId)
-    toast.success('已刷新')
+    toast.success(t('today.toast.refreshed'))
   } catch (e) {
     toast.dismiss(loadingId)
-    toastBackendError('刷新失败', e)
+    toastBackendError(t('today.toast.refresh_failed'), e)
   } finally {
     refreshing.value = false
   }
@@ -48,17 +50,22 @@ async function onRefresh() {
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 6) return '深夜好'
-  if (h < 12) return '早上好'
-  if (h < 14) return '中午好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+  if (h < 6) return t('today.greet.midnight')
+  if (h < 12) return t('today.greet.morning')
+  if (h < 14) return t('today.greet.noon')
+  if (h < 18) return t('today.greet.afternoon')
+  return t('today.greet.evening')
 })
 
 const todayStr = computed(() => {
   const d = new Date()
-  const w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
-  return `今天是 ${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日 周${w}`
+  const w = t(`today.weekday.${d.getDay()}`)
+  return t('today.date_fmt', {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    weekday: w,
+  })
 })
 
 // 后端 DaemonStatus 暂未暴露 last_ingest_at —— 用 store 里最新一条 session 的 startedAt 兜底，
@@ -67,20 +74,20 @@ const todayStr = computed(() => {
 const lastIngestText = computed(() => {
   const raw = sessions[0]?.startedAt?.trim() || ''
   if (raw) return formatRelative(raw)
-  if (daemon.value && daemon.value.running === false) return '后台未运行'
-  if (daemon.value) return '尚未采集'
-  return '等待后台连接…'
+  if (daemon.value && daemon.value.running === false) return t('today.last_ingest.daemon_off')
+  if (daemon.value) return t('today.last_ingest.none')
+  return t('today.last_ingest.waiting')
 })
 
 function formatRelative(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (!Number.isFinite(t)) return iso
-  const diff = (Date.now() - t) / 1000
-  if (diff < 0) return '刚刚'
-  if (diff < 60) return `${Math.floor(diff)} 秒前`
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`
-  return `${Math.floor(diff / 86400)} 天前`
+  const ts = new Date(iso).getTime()
+  if (!Number.isFinite(ts)) return iso
+  const diff = (Date.now() - ts) / 1000
+  if (diff < 0) return t('today.rel.just_now')
+  if (diff < 60) return t('today.rel.seconds', { n: Math.floor(diff) })
+  if (diff < 3600) return t('today.rel.minutes', { n: Math.floor(diff / 60) })
+  if (diff < 86400) return t('today.rel.hours', { n: Math.floor(diff / 3600) })
+  return t('today.rel.days', { n: Math.floor(diff / 86400) })
 }
 </script>
 
@@ -89,9 +96,9 @@ function formatRelative(iso: string): string {
     <div class="mx-auto w-full max-w-6xl space-y-6 px-6 py-6">
       <section class="flex items-end justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">{{ greeting }}，{{ userName }}</h1>
+          <h1 class="text-2xl font-bold tracking-tight">{{ greeting }}, {{ userName }}</h1>
           <p class="mt-1 text-[13px] text-muted-foreground">
-            {{ todayStr }} · 上次采集
+            {{ todayStr }} · {{ t('today.last_ingest.label') }}
             <span class="font-medium text-foreground">{{ lastIngestText }}</span>
           </p>
         </div>
@@ -103,7 +110,7 @@ function formatRelative(iso: string): string {
           @click="onRefresh"
         >
           <RefreshCw :class="['size-3.5', refreshing && 'animate-spin']" />
-          {{ refreshing ? '刷新中…' : '刷新' }}
+          {{ refreshing ? t('today.refresh.refreshing') : t('today.refresh.label') }}
         </Button>
       </section>
 

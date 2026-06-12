@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, BrainCircuit } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import type { AggregateSummary } from '@/types'
 
 const router = useRouter()
 const memex = useMemex()
+const { t } = useI18n()
 const latest = ref<AggregateSummary | null>(null)
 const loading = ref(true)
 const errorText = ref<string | null>(null)
@@ -57,7 +59,7 @@ const topicsDisplay = computed(() => {
 const weekBadge = computed(() => {
   const k = latest.value?.scope_key ?? ''
   const m = k.match(/W(\d+)/)
-  return m ? `第 ${m[1]} 周` : k
+  return m ? t('today.weekly.week_fmt', { n: m[1] }) : k
 })
 </script>
 
@@ -66,25 +68,25 @@ const weekBadge = computed(() => {
     <div class="mb-3 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <BrainCircuit class="size-4" :style="{ color: 'var(--adapter-claude)' }" />
-        <h3 class="text-[14px] font-semibold">本周自动摘要</h3>
-        <Badge variant="secondary" title="叙述摘要（L3）：跨会话的时段总结">叙述</Badge>
+        <h3 class="text-[14px] font-semibold">{{ t('today.weekly.title') }}</h3>
+        <Badge variant="secondary" :title="t('today.weekly.narrative_tooltip')">{{ t('today.weekly.narrative_badge') }}</Badge>
       </div>
       <span class="text-[11px] text-muted-foreground">{{ weekBadge }}</span>
     </div>
 
     <p v-if="latest" class="mb-3 text-[13px] text-muted-foreground">
-      {{ latest.session_count }} 个会话 · {{ latest.title ?? '本周摘要' }}
+      {{ t('today.weekly.session_count_fmt', { count: latest.session_count, title: latest.title ?? t('today.weekly.fallback_title') }) }}
     </p>
-    <p v-else-if="loading" class="mb-3 text-[13px] text-muted-foreground">加载中…</p>
+    <p v-else-if="loading" class="mb-3 text-[13px] text-muted-foreground">{{ t('today.weekly.loading') }}</p>
     <p v-else-if="errorText" class="mb-3 text-[13px] text-destructive">
-      读取摘要失败：{{ errorText }}
+      {{ t('today.weekly.error_label', { err: errorText }) }}
     </p>
-    <p v-else class="mb-3 text-[13px] text-muted-foreground">本周还没有自动摘要，可去洞察页生成。</p>
+    <p v-else class="mb-3 text-[13px] text-muted-foreground">{{ t('today.weekly.empty') }}</p>
 
     <p v-if="body" class="mb-4 whitespace-pre-line text-[13px] leading-relaxed">{{ body }}</p>
 
     <div v-if="decisions.length" class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-      关键决策
+      {{ t('today.weekly.key_decisions') }}
     </div>
     <ul v-if="decisions.length" class="mb-4 space-y-1.5 text-[13px]">
       <li v-for="d in decisions" :key="d" class="flex gap-2">
@@ -98,7 +100,7 @@ const weekBadge = computed(() => {
         <Badge v-for="t in topicsDisplay" :key="t" variant="secondary">{{ t }}</Badge>
       </div>
       <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" @click="router.push('/insights')">
-        完整摘要
+        {{ t('today.weekly.full_summary') }}
         <ArrowRight class="size-3" />
       </Button>
     </div>

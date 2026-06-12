@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Lightbulb, Plus } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
+import { useI18n } from '@/i18n'
 import type { ReflectEntry } from '@/types'
 
 const router = useRouter()
 const memex = useMemex()
+const { t, locale } = useI18n()
 const entries = ref<ReflectEntry[]>([])
 
 interface ReflectionItemView {
@@ -32,7 +34,7 @@ onMounted(async () => {
 const items = computed<ReflectionItemView[]>(() => {
   const xs = entries.value.slice(0, 2).map<ReflectionItemView>((e) => ({
     title: e.title ?? e.scope_key,
-    chip: `${e.digest_count} 条摘要`,
+    chip: t('today.reflect.summary_count', { count: e.digest_count }),
     body: e.scope_key,
     dashed: false,
     icon: ArrowRight,
@@ -40,8 +42,8 @@ const items = computed<ReflectionItemView[]>(() => {
   }))
   if (xs.length < 2) {
     xs.push({
-      title: '生成新反思',
-      body: '基于过去 7 天会话让 AI 回顾',
+      title: t('today.reflect.new_title'),
+      body: t('today.reflect.new_body'),
       dashed: true,
       icon: Plus,
     })
@@ -51,8 +53,9 @@ const items = computed<ReflectionItemView[]>(() => {
 
 const latestText = computed(() => {
   const top = entries.value[0]
-  if (!top) return '暂无反思'
-  return `最近反思 ${new Date(top.created_at).toLocaleString()}`
+  if (!top) return t('today.reflect.empty')
+  const tag = locale.value === 'en' ? 'en-US' : 'zh-CN'
+  return t('today.reflect.latest', { time: new Date(top.created_at).toLocaleString(tag) })
 })
 
 function openItem(item: ReflectionItemView) {
@@ -66,9 +69,9 @@ function openItem(item: ReflectionItemView) {
     <div class="mb-3 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <Lightbulb class="size-4" :style="{ color: 'var(--warning)' }" />
-        <h3 class="text-[14px] font-semibold">等待你的反思</h3>
+        <h3 class="text-[14px] font-semibold">{{ t('today.reflect.heading') }}</h3>
       </div>
-      <Badge class="border-amber-500/30 bg-amber-500/10 text-amber-700">{{ items.length }} 项</Badge>
+      <Badge class="border-amber-500/30 bg-amber-500/10 text-amber-700">{{ t('today.reflect.count_badge', { count: items.length }) }}</Badge>
     </div>
 
     <div class="mb-4 space-y-2">
@@ -93,7 +96,7 @@ function openItem(item: ReflectionItemView) {
     <div class="mt-auto flex items-center justify-between border-t pt-3">
       <span class="text-[11px] text-muted-foreground">{{ latestText }}</span>
       <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" @click="router.push('/insights')">
-        全部反思
+        {{ t('today.reflect.all_button') }}
         <ArrowRight class="size-3" />
       </Button>
     </div>

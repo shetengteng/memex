@@ -13,6 +13,9 @@ import IdeChip from '@/components/shell/IdeChip.vue'
 import { sessions, type Session } from '@/stores/memex'
 import LibrarySessionDrawer from '@/views/library/components/LibrarySessionDrawer.vue'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
+
+const { t } = useI18n()
 
 // 后端暂未暴露"未完成/被中断"信号，先把最近 3 条 session 当候选
 const resumeCandidates = computed(() => sessions.slice(0, 3))
@@ -30,10 +33,10 @@ function openSession(s: Session) {
 const fromNow = (iso: string) => {
   if (!iso) return '—'
   const diff = (Date.now() - new Date(iso).getTime()) / 1000
-  if (diff < 60) return `${Math.floor(diff)} 秒前`
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`
-  return `${Math.floor(diff / 86400)} 天前`
+  if (diff < 60) return t('today.rel.seconds', { n: Math.floor(diff) })
+  if (diff < 3600) return t('today.rel.minutes', { n: Math.floor(diff / 60) })
+  if (diff < 86400) return t('today.rel.hours', { n: Math.floor(diff / 3600) })
+  return t('today.rel.days', { n: Math.floor(diff / 86400) })
 }
 
 /**
@@ -61,12 +64,12 @@ async function sendToIde(s: Session) {
 
   try {
     await navigator.clipboard.writeText(prompt)
-    toast.success('已复制续接 prompt 到剪贴板', {
-      description: `粘贴到 ${s.adapter} 即可接着上次的话题`,
+    toast.success(t('today.resume.copied'), {
+      description: t('today.resume.copied_desc', { adapter: s.adapter }),
       duration: 6_000,
     })
   } catch (e) {
-    toastBackendError('复制失败', e)
+    toastBackendError(t('today.resume.copy_failed'), e)
   }
 }
 </script>
@@ -76,12 +79,12 @@ async function sendToIde(s: Session) {
     <div class="mb-4 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <Zap class="size-4" :style="{ color: 'var(--adapter-codex)' }" />
-        <h3 class="text-[14px] font-semibold">接着想想？</h3>
-        <span class="text-[11px] text-muted-foreground">智能续接你的近期会话</span>
+        <h3 class="text-[14px] font-semibold">{{ t('today.resume.title') }}</h3>
+        <span class="text-[11px] text-muted-foreground">{{ t('today.resume.subtitle') }}</span>
       </div>
       <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs">
         <Settings2 class="size-3" />
-        规则
+        {{ t('today.resume.rules') }}
       </Button>
     </div>
 
@@ -98,23 +101,23 @@ async function sendToIde(s: Session) {
         </div>
         <!-- 第 2 行：会话指标，纯 muted 文本 -->
         <p class="mb-2 text-[12px] text-muted-foreground">
-          {{ s.messages }} 条消息 · {{ s.adapter }}
+          {{ t('today.resume.msg_count', { count: s.messages, adapter: s.adapter }) }}
         </p>
         <!-- 第 3 行：按钮（左）+ project·time（右）。左右布局，右侧贴边。-->
         <div class="flex items-center gap-1.5">
           <Button size="sm" variant="outline" class="h-7 gap-1 text-xs" @click="openSession(s)">
             <ArrowUpRight class="size-3" />
-            打开会话
+            {{ t('today.resume.open') }}
           </Button>
           <Button
             size="sm"
             variant="ghost"
             class="h-7 gap-1 text-xs"
-            title="复制续接 prompt 到剪贴板，可直接粘贴到 IDE 对话框"
+            :title="t('today.resume.send_title')"
             @click="sendToIde(s)"
           >
             <Send class="size-3" />
-            发送到 IDE
+            {{ t('today.resume.send') }}
           </Button>
           <span class="ml-auto truncate text-[11px] text-muted-foreground">
             {{ s.project }} · {{ fromNow(s.startedAt) }}
@@ -122,7 +125,7 @@ async function sendToIde(s: Session) {
         </div>
       </article>
       <p v-if="!resumeCandidates.length" class="text-center text-[12px] italic text-muted-foreground">
-        暂无可继续的会话
+        {{ t('today.resume.empty') }}
       </p>
     </div>
   </Card>

@@ -11,36 +11,57 @@ import {
 } from '@/components/ui/collapsible'
 import { ArrowRight, ChevronDown, Settings2 } from 'lucide-vue-next'
 import { daemon, daemonStatus, stats } from '@/stores/memex'
+import { useI18n } from '@/i18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const procValue = computed(() => {
-  if (!daemon.value) return '查询中…'
-  if (!daemon.value.running) return '未运行'
-  return daemon.value.pid ? `运行中 (pid ${daemon.value.pid})` : '运行中'
+  if (!daemon.value) return t('today.sys.proc_querying')
+  if (!daemon.value.running) return t('today.sys.proc_off')
+  return daemon.value.pid
+    ? t('today.sys.proc_running_pid', { pid: daemon.value.pid })
+    : t('today.sys.proc_running')
 })
 
 const procDot = computed(() => (daemon.value?.running ? 'ok' : 'warn'))
 
 const ftsDot = computed(() => (stats.value?.db_exists ? 'ok' : 'warn'))
-const ftsValue = computed(() => (stats.value?.db_exists ? '健康' : '未初始化'))
+const ftsValue = computed(() =>
+  stats.value?.db_exists ? t('today.sys.fts_healthy') : t('today.sys.fts_uninitialized'),
+)
 
 const sysStats = computed(() => [
-  { label: '后台进程', value: procValue.value, dot: procDot.value },
-  { label: '采集器', value: `${daemonStatus.adapterActive} / ${daemonStatus.adapterTotal} 个活跃` },
+  { label: t('today.sys.label_proc'), value: procValue.value, dot: procDot.value },
   {
-    label: 'LLM 服务',
+    label: t('today.sys.label_collector'),
+    value: t('today.sys.adapter_active_fmt', {
+      active: daemonStatus.adapterActive,
+      total: daemonStatus.adapterTotal,
+    }),
+  },
+  {
+    label: t('today.sys.label_llm'),
     value: `${daemonStatus.llmProvider} : ${daemonStatus.llmModel}`,
     accent: true,
   },
-  { label: 'FTS5 索引', value: ftsValue.value, dot: ftsDot.value },
-  { label: '存储路径', value: '~/.memex/', mono: true },
-  { label: '会话数', value: `${stats.value?.sessions ?? 0}` },
+  { label: t('today.sys.label_fts'), value: ftsValue.value, dot: ftsDot.value },
+  { label: t('today.sys.label_storage'), value: '~/.memex/', mono: true },
+  { label: t('today.sys.label_sessions'), value: `${stats.value?.sessions ?? 0}` },
 ])
 
 const headerText = computed(() => {
-  const running = daemon.value?.running ? '后台运行中' : '后台未运行'
-  return `${running} · ${daemonStatus.adapterActive}/${daemonStatus.adapterTotal} 个适配器 · LLM ${daemonStatus.llmProvider}:${daemonStatus.llmModel}`
+  const running = daemon.value?.running ? t('today.sys.running') : t('today.sys.not_running')
+  const adapterCount = t('today.sys.adapter_count_fmt', {
+    active: daemonStatus.adapterActive,
+    total: daemonStatus.adapterTotal,
+  })
+  return t('today.sys.header_fmt', {
+    running,
+    adapter_count: adapterCount,
+    provider: daemonStatus.llmProvider,
+    model: daemonStatus.llmModel,
+  })
 })
 </script>
 
@@ -52,7 +73,7 @@ const headerText = computed(() => {
       >
         <div class="flex items-center gap-2">
           <Settings2 class="size-3.5 text-muted-foreground" />
-          <span class="text-[14px] font-semibold">系统状态</span>
+          <span class="text-[14px] font-semibold">{{ t('today.sys.title') }}</span>
           <span :class="['status-dot', daemon?.running ? 'status-dot-ok' : 'status-dot-warn']" />
           <span class="text-[12px] text-muted-foreground">{{ headerText }}</span>
         </div>
@@ -85,7 +106,7 @@ const headerText = computed(() => {
               class="h-7 gap-1 text-xs"
               @click="router.push('/connect')"
             >
-              打开"连接"页
+              {{ t('today.sys.open_connect') }}
               <ArrowRight class="size-3" />
             </Button>
           </div>
