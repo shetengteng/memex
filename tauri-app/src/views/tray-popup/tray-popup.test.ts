@@ -122,16 +122,16 @@ describe('TrayPopup view', () => {
     )
   })
 
-  it('header 下方渲染 daemon 状态卡片 + 重启按钮（之前老 popup 的 hero 卡片回归）', () => {
+  // Phase 9 起 daemon 正常运行时不再单独展示「后台服务」状态卡片（daemon 已与
+  // 主进程同生命周期，正常态对用户透明）。Mock 默认 daemon.running=true，
+  // 所以这里只验证：1) emerald 数据条出现 + 显示 LLM 模型；2) 没有 amber 警告 + 没有「重启」按钮。
+  it('daemon 正常时只渲染轻量数据条，不显示重启按钮和异常警告', () => {
     const wrapper = mount(TrayPopup, { global: { stubs: baseStubs } })
     const text = wrapper.text()
-    // 状态卡片的固定文案
-    expect(text).toContain('后台服务')
-    // 状态文案：mock daemon.running=true 时显示"运行中 (pid xxx)"
-    expect(text).toContain('运行中')
-    // 重启按钮存在
+    expect(text).toContain('qwen2.5')
+    expect(text).toContain('条消息')
+    expect(text).not.toContain('端口可能被占')
     const restartBtn = wrapper.findAll('button').find((b) => b.text().includes('重启'))
-    expect(restartBtn).toBeTruthy()
-    expect(restartBtn!.exists()).toBe(true)
+    expect(restartBtn).toBeUndefined()
   })
 })

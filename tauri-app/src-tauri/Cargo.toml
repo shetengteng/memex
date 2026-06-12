@@ -53,6 +53,9 @@ notify = { version = "7", features = ["macos_kqueue"] }
 blake3 = "1"
 dirs = "6"
 tower-http = { version = "0.6", features = ["cors", "fs"] }
+# Phase 9: daemon 启动端口加入 fallback 重试 + SO_REUSEADDR，避免 9999 被占或
+# 上一份 listener 还在系统缓冲里时 bind 失败。
+socket2 = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

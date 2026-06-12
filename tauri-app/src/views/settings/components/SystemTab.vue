@@ -204,8 +204,8 @@ onMounted(async () => {
   <div class="space-y-4">
     <Card>
       <CardHeader>
-        <CardDescription>后台服务</CardDescription>
-        <CardTitle class="text-base">Memex Daemon</CardTitle>
+        <CardDescription>内嵌后台服务</CardDescription>
+        <CardTitle class="text-base">数据采集 / HTTP API</CardTitle>
         <CardAction>
           <Badge
             :variant="daemonProcessAlive ? 'default' : daemonStatus ? 'destructive' : 'secondary'"
@@ -217,10 +217,14 @@ onMounted(async () => {
         </CardAction>
       </CardHeader>
       <CardContent class="space-y-3">
+        <p class="text-[12px] text-muted-foreground">
+          已与 Memex 主程序同生共死：app 启动则自动拉起，退出则一并关闭，无需常驻另一份进程。
+          首选端口 9999，被占用时会在 10000-10010 中自动 fallback，CLI/MCP 通过 <code class="font-mono">~/.memex/daemon.lock</code> 自动发现。
+        </p>
         <div class="rounded-md border bg-muted/30 p-4 text-[12px]">
           <div class="grid grid-cols-2 gap-3">
             <div class="flex items-center justify-between">
-              <span class="text-muted-foreground">PID</span>
+              <span class="text-muted-foreground">PID（同主进程）</span>
               <code class="font-mono text-[11px]">
                 {{ daemonStatus?.pid ?? '—' }}
               </code>
@@ -253,11 +257,11 @@ onMounted(async () => {
         </div>
         <div
           v-if="!daemonRunning && daemonStatus"
-          class="flex items-center gap-1.5 rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-600"
+          class="flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-700"
         >
           <AlertTriangle class="size-3.5 shrink-0" />
           <span>
-            后台服务未就绪，所有数据与功能可能暂时不可用。系统会自动尝试拉起，或点击右下按钮手动重启。
+            HTTP 暂未就绪：可能正在启动，或 9999-10010 端口段被外部进程占满。点右下按钮重启即可。
           </span>
         </div>
       </CardContent>
@@ -270,7 +274,7 @@ onMounted(async () => {
           @click="onRestartDaemon"
         >
           <RefreshCw :class="['size-3.5', daemonLoading && 'animate-spin']" />
-          {{ daemonLoading ? '处理中…' : '重启 Daemon' }}
+          {{ daemonLoading ? '处理中…' : '重启服务' }}
         </Button>
         <Button
           size="sm"

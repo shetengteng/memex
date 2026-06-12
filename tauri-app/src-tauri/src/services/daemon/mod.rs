@@ -25,7 +25,7 @@ mod tests;
 
 // 公开给主进程其他模块（commands / lib.rs）的 API：
 pub use handle::{DaemonHandle, DaemonSnapshot, DaemonState, spawn_in_process};
-pub use server::{DEFAULT_PORT, build_router};
+pub use server::{PREFERRED_PORT, build_router};
 
 // build_router 公开是给本模块的 `tests` 集成测试用（通过 `super::server::build_router`）。
 // 外部 caller 不直接装配 router；想起 daemon 走 `spawn_in_process`。

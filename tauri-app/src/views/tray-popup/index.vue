@@ -119,40 +119,29 @@ onMounted(async () => {
         </Button>
       </header>
 
-      <!-- Daemon 状态卡片：仿照旧 popup 的 hero card —— 一行三色态（绿/橙/红）+ 重启按钮 -->
+      <!-- 数据状态条：日常 90% 时间内只露 LLM 模型 + 消息数；仅当内嵌服务异常时
+           才会弹出 amber 警告 + 重启按钮。daemon 已经跟 app 同生命周期，正常态
+           不需要单独提示用户「后台运行中」。 -->
+      <div class="mx-2 mt-2 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+        <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600">
+          <Activity class="size-4" />
+        </div>
+        <div class="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+          {{ llmModel }} · {{ formatNumber(totals.messages) }} 条消息
+        </div>
+      </div>
+
       <div
-        :class="[
-          'mx-2 mt-2 flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors',
-          daemonRunning
-            ? 'border-emerald-500/30 bg-emerald-500/5'
-            : 'border-amber-500/40 bg-amber-500/10',
-        ]"
+        v-if="!daemonRunning && daemon"
+        class="mx-2 mt-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
       >
-        <div
-          :class="[
-            'flex size-7 shrink-0 items-center justify-center rounded-md',
-            daemonRunning ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/20 text-amber-600',
-          ]"
-        >
-          <Activity v-if="daemonRunning" class="size-4" />
-          <AlertTriangle v-else class="size-4" />
+        <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-amber-500/20 text-amber-600">
+          <AlertTriangle class="size-4" />
         </div>
         <div class="min-w-0 flex-1 leading-tight">
-          <div class="flex items-center gap-1.5">
-            <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              后台服务
-            </span>
-            <span
-              :class="[
-                'text-[11px] font-semibold',
-                daemonRunning ? 'text-emerald-600' : 'text-amber-700',
-              ]"
-            >
-              {{ daemonLabel }}
-            </span>
-          </div>
+          <div class="text-[11px] font-semibold text-amber-700">{{ daemonLabel }}</div>
           <div class="mt-0.5 truncate text-[10px] text-muted-foreground">
-            {{ llmModel }} · {{ formatNumber(totals.messages) }} 条消息
+            端口可能被占或正在启动，可点右侧重试
           </div>
         </div>
         <Button
@@ -163,7 +152,7 @@ onMounted(async () => {
           @click="onRestartDaemon"
         >
           <RefreshCw :class="['size-3', daemonLoading && 'animate-spin']" />
-          {{ daemonLoading ? '重启中…' : daemonRunning ? '重启' : '启动' }}
+          {{ daemonLoading ? '重启中…' : '重启' }}
         </Button>
       </div>
 

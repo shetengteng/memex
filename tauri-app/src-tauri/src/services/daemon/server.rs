@@ -8,7 +8,6 @@
 //! 调起。
 
 use std::future::Future;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -23,11 +22,15 @@ use memex_core::storage::db::Db;
 
 use super::{routes, watcher, web};
 
-pub const DEFAULT_PORT: u16 = 9999;
+/// 首选端口。`handle::spawn_in_process` 用它做 fallback 探测的起点，被占用时
+/// 会在 `PREFERRED_PORT..=PREFERRED_PORT + PORT_FALLBACK_MAX` 范围里继续尝试。
+pub const PREFERRED_PORT: u16 = 9999;
 
-/// In-process 入口：caller 已 open db、已 ensure memex_dir、已设置 logger。
+/// In-process 入口：caller 已 open db、已 ensure memex_dir、已设置 logger、
+/// 已经把 `TcpListener` bind 好（端口可能不是 [`PREFERRED_PORT`]，由 lockfile 记录）。
 ///
 /// **lifecycle 期望**（与早期 standalone binary 模式的差异）：
+/// * 不自己 bind 端口 —— listener 在外层完成 bind + reuse_address 配置（[`handle::bind_listener`]）
 /// * 不写 / 不读 `daemon.lock`（lockfile 由 caller 在调用前后管理，本函数只跑 axum + watcher）
 /// * 不安装 SIGTERM/Ctrl-C handler —— 让 caller 通过 `shutdown` future 决定
 ///   生命周期，避免 daemon 跟 Tauri 主进程抢同一个 signal stream
@@ -35,7 +38,7 @@ pub const DEFAULT_PORT: u16 = 9999;
 pub async fn run_in_process<F>(
     memex_dir: PathBuf,
     db: Arc<Db>,
-    port: u16,
+    listener: TcpListener,
     shutdown: F,
 ) -> Result<()>
 where
@@ -48,7 +51,7 @@ where
     // 启动时主动跑一次全量 ingest。
     // file watcher 只能监听 .jsonl/.json 后缀，但 Cursor 走 SQLite KV
     // (`state.vscdb`)，watcher 永远抓不到它的变化。如果不在这里主动 ingest 一次，
-    // 重装 / 首启 memex 后，用户必须手动 `memex ingest` 才能看到 cursor 数据。
+    // 重装 / 首启 memex 后，用户必须手动 `memex-cli ingest` 才能看到 cursor 数据。
     //
     // 用 spawn_blocking 异步跑，不阻塞 daemon 起 HTTP 服务。
     let bootstrap_db = Arc::clone(&db);
@@ -65,9 +68,8 @@ where
     });
 
     let app = build_router(Arc::clone(&db));
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = TcpListener::bind(addr).await?;
-    info!("daemon HTTP server listening on http://{}", addr);
+    let local_addr = listener.local_addr()?;
+    info!("daemon HTTP server listening on http://{}", local_addr);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)

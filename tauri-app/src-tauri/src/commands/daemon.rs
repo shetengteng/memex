@@ -113,7 +113,7 @@ pub async fn daemon_restart(state: tauri::State<'_, DaemonState>) -> CmdResult<D
 ///
 /// `?` 把 `state.restart` 的 anyhow::Error 自动转 `CmdError::Backend`，保留完整 context chain。
 pub(crate) async fn daemon_restart_inner(state: &DaemonState) -> CmdResult<DaemonStatus> {
-    state.restart(crate::services::daemon::DEFAULT_PORT).await?;
+    state.restart().await?;
 
     // axum::serve 是异步起的，restart 返回时 HTTP 未必立刻可用。轮询 20 次，
     // 每次 150ms，总共最多等 3s；命中就立即返回，超时也返回当前 state 的

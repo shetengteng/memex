@@ -20,13 +20,22 @@
 //! 任务里再 `state.install(handle).await`。前端 `daemon_restart` IPC 也能通过
 //! State 替换内部 handle，而不必 `unmanage + manage` 折腾。
 
+use std::io::ErrorKind;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use memex_core::config::ensure_memex_dir;
 use memex_core::storage::db::Db;
+use socket2::{Domain, Socket, Type};
 use tokio::sync::Mutex;
 use tokio::sync::oneshot;
+
+use super::server::PREFERRED_PORT;
+
+/// `bind_listener` 端口 fallback 探测的最大尝试次数（含首选端口本身）。
+/// 9999 被占用时会依次尝试 10000..=10010，10 个备选端口对个人桌面应用足够。
+const PORT_FALLBACK_MAX: u16 = 10;
 
 /// 一份 in-process daemon 任务的所有运行时句柄。
 ///
@@ -108,9 +117,12 @@ impl DaemonState {
     }
 
     /// 用于 daemon_restart IPC：停掉当前 in-process daemon，spawn 新的并 install。
-    pub async fn restart(&self, port: u16) -> Result<DaemonSnapshot> {
+    ///
+    /// 端口走 `spawn_in_process` 内部的 fallback 探测（首选 9999，被占就尝试 10000+）。
+    /// 这样旧 listener 还在 OS 缓冲里、或者外部进程抢了 9999，都能自动恢复。
+    pub async fn restart(&self) -> Result<DaemonSnapshot> {
         self.shutdown().await;
-        let handle = spawn_in_process(port).await?;
+        let handle = spawn_in_process().await?;
         let snapshot = DaemonSnapshot {
             pid: handle.pid,
             port: handle.port,
@@ -129,25 +141,32 @@ impl Default for DaemonState {
 
 /// 启动 in-process daemon，返回 [`DaemonHandle`]。
 ///
+/// 端口策略：先尝试 [`PREFERRED_PORT`]（9999），被外部进程占或自身上次 listener
+/// 还没完全释放时，依次 fallback 到下 [`PORT_FALLBACK_MAX`] 个端口。`SO_REUSEADDR`
+/// 已经开启，正常重启不会触发 fallback。实际监听端口写到 `daemon.lock`，
+/// memex-cli / mcp bridge 都通过读 lock 找端口，所以动态端口对它们透明。
+///
 /// 调用方负责把返回的 handle 通过 `DaemonState::install` 注册到 Tauri State。
 ///
 /// 失败原因（已知）：
 /// * `~/.memex` 目录创建失败（磁盘满 / 权限）
 /// * `memex.db` open 失败（schema migration 报错 / 文件损坏）
+/// * 端口段全被占用（极小概率，但能给前端清晰错误消息）
 /// * lock 写入失败（极小概率，磁盘只读）
 ///
 /// 注意：本函数不检查"是否已有 daemon 在跑"。in-process 模式下整个 app 只起
 /// 一份 daemon（由 Tauri setup 钩子调一次），不需要外部去重；`write_lock` 直接
 /// 覆盖旧 lock 文件。
-pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
+pub async fn spawn_in_process() -> Result<DaemonHandle> {
     let memex_dir = memex_core::memex_dir();
     ensure_memex_dir(&memex_dir).context("ensure_memex_dir failed")?;
 
     let db_path = memex_dir.join("memex.db");
     let db = Arc::new(Db::open(&db_path).context("Db::open failed")?);
 
-    // 写 lock：pid=主进程 PID。这样 memex-cli（顶层 client + mcp 子模块 client）
-    // 通过 read_lock + is_process_alive 仍能正常发现 daemon。
+    let listener = bind_listener(PREFERRED_PORT)?;
+    let port = listener.local_addr().context("listener missing local_addr")?.port();
+
     super::lockfile::write_lock(&memex_dir, port).context("write daemon.lock failed")?;
     let started_at = chrono::Utc::now().to_rfc3339();
     let pid = std::process::id();
@@ -165,7 +184,7 @@ pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
     let join = tauri::async_runtime::spawn(super::server::run_in_process(
         memex_dir,
         db,
-        port,
+        listener,
         shutdown_future,
     ));
 
@@ -176,4 +195,61 @@ pub async fn spawn_in_process(port: u16) -> Result<DaemonHandle> {
         shutdown_tx: Some(shutdown_tx),
         join: Some(join),
     })
+}
+
+/// 同步 bind 一个带 `SO_REUSEADDR` 的 TCP listener，9999 被占时在
+/// `[preferred, preferred + PORT_FALLBACK_MAX]` 范围内依次重试。
+///
+/// 同步 bind 让 caller 在 `spawn_in_process` 内立即感知失败 —— 老实现把 bind
+/// 推迟到 axum task 里，spawn_in_process 已经返回成功的 handle，但实际 task
+/// 在第一行 await 就 panic，前端只能从"PID 在 / HTTP 一直异常"反推问题。
+///
+/// `SO_REUSEADDR` 主要解决：用户连点重启时，旧 listener 的 TCP socket 还在
+/// OS 内部清理窗口里，新 bind 会偶发 EADDRINUSE。
+fn bind_listener(preferred: u16) -> Result<tokio::net::TcpListener> {
+    let mut last_err: Option<std::io::Error> = None;
+    for offset in 0..=PORT_FALLBACK_MAX {
+        let port = preferred.saturating_add(offset);
+        let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+        match try_bind_reuse(addr) {
+            Ok(listener) => {
+                if offset > 0 {
+                    tracing::warn!(
+                        preferred = preferred,
+                        actual = port,
+                        "daemon: preferred port busy, fell back",
+                    );
+                }
+                return Ok(listener);
+            }
+            Err(e) if e.kind() == ErrorKind::AddrInUse => {
+                tracing::debug!(port = port, "daemon: bind candidate in use, trying next");
+                last_err = Some(e);
+            }
+            Err(e) => {
+                return Err(anyhow!(e).context(format!("bind 127.0.0.1:{port} failed")));
+            }
+        }
+    }
+    Err(anyhow!(
+        "no free port in {preferred}..={}: {}",
+        preferred.saturating_add(PORT_FALLBACK_MAX),
+        last_err
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "unknown".into())
+    ))
+}
+
+fn try_bind_reuse(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
+    let domain = match addr {
+        SocketAddr::V4(_) => Domain::IPV4,
+        SocketAddr::V6(_) => Domain::IPV6,
+    };
+    let socket = Socket::new(domain, Type::STREAM, None)?;
+    socket.set_reuse_address(true)?;
+    socket.set_nonblocking(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(1024)?;
+    let std_listener: std::net::TcpListener = socket.into();
+    tokio::net::TcpListener::from_std(std_listener)
 }

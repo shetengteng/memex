@@ -282,9 +282,10 @@ fn test_lockfile_roundtrip() {
 /// 通过 `shutdown` future 触发退出，且不会自己写 lockfile（同进程内只跑一份）。
 ///
 /// 这是把 daemon 嵌进 Tauri 主进程的基础：caller 必须能完全控制生命周期。
-/// 用 port=0 让 OS 动态分配端口，避免和真实 daemon (9999) 冲突。
+/// Phase 9 起 listener 由 caller 预先 bind 好，这里用 OS 自动分配端口（:0）。
 #[tokio::test]
 async fn test_run_in_process_obeys_external_shutdown() {
+    use std::net::SocketAddr;
     let tmp = TempDir::new().unwrap();
     let memex_dir = tmp.path().to_path_buf();
     let db = Arc::new(Db::open_in_memory().unwrap());
@@ -294,7 +295,10 @@ async fn test_run_in_process_obeys_external_shutdown() {
         let _ = shutdown_rx.await;
     };
 
-    let server = tokio::spawn(super::server::run_in_process(memex_dir, db, 0, shutdown));
+    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .expect("bind listener");
+    let server = tokio::spawn(super::server::run_in_process(memex_dir, db, listener, shutdown));
 
     // 给 axum / watcher / spawn_blocking 启动时间。100ms 在 macOS CI 下足够。
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;

@@ -199,7 +199,7 @@ pub fn run() {
             app.manage(services::daemon::DaemonState::new());
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                match services::daemon::spawn_in_process(services::daemon::DEFAULT_PORT).await {
+                match services::daemon::spawn_in_process().await {
                     Ok(handle) => {
                         let state = app_handle.state::<services::daemon::DaemonState>();
                         state.install(handle).await;
