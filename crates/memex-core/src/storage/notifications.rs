@@ -130,6 +130,38 @@ impl Db {
         )?;
         Ok(n)
     }
+
+    /// 用户在 Settings 里关掉这条 kind 的通知开关时返回 false，触发方应跳过写入。
+    /// 配置项约定：`pref.notify.<kind>` ∈ {"true", "false"}，未设置 = 开启。
+    /// 跟 PreferencesTab.vue 默认 `on: true` 一致。
+    pub fn notification_enabled(&self, kind: &str) -> bool {
+        let key = format!("pref.notify.{}", kind);
+        match self.kv_get(&key) {
+            Ok(Some(v)) => v != "false",
+            _ => true,
+        }
+    }
+
+    /// Daemon scheduler 用：统计"过去 N 小时之前 update 的、仍然没 L2 摘要"的
+    /// session 数量。`reflect_pending` 通知用这个值判断是否要提醒用户复盘。
+    ///
+    /// 不依赖额外索引：summaries 表已经有 `idx_summaries_session_level`，
+    /// `NOT EXISTS` 走子查询时这就够了。
+    pub fn count_sessions_without_summary_older_than(&self, stale_hours: i64) -> Result<i64> {
+        let cutoff = (chrono::Utc::now() - chrono::Duration::hours(stale_hours)).to_rfc3339();
+        let conn = self.conn.lock();
+        let n: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM sessions s
+             WHERE s.updated_at < ?1
+               AND NOT EXISTS (
+                 SELECT 1 FROM summaries sm
+                 WHERE sm.session_id = s.id AND sm.level = 'L2_session'
+               )",
+            params![cutoff],
+            |row| row.get(0),
+        )?;
+        Ok(n)
+    }
 }
 
 #[cfg(test)]
@@ -215,5 +247,60 @@ mod tests {
         db.insert_notification(KIND_INGEST_FAILED, "a", "b", None).unwrap();
         let rows = db.list_notifications(0, false).unwrap();
         assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn count_stale_unsummarized_filters_by_age_and_summary_presence() {
+        let db = Db::open_in_memory().unwrap();
+        let two_days_ago = (chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339();
+        let one_hour_ago = (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        {
+            let conn = db.conn.lock();
+            conn.execute(
+                "INSERT INTO sessions (id, source, project_path, file_path, title, created_at, updated_at, message_count)
+                 VALUES ('s_stale', 'test', '/p1', '/p1/a.jsonl', 'stale', ?1, ?1, 10),
+                        ('s_fresh', 'test', '/p1', '/p1/b.jsonl', 'fresh', ?2, ?2, 10)",
+                params![two_days_ago, one_hour_ago],
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            db.count_sessions_without_summary_older_than(24).unwrap(),
+            1,
+            "stale 没 summary → 计入"
+        );
+
+        {
+            let conn = db.conn.lock();
+            conn.execute(
+                "INSERT INTO summaries (session_id, level, summary, created_at)
+                 VALUES ('s_stale', 'L2_session', 'done', ?1)",
+                params![two_days_ago],
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            db.count_sessions_without_summary_older_than(24).unwrap(),
+            0,
+            "stale 加了 L2 summary 后退出统计"
+        );
+    }
+
+    #[test]
+    fn notification_enabled_defaults_to_true_and_respects_false_only() {
+        let db = Db::open_in_memory().unwrap();
+        // 未设置 = 开启
+        assert!(db.notification_enabled(KIND_INGEST_FAILED));
+        // 显式 "true" = 开启
+        db.kv_set("pref.notify.ingest_failed", "true").unwrap();
+        assert!(db.notification_enabled(KIND_INGEST_FAILED));
+        // 显式 "false" = 关闭
+        db.kv_set("pref.notify.ingest_failed", "false").unwrap();
+        assert!(!db.notification_enabled(KIND_INGEST_FAILED));
+        // 别的奇怪值默认按开启处理，不要影响其他 kind
+        db.kv_set("pref.notify.weekly_report", "garbage").unwrap();
+        assert!(db.notification_enabled(KIND_WEEKLY_REPORT));
+        // 其他 kind 不受影响
+        assert!(db.notification_enabled(KIND_REFLECT_PENDING));
     }
 }

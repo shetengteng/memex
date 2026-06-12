@@ -131,17 +131,20 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
                     // 用户没法主动看到 watcher 的静默失败 —— 写一条通知，UI Bell badge
                     // 会自动提示。通知写入失败时仍然继续（payload 序列化 + db.insert
                     // 都 fallible，但不能让通知层影响主流程）。
-                    let payload = serde_json::json!({
-                        "error": e.to_string(),
-                        "trigger": "watcher",
-                    })
-                    .to_string();
-                    let _ = db.insert_notification(
-                        KIND_INGEST_FAILED,
-                        "采集源同步失败",
-                        &format!("自动 ingest 失败：{}", e),
-                        Some(&payload),
-                    );
+                    // 但是要尊重用户在 Settings 里的开关：关掉就静音。
+                    if db.notification_enabled(KIND_INGEST_FAILED) {
+                        let payload = serde_json::json!({
+                            "error": e.to_string(),
+                            "trigger": "watcher",
+                        })
+                        .to_string();
+                        let _ = db.insert_notification(
+                            KIND_INGEST_FAILED,
+                            "采集源同步失败",
+                            &format!("自动 ingest 失败：{}", e),
+                            Some(&payload),
+                        );
+                    }
                 }
             }
         }

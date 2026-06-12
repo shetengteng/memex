@@ -48,6 +48,10 @@ where
     let watcher_dir = memex_dir.clone();
     watcher::start_watcher(watcher_db, watcher_dir).await?;
 
+    // 后台通知调度器：每小时 tick，检查 weekly_report / reflect_pending 是否到点。
+    // 跟 watcher 同样的 fire-and-forget 模型，daemon 退出时 tokio runtime 自动 drop。
+    super::scheduler::start_scheduler(Arc::clone(&db), memex_dir.clone());
+
     // 启动时主动跑一次全量 ingest。
     // file watcher 只能监听 .jsonl/.json 后缀，但 Cursor 走 SQLite KV
     // (`state.vscdb`)，watcher 永远抓不到它的变化。如果不在这里主动 ingest 一次，

@@ -16,6 +16,7 @@
 mod handle;
 mod lockfile;
 mod routes;
+mod scheduler;
 mod server;
 mod watcher;
 mod web;
