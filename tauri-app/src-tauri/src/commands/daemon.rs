@@ -11,7 +11,7 @@
 //! lock 文件由 `services/daemon.rs::spawn_in_process / DaemonHandle::shutdown`
 //! 集中管理。
 
-use std::process::Command;
+use std::time::Duration;
 
 use memex_core::memex_dir;
 use serde::Serialize;
@@ -28,31 +28,36 @@ pub struct DaemonStatus {
     pub started_at: Option<String>,
 }
 
-/// 异步探活：用 `tokio::task::spawn_blocking` 把同步 curl 调用挪到 blocking 线程池，
-/// 不再阻塞 tokio worker。原来在 axum/Tauri 共享 runtime 上同步 `Command::output()`
+/// 异步探活：用 `tokio::task::spawn_blocking` 把同步 ureq 调用挪到 blocking 线程池，
+/// 不阻塞 tokio worker。原来在 axum/Tauri 共享 runtime 上同步 `Command::output()`
 /// 会卡住一整个 worker 最多 2 秒，连带影响其他 IPC 与 daemon 自身的 HTTP 处理。
+///
+/// 旧实现 fork 外部 `curl`，在 macOS GUI 应用下有几个坑：
+/// 1. App bundle 启动时 `PATH` 不包含 `/usr/local/bin` 等用户 shell 路径，
+///    虽然 `curl` 在 `/usr/bin/curl` 大概率能找到，但仍然走 process spawn
+/// 2. macOS 13+ 对沙盒应用的子进程 + 本地网络访问会触发额外的权限检查
+/// 3. 第一次启动可能 silent fail，UI 上就显示成"HTTP 异常"，但实际 daemon 健康
+///
+/// 改用 ureq 进程内 HTTP：同一进程的 TCP 连接到 127.0.0.1:9999，不 fork、不查
+/// PATH、不过 sandbox 子进程层，跟 daemon 自身一起活；唯一的"开销"是绑一份
+/// ureq Agent，跟 commands/ide_integration / backup 已有的 ureq 用法一致。
 async fn http_health_ok(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
-    let result = tokio::task::spawn_blocking(move || {
-        Command::new("curl")
-            .args([
-                "-s",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                "--max-time",
-                "2",
-                &url,
-            ])
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|s| s.trim() == "200")
-            .unwrap_or(false)
+    tokio::task::spawn_blocking(move || {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(2)))
+            .build()
+            .into();
+        match agent.get(&url).call() {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::debug!(port = port, error = ?e, "daemon health probe failed");
+                false
+            }
+        }
     })
-    .await;
-    result.unwrap_or(false)
+    .await
+    .unwrap_or(false)
 }
 
 /// 返回 daemon 写 stdout 日志的绝对路径，方便 GUI 直接 `open` 这个文件。
