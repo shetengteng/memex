@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import IdeChip from '@/components/shell/IdeChip.vue'
 import { Check, ChevronRight, Clock, MessageCircle } from 'lucide-vue-next'
 import type { Session } from '@/stores/memex'
+import { useI18n } from '@/i18n'
 
 defineProps<{
   session: Session
@@ -11,16 +12,19 @@ defineProps<{
 }>()
 defineEmits<{ open: [Session] }>()
 
+const { t, locale } = useI18n()
+
 const groupFmt = (iso: string, group: string) => {
   const d = new Date(iso)
-  const hm = d.toLocaleTimeString('zh-CN', {
+  const hmLocale = locale.value === 'en' ? 'en-US' : 'zh-CN'
+  const hm = d.toLocaleTimeString(hmLocale, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   })
   if (group === 'today' || group === 'yesterday') return hm
   if (group === 'week') {
-    const day = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+    const day = t(`library.list.weekday.${d.getDay()}`)
     return `${day} ${hm}`
   }
   return `${d.getMonth() + 1}/${d.getDate()} ${hm}`
@@ -66,29 +70,29 @@ const groupFmt = (iso: string, group: string) => {
             v-if="session.l2Done"
             variant="outline"
             class="h-5 gap-1 border-emerald-500/30 bg-emerald-500/5 px-1.5 font-normal text-emerald-700 dark:text-emerald-400"
-            title="已生成会话摘要（L2）"
+            :title="t('library.list.tooltip.l2_done')"
           >
             <Check class="size-2.5" />
-            已摘要
+            {{ t('library.list.badge.l2_done') }}
           </Badge>
           <Badge
             v-else
             variant="outline"
             class="h-5 gap-1 border-amber-500/40 bg-amber-500/5 px-1.5 font-normal text-amber-700 dark:text-amber-500"
-            title="尚未生成会话摘要（L2）"
+            :title="t('library.list.tooltip.l2_pending')"
           >
             <Clock class="size-2.5" />
-            未摘要
+            {{ t('library.list.badge.l2_pending') }}
           </Badge>
           <template v-if="session.topics.length">
             <span class="mx-0.5 size-1 shrink-0 rounded-full bg-border" />
             <Badge
-              v-for="t in session.topics.slice(0, 3)"
-              :key="t"
+              v-for="topic in session.topics.slice(0, 3)"
+              :key="topic"
               variant="outline"
               class="h-5 px-1.5 font-normal text-muted-foreground"
             >
-              {{ t }}
+              {{ topic }}
             </Badge>
             <span
               v-if="session.topics.length > 3"

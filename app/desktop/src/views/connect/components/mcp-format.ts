@@ -24,19 +24,38 @@ export function formatFullTime(s: string): string {
 }
 
 /**
- * 把 Date 渲染成相对当前时间的中文表达。
- * 5s 内 → "刚刚"；60s 内 → "N 秒前"；60min 内 → "N 分钟前"；
- * 24h 内 → "N 小时前"；超过 → "N 天前"。
+ * 相对时间标签集合。组件层注入 i18n labels；不注入时退化为中文（保留旧行为，单测不依赖 i18n 容器）。
  */
-export function formatRelative(d: Date): string {
+export interface RelativeLabels {
+  justNow: string
+  secondsAgo: (n: number) => string
+  minutesAgo: (n: number) => string
+  hoursAgo: (n: number) => string
+  daysAgo: (n: number) => string
+}
+
+const DEFAULT_RELATIVE_LABELS: RelativeLabels = {
+  justNow: '刚刚',
+  secondsAgo: (n) => `${n} 秒前`,
+  minutesAgo: (n) => `${n} 分钟前`,
+  hoursAgo: (n) => `${n} 小时前`,
+  daysAgo: (n) => `${n} 天前`,
+}
+
+/**
+ * 把 Date 渲染成相对当前时间的人类可读表达。
+ * 5s 内 → 刚刚；60s 内 → "N 秒前"；60min 内 → "N 分钟前"；24h 内 → "N 小时前"；超过 → "N 天前"。
+ * `labels` 不传时使用中文兜底，方便单元测试与未注入 i18n 的旧调用点。
+ */
+export function formatRelative(d: Date, labels: RelativeLabels = DEFAULT_RELATIVE_LABELS): string {
   const sec = Math.floor((Date.now() - d.getTime()) / 1_000)
-  if (sec < 5) return '刚刚'
-  if (sec < 60) return `${sec} 秒前`
+  if (sec < 5) return labels.justNow
+  if (sec < 60) return labels.secondsAgo(sec)
   const min = Math.floor(sec / 60)
-  if (min < 60) return `${min} 分钟前`
+  if (min < 60) return labels.minutesAgo(min)
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} 小时前`
-  return `${Math.floor(hr / 24)} 天前`
+  if (hr < 24) return labels.hoursAgo(hr)
+  return labels.daysAgo(Math.floor(hr / 24))
 }
 
 /**
@@ -103,14 +122,17 @@ function unwrapTextEnvelope(parsed: unknown): unknown {
  * 把后端落库的 payload 字符串变成对话框里能直接 `<pre>` 的展示形式。
  *
  * 流程：
- * 1. null / "" → empty=true，display="(无内容)"
+ * 1. null / "" → empty=true，display=emptyLabel（默认 "(无内容)"，组件层会注入 i18n 文案）
  * 2. 含 `[truncated` 标记 → truncated=true，且把标记移出主体保留供 UI 醒目展示
  * 3. 尝试 JSON.parse；成功后对 `{"text":...}` / `{"error":...}` wrapper 拆一层
  * 4. parse 失败（被截断、或后端给的就不是 JSON）→ 整段当 plain text 返回
  */
-export function prettifyPayload(raw: string | null | undefined): PrettyPayload {
+export function prettifyPayload(
+  raw: string | null | undefined,
+  emptyLabel: string = '(无内容)',
+): PrettyPayload {
   if (raw == null || raw === '') {
-    return { display: '(无内容)', isJson: false, truncated: false, empty: true }
+    return { display: emptyLabel, isJson: false, truncated: false, empty: true }
   }
 
   // truncate marker 由 Rust 端 `truncate_payload` 注入，形如

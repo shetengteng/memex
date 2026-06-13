@@ -50,16 +50,16 @@ const fromNow = (iso: string) => {
  */
 async function sendToIde(s: Session) {
   const lines: string[] = [
-    `[Memex 续接 · ${s.adapter}]`,
-    `项目：${s.project || '(未知)'}`,
-    `上次主题：${s.title || '(无标题)'}`,
+    t('today.resume.prompt.header', { adapter: s.adapter }),
+    t('today.resume.prompt.project', { value: s.project || t('today.resume.prompt.unknown') }),
+    t('today.resume.prompt.last_topic', { value: s.title || t('today.resume.prompt.untitled') }),
   ]
-  if (s.topics?.length) lines.push(`关注点：${s.topics.join(' / ')}`)
-  if (s.decisions?.length) lines.push(`最近决策：${s.decisions.join('；')}`)
-  if (s.intent) lines.push(`当时意图：${s.intent}`)
-  if (s.next?.length) lines.push(`下一步：${s.next.join('；')}`)
+  if (s.topics?.length) lines.push(t('today.resume.prompt.topics', { value: s.topics.join(' / ') }))
+  if (s.decisions?.length) lines.push(t('today.resume.prompt.decisions', { value: s.decisions.join('; ') }))
+  if (s.intent) lines.push(t('today.resume.prompt.intent', { value: s.intent }))
+  if (s.next?.length) lines.push(t('today.resume.prompt.next', { value: s.next.join('; ') }))
   lines.push('')
-  lines.push('请基于以上上下文继续讨论。如需完整对话内容，在 Memex 中打开会话查看。')
+  lines.push(t('today.resume.prompt.footer'))
   const prompt = lines.join('\n')
 
   try {

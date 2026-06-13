@@ -23,7 +23,9 @@ import { toast } from 'vue-sonner'
 import type { ReflectEntry, ReflectDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 
+const { t, locale } = useI18n()
 const router = useRouter()
 const memex = useMemex()
 const entries = ref<ReflectEntry[]>([])
@@ -49,11 +51,11 @@ async function runReflect() {
   running.value = true
   try {
     const r = await memex.reflectRun(period.value)
-    toast.success(`已生成反思：${r.scope_key}`)
+    toast.success(t('insights.reflect.toast.generated', { key: r.scope_key }))
     await loadEntries()
   } catch (e) {
     const fe = humanizeBackendError(e)
-    toast.error('生成反思失败', {
+    toast.error(t('insights.reflect.toast.failed'), {
       description: fe.friendly,
       action: fe.action
         ? { label: fe.action.label, onClick: () => router.push(fe.action!.route) }
@@ -79,7 +81,10 @@ async function openEntry(e: ReflectEntry) {
 }
 
 const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
+  new Date(iso).toLocaleString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
 </script>
 
 <template>
@@ -87,30 +92,30 @@ const fmtTime = (iso: string) =>
     <Card class="p-5">
       <div class="mb-3 flex items-center gap-2">
         <BrainCircuit class="size-4 text-primary" />
-        <h3 class="text-[14px] font-semibold">让 AI 反思一下</h3>
+        <h3 class="text-[14px] font-semibold">{{ t('insights.reflect.title') }}</h3>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-[12px] text-muted-foreground">时间范围</span>
+        <span class="text-[12px] text-muted-foreground">{{ t('insights.reflect.range_label') }}</span>
         <Select v-model="period">
           <SelectTrigger class="h-8 w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="3d">近 3 天</SelectItem>
-            <SelectItem value="7d">近 7 天</SelectItem>
-            <SelectItem value="30d">近 30 天</SelectItem>
+            <SelectItem value="3d">{{ t('insights.reflect.range.3d') }}</SelectItem>
+            <SelectItem value="7d">{{ t('insights.reflect.range.7d') }}</SelectItem>
+            <SelectItem value="30d">{{ t('insights.reflect.range.30d') }}</SelectItem>
           </SelectContent>
         </Select>
         <Button size="sm" class="h-8 gap-1.5" :disabled="running" @click="runReflect">
           <BrainCircuit class="size-3.5" />
-          {{ running ? '反思中…' : '开始反思' }}
+          {{ running ? t('insights.reflect.action.busy') : t('insights.reflect.action.start') }}
         </Button>
-        <span class="ml-2 text-[11px] italic text-muted-foreground">通常需要 30~60 秒</span>
+        <span class="ml-2 text-[11px] italic text-muted-foreground">{{ t('insights.reflect.hint') }}</span>
       </div>
     </Card>
 
     <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-      历史反思
+      {{ t('insights.reflect.history') }}
     </div>
     <Card class="overflow-hidden">
       <ul>
@@ -123,7 +128,7 @@ const fmtTime = (iso: string) =>
             <div class="min-w-0 flex-1">
               <div class="mb-1 flex items-center gap-2">
                 <span class="text-[14px] font-semibold">{{ r.title ?? r.scope_key }}</span>
-                <Badge variant="secondary">{{ r.digest_count }} 条摘要</Badge>
+                <Badge variant="secondary">{{ t('insights.reflect.list.digest_count', { n: r.digest_count }) }}</Badge>
               </div>
               <p class="line-clamp-1 text-[12px] text-muted-foreground">
                 {{ r.scope_key }} · {{ fmtTime(r.created_at) }}
@@ -133,7 +138,7 @@ const fmtTime = (iso: string) =>
           </button>
         </li>
         <li v-if="!entries.length" class="px-4 py-6 text-center text-[12px] italic text-muted-foreground">
-          暂无反思记录，先选个时间范围并点"开始反思"
+          {{ t('insights.reflect.list.empty') }}
         </li>
       </ul>
     </Card>
@@ -145,14 +150,14 @@ const fmtTime = (iso: string) =>
       -->
       <DialogContent class="w-[92vw] !max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{{ detail?.title ?? detail?.scope_key ?? '反思详情' }}</DialogTitle>
+          <DialogTitle>{{ detail?.title ?? detail?.scope_key ?? t('insights.reflect.detail.fallback_title') }}</DialogTitle>
         </DialogHeader>
-        <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">加载中…</p>
+        <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">{{ t('insights.reflect.detail.loading') }}</p>
         <div v-else-if="detail" class="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
           <MarkdownContent :content="detail.markdown" />
           <div v-if="detail.patterns.length">
             <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              规律
+              {{ t('insights.reflect.detail.section.patterns') }}
             </div>
             <ul class="space-y-1.5 text-[13px]">
               <li v-for="p in detail.patterns" :key="p" class="flex gap-2">
@@ -163,7 +168,7 @@ const fmtTime = (iso: string) =>
           </div>
           <div v-if="detail.open_loops.length">
             <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              开放循环
+              {{ t('insights.reflect.detail.section.open_loops') }}
             </div>
             <ul class="space-y-1.5 text-[13px]">
               <li v-for="o in detail.open_loops" :key="o" class="flex gap-2">

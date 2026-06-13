@@ -33,6 +33,15 @@ export interface SessionGroup {
   sessions: Session[]
 }
 
+export type GroupLabels = Record<SessionGroup['key'], string>
+
+const DEFAULT_GROUP_LABELS: GroupLabels = {
+  today: '今天',
+  yesterday: '昨天',
+  week: '本周',
+  earlier: '更早',
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 function startOfDay(d: Date): Date {
@@ -128,6 +137,7 @@ export function filterAndSortSessions(
 export function groupSessionsByDate(
   sessions: readonly Session[],
   now: Date = new Date(),
+  labels: GroupLabels = DEFAULT_GROUP_LABELS,
 ): SessionGroup[] {
   if (!sessions.length) return []
 
@@ -156,11 +166,13 @@ export function groupSessionsByDate(
   }
 
   const groups: SessionGroup[] = []
-  if (buckets.today.length) groups.push({ key: 'today', label: '今天', sessions: buckets.today })
+  if (buckets.today.length)
+    groups.push({ key: 'today', label: labels.today, sessions: buckets.today })
   if (buckets.yesterday.length)
-    groups.push({ key: 'yesterday', label: '昨天', sessions: buckets.yesterday })
-  if (buckets.week.length) groups.push({ key: 'week', label: '本周', sessions: buckets.week })
+    groups.push({ key: 'yesterday', label: labels.yesterday, sessions: buckets.yesterday })
+  if (buckets.week.length)
+    groups.push({ key: 'week', label: labels.week, sessions: buckets.week })
   if (buckets.earlier.length)
-    groups.push({ key: 'earlier', label: '更早', sessions: buckets.earlier })
+    groups.push({ key: 'earlier', label: labels.earlier, sessions: buckets.earlier })
   return groups
 }

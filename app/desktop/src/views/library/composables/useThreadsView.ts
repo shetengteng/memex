@@ -18,12 +18,15 @@ import {
 } from '@/stores/memex'
 import type { SessionRow, ThreadRow } from '@/types'
 import { humanizeBackendError } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 
 export type FilterKey = 'all' | 'multi_project' | 'recent_7d'
 
 const AUTO_CLUSTER_KEY = 'memex.threads.autoCluster'
 
 export function useThreadsView() {
+  const { t } = useI18n()
+
   // ── 主搜索 ───────────────────────────────────────────────
   const llmQuery = ref('')
   const llmSearching = ref(false)
@@ -50,19 +53,19 @@ export function useThreadsView() {
   // ── derived ─────────────────────────────────────────────
   const filterCounts = computed(() => ({
     all: threads.length,
-    multi_project: threads.filter((t) => (t.projects ?? []).length >= 2).length,
-    recent_7d: threads.filter((t) =>
-      isWithinDays(t.lastSessionAt ?? t.updatedAt, 7),
+    multi_project: threads.filter((th) => (th.projects ?? []).length >= 2).length,
+    recent_7d: threads.filter((th) =>
+      isWithinDays(th.lastSessionAt ?? th.updatedAt, 7),
     ).length,
   }))
 
   const filteredThreads = computed(() => {
     switch (filter.value) {
       case 'multi_project':
-        return threads.filter((t) => (t.projects ?? []).length >= 2)
+        return threads.filter((th) => (th.projects ?? []).length >= 2)
       case 'recent_7d':
-        return threads.filter((t) =>
-          isWithinDays(t.lastSessionAt ?? t.updatedAt, 7),
+        return threads.filter((th) =>
+          isWithinDays(th.lastSessionAt ?? th.updatedAt, 7),
         )
       default:
         return threads.slice()
@@ -99,12 +102,12 @@ export function useThreadsView() {
     }
   }
 
-  async function openThread(t: ThreadRow) {
-    selectedThread.value = t
+  async function openThread(target: ThreadRow) {
+    selectedThread.value = target
     detailLoading.value = true
     detailSessions.value = []
     try {
-      const detail = await fetchThreadDetail(t.id)
+      const detail = await fetchThreadDetail(target.id)
       detailSessions.value = detail?.sessions ?? []
       if (detail?.thread) selectedThread.value = detail.thread
     } finally {
@@ -119,9 +122,9 @@ export function useThreadsView() {
     try {
       const id = await searchThreadByQuery(q)
       llmQuery.value = ''
-      const t = threads.find((x) => x.id === id)
-      if (t) await openThread(t)
-      toast.success(`已为「${q}」生成线索`)
+      const found = threads.find((x) => x.id === id)
+      if (found) await openThread(found)
+      toast.success(t('library.threads.toast.search_done', { query: q }))
     } catch (e) {
       toast.error(humanizeBackendError(e).friendly)
     } finally {
@@ -139,7 +142,7 @@ export function useThreadsView() {
     try {
       await regenerateThreads()
       if (selectedThread.value) {
-        const still = threads.find((t) => t.id === selectedThread.value?.id)
+        const still = threads.find((x) => x.id === selectedThread.value?.id)
         if (still) {
           await openThread(still)
         } else {
@@ -147,7 +150,7 @@ export function useThreadsView() {
           detailSessions.value = []
         }
       }
-      toast.success('已重新聚类')
+      toast.success(t('library.threads.toast.regenerated'))
     } catch (e) {
       toast.error(humanizeBackendError(e).friendly)
     } finally {
@@ -155,22 +158,22 @@ export function useThreadsView() {
     }
   }
 
-  function requestDelete(t: ThreadRow, e?: Event) {
+  function requestDelete(target: ThreadRow, e?: Event) {
     if (e) e.stopPropagation()
-    deleteTarget.value = t
+    deleteTarget.value = target
   }
 
   async function confirmDelete() {
-    const t = deleteTarget.value
-    if (!t) return
+    const target = deleteTarget.value
+    if (!target) return
     deleting.value = true
     try {
-      await deleteThread(t.id)
-      if (selectedThread.value?.id === t.id) {
+      await deleteThread(target.id)
+      if (selectedThread.value?.id === target.id) {
         selectedThread.value = null
         detailSessions.value = []
       }
-      toast.success(`已删除「${t.name}」`)
+      toast.success(t('library.threads.toast.deleted', { name: target.name }))
     } catch (e) {
       toast.error(humanizeBackendError(e).friendly)
     } finally {

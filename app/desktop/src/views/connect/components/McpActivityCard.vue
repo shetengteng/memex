@@ -14,9 +14,19 @@ import {
 } from 'lucide-vue-next'
 import { useMemex } from '@/composables/useMemex'
 import { humanizeBackendError } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 import type { McpCallEntry, McpCallStats24h } from '@/types'
 import McpCallDetailDialog from './McpCallDetailDialog.vue'
-import { asMetric, formatFullTime, formatLatency, formatRelative } from './mcp-format'
+import { asMetric, formatFullTime, formatLatency, formatRelative, type RelativeLabels } from './mcp-format'
+
+const { t } = useI18n()
+const i18nRelative = computed<RelativeLabels>(() => ({
+  justNow: t('connect.relative.just_now'),
+  secondsAgo: (n) => t('connect.relative.seconds_ago', { n }),
+  minutesAgo: (n) => t('connect.relative.minutes_ago', { n }),
+  hoursAgo: (n) => t('connect.relative.hours_ago', { n }),
+  daysAgo: (n) => t('connect.relative.days_ago', { n }),
+}))
 
 // 轮询间隔。3s 足以营造"实时"观感，又不会把 SQLite I/O 拉得很满
 // （一次 stats + 一次 recent，本地 db 综合 < 10ms）。
@@ -102,20 +112,20 @@ const liveStatus = computed<'idle' | 'healthy' | 'degraded'>(() => {
 const liveStatusLabel = computed(() => {
   switch (liveStatus.value) {
     case 'healthy':
-      return '运行中'
+      return t('connect.mcp.live.healthy')
     case 'degraded':
-      return '部分失败'
+      return t('connect.mcp.live.degraded')
     case 'idle':
-      return '空闲'
+      return t('connect.mcp.live.idle')
   }
-  return '空闲'
+  return t('connect.mcp.live.idle')
 })
 
 const lastCallRelative = computed(() => {
   // tick 是占位 dep —— 让 relative time 每秒重算。
   void tick.value
   if (stats.value.last_call_at == null) return null
-  return formatRelative(new Date(stats.value.last_call_at))
+  return formatRelative(new Date(stats.value.last_call_at), i18nRelative.value)
 })
 
 const avgLatencyLabel = computed(() => {
@@ -145,7 +155,7 @@ function widthRatio(count: number): string {
       <div>
         <div class="flex items-center gap-2">
           <ActivitySquare class="size-3.5" :style="{ color: 'var(--adapter-codex)' }" />
-          <h2 class="text-[15px] font-semibold">MCP 工具与活动</h2>
+          <h2 class="text-[15px] font-semibold">{{ t('connect.mcp.title') }}</h2>
           <Badge
             v-if="liveStatus === 'healthy'"
             variant="outline"
@@ -168,11 +178,11 @@ function widthRatio(count: number): string {
           </Badge>
         </div>
         <p class="mt-0.5 text-[11px] text-muted-foreground">
-          实时观察你的 AI 在用 Memex 做什么 · 数据源 <code class="font-mono">mcp_call_log</code>
+          {{ t('connect.mcp.subtitle') }}
         </p>
       </div>
       <span v-if="lastCallRelative" class="shrink-0 text-[11px] text-muted-foreground">
-        上次调用 {{ lastCallRelative }}
+        {{ t('connect.mcp.last_call', { time: lastCallRelative }) }}
       </span>
     </div>
 
@@ -181,7 +191,7 @@ function widthRatio(count: number): string {
       <Card class="flex flex-col gap-1 p-3">
         <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <TrendingUp class="size-3" />
-          24h 调用
+          {{ t('connect.mcp.metric.calls_24h') }}
         </div>
         <div class="text-[20px] font-semibold leading-tight tabular-nums">
           {{ asMetric(stats.total) }}
@@ -190,7 +200,7 @@ function widthRatio(count: number): string {
       <Card class="flex flex-col gap-1 p-3">
         <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <CheckCircle2 class="size-3" />
-          成功率
+          {{ t('connect.mcp.metric.success_rate') }}
         </div>
         <div class="text-[20px] font-semibold leading-tight tabular-nums">
           {{ successRateLabel }}
@@ -198,14 +208,14 @@ function widthRatio(count: number): string {
             v-if="stats.failed > 0"
             class="ml-1 align-middle text-[10px] font-normal text-amber-600 dark:text-amber-400"
           >
-            {{ stats.failed }} 失败
+            {{ t('connect.mcp.metric.failed_count', { n: stats.failed }) }}
           </span>
         </div>
       </Card>
       <Card class="flex flex-col gap-1 p-3">
         <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Clock class="size-3" />
-          平均延迟
+          {{ t('connect.mcp.metric.avg_latency') }}
         </div>
         <div class="text-[20px] font-semibold leading-tight tabular-nums">
           {{ avgLatencyLabel }}
@@ -220,31 +230,31 @@ function widthRatio(count: number): string {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 text-[12px] font-medium">
             <Wrench class="size-3" />
-            工具调用拆分
+            {{ t('connect.mcp.tools.title') }}
           </div>
           <span v-if="stats.by_tool.length > 0" class="text-[10px] text-muted-foreground tabular-nums">
-            {{ stats.by_tool.length }} 个工具
+            {{ t('connect.mcp.tools.count', { n: stats.by_tool.length }) }}
           </span>
         </div>
         <div v-if="loading && stats.by_tool.length === 0" class="space-y-1.5">
           <div v-for="i in 4" :key="i" class="h-7 animate-pulse rounded bg-muted/40" />
         </div>
         <div v-else-if="visibleTools.length === 0" class="py-3 text-center text-[11px] text-muted-foreground">
-          暂无调用 —— 在 IDE 里让 AI 调用 Memex MCP 后即会显示
+          {{ t('connect.mcp.tools.empty') }}
         </div>
         <ul v-else class="space-y-1.5">
-          <li v-for="t in visibleTools" :key="t.tool_name" class="flex flex-col gap-0.5">
+          <li v-for="tool in visibleTools" :key="tool.tool_name" class="flex flex-col gap-0.5">
             <div class="flex items-baseline justify-between gap-2">
-              <code class="truncate font-mono text-[11.5px]">{{ t.tool_name }}</code>
+              <code class="truncate font-mono text-[11.5px]">{{ tool.tool_name }}</code>
               <span class="shrink-0 text-[10.5px] tabular-nums text-muted-foreground">
-                {{ t.count }} 次 · {{ formatLatency(t.avg_latency_ms) }}
+                {{ t('connect.mcp.tools.row_summary', { count: tool.count, latency: formatLatency(tool.avg_latency_ms) }) }}
               </span>
             </div>
             <div class="h-1 w-full overflow-hidden rounded-full bg-muted/40">
               <div
                 class="h-full rounded-full"
                 :style="{
-                  width: widthRatio(t.count),
+                  width: widthRatio(tool.count),
                   backgroundColor: 'var(--adapter-codex)',
                   opacity: 0.55,
                 }"
@@ -252,7 +262,7 @@ function widthRatio(count: number): string {
             </div>
           </li>
           <li v-if="moreToolCount > 0" class="pt-1 text-center text-[10.5px] text-muted-foreground">
-            +{{ moreToolCount }} 个工具未展开
+            {{ t('connect.mcp.tools.more', { n: moreToolCount }) }}
           </li>
         </ul>
       </Card>
@@ -262,22 +272,22 @@ function widthRatio(count: number): string {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 text-[12px] font-medium">
             <Radio class="size-3" />
-            实时事件流
+            {{ t('connect.mcp.events.title') }}
           </div>
-          <span class="text-[10px] text-muted-foreground tabular-nums">最近 {{ recent.length }} 条</span>
+          <span class="text-[10px] text-muted-foreground tabular-nums">{{ t('connect.mcp.events.recent_n', { n: recent.length }) }}</span>
         </div>
         <div v-if="loading && recent.length === 0" class="space-y-1">
           <div v-for="i in 5" :key="i" class="h-6 animate-pulse rounded bg-muted/40" />
         </div>
         <div v-else-if="recent.length === 0" class="py-3 text-center text-[11px] text-muted-foreground">
-          还没有 MCP 调用 —— 在 Cursor / Claude Code 等启用了 Memex MCP 的 IDE 中提问即会触发
+          {{ t('connect.mcp.events.empty') }}
         </div>
         <ul v-else class="max-h-[260px] space-y-px overflow-y-auto pr-1 font-mono text-[11px]">
           <li
             v-for="ev in recent"
             :key="ev.id"
             class="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 transition-colors hover:bg-muted/60"
-            :title="ev.error_message ?? '点击查看详情'"
+            :title="ev.error_message ?? t('connect.mcp.events.click_to_detail')"
             @click="selectedEntry = ev"
           >
             <span class="w-[132px] shrink-0 tabular-nums text-muted-foreground">
@@ -288,7 +298,7 @@ function widthRatio(count: number): string {
               class="size-3 shrink-0 text-emerald-500"
             />
             <XCircle v-else class="size-3 shrink-0 text-rose-500" />
-            <span class="flex-1 truncate">{{ ev.tool_name || '(unknown)' }}</span>
+            <span class="flex-1 truncate">{{ ev.tool_name || t('connect.mcp.events.unknown_tool') }}</span>
             <span class="shrink-0 tabular-nums text-muted-foreground">
               {{ formatLatency(ev.latency_ms) }}
             </span>
@@ -298,7 +308,7 @@ function widthRatio(count: number): string {
     </div>
 
     <p v-if="errorMsg" class="mt-2 text-[10.5px] text-rose-500">
-      读取失败：{{ errorMsg }}
+      {{ t('connect.mcp.error_prefix', { err: errorMsg }) }}
     </p>
 
     <McpCallDetailDialog

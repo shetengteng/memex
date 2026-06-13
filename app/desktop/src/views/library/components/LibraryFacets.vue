@@ -13,6 +13,9 @@ import { adapters, breakdownByAdapter, projects, type Project } from '@/stores/m
 import { formatNumber } from '@/lib/utils'
 import type { SummaryFilter, TimeFilter } from '../composables/sessionFilters'
 import { buildDisambiguatedNames } from '../composables/projectDisambiguation'
+import { useI18n } from '@/i18n'
+
+const { t } = useI18n()
 
 const adapterCount = (id: string): number => breakdownByAdapter[id] ?? 0
 
@@ -157,13 +160,13 @@ function toggleSelectAllProjects() {
         <div>
           <div class="mb-2 flex items-center justify-between">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              工具
+              {{ t('library.facets.adapter.title') }}
             </span>
             <button
               class="text-[11px] text-muted-foreground hover:text-foreground"
               @click="toggleSelectAllAdapters"
             >
-              {{ allAdaptersSelected ? '全清' : '全选' }}
+              {{ allAdaptersSelected ? t('library.facets.action.clear_all') : t('library.facets.action.select_all') }}
             </button>
           </div>
           <div class="space-y-1.5">
@@ -185,8 +188,7 @@ function toggleSelectAllProjects() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="right" :side-offset="6" class="px-2 py-1 text-[11px]">
-                  <span class="tabular-nums">{{ adapterCount(a.id).toLocaleString() }}</span>
-                  <span class="ml-1 text-muted-foreground">个会话</span>
+                  <span class="tabular-nums">{{ t('library.facets.tooltip.session_count', { n: adapterCount(a.id).toLocaleString() }) }}</span>
                 </TooltipContent>
               </Tooltip>
             </Label>
@@ -197,7 +199,7 @@ function toggleSelectAllProjects() {
         <div>
           <div class="mb-2 flex items-center justify-between">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              项目
+              {{ t('library.facets.project.title') }}
               <span v-if="projects.length > 0" class="ml-1 normal-case tracking-normal text-muted-foreground/60">
                 ({{ projects.length }})
               </span>
@@ -207,7 +209,7 @@ function toggleSelectAllProjects() {
               :disabled="visibleProjects.length === 0"
               @click="toggleSelectAllProjects"
             >
-              {{ allVisibleProjectsSelected ? '全清' : '全选' }}
+              {{ allVisibleProjectsSelected ? t('library.facets.action.clear_all') : t('library.facets.action.select_all') }}
             </button>
           </div>
 
@@ -216,7 +218,7 @@ function toggleSelectAllProjects() {
             <Input
               v-model="projectQuery"
               type="search"
-              placeholder="搜索项目名…"
+              :placeholder="t('library.facets.project.search_placeholder')"
               class="h-7 pl-7 pr-7 text-[12px]"
             />
             <button
@@ -253,8 +255,7 @@ function toggleSelectAllProjects() {
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="right" :side-offset="6" class="px-2 py-1 text-[11px]">
-                  <span class="tabular-nums">{{ p.sessions.toLocaleString() }}</span>
-                  <span class="ml-1 text-muted-foreground">个会话</span>
+                  <span class="tabular-nums">{{ t('library.facets.tooltip.session_count', { n: p.sessions.toLocaleString() }) }}</span>
                 </TooltipContent>
               </Tooltip>
             </Label>
@@ -263,7 +264,7 @@ function toggleSelectAllProjects() {
               v-if="filteredProjects.length === 0"
               class="py-2 text-center text-[11px] text-muted-foreground"
             >
-              没有匹配的项目
+              {{ t('library.facets.project.empty') }}
             </p>
 
             <div class="flex items-center gap-3 text-[11px]">
@@ -272,14 +273,14 @@ function toggleSelectAllProjects() {
                 class="text-muted-foreground hover:text-foreground"
                 @click="expandProjects"
               >
-                + 展开 {{ nextProjectStep }}（剩 {{ hiddenProjectCount }}）
+                {{ t('library.facets.project.expand_more', { n: nextProjectStep, hidden: hiddenProjectCount }) }}
               </button>
               <button
                 v-if="!projectQuery && projectsLimit > PROJECT_DEFAULT_LIMIT"
                 class="text-muted-foreground hover:text-foreground"
                 @click="collapseProjects"
               >
-                收起
+                {{ t('library.facets.project.collapse') }}
               </button>
             </div>
           </div>
@@ -288,23 +289,23 @@ function toggleSelectAllProjects() {
         <!-- time -->
         <div>
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            时间
+            {{ t('library.facets.time.title') }}
           </div>
           <RadioGroup :model-value="fTime" @update:model-value="emitTimeFilter" class="gap-1.5">
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="today" />今天
+              <RadioGroupItem value="today" />{{ t('library.facets.time.today') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="7d" />近 7 天
+              <RadioGroupItem value="7d" />{{ t('library.facets.time.7d') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="30d" />近 30 天
+              <RadioGroupItem value="30d" />{{ t('library.facets.time.30d') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="90d" />近 90 天
+              <RadioGroupItem value="90d" />{{ t('library.facets.time.90d') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="all" />全部
+              <RadioGroupItem value="all" />{{ t('library.facets.time.all') }}
             </Label>
           </RadioGroup>
         </div>
@@ -312,7 +313,7 @@ function toggleSelectAllProjects() {
         <!-- summary state -->
         <div>
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            摘要状态
+            {{ t('library.facets.summary.title') }}
           </div>
           <RadioGroup
             :model-value="fSummary"
@@ -320,16 +321,16 @@ function toggleSelectAllProjects() {
             class="gap-1.5"
           >
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="all" />全部
+              <RadioGroupItem value="all" />{{ t('library.facets.summary.all') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="done" />仅已摘要
+              <RadioGroupItem value="done" />{{ t('library.facets.summary.done') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="pending" />仅待摘要
+              <RadioGroupItem value="pending" />{{ t('library.facets.summary.pending') }}
             </Label>
             <Label class="cursor-pointer text-[13px] font-normal">
-              <RadioGroupItem value="invalid" />无效会话
+              <RadioGroupItem value="invalid" />{{ t('library.facets.summary.invalid') }}
             </Label>
           </RadioGroup>
         </div>
@@ -345,7 +346,7 @@ function toggleSelectAllProjects() {
         @click="emit('clear')"
       >
         <X class="size-3.5" />
-        清除全部筛选
+        {{ t('library.facets.action.clear_filters') }}
         <Badge v-if="activeFilterCount" variant="secondary" class="ml-auto h-4 px-1.5 text-[10px]">
           {{ activeFilterCount }}
         </Badge>

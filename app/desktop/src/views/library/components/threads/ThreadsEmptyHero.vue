@@ -3,16 +3,20 @@
  * 完全没有线索时显示的搜索引擎风格 hero。
  * 5 个建议词点击就触发关键词检索，省去用户构思 query 的成本。
  */
+import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Sparkles } from 'lucide-vue-next'
+import { useI18n } from '@/i18n'
 
-const SUGGESTIONS = [
-  'Tauri 多窗口',
-  '会话摘要 prompt',
-  'memex 桌面化',
-  'cursor 适配器',
-  'LLM 节流',
-]
+const { t } = useI18n()
+
+const SUGGESTIONS = computed(() => [
+  t('library.threads.suggestions.0'),
+  t('library.threads.suggestions.1'),
+  t('library.threads.suggestions.2'),
+  t('library.threads.suggestions.3'),
+  t('library.threads.suggestions.4'),
+])
 
 defineEmits<{ apply: [string] }>()
 </script>
@@ -23,10 +27,9 @@ defineEmits<{ apply: [string] }>()
       <div class="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10">
         <Sparkles class="size-6 text-primary" />
       </div>
-      <h3 class="mt-4 text-[16px] font-semibold">从主题开始检索</h3>
+      <h3 class="mt-4 text-[16px] font-semibold">{{ t('library.threads.empty.title') }}</h3>
       <p class="mx-auto mt-2 max-w-md text-[12.5px] text-muted-foreground">
-        输入一个关键词或问题，让本地 LLM 从你最近 80 个有摘要的会话里挑出相关的，
-        组成一条「线索」。每条线索都会保留下来，方便你下次回顾。
+        {{ t('library.threads.empty.body') }}
       </p>
       <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
         <Badge
@@ -40,7 +43,7 @@ defineEmits<{ apply: [string] }>()
         </Badge>
       </div>
       <p class="mt-6 text-[11px] text-muted-foreground/70">
-        或者点上方<span class="mx-1 font-medium text-foreground">全量聚类</span>让 LLM 自动归纳所有主题。
+        {{ t('library.threads.empty.cluster_hint') }}<span class="mx-1 font-medium text-foreground">{{ t('library.threads.empty.cluster_link') }}</span>{{ t('library.threads.empty.cluster_suffix') }}
       </p>
     </div>
   </div>

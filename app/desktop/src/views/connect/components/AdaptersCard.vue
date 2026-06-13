@@ -11,7 +11,9 @@ import { toast } from 'vue-sonner'
 import { adapters, breakdownByAdapter, refreshBreakdown } from '@/stores/memex'
 import { useMemex } from '@/composables/useMemex'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
 
+const { t } = useI18n()
 const memex = useMemex()
 const activeCount = computed(() => adapters.filter((a) => a.status === 'active').length)
 const totalAdapters = computed(() => adapters.length)
@@ -60,9 +62,12 @@ async function toggleAdapter(id: string, enabled: boolean) {
   try {
     await memex.toggleAdapter(id, enabled)
     if (target) target.status = enabled ? 'active' : 'disabled'
-    toast.success(`${id} 已${enabled ? '启用' : '停用'}`)
+    const action = enabled
+      ? t('connect.adapters.action.enable')
+      : t('connect.adapters.action.disable')
+    toast.success(t('connect.adapters.toast.toggled', { id, action }))
   } catch (e) {
-    toastBackendError('切换失败', e)
+    toastBackendError(t('connect.adapters.toast.toggle_failed'), e)
   } finally {
     toggling.value[id] = false
   }
@@ -72,10 +77,10 @@ async function rescanAdapter(id: string) {
   rescanning.value[id] = true
   try {
     const r = await memex.triggerIngest(id)
-    toast.success(`${id} 采集完成：${r.messages_ingested} 条消息`)
+    toast.success(t('connect.adapters.toast.scan_one_done', { id, n: r.messages_ingested }))
     await refreshBreakdown()
   } catch (e) {
-    toastBackendError(`${id} 采集失败`, e)
+    toastBackendError(t('connect.adapters.toast.scan_one_failed', { id }), e)
   } finally {
     rescanning.value[id] = false
   }
@@ -86,10 +91,10 @@ async function rescanAll() {
   globalScanning.value = true
   try {
     const r = await memex.triggerIngest()
-    toast.success(`采集完成：${r.messages_ingested} 条消息`)
+    toast.success(t('connect.adapters.toast.scan_all_done', { n: r.messages_ingested }))
     await refreshBreakdown()
   } catch (e) {
-    toastBackendError('采集失败', e)
+    toastBackendError(t('connect.adapters.toast.scan_all_failed'), e)
   } finally {
     globalScanning.value = false
   }
@@ -102,18 +107,18 @@ async function rescanAll() {
       <div>
         <div class="flex items-center gap-2">
           <Radio class="size-3.5" :style="{ color: 'var(--success)' }" />
-          <h2 class="text-[15px] font-semibold">采集源</h2>
+          <h2 class="text-[15px] font-semibold">{{ t('connect.adapters.title') }}</h2>
           <Badge class="border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
-            {{ activeCount }} / {{ totalAdapters }} 个启用
+            {{ t('connect.adapters.summary', { active: activeCount, total: totalAdapters }) }}
           </Badge>
         </div>
         <p class="mt-0.5 text-[11px] text-muted-foreground">
-          监听 IDE 会话目录，2 秒内自动入库
+          {{ t('connect.adapters.subtitle') }}
         </p>
       </div>
       <Button variant="outline" size="sm" class="h-8 gap-1.5" :disabled="globalScanning" @click="rescanAll">
         <RefreshCw :class="['size-3.5', globalScanning && 'animate-spin']" />
-        {{ globalScanning ? '扫描中…' : '立即扫描' }}
+        {{ globalScanning ? t('connect.adapters.scan_all_busy') : t('connect.adapters.scan_all') }}
       </Button>
     </div>
 
@@ -132,9 +137,9 @@ async function rescanAll() {
               v-if="a.status === 'active'"
               class="border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
             >
-              ● 已启用
+              {{ t('connect.adapters.badge.enabled') }}
             </Badge>
-            <Badge v-else variant="outline" class="text-muted-foreground">○ 未启用</Badge>
+            <Badge v-else variant="outline" class="text-muted-foreground">{{ t('connect.adapters.badge.disabled') }}</Badge>
           </div>
           <div class="truncate font-mono text-[11px] text-muted-foreground">{{ a.path }}</div>
         </div>
@@ -145,7 +150,7 @@ async function rescanAll() {
           <div class="text-[13px] font-semibold tabular-nums">
             {{ sessionCountFor(a.id) === 0 ? '—' : sessionCountFor(a.id).toLocaleString() }}
           </div>
-          <div class="text-[10px] text-muted-foreground">个会话</div>
+          <div class="text-[10px] text-muted-foreground">{{ t('connect.adapters.session_unit') }}</div>
         </div>
         <Switch
           :model-value="a.status === 'active'"
@@ -165,7 +170,7 @@ async function rescanAll() {
               <RefreshCw v-else class="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" class="text-[11px]">重扫该采集源</TooltipContent>
+          <TooltipContent side="top" class="text-[11px]">{{ t('connect.adapters.tooltip.rescan_one') }}</TooltipContent>
         </Tooltip>
       </div>
     </Card>

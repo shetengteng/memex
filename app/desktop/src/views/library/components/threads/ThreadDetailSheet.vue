@@ -6,6 +6,7 @@
  * 自己处理滚动，不复用 ScrollArea —— 后者在 DialogContent 的 fixed 上下文里
  * 高度链建立不起来，滚动会失效。
  */
+import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -19,6 +20,7 @@ import {
 import { FolderGit2, Loader2, Trash2 } from 'lucide-vue-next'
 import type { SessionRow, ThreadRow } from '@/types'
 import { adapterLabel, durationDays, lastProjectName, timeFmt } from '../../composables/threadsFormat'
+import { useI18n } from '@/i18n'
 
 defineProps<{
   open: boolean
@@ -32,6 +34,9 @@ const emit = defineEmits<{
   delete: [ThreadRow]
   openSession: [SessionRow]
 }>()
+
+const { t, locale } = useI18n()
+const dateLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'zh-CN'))
 </script>
 
 <template>
@@ -43,17 +48,17 @@ const emit = defineEmits<{
             {{ thread?.name }}
           </SheetTitle>
         </div>
-        <SheetDescription class="sr-only">线索详情</SheetDescription>
+        <SheetDescription class="sr-only">{{ t('library.threads.sheet.description') }}</SheetDescription>
         <div class="flex flex-wrap items-center gap-2 pr-8 pt-1">
           <Badge variant="secondary" class="tabular-nums text-[10.5px]">
-            {{ thread?.sessionCount ?? 0 }} 个会话
+            {{ t('library.threads.sheet.session_count', { n: thread?.sessionCount ?? 0 }) }}
           </Badge>
           <Badge
             v-if="(thread?.projects?.length ?? 0) > 0"
             variant="outline"
             class="tabular-nums text-[10.5px]"
           >
-            {{ thread?.projects?.length }} 个项目
+            {{ t('library.threads.sheet.project_count', { n: thread?.projects?.length ?? 0 }) }}
           </Badge>
         </div>
       </SheetHeader>
@@ -66,7 +71,7 @@ const emit = defineEmits<{
         <div v-else class="space-y-6 px-5 py-5">
           <section v-if="thread?.summary">
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              主题摘要
+              {{ t('library.threads.sheet.section.summary') }}
             </h4>
             <p class="mt-2 text-[12.5px] leading-relaxed">
               {{ thread.summary }}
@@ -75,21 +80,21 @@ const emit = defineEmits<{
 
           <section v-if="thread?.firstSessionAt && thread?.lastSessionAt">
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              活跃时间
+              {{ t('library.threads.sheet.section.activity') }}
             </h4>
             <div class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11.5px]">
-              <span class="text-muted-foreground">开始</span>
-              <span class="tabular-nums">{{ timeFmt(thread.firstSessionAt) }}</span>
-              <span class="text-muted-foreground">最近</span>
-              <span class="tabular-nums">{{ timeFmt(thread.lastSessionAt) }}</span>
-              <span class="text-muted-foreground">持续</span>
-              <span class="tabular-nums">{{ durationDays(thread.firstSessionAt, thread.lastSessionAt) }} 天</span>
+              <span class="text-muted-foreground">{{ t('library.threads.sheet.activity.start') }}</span>
+              <span class="tabular-nums">{{ timeFmt(thread.firstSessionAt, dateLocale) }}</span>
+              <span class="text-muted-foreground">{{ t('library.threads.sheet.activity.last') }}</span>
+              <span class="tabular-nums">{{ timeFmt(thread.lastSessionAt, dateLocale) }}</span>
+              <span class="text-muted-foreground">{{ t('library.threads.sheet.activity.duration') }}</span>
+              <span class="tabular-nums">{{ t('library.threads.sheet.activity.duration_value', { n: durationDays(thread.firstSessionAt, thread.lastSessionAt) }) }}</span>
             </div>
           </section>
 
           <section v-if="(thread?.projects?.length ?? 0) > 0">
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              涉及项目
+              {{ t('library.threads.sheet.section.projects') }}
             </h4>
             <ul class="mt-2 space-y-1.5">
               <li
@@ -108,7 +113,7 @@ const emit = defineEmits<{
 
           <section v-if="(thread?.adapters?.length ?? 0) > 0">
             <h4 class="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              适配器
+              {{ t('library.threads.sheet.section.adapters') }}
             </h4>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <Badge
@@ -124,7 +129,7 @@ const emit = defineEmits<{
 
           <section v-if="sessions.length">
             <h4 class="flex items-center justify-between text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">
-              <span>会话 · 按时间倒序</span>
+              <span>{{ t('library.threads.sheet.section.sessions') }}</span>
               <span class="tabular-nums">{{ sessions.length }}</span>
             </h4>
             <ul class="mt-2 divide-y divide-border rounded-lg border border-border">
@@ -136,16 +141,16 @@ const emit = defineEmits<{
               >
                 <div class="flex items-start justify-between gap-2">
                   <span class="line-clamp-1 text-[12.5px] font-medium">
-                    {{ row.summaryTitle ?? row.title ?? '未命名会话' }}
+                    {{ row.summaryTitle ?? row.title ?? t('library.threads.sheet.session.fallback_title') }}
                   </span>
                   <span class="shrink-0 tabular-nums text-[10.5px] text-muted-foreground">
-                    {{ timeFmt(row.updatedAt) }}
+                    {{ timeFmt(row.updatedAt, dateLocale) }}
                   </span>
                 </div>
                 <div class="mt-1 flex items-center gap-2 text-[10.5px] text-muted-foreground">
                   <span>{{ adapterLabel(row.source) }}</span>
                   <span>·</span>
-                  <span class="tabular-nums">{{ row.messageCount }} 条</span>
+                  <span class="tabular-nums">{{ t('library.threads.sheet.session.message_count', { n: row.messageCount }) }}</span>
                 </div>
               </li>
             </ul>
@@ -161,7 +166,7 @@ const emit = defineEmits<{
               @click="emit('delete', thread)"
             >
               <Trash2 class="size-3.5" />
-              <span class="ml-1.5">删除此主题</span>
+              <span class="ml-1.5">{{ t('library.threads.sheet.action.delete') }}</span>
             </Button>
           </section>
         </div>

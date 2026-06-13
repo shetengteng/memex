@@ -5,17 +5,25 @@
  * Card / CardContent 用 `flex-1` 拉伸 + CardFooter `mt-auto` 沉底，保证同行
  * 卡片高度对齐、底部统计信息基线整齐。
  */
+import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Clock, FolderGit2, Trash2 } from 'lucide-vue-next'
 import type { ThreadRow } from '@/types'
 import { adapterLabel, dateRangeFmt, lastProjectName, timeFmt } from '../../composables/threadsFormat'
+import { useI18n } from '@/i18n'
 
 defineProps<{ thread: ThreadRow }>()
 const emit = defineEmits<{
   open: [ThreadRow]
   delete: [ThreadRow, MouseEvent]
 }>()
+
+const { t, locale } = useI18n()
+// 给 formatter 用的 BCP-47 locale。i18n 的 'zh' / 'en' 不是 valid BCP-47，
+// 这里映射成 'zh-CN' / 'en-US'。
+const dateLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'zh-CN'))
+const daysSuffix = computed(() => (locale.value === 'en' ? 'days' : '天'))
 </script>
 
 <template>
@@ -31,7 +39,7 @@ const emit = defineEmits<{
         </h3>
         <button
           type="button"
-          aria-label="删除这条线索"
+          :aria-label="t('library.threads.card.delete_aria')"
           class="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/card:opacity-100 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
           @click="(e: MouseEvent) => emit('delete', thread, e)"
         >
@@ -48,7 +56,7 @@ const emit = defineEmits<{
         {{ thread.summary }}
       </p>
       <p v-else class="text-[12px] italic text-muted-foreground/70">
-        （暂无摘要）
+        {{ t('library.threads.card.no_summary') }}
       </p>
 
       <div
@@ -56,7 +64,7 @@ const emit = defineEmits<{
         class="flex items-center gap-2 text-[10.5px] text-muted-foreground"
       >
         <Clock class="size-3 shrink-0" />
-        <span class="tabular-nums">{{ dateRangeFmt(thread.firstSessionAt, thread.lastSessionAt) }}</span>
+        <span class="tabular-nums">{{ dateRangeFmt(thread.firstSessionAt, thread.lastSessionAt, dateLocale, daysSuffix) }}</span>
       </div>
 
       <div
@@ -91,8 +99,8 @@ const emit = defineEmits<{
     </CardContent>
 
     <CardFooter class="mt-auto flex items-center justify-between px-4 text-[10.5px] text-muted-foreground/80">
-      <span class="tabular-nums">{{ thread.sessionCount }} 个会话</span>
-      <span class="tabular-nums">{{ timeFmt(thread.updatedAt) }}</span>
+      <span class="tabular-nums">{{ t('library.threads.card.session_count', { n: thread.sessionCount }) }}</span>
+      <span class="tabular-nums">{{ timeFmt(thread.updatedAt, dateLocale) }}</span>
     </CardFooter>
   </Card>
 </template>

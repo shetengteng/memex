@@ -11,7 +11,10 @@ import IdeDot from '@/components/shell/IdeDot.vue'
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
 import { parseBackendError } from '@/lib/utils'
+import { useI18n } from '@/i18n'
 import type { IdeStatus, SkillStatus, HookStatus } from '@/types'
+
+const { t } = useI18n()
 
 interface IdeRow {
   id: string
@@ -74,14 +77,20 @@ function formatToggleError(e: unknown): string {
   return parsed.message || parsed.kind
 }
 
+function actionLabel(installed: boolean): string {
+  return installed
+    ? t('connect.ide.toast.action.installed')
+    : t('connect.ide.toast.action.uninstalled')
+}
+
 async function toggleMcp(row: IdeRow, next: boolean) {
   busy.value[row.id] = true
   try {
     const s = next ? await memex.ideInstall(row.id) : await memex.ideUninstall(row.id)
     row.mcpInstalled = s.installed
-    toast.success(`${row.label} MCP 已${next ? '安装' : '卸载'}`)
+    toast.success(t('connect.ide.toast.mcp_action', { label: row.label, action: actionLabel(next) }))
   } catch (e) {
-    toast.error(`${row.label} MCP 切换失败：${formatToggleError(e)}`)
+    toast.error(t('connect.ide.toast.mcp_failed', { label: row.label, err: formatToggleError(e) }))
   } finally {
     busy.value[row.id] = false
   }
@@ -92,9 +101,9 @@ async function toggleSkill(row: IdeRow, next: boolean) {
   try {
     const s = next ? await memex.skillInstall(row.id) : await memex.skillUninstall(row.id)
     row.skillInstalled = s.installed
-    toast.success(`${row.label} SKILL 已${next ? '安装' : '卸载'}`)
+    toast.success(t('connect.ide.toast.skill_action', { label: row.label, action: actionLabel(next) }))
   } catch (e) {
-    toast.error(`${row.label} SKILL 切换失败：${formatToggleError(e)}`)
+    toast.error(t('connect.ide.toast.skill_failed', { label: row.label, err: formatToggleError(e) }))
   } finally {
     busy.value[row.id + ':skill'] = false
   }
@@ -105,9 +114,9 @@ async function toggleHook(row: IdeRow, next: boolean) {
   try {
     const s = next ? await memex.hookInstall(row.id) : await memex.hookUninstall(row.id)
     row.hookInstalled = s.installed
-    toast.success(`${row.label} Hook 已${next ? '安装' : '卸载'}`)
+    toast.success(t('connect.ide.toast.hook_action', { label: row.label, action: actionLabel(next) }))
   } catch (e) {
-    toast.error(`${row.label} Hook 切换失败：${formatToggleError(e)}`)
+    toast.error(t('connect.ide.toast.hook_failed', { label: row.label, err: formatToggleError(e) }))
   } finally {
     busy.value[row.id + ':hook'] = false
   }
@@ -120,23 +129,23 @@ async function toggleHook(row: IdeRow, next: boolean) {
       <div>
         <div class="flex items-center gap-2">
           <Puzzle class="size-3.5" :style="{ color: 'var(--adapter-claude)' }" />
-          <h2 class="text-[15px] font-semibold">IDE 集成</h2>
+          <h2 class="text-[15px] font-semibold">{{ t('connect.ide.title') }}</h2>
           <Badge variant="secondary" class="text-[10px]">
-            {{ installedIdeCount }} / {{ rows.length }} 已接入
+            {{ t('connect.ide.summary', { installed: installedIdeCount, total: rows.length }) }}
           </Badge>
         </div>
         <p class="mt-0.5 text-[11px] text-muted-foreground">
-          一键把 Memex MCP / SKILL / 项目记忆注入到目标 IDE
+          {{ t('connect.ide.subtitle') }}
         </p>
       </div>
     </div>
 
     <Card class="overflow-hidden p-0">
       <div v-if="loading && rows.length === 0" class="px-4 py-6 text-center text-[12px] text-muted-foreground">
-        加载中…
+        {{ t('connect.ide.loading') }}
       </div>
       <div v-else-if="rows.length === 0" class="px-4 py-6 text-center text-[12px] text-muted-foreground">
-        未检测到可接入的 IDE
+        {{ t('connect.ide.empty') }}
       </div>
       <template v-else>
         <div
@@ -151,13 +160,13 @@ async function toggleHook(row: IdeRow, next: boolean) {
             <div v-if="row.configPath" class="truncate font-mono text-[10px] text-muted-foreground">
               {{ row.configPath }}
             </div>
-            <div v-else class="text-[10px] text-muted-foreground">未找到配置</div>
+            <div v-else class="text-[10px] text-muted-foreground">{{ t('connect.ide.config_missing') }}</div>
           </div>
 
           <Tooltip>
             <TooltipTrigger as-child>
               <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-medium text-muted-foreground">MCP</span>
+                <span class="text-[11px] font-medium text-muted-foreground">{{ t('connect.ide.col.mcp') }}</span>
                 <Switch
                   :model-value="row.mcpInstalled"
                   :disabled="busy[row.id]"
@@ -166,14 +175,14 @@ async function toggleHook(row: IdeRow, next: boolean) {
               </div>
             </TooltipTrigger>
             <TooltipContent side="top" class="max-w-xs text-[11px]">
-              MCP server — 让 AI 用 search_memory / get_session 等工具读取 Memex 数据
+              {{ t('connect.ide.tooltip.mcp') }}
             </TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger as-child>
               <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-medium text-muted-foreground">SKILL</span>
+                <span class="text-[11px] font-medium text-muted-foreground">{{ t('connect.ide.col.skill') }}</span>
                 <Switch
                   :model-value="row.skillInstalled"
                   :disabled="busy[row.id + ':skill']"
@@ -182,7 +191,7 @@ async function toggleHook(row: IdeRow, next: boolean) {
               </div>
             </TooltipTrigger>
             <TooltipContent side="top" class="max-w-xs text-[11px]">
-              SKILL.md — 把 Memex 用法写入 IDE 的 skills 目录，AI 自动学会怎么用
+              {{ t('connect.ide.tooltip.skill') }}
             </TooltipContent>
           </Tooltip>
 
@@ -192,7 +201,7 @@ async function toggleHook(row: IdeRow, next: boolean) {
                 class="flex items-center gap-1.5"
                 :class="!row.hookSupported && 'opacity-40'"
               >
-                <span class="text-[11px] font-medium text-muted-foreground">Hook 钩子</span>
+                <span class="text-[11px] font-medium text-muted-foreground">{{ t('connect.ide.col.hook') }}</span>
                 <Switch
                   :model-value="row.hookInstalled"
                   :disabled="!row.hookSupported || busy[row.id + ':hook']"
@@ -202,18 +211,18 @@ async function toggleHook(row: IdeRow, next: boolean) {
             </TooltipTrigger>
             <TooltipContent side="top" class="max-w-xs text-[11px]">
               <span v-if="row.hookSupported">
-                Hook 钩子：AI 会话启动时自动注入「项目工作记忆」（最近的叙述摘要 + 相关决策）
+                {{ t('connect.ide.tooltip.hook_supported') }}
               </span>
-              <span v-else>该 IDE 暂不支持自动注入项目记忆（仅 Claude Code Hook 支持）</span>
+              <span v-else>{{ t('connect.ide.tooltip.hook_unsupported') }}</span>
             </TooltipContent>
           </Tooltip>
         </div>
         <Separator />
         <div class="flex items-center justify-between px-4 py-2.5">
-          <span class="text-[10px] italic text-muted-foreground">修改后请重启对应 IDE 生效</span>
+          <span class="text-[10px] italic text-muted-foreground">{{ t('connect.ide.hint.restart') }}</span>
           <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="loading" @click="loadStatus">
             <RefreshCw :class="['size-3', loading && 'animate-spin']" />
-            重新检测
+            {{ t('connect.ide.action.recheck') }}
           </Button>
         </div>
       </template>

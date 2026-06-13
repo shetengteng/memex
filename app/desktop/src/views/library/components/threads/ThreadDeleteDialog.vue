@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-vue-next'
 import type { ThreadRow } from '@/types'
+import { useI18n } from '@/i18n'
 
 defineProps<{
   target: ThreadRow | null
@@ -22,6 +23,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ confirm: []; cancel: [] }>()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -31,12 +33,12 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
   >
     <DialogContent class="w-[92vw] !max-w-md">
       <DialogHeader>
-        <DialogTitle>删除线索</DialogTitle>
+        <DialogTitle>{{ t('library.threads.delete.title') }}</DialogTitle>
         <DialogDescription>
-          将删除「{{ target?.name }}」（{{ target?.sessionCount }} 个会话的关联）。
+          {{ t('library.threads.delete.description', { name: target?.name ?? '', count: target?.sessionCount ?? 0 }) }}
           <br />
           <span class="text-muted-foreground">
-            只是删除主题分组，不会删除会话本身。下次"全量聚类"可能会再生成同名线索。
+            {{ t('library.threads.delete.warning') }}
           </span>
         </DialogDescription>
       </DialogHeader>
@@ -47,7 +49,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
           :disabled="deleting"
           @click="emit('cancel')"
         >
-          取消
+          {{ t('library.threads.delete.cancel') }}
         </Button>
         <Button
           type="button"
@@ -56,7 +58,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
           @click="emit('confirm')"
         >
           <Loader2 v-if="deleting" class="mr-1.5 size-3.5 animate-spin" />
-          删除
+          {{ t('library.threads.delete.confirm') }}
         </Button>
       </DialogFooter>
     </DialogContent>

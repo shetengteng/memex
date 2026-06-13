@@ -12,8 +12,14 @@ import type { WorkloadReport } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import DailyBarChart from './DailyBarChart.vue'
 import { buildAdapterUsage } from '../composables/adapterUsage'
+import { useI18n } from '@/i18n'
 
+const { t } = useI18n()
 const memex = useMemex()
+// weekday key: 0..6 → Sun..Sat（与 habitHeatmap 行索引对齐）
+function weekdayLabel(idx: number): string {
+  return t(`insights.trends.weekday.${idx}` as `insights.trends.weekday.0`)
+}
 const range = ref<'7d' | '30d' | '90d'>('30d')
 const data = ref<WorkloadReport | null>(null)
 const loading = ref(false)
@@ -98,35 +104,35 @@ const projectUsage = computed(() => {
     <div class="mb-4 flex items-center justify-between">
       <Tabs v-model="range">
         <TabsList class="h-8">
-          <TabsTrigger value="7d" class="gap-1 text-[12px]">近 7 天</TabsTrigger>
-          <TabsTrigger value="30d" class="gap-1 text-[12px]">近 30 天</TabsTrigger>
-          <TabsTrigger value="90d" class="gap-1 text-[12px]">近 90 天</TabsTrigger>
+          <TabsTrigger value="7d" class="gap-1 text-[12px]">{{ t('insights.trends.range.7d') }}</TabsTrigger>
+          <TabsTrigger value="30d" class="gap-1 text-[12px]">{{ t('insights.trends.range.30d') }}</TabsTrigger>
+          <TabsTrigger value="90d" class="gap-1 text-[12px]">{{ t('insights.trends.range.90d') }}</TabsTrigger>
         </TabsList>
       </Tabs>
       <Button variant="outline" size="sm" class="h-8 gap-1.5" :disabled="loading" @click="load">
         <RefreshCw :class="['size-3.5', loading && 'animate-spin']" />
-        {{ loading ? '加载中…' : '刷新' }}
+        {{ loading ? t('insights.trends.action.busy') : t('insights.trends.action.refresh') }}
       </Button>
     </div>
 
     <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Card class="p-4">
-        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">会话总数</div>
+        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">{{ t('insights.trends.kpi.sessions') }}</div>
         <div class="text-2xl font-bold tabular-nums">{{ trendKpi.sessions.toLocaleString() }}</div>
       </Card>
       <Card class="p-4">
-        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">消息总数</div>
+        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">{{ t('insights.trends.kpi.messages') }}</div>
         <div class="text-2xl font-bold tabular-nums">{{ trendKpi.messages.toLocaleString() }}</div>
       </Card>
       <Card class="p-4">
-        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">活跃天数</div>
+        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">{{ t('insights.trends.kpi.active_days') }}</div>
         <div class="flex items-baseline gap-2">
           <span class="text-2xl font-bold tabular-nums">{{ trendKpi.active }}</span>
-          <span class="text-[12px] text-muted-foreground">/ {{ trendKpi.total }} 天</span>
+          <span class="text-[12px] text-muted-foreground">{{ t('insights.trends.kpi.active_total', { n: trendKpi.total }) }}</span>
         </div>
       </Card>
       <Card class="p-4">
-        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">峰值日</div>
+        <div class="mb-1 text-[11px] tracking-wider text-muted-foreground">{{ t('insights.trends.kpi.peak_day') }}</div>
         <div class="text-[15px] font-semibold tabular-nums">
           {{ trendKpi.peakDate }} · {{ trendKpi.peakCount }}
         </div>
@@ -140,13 +146,13 @@ const projectUsage = computed(() => {
     />
 
     <Card class="mb-5 p-5">
-      <h3 class="mb-1 text-[14px] font-semibold">小时 × 星期 习惯图</h3>
-      <p class="mb-3 text-[11px] text-muted-foreground">看看你最高产的时段</p>
+      <h3 class="mb-1 text-[14px] font-semibold">{{ t('insights.trends.heatmap.title') }}</h3>
+      <p class="mb-3 text-[11px] text-muted-foreground">{{ t('insights.trends.heatmap.subtitle') }}</p>
 
       <div class="space-y-1">
         <div v-for="(row, di) in habitHeatmap" :key="di" class="flex items-center gap-1">
           <span class="w-8 text-right text-[10px] text-muted-foreground">
-            {{ ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][di] }}
+            {{ weekdayLabel(di) }}
           </span>
           <div class="flex flex-1 gap-[2px]">
             <Tooltip v-for="(v, hi) in row" :key="hi" :delay-duration="80">
@@ -159,11 +165,11 @@ const projectUsage = computed(() => {
               <TooltipContent side="top" :side-offset="4" class="px-2.5 py-1.5">
                 <div class="text-[11px] leading-tight">
                   <div class="font-medium">
-                    {{ ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][di] }}
+                    {{ weekdayLabel(di) }}
                     <span class="tabular-nums">{{ String(hi).padStart(2, '0') }}:00</span>
                   </div>
                   <div class="mt-0.5 tabular-nums text-muted-foreground">
-                    {{ v }} 个会话
+                    {{ t('insights.trends.heatmap.session_count', { n: v }) }}
                   </div>
                 </div>
               </TooltipContent>
@@ -192,25 +198,25 @@ const projectUsage = computed(() => {
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card class="p-5">
-        <h3 class="mb-1 text-[14px] font-semibold">工具使用</h3>
-        <p class="mb-3 text-[11px] text-muted-foreground">按会话数排序</p>
+        <h3 class="mb-1 text-[14px] font-semibold">{{ t('insights.trends.adapter.title') }}</h3>
+        <p class="mb-3 text-[11px] text-muted-foreground">{{ t('insights.trends.adapter.subtitle') }}</p>
         <ul class="space-y-3">
-          <li v-for="t in adapterUsage" :key="t.id">
+          <li v-for="row in adapterUsage" :key="row.id">
             <div class="mb-1 flex items-baseline justify-between text-[12px]">
               <span class="flex items-center gap-1.5 font-medium">
-                <IdeDot :adapter="t.id" />
-                {{ t.label }}
+                <IdeDot :adapter="row.id" />
+                {{ row.label }}
               </span>
               <Tooltip :delay-duration="120">
                 <TooltipTrigger as-child>
                   <span class="cursor-default text-muted-foreground tabular-nums">
-                    {{ t.count }} ({{ t.sharePct }}%)
+                    {{ row.count }} ({{ row.sharePct }}%)
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="left" :side-offset="6" class="px-2.5 py-1.5 text-[11px]">
                   <div class="leading-tight">
-                    <div class="tabular-nums">{{ t.count.toLocaleString() }} 个会话</div>
-                    <div class="mt-0.5 text-muted-foreground">占当前区间总会话数</div>
+                    <div class="tabular-nums">{{ t('insights.trends.heatmap.session_count', { n: row.count.toLocaleString() }) }}</div>
+                    <div class="mt-0.5 text-muted-foreground">{{ t('insights.trends.adapter.tooltip.share') }}</div>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -219,8 +225,8 @@ const projectUsage = computed(() => {
               <div
                 class="h-full rounded-full"
                 :style="{
-                  width: t.widthPct + '%',
-                  background: `var(--adapter-${t.id.replace('_code', '')})`,
+                  width: row.widthPct + '%',
+                  background: `var(--adapter-${row.id.replace('_code', '')})`,
                 }"
               />
             </div>
@@ -229,8 +235,8 @@ const projectUsage = computed(() => {
       </Card>
 
       <Card class="p-5">
-        <h3 class="mb-1 text-[14px] font-semibold">项目 Top 10</h3>
-        <p class="mb-3 text-[11px] text-muted-foreground">按会话数排序</p>
+        <h3 class="mb-1 text-[14px] font-semibold">{{ t('insights.trends.project.title') }}</h3>
+        <p class="mb-3 text-[11px] text-muted-foreground">{{ t('insights.trends.project.subtitle') }}</p>
         <ul class="space-y-3">
           <li v-for="p in projectUsage" :key="p.name">
             <div class="mb-1 flex items-baseline justify-between text-[12px]">

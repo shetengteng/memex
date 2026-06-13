@@ -44,12 +44,15 @@ import LibraryThreadsTab from './components/LibraryThreadsTab.vue'
 import LibraryProjectsGrid from './components/LibraryProjectsGrid.vue'
 import {
   groupSessionsByDate,
+  type GroupLabels,
   type SortKey,
   type SummaryFilter,
   type TimeFilter,
 } from './composables/sessionFilters'
+import { useI18n } from '@/i18n'
 
 const memex = useMemex()
+const { t } = useI18n()
 const ingesting = ref(false)
 const loadingMore = ref(false)
 const LOAD_MORE_PAGE_SIZE = 100
@@ -60,10 +63,10 @@ async function runIngest() {
   startScanning()
   try {
     const r = await memex.triggerIngest()
-    toast.success(`采集完成：新消息 ${r.messages_ingested} 条，新片段 ${r.chunks_created} 块`)
+    toast.success(t('library.sessions.toast.ingest_done', { messages: r.messages_ingested, chunks: r.chunks_created }))
     await Promise.all([reloadLibrarySessions(currentFilter.value), refreshProjects()])
   } catch (e) {
-    toastBackendError('采集失败', e)
+    toastBackendError(t('library.sessions.toast.ingest_failed'), e)
   } finally {
     stopScanning()
     ingesting.value = false
@@ -76,7 +79,7 @@ async function onLoadMore() {
   try {
     const r = await loadMoreLibrarySessions(currentFilter.value, LOAD_MORE_PAGE_SIZE)
     if (r.loaded === 0) {
-      toast.info('已加载全部会话')
+      toast.info(t('library.sessions.toast.all_loaded'))
     }
   } finally {
     loadingMore.value = false
@@ -163,7 +166,13 @@ const clearFilters = () => {
 // 时间窗口（'today' / '7d' / '30d' / '90d'）正交——前者是"如何分块展示"，
 // 后者是"是否纳入结果集"。所以列表已经被后端按 fTime 过滤一遍后，仍然
 // 用本地时间做分组，让"今天 / 昨天 / 本周"在 UI 上始终可读。
-const groupedFiltered = computed(() => groupSessionsByDate(librarySessions))
+const groupLabels = computed<GroupLabels>(() => ({
+  today: t('library.group.today'),
+  yesterday: t('library.group.yesterday'),
+  week: t('library.group.week'),
+  earlier: t('library.group.earlier'),
+}))
+const groupedFiltered = computed(() => groupSessionsByDate(librarySessions, new Date(), groupLabels.value))
 
 // 当前过滤态打包成后端 DTO（None / 不传字段 = 不过滤）。
 // 注意 7d/all 等 default 值仍然传给后端，让 SQL WHERE 显式过滤；这跟前端
@@ -257,9 +266,9 @@ watch(
 )
 
 const sortLabel = computed(() => {
-  if (sort.value === 'duration') return '时长'
-  if (sort.value === 'messages') return '消息数'
-  return '最近更新'
+  if (sort.value === 'duration') return t('library.sessions.sort.duration')
+  if (sort.value === 'messages') return t('library.sessions.sort.messages')
+  return t('library.sessions.sort.recent')
 })
 
 const activeFilterCount = computed(
@@ -329,15 +338,15 @@ onBeforeUnmount(() => {
         <TabsList class="h-8">
           <TabsTrigger value="sessions" class="gap-1.5 text-[12px]">
             <MessagesSquare class="size-3.5" />
-            会话
+            {{ t('library.tabs.sessions') }}
           </TabsTrigger>
           <TabsTrigger value="projects" class="gap-1.5 text-[12px]">
             <FolderGit2 class="size-3.5" />
-            项目
+            {{ t('library.tabs.projects') }}
           </TabsTrigger>
           <TabsTrigger value="threads" class="gap-1.5 text-[12px]">
             <GitBranch class="size-3.5" />
-            线索
+            {{ t('library.tabs.threads') }}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -346,11 +355,11 @@ onBeforeUnmount(() => {
     <Teleport to="#memex-header-actions" defer>
       <Button variant="outline" size="sm" class="h-8 gap-2" disabled>
         <Download class="size-4" />
-        导出
+        {{ t('library.action.export') }}
       </Button>
       <Button size="sm" class="h-8 gap-2" :disabled="ingesting" @click="runIngest">
         <RefreshCw :class="['size-4', ingesting && 'animate-spin']" />
-        {{ ingesting ? '采集中…' : '立即采集' }}
+        {{ ingesting ? t('library.action.ingest_busy') : t('library.action.ingest') }}
       </Button>
     </Teleport>
 
@@ -381,7 +390,7 @@ onBeforeUnmount(() => {
       <div
         v-if="tab === 'sessions'"
         class="group/resize hidden w-1 shrink-0 cursor-col-resize select-none transition-colors hover:bg-primary/40 lg:block"
-        title="拖拽调整宽度（双击重置）"
+        :title="t('library.sessions.facets_resize_title')"
         @mousedown="startFacetsDrag"
         @dblclick="resetFacets"
       />
@@ -395,10 +404,10 @@ onBeforeUnmount(() => {
             <Search
               class="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
             />
-            <Input v-model="query" class="h-9 pl-9" placeholder="按标题、摘要或片段搜索…" />
+            <Input v-model="query" class="h-9 pl-9" :placeholder="t('library.sessions.search_placeholder')" />
           </div>
           <span class="hidden whitespace-nowrap text-[11px] text-muted-foreground md:inline">
-            {{ activeFilterCount }} 个筛选 · 显示
+            {{ t('library.sessions.filter_summary_label', { n: activeFilterCount }) }}
             <span class="font-medium text-foreground tabular-nums">{{ librarySessions.length }}</span>
             /
             <Tooltip :delay-duration="120">
@@ -406,8 +415,7 @@ onBeforeUnmount(() => {
                 <span class="cursor-default tabular-nums">{{ formatCount(totals.sessions) }}</span>
               </TooltipTrigger>
               <TooltipContent side="top" :side-offset="6" class="px-2 py-1 text-[11px]">
-                <span class="tabular-nums">{{ totals.sessions.toLocaleString() }}</span>
-                <span class="ml-1 text-muted-foreground">个会话</span>
+                <span class="tabular-nums">{{ t('library.facets.tooltip.session_count', { n: totals.sessions.toLocaleString() }) }}</span>
               </TooltipContent>
             </Tooltip>
           </span>
@@ -420,10 +428,10 @@ onBeforeUnmount(() => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem @click="sort = 'recent'">最近更新</DropdownMenuItem>
+              <DropdownMenuItem @click="sort = 'recent'">{{ t('library.sessions.sort.recent') }}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem @click="sort = 'duration'">时长</DropdownMenuItem>
-              <DropdownMenuItem @click="sort = 'messages'">消息数</DropdownMenuItem>
+              <DropdownMenuItem @click="sort = 'duration'">{{ t('library.sessions.sort.duration') }}</DropdownMenuItem>
+              <DropdownMenuItem @click="sort = 'messages'">{{ t('library.sessions.sort.messages') }}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -457,8 +465,8 @@ onBeforeUnmount(() => {
             class="flex flex-col items-center gap-2 py-12 text-center text-[12px] text-muted-foreground"
           >
             <MessagesSquare class="size-8 text-muted-foreground/40" />
-            <p v-if="hasActiveFilters">没有匹配筛选条件的会话</p>
-            <p v-else>暂无会话，点击右上角"立即采集"开始扫描</p>
+            <p v-if="hasActiveFilters">{{ t('library.sessions.empty.no_match') }}</p>
+            <p v-else>{{ t('library.sessions.empty.no_data') }}</p>
           </div>
 
           <div
@@ -471,12 +479,10 @@ onBeforeUnmount(() => {
               class="flex items-center gap-2 py-1"
             >
               <RefreshCw :class="['size-3.5', loadingMore && 'animate-spin']" />
-              <span>{{ loadingMore ? '加载中…' : '继续滚动加载更多' }}</span>
+              <span>{{ loadingMore ? t('library.sessions.load_more.busy') : t('library.sessions.load_more.idle') }}</span>
             </div>
             <span v-else>
-              已显示全部
-              <span class="font-medium text-foreground tabular-nums">{{ librarySessions.length }}</span>
-              个会话
+              {{ t('library.sessions.load_more.all_shown', { n: librarySessions.length }) }}
             </span>
           </div>
         </div>

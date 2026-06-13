@@ -11,6 +11,9 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Loader2, RefreshCw, Wand2 } from 'lucide-vue-next'
 import type { FilterKey } from '../../composables/useThreadsView'
+import { useI18n } from '@/i18n'
+
+const { t } = useI18n()
 
 defineProps<{
   llmQuery: string
@@ -43,7 +46,7 @@ const emit = defineEmits<{
             id="threads-search-input"
             :model-value="llmQuery"
             class="h-9 pl-9 text-[13px]"
-            placeholder="输入主题、关键词或问题，让 LLM 从历史会话里挑出相关线索…"
+            :placeholder="t('library.threads.search_placeholder')"
             :disabled="llmSearching"
             @update:model-value="(v) => emit('update:llmQuery', String(v))"
           />
@@ -56,7 +59,7 @@ const emit = defineEmits<{
         >
           <Loader2 v-if="llmSearching" class="size-3.5 animate-spin" />
           <Wand2 v-else class="size-3.5" />
-          <span class="ml-1.5">检索</span>
+          <span class="ml-1.5">{{ t('library.threads.action.search') }}</span>
         </Button>
       </form>
 
@@ -64,7 +67,7 @@ const emit = defineEmits<{
 
       <div class="flex shrink-0 items-center gap-3 text-[12px]">
         <label class="flex cursor-pointer items-center gap-2 text-muted-foreground">
-          <span>自动聚类</span>
+          <span>{{ t('library.threads.action.auto_cluster') }}</span>
           <Switch
             :model-value="autoCluster"
             size="sm"
@@ -81,7 +84,7 @@ const emit = defineEmits<{
         >
           <Loader2 v-if="regenerating" class="size-3.5 animate-spin" />
           <RefreshCw v-else class="size-3.5" />
-          <span class="ml-1.5">全量聚类</span>
+          <span class="ml-1.5">{{ t('library.threads.action.regenerate') }}</span>
         </Button>
       </div>
     </div>
@@ -93,7 +96,7 @@ const emit = defineEmits<{
         class="cursor-pointer rounded-full px-3 py-1 text-[12px]"
         @click="emit('update:filter', 'all')"
       >
-        全部
+        {{ t('library.threads.filter.all') }}
         <span class="ml-1 tabular-nums opacity-70">{{ filterCounts.all }}</span>
       </Badge>
       <Badge
@@ -101,7 +104,7 @@ const emit = defineEmits<{
         class="cursor-pointer rounded-full px-3 py-1 text-[12px]"
         @click="emit('update:filter', 'multi_project')"
       >
-        跨多项目
+        {{ t('library.threads.filter.multi_project') }}
         <span class="ml-1 tabular-nums opacity-70">{{ filterCounts.multi_project }}</span>
       </Badge>
       <Badge
@@ -109,7 +112,7 @@ const emit = defineEmits<{
         class="cursor-pointer rounded-full px-3 py-1 text-[12px]"
         @click="emit('update:filter', 'recent_7d')"
       >
-        近 7 天
+        {{ t('library.threads.filter.recent_7d') }}
         <span class="ml-1 tabular-nums opacity-70">{{ filterCounts.recent_7d }}</span>
       </Badge>
     </div>

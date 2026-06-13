@@ -3,6 +3,9 @@ import { computed } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { WorkloadDailyEntry } from '@/types'
+import { useI18n } from '@/i18n'
+
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   daily: WorkloadDailyEntry[]
@@ -70,28 +73,33 @@ function barHeightPct(v: number): number {
 function tooltipDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  const wk = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
-  return `${wk} · ${d.getMonth() + 1}月${d.getDate()}日`
+  const wk = t(`insights.trends.weekday.${d.getDay()}` as `insights.trends.weekday.0`)
+  return t('insights.daily.tooltip.date', { wk, month: d.getMonth() + 1, day: d.getDate() })
 }
+// 让英文 locale 下 toLocaleString 输出英文千分位（影响 KPI 上面的总数文案）
+void locale
 </script>
 
 <template>
   <Card class="p-5">
     <div class="mb-3 flex items-end justify-between">
       <div>
-        <h3 class="text-[14px] font-semibold">每日趋势</h3>
+        <h3 class="text-[14px] font-semibold">{{ t('insights.daily.title') }}</h3>
         <p class="text-[11px] text-muted-foreground">
-          过去 {{ days }} 天 · 共 {{ totalSessions.toLocaleString() }} 个会话 ·
-          {{ totalMessages.toLocaleString() }} 条消息
+          {{ t('insights.daily.subtitle', {
+            days,
+            sessions: totalSessions.toLocaleString(),
+            messages: totalMessages.toLocaleString(),
+          }) }}
         </p>
       </div>
       <div class="text-[10px] text-muted-foreground">
-        峰值 {{ maxSessions }} / 日
+        {{ t('insights.daily.peak', { n: maxSessions }) }}
       </div>
     </div>
 
     <div v-if="!filled.length" class="py-8 text-center text-[12px] text-muted-foreground">
-      暂无数据
+      {{ t('insights.daily.empty') }}
     </div>
 
     <template v-else>
@@ -115,7 +123,7 @@ function tooltipDate(iso: string): string {
             <div class="text-[11px] leading-tight">
               <div class="font-medium">{{ tooltipDate(d.date) }}</div>
               <div class="mt-0.5 tabular-nums text-muted-foreground">
-                {{ d.sessions }} 会话 · {{ d.messages }} 消息
+                {{ t('insights.daily.tooltip.summary', { sessions: d.sessions, messages: d.messages }) }}
               </div>
             </div>
           </TooltipContent>

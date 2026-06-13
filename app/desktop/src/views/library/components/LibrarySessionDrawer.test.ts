@@ -16,14 +16,27 @@ vi.mock('@/composables/useMemex', () => ({
 // 简单的中文 i18n stub，避免依赖完整 i18n 设置
 vi.mock('@/i18n', () => ({
   useI18n: () => ({
+    locale: { value: 'zh' },
     t: (key: string, params?: Record<string, unknown>) => {
       const dict: Record<string, string> = {
         'session.role.user': '用户',
         'session.role.assistant': '助手',
         'session.messages': '消息',
+        'library.drawer.fallback_title': '会话详情',
+        'library.drawer.summary_state.done': '会话摘要已生成',
+        'library.drawer.summary_state.pending': '会话摘要待生成',
+        'library.drawer.loading_detail': '加载详情中…',
+        'library.drawer.section.intent': '用户意图',
+        'library.drawer.section.summary': '会话摘要',
+        'library.drawer.section.topics': '主题',
+        'library.drawer.section.decisions': '关键决策',
+        'library.drawer.empty_detail': '未找到会话详情',
       }
       if (key === 'session.load_more') {
         return `加载更多（还剩 ${params?.count} 条）`
+      }
+      if (key === 'library.drawer.message_count') {
+        return `${params?.n ?? 0} 条消息`
       }
       return dict[key] ?? key
     },

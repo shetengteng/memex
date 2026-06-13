@@ -5,8 +5,12 @@ import { Input } from '@/components/ui/input'
 import IdeDot from '@/components/shell/IdeDot.vue'
 import { ChevronRight, FolderGit2, Search } from 'lucide-vue-next'
 import { ADAPTER_MAP, projects } from '@/stores/memex'
+import { useI18n } from '@/i18n'
 
 defineEmits<{ open: [string] }>()
+
+const { t, locale } = useI18n()
+const dateLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'zh-CN'))
 
 const projectQuery = ref('')
 
@@ -36,7 +40,7 @@ const totalProjectSessions = computed(() =>
 )
 
 const tFmt = (iso: string) =>
-  new Date(iso).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
+  new Date(iso).toLocaleString(dateLocale.value, { dateStyle: 'short', timeStyle: 'short' })
 </script>
 
 <template>
@@ -49,17 +53,17 @@ const tFmt = (iso: string) =>
         <Input
           v-model="projectQuery"
           class="h-9 pl-9"
-          placeholder="按项目名、路径或标签搜索…"
+          :placeholder="t('library.projects.search_placeholder')"
         />
       </div>
       <span class="hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline">
-        共
+        {{ t('library.projects.summary_prefix') }}
         <span class="font-medium text-foreground tabular-nums">{{ filteredProjects.length }}</span>
-        个项目 ·
+        {{ t('library.projects.summary_middle') }}
         <span class="font-medium text-foreground tabular-nums">
           {{ totalProjectSessions.toLocaleString() }}
         </span>
-        个会话
+        {{ t('library.projects.summary_suffix') }}
       </span>
     </div>
 
@@ -76,23 +80,23 @@ const tFmt = (iso: string) =>
               <FolderGit2 class="size-4 text-muted-foreground" />
               <span class="text-[14px] font-semibold">{{ p.name }}</span>
             </div>
-            <Badge variant="secondary" class="tabular-nums">{{ p.sessions }} 个会话</Badge>
+            <Badge variant="secondary" class="tabular-nums">{{ t('library.projects.session_count', { n: p.sessions }) }}</Badge>
           </div>
           <div class="mb-3 truncate font-mono text-[10px] text-muted-foreground">{{ p.path }}</div>
           <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
             <IdeDot :adapter="p.primaryAdapter" />
-            主用 {{ ADAPTER_MAP[p.primaryAdapter]?.label ?? p.primaryAdapter }}
+            {{ t('library.projects.primary_adapter', { label: ADAPTER_MAP[p.primaryAdapter]?.label ?? p.primaryAdapter }) }}
             <span>·</span>
-            <span>最近活跃 {{ tFmt(p.lastActiveAt) }}</span>
+            <span>{{ t('library.projects.last_active', { time: tFmt(p.lastActiveAt) }) }}</span>
           </div>
           <div class="mt-3 flex items-center justify-between">
             <div class="flex flex-wrap gap-1.5">
-              <Badge v-for="t in p.tags" :key="t" variant="outline" class="text-[10px]">{{ t }}</Badge>
+              <Badge v-for="tag in p.tags" :key="tag" variant="outline" class="text-[10px]">{{ tag }}</Badge>
             </div>
             <span
               class="inline-flex items-center gap-1 text-[11px] text-primary opacity-0 transition group-hover:opacity-100"
             >
-              查看会话
+              {{ t('library.projects.view_sessions') }}
               <ChevronRight class="size-3" />
             </span>
           </div>
@@ -101,7 +105,7 @@ const tFmt = (iso: string) =>
       <div v-else class="flex h-40 items-center justify-center">
         <div class="text-center">
           <FolderGit2 class="mx-auto size-8 text-muted-foreground/40" />
-          <p class="mt-2 text-[12px] text-muted-foreground">没有匹配的项目</p>
+          <p class="mt-2 text-[12px] text-muted-foreground">{{ t('library.projects.empty') }}</p>
         </div>
       </div>
     </div>

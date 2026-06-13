@@ -17,7 +17,9 @@ import { useMemex } from '@/composables/useMemex'
 import { useDaemon } from '@/composables/useDaemon'
 import { formatNumber } from '@/lib/utils'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
 
+const { t } = useI18n()
 const memex = useMemex()
 // useDaemon 内部会启动 5s 轮询 + onMounted refresh，把结果写回 stores/memex.daemon。
 // popup 失焦自动隐藏后会 onScopeDispose 自动停止轮询，无需手动管理。
@@ -29,9 +31,11 @@ const llmModel = computed(() => daemonStatus.llmModel ?? 'qwen2.5')
 
 const daemonRunning = computed(() => daemon.value?.running ?? false)
 const daemonLabel = computed(() => {
-  if (!daemon.value) return '查询中…'
-  if (!daemon.value.running) return '后台未运行'
-  return daemon.value.pid ? `运行中 (pid ${daemon.value.pid})` : '运行中'
+  if (!daemon.value) return t('tray.daemon.querying')
+  if (!daemon.value.running) return t('tray.daemon.offline')
+  return daemon.value.pid
+    ? t('tray.daemon.running_with_pid', { pid: daemon.value.pid })
+    : t('tray.daemon.running')
 })
 
 async function onRestartDaemon(e: MouseEvent) {
@@ -39,10 +43,10 @@ async function onRestartDaemon(e: MouseEvent) {
   if (daemonLoading.value) return
   try {
     const r = await restartDaemon()
-    if (r?.running) toast.success('后台服务已重启')
-    else toast.error('重启后服务未运行，请检查日志')
+    if (r?.running) toast.success(t('tray.daemon.toast.restarted'))
+    else toast.error(t('tray.daemon.toast.restart_not_running'))
   } catch (err) {
-    toastBackendError('重启失败', err)
+    toastBackendError(t('tray.daemon.toast.restart_failed'), err)
   }
 }
 
@@ -115,9 +119,9 @@ onMounted(async () => {
             <span class="text-[12px] font-bold tracking-tight">Memex</span>
             <span
               class="text-[10px] text-muted-foreground tabular-nums"
-              :title="`${totals.sessions.toLocaleString()} sessions`"
+              :title="`${totals.sessions.toLocaleString()} ${t('tray.totals.sessions_suffix')}`"
             >
-              {{ formatNumber(totals.sessions) }} sessions
+              {{ formatNumber(totals.sessions) }} {{ t('tray.totals.sessions_suffix') }}
             </span>
           </div>
         </div>
@@ -134,7 +138,7 @@ onMounted(async () => {
           <Activity class="size-4" />
         </div>
         <div class="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-          {{ llmModel }} · {{ formatNumber(totals.messages) }} 条消息
+          {{ llmModel }} · {{ t('tray.status.message_count', { n: formatNumber(totals.messages) }) }}
         </div>
       </div>
 
@@ -148,7 +152,7 @@ onMounted(async () => {
         <div class="min-w-0 flex-1 leading-tight">
           <div class="text-[11px] font-semibold text-amber-700">{{ daemonLabel }}</div>
           <div class="mt-0.5 truncate text-[10px] text-muted-foreground">
-            端口可能被占或正在启动，可点右侧重试
+            {{ t('tray.daemon.alert.port_busy') }}
           </div>
         </div>
         <Button
@@ -159,13 +163,13 @@ onMounted(async () => {
           @click="onRestartDaemon"
         >
           <RefreshCw :class="['size-3', daemonLoading && 'animate-spin']" />
-          {{ daemonLoading ? '重启中…' : '重启' }}
+          {{ daemonLoading ? t('tray.daemon.action.restarting') : t('tray.daemon.action.restart') }}
         </Button>
       </div>
 
       <section class="min-h-0 flex-1 overflow-y-auto">
         <div class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          最近会话
+          {{ t('tray.section.recent') }}
         </div>
         <button
           v-for="s in recent"
@@ -185,13 +189,13 @@ onMounted(async () => {
         </button>
         <div v-if="recent.length === 0" class="flex flex-col items-center gap-2 px-4 py-8 text-center">
           <Sparkles class="size-6 text-muted-foreground/50" />
-          <p class="text-[11px] text-muted-foreground">还没有采集到会话</p>
+          <p class="text-[11px] text-muted-foreground">{{ t('tray.empty.no_sessions') }}</p>
         </div>
       </section>
 
       <footer class="flex items-center justify-end border-t bg-muted/40 px-3 py-2">
         <Button variant="default" size="sm" class="h-7 gap-1 text-[11px]" @click="openMain">
-          打开 Memex
+          {{ t('tray.footer.open_main') }}
           <ChevronRight class="size-3" />
         </Button>
       </footer>

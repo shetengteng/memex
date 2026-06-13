@@ -21,7 +21,8 @@ const props = defineProps<{ session: Session | null; open: boolean }>()
 defineEmits<{ 'update:open': [boolean] }>()
 
 const memex = useMemex()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const dateLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'zh-CN'))
 const detail = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
 const visibleCount = ref(50)
@@ -53,7 +54,7 @@ watch(
 const tFmt = (iso: string) => {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
+  return d.toLocaleString(dateLocale.value, { dateStyle: 'short', timeStyle: 'short' })
 }
 
 const visibleMessages = computed(() =>
@@ -72,7 +73,7 @@ const sessionFallbackTs = computed(() => {
 })
 
 function messageTimeLabel(ts: string): string {
-  const formatted = new Date(ts).toLocaleString('zh-CN', {
+  const formatted = new Date(ts).toLocaleString(dateLocale.value, {
     dateStyle: 'short',
     timeStyle: 'short',
   })
@@ -118,9 +119,9 @@ onBeforeUnmount(() => {
     >
       <!-- 让 reka-ui 的 a11y 不报缺失 title，正文里有自定义 header 时把官方 title 视觉隐藏 -->
       <VisuallyHidden>
-        <DialogTitle>{{ session?.title ?? '会话详情' }}</DialogTitle>
+        <DialogTitle>{{ session?.title ?? t('library.drawer.fallback_title') }}</DialogTitle>
         <DialogDescription>
-          {{ session ? `${session.messages} 条消息` : '' }}
+          {{ session ? t('library.drawer.message_count', { n: session.messages }) : '' }}
         </DialogDescription>
       </VisuallyHidden>
 
@@ -134,17 +135,17 @@ onBeforeUnmount(() => {
           </div>
           <h2 class="text-[16px] font-semibold leading-tight">{{ session.title }}</h2>
           <p class="mt-1 text-[12px] text-muted-foreground">
-            {{ session.messages }} 条消息 · 会话摘要{{ session.l2Done ? '已生成' : '待生成' }}
+            {{ t('library.drawer.message_count', { n: session.messages }) }} · {{ session.l2Done ? t('library.drawer.summary_state.done') : t('library.drawer.summary_state.pending') }}
           </p>
         </div>
       </header>
 
       <div v-if="session" class="flex-1 space-y-5 overflow-y-auto px-7 py-5">
-        <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">加载详情中…</p>
+        <p v-if="detailLoading" class="text-center text-[12px] text-muted-foreground">{{ t('library.drawer.loading_detail') }}</p>
 
         <section v-if="detail?.intent">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            用户意图
+            {{ t('library.drawer.section.intent') }}
           </div>
           <p class="whitespace-pre-line text-[13px] leading-relaxed text-muted-foreground">
             {{ detail.intent }}
@@ -153,14 +154,14 @@ onBeforeUnmount(() => {
 
         <section v-if="detail?.summary">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            会话摘要
+            {{ t('library.drawer.section.summary') }}
           </div>
           <p class="whitespace-pre-line text-[13px] leading-relaxed">{{ detail.summary }}</p>
         </section>
 
         <section v-if="detail?.topics?.length">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            主题
+            {{ t('library.drawer.section.topics') }}
           </div>
           <div class="flex flex-wrap gap-1.5">
             <Badge v-for="topic in detail.topics" :key="topic" variant="secondary">{{ topic }}</Badge>
@@ -169,7 +170,7 @@ onBeforeUnmount(() => {
 
         <section v-if="detail?.decisions?.length">
           <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            关键决策
+            {{ t('library.drawer.section.decisions') }}
           </div>
           <ul class="space-y-1.5 text-[13px]">
             <li v-for="d in detail.decisions" :key="d" class="flex gap-2">
@@ -253,7 +254,7 @@ onBeforeUnmount(() => {
         </section>
 
         <p v-if="!detailLoading && !detail" class="text-center text-[12px] italic text-muted-foreground">
-          未找到会话详情
+          {{ t('library.drawer.empty_detail') }}
         </p>
       </div>
     </DialogContent>

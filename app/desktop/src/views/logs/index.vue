@@ -16,7 +16,9 @@ import { toast } from 'vue-sonner'
 import { ArrowLeft, RefreshCw, Filter as FilterIcon, AlertTriangle } from 'lucide-vue-next'
 import { humanizeBackendError } from '@/lib/utils'
 import { toastBackendError } from '@/lib/toast-error'
+import { useI18n } from '@/i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 function goBackToSystemTab() {
   router.push({ path: '/settings', query: { tab: 'system' } })
@@ -59,12 +61,12 @@ const fileOptions = computed(() =>
   })),
 )
 
-const tailOptions = [
-  { value: 100, label: '最近 100 行' },
-  { value: 500, label: '最近 500 行' },
-  { value: 1000, label: '最近 1000 行' },
-  { value: 5000, label: '最近 5000 行' },
-]
+const tailOptions = computed(() => [
+  { value: 100, label: t('logs.tail.recent_n', { n: 100 }) },
+  { value: 500, label: t('logs.tail.recent_n', { n: 500 }) },
+  { value: 1000, label: t('logs.tail.recent_n', { n: 1000 }) },
+  { value: 5000, label: t('logs.tail.recent_n', { n: 5000 }) },
+])
 
 function formatBytes(b: number): string {
   if (b < 1024) return `${b} B`
@@ -76,7 +78,7 @@ async function loadFiles() {
   try {
     files.value = await invoke<DaemonLogFile[]>('list_daemon_log_files')
     if (!files.value.length) {
-      lastError.value = '日志目录为空。daemon 可能尚未启动或刚启动还没写入日志。'
+      lastError.value = t('logs.empty.no_dir')
       raw.value = null
       return
     }
@@ -84,7 +86,7 @@ async function loadFiles() {
       activeFile.value = files.value[0].name
     }
   } catch (e) {
-    lastError.value = `列出日志失败：${humanizeBackendError(e).friendly}`
+    lastError.value = t('logs.error.list_failed', { err: humanizeBackendError(e).friendly })
     files.value = []
   }
 }
@@ -99,7 +101,7 @@ async function loadContent() {
     })
     lastError.value = ''
   } catch (e) {
-    lastError.value = `读取日志失败：${humanizeBackendError(e).friendly}`
+    lastError.value = t('logs.error.read_failed', { err: humanizeBackendError(e).friendly })
     raw.value = null
   } finally {
     loading.value = false
@@ -115,9 +117,9 @@ async function copyAll() {
   if (!raw.value) return
   try {
     await navigator.clipboard.writeText(raw.value.lines.join('\n'))
-    toast.success('已复制日志到剪贴板')
+    toast.success(t('logs.toast.copied'))
   } catch (e) {
-    toastBackendError('复制失败', e)
+    toastBackendError(t('logs.toast.copy_failed'), e)
   }
 }
 
@@ -167,13 +169,13 @@ onBeforeUnmount(() => {
         @click="goBackToSystemTab"
       >
         <ArrowLeft class="size-3.5" />
-        返回系统
+        {{ t('logs.toolbar.back_to_system') }}
       </Button>
       <span class="h-4 w-px bg-border" aria-hidden="true" />
-      <span class="text-[12px] font-medium text-muted-foreground">日志文件</span>
+      <span class="text-[12px] font-medium text-muted-foreground">{{ t('logs.toolbar.file_label') }}</span>
       <Select v-model="activeFile" :disabled="!files.length">
         <SelectTrigger class="h-8 w-[280px] text-[12px]">
-          <SelectValue placeholder="选择日志文件" />
+          <SelectValue :placeholder="t('logs.toolbar.file_placeholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem v-for="opt in fileOptions" :key="opt.value" :value="opt.value">
@@ -184,7 +186,7 @@ onBeforeUnmount(() => {
 
       <Select v-model.number="tailLines">
         <SelectTrigger class="h-8 w-[140px] text-[12px]">
-          <SelectValue placeholder="行数" />
+          <SelectValue :placeholder="t('logs.toolbar.lines_placeholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem v-for="opt in tailOptions" :key="opt.value" :value="opt.value">
@@ -197,23 +199,23 @@ onBeforeUnmount(() => {
         <FilterIcon class="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           v-model="filterText"
-          placeholder="过滤关键字"
+          :placeholder="t('logs.toolbar.filter_placeholder')"
           class="h-8 w-[220px] pl-7 text-[12px]"
         />
       </div>
 
       <div class="flex items-center gap-1.5 text-[12px] text-muted-foreground">
         <Switch v-model="autoRefresh" />
-        <span>自动刷新</span>
+        <span>{{ t('logs.toolbar.auto_refresh') }}</span>
       </div>
 
       <div class="ml-auto flex items-center gap-2">
         <Button size="sm" variant="ghost" class="gap-1.5" :disabled="!raw" @click="copyAll">
-          复制全部
+          {{ t('logs.toolbar.copy_all') }}
         </Button>
         <Button size="sm" variant="outline" class="gap-1.5" :disabled="loading" @click="refresh">
           <RefreshCw :class="['size-3.5', loading && 'animate-spin']" />
-          刷新
+          {{ t('logs.toolbar.refresh') }}
         </Button>
       </div>
     </div>
@@ -230,21 +232,29 @@ onBeforeUnmount(() => {
       v-if="raw?.truncated"
       class="mx-4 mt-3 rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground"
     >
-      日志文件较大，只显示文件末尾约 8 MB 数据的最近 {{ tailLines }} 行；更早内容请用文件管理器打开 ~/.memex/logs/ 查看。
+      {{ t('logs.notice.truncated', { n: tailLines }) }}
     </div>
 
     <div class="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 font-mono text-[11px] leading-5 text-foreground/90">
       <pre v-if="displayLines.length" class="whitespace-pre-wrap break-all">{{ displayLines.join('\n') }}</pre>
       <div v-else-if="!loading && !lastError" class="text-muted-foreground">
-        {{ filterText ? '没有匹配过滤条件的行。' : '暂无日志。' }}
+        {{ filterText ? t('logs.empty.no_match') : t('logs.empty.no_data') }}
       </div>
     </div>
 
     <div class="flex items-center justify-between border-t px-4 py-2 text-[11px] text-muted-foreground">
       <span>
-        {{ raw ? `${raw.file} · 显示 ${displayLines.length}/${raw.total_lines_returned} 行` : '—' }}
+        {{
+          raw
+            ? t('logs.footer.summary', {
+                file: raw.file,
+                shown: displayLines.length,
+                total: raw.total_lines_returned,
+              })
+            : t('logs.footer.dash')
+        }}
       </span>
-      <span>每 5 秒自动刷新</span>
+      <span>{{ t('logs.footer.auto_hint') }}</span>
     </div>
   </div>
 </template>

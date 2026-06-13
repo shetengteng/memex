@@ -24,11 +24,13 @@ import ThreadsEmptyHero from './threads/ThreadsEmptyHero.vue'
 import { useThreadsView } from '../composables/useThreadsView'
 import { rowToSession, type Session } from '@/stores/memex'
 import type { SessionRow, ThreadRow } from '@/types'
+import { useI18n } from '@/i18n'
 
 const props = defineProps<{ drawerOpen?: boolean }>()
 const emit = defineEmits<{ open: [Session] }>()
 
 const view = useThreadsView()
+const { t } = useI18n()
 
 // Sheet 与 LibrarySessionDrawer 都是 portal 到 body 的 Dialog 实例，同时显示
 // 视觉上会变成「弹框嵌在抽屉里」。改为协同切换：
@@ -49,12 +51,12 @@ watch(
   },
 )
 
-function onDeleteFromCard(t: ThreadRow, e: MouseEvent) {
-  view.requestDelete(t, e)
+function onDeleteFromCard(target: ThreadRow, e: MouseEvent) {
+  view.requestDelete(target, e)
 }
 
-function onDeleteFromSheet(t: ThreadRow) {
-  view.requestDelete(t)
+function onDeleteFromSheet(target: ThreadRow) {
+  view.requestDelete(target)
 }
 </script>
 
@@ -86,12 +88,12 @@ function onDeleteFromSheet(t: ThreadRow) {
         class="flex h-60 items-center justify-center px-6 text-center"
       >
         <p class="text-[12.5px] text-muted-foreground">
-          当前筛选下没有线索。试试
+          {{ t('library.threads.filter_empty.prompt') }}
           <button
             class="text-foreground underline-offset-2 hover:underline"
             @click="view.filter.value = 'all'"
           >
-            查看全部
+            {{ t('library.threads.filter_empty.see_all') }}
           </button>
           。
         </p>
@@ -102,9 +104,9 @@ function onDeleteFromSheet(t: ThreadRow) {
         class="grid grid-cols-1 gap-3 px-6 py-5 md:grid-cols-2 xl:grid-cols-3"
       >
         <ThreadCard
-          v-for="t in view.filteredThreads.value"
-          :key="t.id"
-          :thread="t"
+          v-for="row in view.filteredThreads.value"
+          :key="row.id"
+          :thread="row"
           @open="view.openThread"
           @delete="onDeleteFromCard"
         />
@@ -115,7 +117,7 @@ function onDeleteFromSheet(t: ThreadRow) {
           @click="view.focusSearch"
         >
           <Plus class="size-6" />
-          <span class="mt-1.5 text-[12px]">检索一个新主题</span>
+          <span class="mt-1.5 text-[12px]">{{ t('library.threads.add.title') }}</span>
         </button>
       </ul>
     </div>

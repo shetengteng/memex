@@ -22,7 +22,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, Copy, XCircle } from 'lucide-vue-next'
 import type { McpCallEntry } from '@/types'
-import { formatFullTime, formatRelative, prettifyPayload } from './mcp-format'
+import { formatFullTime, formatRelative, prettifyPayload, type RelativeLabels } from './mcp-format'
+import { useI18n } from '@/i18n'
+
+const { t } = useI18n()
+const i18nRelative = computed<RelativeLabels>(() => ({
+  justNow: t('connect.relative.just_now'),
+  secondsAgo: (n) => t('connect.relative.seconds_ago', { n }),
+  minutesAgo: (n) => t('connect.relative.minutes_ago', { n }),
+  hoursAgo: (n) => t('connect.relative.hours_ago', { n }),
+  daysAgo: (n) => t('connect.relative.days_ago', { n }),
+}))
 
 const props = defineProps<{
   entry: McpCallEntry | null
@@ -44,7 +54,7 @@ const fullTime = computed(() =>
 const relativeTime = computed(() => {
   const d = occurredAt.value
   if (d == null) return null
-  return formatRelative(d)
+  return formatRelative(d, i18nRelative.value)
 })
 
 const latencyLabel = computed(() => {
@@ -54,8 +64,9 @@ const latencyLabel = computed(() => {
   return `${(v / 1_000).toFixed(2)} s`
 })
 
-const argsPretty = computed(() => prettifyPayload(props.entry?.arguments_json))
-const resultPretty = computed(() => prettifyPayload(props.entry?.result_json))
+const emptyLabel = computed(() => t('connect.relative.empty_payload'))
+const argsPretty = computed(() => prettifyPayload(props.entry?.arguments_json, emptyLabel.value))
+const resultPretty = computed(() => prettifyPayload(props.entry?.result_json, emptyLabel.value))
 
 // 复制按钮 2 秒态反馈。两个 section 独立计数避免一起亮。
 const copiedKey = ref<'args' | 'result' | null>(null)
@@ -90,30 +101,30 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
         <DialogTitle class="flex items-center gap-2">
           <CheckCircle2 v-if="entry?.success" class="size-4 text-emerald-500" />
           <XCircle v-else class="size-4 text-rose-500" />
-          <code class="font-mono text-[14px]">{{ entry?.tool_name || '(unknown)' }}</code>
+          <code class="font-mono text-[14px]">{{ entry?.tool_name || t('connect.mcp.events.unknown_tool') }}</code>
           <Badge
             v-if="entry?.success"
             variant="outline"
             class="border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
           >
-            成功
+            {{ t('connect.mcp_detail.badge.success') }}
           </Badge>
           <Badge
             v-else
             variant="outline"
             class="border-rose-500/40 text-rose-600 dark:text-rose-400"
           >
-            失败
+            {{ t('connect.mcp_detail.badge.failed') }}
           </Badge>
         </DialogTitle>
         <DialogDescription class="text-[11.5px]">
-          来自 SQLite `mcp_call_log` 的单次工具调用记录
+          {{ t('connect.mcp_detail.subtitle') }}
         </DialogDescription>
       </DialogHeader>
 
       <dl class="space-y-2.5 text-[12.5px]">
         <div class="grid grid-cols-[88px_1fr] items-baseline gap-2">
-          <dt class="text-[11px] text-muted-foreground">发生时间</dt>
+          <dt class="text-[11px] text-muted-foreground">{{ t('connect.mcp_detail.label.time') }}</dt>
           <dd class="font-mono tabular-nums">
             {{ fullTime }}
             <span v-if="relativeTime" class="ml-2 text-[10.5px] text-muted-foreground">
@@ -122,18 +133,18 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
           </dd>
         </div>
         <div class="grid grid-cols-[88px_1fr] items-baseline gap-2">
-          <dt class="text-[11px] text-muted-foreground">延迟</dt>
+          <dt class="text-[11px] text-muted-foreground">{{ t('connect.mcp_detail.label.latency') }}</dt>
           <dd class="font-mono tabular-nums">{{ latencyLabel }}</dd>
         </div>
         <div class="grid grid-cols-[88px_1fr] items-baseline gap-2">
-          <dt class="text-[11px] text-muted-foreground">调用 ID</dt>
+          <dt class="text-[11px] text-muted-foreground">{{ t('connect.mcp_detail.label.id') }}</dt>
           <dd class="font-mono text-[11.5px] text-muted-foreground">#{{ entry?.id }}</dd>
         </div>
         <div
           v-if="entry?.error_message"
           class="grid grid-cols-[88px_1fr] items-start gap-2"
         >
-          <dt class="text-[11px] text-muted-foreground">错误信息</dt>
+          <dt class="text-[11px] text-muted-foreground">{{ t('connect.mcp_detail.label.error') }}</dt>
           <dd>
             <!-- 不设 max-h：由 DialogContent 的 max-h-[85vh] + overflow-y-auto 统一接管滚动，
                  避免对话框内出现嵌套垂直滚动条（外层 + 内层 pre 两个）。仅 break-words +
@@ -149,9 +160,9 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
       <section class="mt-2 space-y-1.5">
         <header class="flex items-center justify-between">
           <h3 class="flex items-center gap-2 text-[12px] font-medium">
-            调用参数
+            {{ t('connect.mcp_detail.section.args') }}
             <Badge v-if="argsPretty.truncated" variant="outline" class="border-amber-500/40 text-amber-600 dark:text-amber-400">
-              已截断
+              {{ t('connect.mcp_detail.badge.truncated') }}
             </Badge>
           </h3>
           <Button
@@ -163,7 +174,7 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
             @click="copyToClipboard('args', entry?.arguments_json ?? '')"
           >
             <Copy class="size-3" />
-            {{ copiedKey === 'args' ? '已复制' : '复制原始' }}
+            {{ copiedKey === 'args' ? t('connect.mcp_detail.action.copied') : t('connect.mcp_detail.action.copy_raw') }}
           </Button>
         </header>
         <pre
@@ -176,9 +187,9 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
       <section class="mt-3 space-y-1.5">
         <header class="flex items-center justify-between">
           <h3 class="flex items-center gap-2 text-[12px] font-medium">
-            返回内容
+            {{ t('connect.mcp_detail.section.result') }}
             <Badge v-if="resultPretty.truncated" variant="outline" class="border-amber-500/40 text-amber-600 dark:text-amber-400">
-              已截断
+              {{ t('connect.mcp_detail.badge.truncated') }}
             </Badge>
           </h3>
           <Button
@@ -190,7 +201,7 @@ async function copyToClipboard(key: 'args' | 'result', text: string) {
             @click="copyToClipboard('result', entry?.result_json ?? '')"
           >
             <Copy class="size-3" />
-            {{ copiedKey === 'result' ? '已复制' : '复制原始' }}
+            {{ copiedKey === 'result' ? t('connect.mcp_detail.action.copied') : t('connect.mcp_detail.action.copy_raw') }}
           </Button>
         </header>
         <pre
