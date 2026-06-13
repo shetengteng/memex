@@ -30,7 +30,9 @@ fn main_window_is_desktop_sized() {
     let w = find_window(&conf, "main").expect("must have main window");
     assert_eq!(w["width"].as_f64(), Some(1100.0), "main width");
     assert_eq!(w["height"].as_f64(), Some(720.0), "main height");
-    // 是真桌面窗口，不再透明 / 无边框
+    // 是真桌面窗口；从 v1.0.2 开始 main 窗口也允许 transparent，让用户在
+    // Settings → Surface 里切到「玻璃」时 vibrancy 能透出。CSS 在没切玻璃时
+    // 仍保持 bg-background 实色，所以视觉默认行为与之前一致。
     assert_eq!(
         w["decorations"].as_bool(),
         Some(true),
@@ -38,8 +40,8 @@ fn main_window_is_desktop_sized() {
     );
     assert_eq!(
         w["transparent"].as_bool(),
-        Some(false),
-        "main must not be transparent"
+        Some(true),
+        "main must be transparent so glass surface can show vibrancy"
     );
     // 启动时不可见，等 Rust 端 setup() 调 main.show() 再亮（避免闪屏）
     assert_eq!(w["visible"].as_bool(), Some(false));

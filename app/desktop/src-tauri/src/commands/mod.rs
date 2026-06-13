@@ -30,3 +30,4 @@ pub mod sessions;
 pub mod stats;
 pub mod threads;
 pub mod update;
+pub mod window;

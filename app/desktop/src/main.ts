@@ -4,6 +4,7 @@ import './style.css'
 import App from './App.vue'
 import { router } from './router'
 import { initTheme } from './composables/useTheme'
+import { initSurface } from './composables/useSurface'
 import { syncLocaleFromBackend } from './i18n'
 
 /**
@@ -60,6 +61,7 @@ window.addEventListener('unhandledrejection', (e) => {
 })
 
 initTheme()
+void initSurface()
 
 // 通过 Tauri 窗口 label 兜底纠正首屏 URL（防御 hash url 在某些场景丢失的问题）。
 // 关键：直接操作 window.location.hash，必须在 createRouter 走完初始化（即 app.use(router) 触发的 init）之前完成。
