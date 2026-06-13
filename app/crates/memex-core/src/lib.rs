@@ -20,6 +20,7 @@ pub mod config;
 pub mod context;
 pub mod ingest;
 pub mod llm;
+pub mod locale;
 pub mod maintenance;
 pub mod processor;
 pub mod reflect;

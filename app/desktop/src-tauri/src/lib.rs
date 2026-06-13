@@ -164,6 +164,16 @@ pub fn run() {
         .setup(|app| {
             app.manage(DeepLinkState::default());
 
+            // 启动时把持久化的 ui.locale 同步进 PromptLocale 静态状态。
+            // 之后 LLM prompts / reflect markdown fallback 都会按这个 locale
+            // 选择 zh / en 文案，避免「UI 是英文 / 报告还是中文」的不一致。
+            // 用户在 Settings 里切换语言时，set_config 命令会再次刷新它。
+            if let Ok(db) = memex_core::storage::db::Db::open(
+                &memex_core::memex_dir().join("memex.db"),
+            ) {
+                memex_core::locale::PromptLocale::sync_from_kv(&db);
+            }
+
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 

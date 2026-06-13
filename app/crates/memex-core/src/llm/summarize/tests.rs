@@ -4,6 +4,7 @@ use super::{
     MAX_INPUT_CHARS, SessionSummary, summarize_chunk, summarize_period, summarize_project,
 };
 use crate::llm::provider::{LlmProvider, LlmRequest, LlmResponse};
+use crate::locale::PromptLocale;
 use anyhow::Result;
 
 struct MockProvider {
@@ -110,7 +111,7 @@ fn test_build_prompt_truncation() {
     let messages: Vec<(String, String)> = (0..100)
         .map(|i| ("user".to_string(), format!("Message {} with content", i)))
         .collect();
-    let prompt = build_prompt(&messages, None);
+    let prompt = build_prompt(&messages, None, PromptLocale::Zh);
     assert!(prompt.len() <= MAX_INPUT_CHARS + 100);
 }
 
@@ -119,7 +120,11 @@ fn test_build_prompt_truncation() {
 #[test]
 fn test_build_prompt_embeds_current_project_path_when_present() {
     let messages = vec![("user".into(), "hello".into())];
-    let with_path = build_prompt(&messages, Some("/Users/me/Documents/tt-demo/src"));
+    let with_path = build_prompt(
+        &messages,
+        Some("/Users/me/Documents/tt-demo/src"),
+        PromptLocale::Zh,
+    );
     assert!(with_path.contains("/Users/me/Documents/tt-demo/src"));
     assert!(with_path.contains("corrected_project_path"));
 }
@@ -128,7 +133,7 @@ fn test_build_prompt_embeds_current_project_path_when_present() {
 #[test]
 fn test_build_prompt_skips_empty_current_project_path() {
     let messages = vec![("user".into(), "hello".into())];
-    let without_path = build_prompt(&messages, Some(""));
+    let without_path = build_prompt(&messages, Some(""), PromptLocale::Zh);
     assert!(!without_path.contains("corrected_project_path"));
     assert!(!without_path.contains("当前 collector"));
 }
@@ -257,7 +262,7 @@ fn test_condense_for_period_monthly_uses_project_grouping() {
         mk("无项目随手改", None, "misc"),
     ];
     let budget = PeriodBudget::for_kind(PeriodKind::Monthly);
-    let condensed = condense_for_period(&summaries, &budget);
+    let condensed = condense_for_period(&summaries, &budget, PromptLocale::Zh);
     // 应至少 3 组：memex · bug / tt-paikebao-mp · bug / misc
     assert!(condensed.len() >= 3, "got {} groups", condensed.len());
     let joined = condensed.join("\n");

@@ -6,13 +6,14 @@
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::prompts::THREAD_CLUSTERING_SYSTEM;
+use super::prompts::thread_clustering_system;
 use super::{
     MAX_OUTPUT_TOKENS, MAX_SESSIONS_PER_BATCH, MAX_SESSIONS_PER_THREAD, MAX_SUMMARY_CHARS,
     MAX_THREADS_PER_RESPONSE, strip_code_fences,
 };
 use crate::llm::provider::{LlmProvider, LlmRequest};
 use crate::llm::summarize::SessionSummary;
+use crate::locale::PromptLocale;
 use crate::storage::db::ThreadDraft;
 
 /// LLM 解析得到的单个 thread 草稿（带 1-based 输入序号）。
@@ -47,9 +48,10 @@ pub fn cluster_threads(
         sessions
     };
 
-    let prompt = build_clustering_prompt(batch);
+    let loc = PromptLocale::current();
+    let prompt = build_clustering_prompt(batch, loc);
     let request = LlmRequest::with_prompt(prompt)
-        .with_system(THREAD_CLUSTERING_SYSTEM)
+        .with_system(thread_clustering_system(loc))
         .with_max_tokens(MAX_OUTPUT_TOKENS);
     let response = provider.generate(&request)?;
 
@@ -57,13 +59,38 @@ pub fn cluster_threads(
     Ok(map_to_drafts(&parsed.threads, batch))
 }
 
-pub(super) fn build_clustering_prompt(batch: &[(String, SessionSummary)]) -> String {
+pub(super) fn build_clustering_prompt(
+    batch: &[(String, SessionSummary)],
+    loc: PromptLocale,
+) -> String {
     let mut prompt = String::with_capacity(8000);
-    prompt.push_str("以下是若干条编程会话的摘要，每条带一个 1-based 编号和所属项目：\n\n");
+    let (intro, untitled, topics_prefix, topics_suffix, topics_join, unknown_proj, footer) = match loc {
+        PromptLocale::Zh => (
+            "以下是若干条编程会话的摘要，每条带一个 1-based 编号和所属项目：\n\n",
+            "(无标题)",
+            "（主题：",
+            "）",
+            "、",
+            "(未知项目)",
+            "请把上面的会话聚类成主题线索，按要求输出 JSON。\
+             记住：不同 project 的 session 默认不能聚到同一个 thread。",
+        ),
+        PromptLocale::En => (
+            "Below are programming session summaries, each with a 1-based index and project:\n\n",
+            "(untitled)",
+            " (topics: ",
+            ")",
+            ", ",
+            "(unknown project)",
+            "Cluster the sessions above into threads and output JSON as required. \
+             Reminder: by default, sessions from different projects cannot share a thread.",
+        ),
+    };
+    prompt.push_str(intro);
     for (i, (_, summary)) in batch.iter().enumerate() {
         let n = i + 1;
         let title = if summary.title.is_empty() {
-            "(无标题)"
+            untitled
         } else {
             &summary.title
         };
@@ -76,22 +103,19 @@ pub(super) fn build_clustering_prompt(batch: &[(String, SessionSummary)]) -> Str
         let topics = if summary.topics.is_empty() {
             String::new()
         } else {
-            format!("（主题：{}）", summary.topics.join("、"))
+            format!("{}{}{}", topics_prefix, summary.topics.join(topics_join), topics_suffix)
         };
         let project = summary
             .project_name
             .as_deref()
             .filter(|p| !p.trim().is_empty())
-            .unwrap_or("(未知项目)");
+            .unwrap_or(unknown_proj);
         prompt.push_str(&format!(
             "[{}] project={} | {}{}\n  {}\n\n",
             n, project, title, topics, body,
         ));
     }
-    prompt.push_str(
-        "请把上面的会话聚类成主题线索，按要求输出 JSON。\
-         记住：不同 project 的 session 默认不能聚到同一个 thread。",
-    );
+    prompt.push_str(footer);
     prompt
 }
 

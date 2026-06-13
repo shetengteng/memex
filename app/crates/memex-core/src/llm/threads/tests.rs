@@ -1,6 +1,7 @@
 use super::cluster::{build_clustering_prompt, map_to_drafts, parse_thread_response};
 use super::fallback::{fallback_cluster, fallback_query_match};
 use crate::llm::summarize::SessionSummary;
+use crate::locale::PromptLocale;
 
 fn s(title: &str, summary: &str, topics: &[&str]) -> SessionSummary {
     SessionSummary {
@@ -152,7 +153,7 @@ fn build_prompt_includes_project_signal() {
         ),
         ("s2".into(), sp("跑命盘", "排八字", &["命理"], "tt-qimen")),
     ];
-    let prompt = build_clustering_prompt(&batch);
+    let prompt = build_clustering_prompt(&batch, PromptLocale::Zh);
     assert!(
         prompt.contains("project=memex"),
         "应包含 project=memex 信号:\n{}",

@@ -1,4 +1,5 @@
 use memex_core::config::MemexConfig;
+use memex_core::locale::PromptLocale;
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
 
@@ -90,6 +91,11 @@ pub async fn set_config(key: String, value: String) -> CmdResult<()> {
             config.privacy.skip_private_sessions = is_true;
         }
         _ => {
+            // ui.locale 走通用 kv 存储，但要同步刷新进程内的 PromptLocale
+            // 静态状态——否则用户切完语言后下一次 LLM 调用 prompt 还是旧 locale。
+            if key == "ui.locale" {
+                PromptLocale::set(PromptLocale::from_str_lossy(&value));
+            }
             let db = open_db()?;
             db.kv_set(&key, &value)?;
             return Ok(());

@@ -16,10 +16,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::llm::provider::{LlmProvider, LlmRequest};
+use crate::locale::PromptLocale;
 
 const MAX_INPUT_CHARS: usize = 12_000;
 
-const REFLECTION_SYSTEM: &str = "\
+const REFLECTION_SYSTEM_ZH: &str = "\
 你是一名资深工程师的工作反思助手。输入是一段时间内的工作日报/周报摘要，\
 请站在用户视角，做一次**反思级别**的回顾，而不是简单的摘要复述。\n\
 输出 JSON，三个字段都必须有：\n\
@@ -33,6 +34,32 @@ const REFLECTION_SYSTEM: &str = "\
 严格只输出 JSON，不要加 markdown 围栏，不要前言后语。\
 ";
 
+const REFLECTION_SYSTEM_EN: &str = "\
+You are a reflection coach for a senior engineer. Input is a series of \
+daily/weekly report summaries from a recent period. Step into the user's \
+perspective and produce a **reflection** — not just another summary recap.\n\
+Output JSON with three required fields:\n\
+- shipped: array of strings, listing concrete deliverables actually shipped \
+in the period (features, fixes, docs, decisions landed). Each entry starts \
+with a verb and cites specifics. Max 6. Return an empty array if there is no \
+reliable evidence.\n\
+- patterns: array of strings, calling out recurring themes, tech stacks, \
+problem-solving methodologies, or blocker types. Each entry is 1-2 sentences \
+with insight (not a flat topic list). Max 5.\n\
+- open_loops: array of strings, listing unclosed items — ideas raised without \
+follow-up, TODOs, undecided directions, recurring doubts. Each entry must be \
+concrete. Max 5.\n\
+\n\
+Output JSON only, no markdown fences, no commentary.\
+";
+
+fn reflection_system(loc: PromptLocale) -> &'static str {
+    match loc {
+        PromptLocale::Zh => REFLECTION_SYSTEM_ZH,
+        PromptLocale::En => REFLECTION_SYSTEM_EN,
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ReflectionOutput {
     #[serde(default)]
@@ -45,14 +72,28 @@ pub struct ReflectionOutput {
 
 impl ReflectionOutput {
     /// 把三段塞进一份 markdown 字符串，方便存到 aggregate_summaries.summary 字段
-    /// 与写入 reports/*.md 文件。
+    /// 与写入 reports/*.md 文件。直接展示给用户，因此 fallback 文案按当前 UI locale 切。
     pub fn to_markdown(&self, period_label: &str) -> String {
+        let loc = PromptLocale::current();
+        let (no_shipped, no_patterns, no_loops) = match loc {
+            PromptLocale::Zh => (
+                "_这段时间没有识别到明显的交付动作。_\n\n",
+                "_暂未识别到值得反思的反复模式。_\n\n",
+                "_暂未识别到未闭合的事项。_\n\n",
+            ),
+            PromptLocale::En => (
+                "_No clear shipped work detected for this period._\n\n",
+                "_No recurring patterns worth reflecting on yet._\n\n",
+                "_No open loops detected yet._\n\n",
+            ),
+        };
+
         let mut out = String::with_capacity(1024);
         out.push_str(&format!("# Reflect — {period_label}\n\n"));
 
         out.push_str("## Shipped\n\n");
         if self.shipped.is_empty() {
-            out.push_str("_这段时间没有识别到明显的交付动作。_\n\n");
+            out.push_str(no_shipped);
         } else {
             for item in &self.shipped {
                 out.push_str(&format!("- {item}\n"));
@@ -62,7 +103,7 @@ impl ReflectionOutput {
 
         out.push_str("## Patterns\n\n");
         if self.patterns.is_empty() {
-            out.push_str("_暂未识别到值得反思的反复模式。_\n\n");
+            out.push_str(no_patterns);
         } else {
             for item in &self.patterns {
                 out.push_str(&format!("- {item}\n"));
@@ -72,7 +113,7 @@ impl ReflectionOutput {
 
         out.push_str("## Open Loops\n\n");
         if self.open_loops.is_empty() {
-            out.push_str("_暂未识别到未闭合的事项。_\n\n");
+            out.push_str(no_loops);
         } else {
             for item in &self.open_loops {
                 out.push_str(&format!("- {item}\n"));
@@ -103,34 +144,62 @@ pub fn generate_reflection(
     period_label: &str,
     digests: &[PeriodDigest],
 ) -> Result<ReflectionOutput> {
+    let loc = PromptLocale::current();
+    let (intro, summary_label, topics_label, topics_join, decisions_label, decisions_join, omitted, footer) = match loc {
+        PromptLocale::Zh => (
+            "以下是 {label} 期间的工作日报/周报摘要（按时间正序）：\n\n",
+            "  摘要：",
+            "  主题：",
+            "、",
+            "  决策：",
+            "；",
+            "…（更早的部分因篇幅省略）\n",
+            "\n请基于上述材料做一次反思级别的回顾，按 system 描述输出 JSON。",
+        ),
+        PromptLocale::En => (
+            "Below are daily/weekly report summaries from {label} in chronological order:\n\n",
+            "  Summary: ",
+            "  Topics: ",
+            ", ",
+            "  Decisions: ",
+            "; ",
+            "… (earlier entries omitted for brevity)\n",
+            "\nProduce a reflection-level review based on the material above, following the system description's JSON schema.",
+        ),
+    };
+
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str(&format!(
-        "以下是 {} 期间的工作日报/周报摘要（按时间正序）：\n\n",
-        period_label
-    ));
+    prompt.push_str(&intro.replace("{label}", period_label));
 
     for (i, d) in digests.iter().enumerate() {
-        let mut entry = format!("【{} · {}】{}\n", i + 1, d.scope_key, d.title);
-        entry.push_str(&format!("  摘要：{}\n", d.summary));
+        let mut entry = match loc {
+            PromptLocale::Zh => format!("【{} · {}】{}\n", i + 1, d.scope_key, d.title),
+            PromptLocale::En => format!("[{} · {}] {}\n", i + 1, d.scope_key, d.title),
+        };
+        entry.push_str(&format!("{}{}\n", summary_label, d.summary));
         if !d.topics.is_empty() {
-            entry.push_str(&format!("  主题：{}\n", d.topics.join("、")));
+            entry.push_str(&format!("{}{}\n", topics_label, d.topics.join(topics_join)));
         }
         if !d.decisions.is_empty() {
-            entry.push_str(&format!("  决策：{}\n", d.decisions.join("；")));
+            entry.push_str(&format!(
+                "{}{}\n",
+                decisions_label,
+                d.decisions.join(decisions_join)
+            ));
         }
         entry.push('\n');
 
         if prompt.len() + entry.len() > MAX_INPUT_CHARS {
-            prompt.push_str("…（更早的部分因篇幅省略）\n");
+            prompt.push_str(omitted);
             break;
         }
         prompt.push_str(&entry);
     }
 
-    prompt.push_str("\n请基于上述材料做一次反思级别的回顾，按 system 描述输出 JSON。");
+    prompt.push_str(footer);
 
     let request = LlmRequest::with_prompt(prompt)
-        .with_system(REFLECTION_SYSTEM)
+        .with_system(reflection_system(loc))
         .with_max_tokens(4096);
     let response = provider.generate(&request)?;
     parse_reflection(&response.text)
@@ -158,10 +227,15 @@ fn parse_reflection(text: &str) -> Result<ReflectionOutput> {
     }
 
     // 最终兜底：把整段文本塞进 patterns，保证不丢失信息
+    let prefix = match PromptLocale::current() {
+        PromptLocale::Zh => "LLM 返回未能解析为结构化 JSON：",
+        PromptLocale::En => "Failed to parse LLM response as structured JSON: ",
+    };
     Ok(ReflectionOutput {
         shipped: Vec::new(),
         patterns: vec![format!(
-            "LLM 返回未能解析为结构化 JSON：{}",
+            "{}{}",
+            prefix,
             text.chars().take(300).collect::<String>()
         )],
         open_loops: Vec::new(),

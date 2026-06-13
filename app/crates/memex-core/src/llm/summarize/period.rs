@@ -7,8 +7,10 @@
 use anyhow::Result;
 
 use super::parse::parse_summary;
-use super::{MAX_PERIOD_INPUT_CHARS, PERIODIC_SUMMARY_SYSTEM, SessionSummary};
+use super::prompts::periodic_summary_system;
+use super::{MAX_PERIOD_INPUT_CHARS, SessionSummary};
 use crate::llm::provider::{LlmProvider, LlmRequest};
+use crate::locale::PromptLocale;
 
 pub fn summarize_period(
     provider: &dyn LlmProvider,
@@ -22,15 +24,24 @@ pub fn summarize_period(
     //             技术决策最多 15 条，最低输出 1500 字。
     let kind = classify_period(period_label);
     let budget = PeriodBudget::for_kind(kind);
+    let loc = PromptLocale::current();
 
-    let condensed = condense_for_period(session_summaries, &budget);
+    let condensed = condense_for_period(session_summaries, &budget, loc);
 
     let mut prompt = String::with_capacity(MAX_PERIOD_INPUT_CHARS);
-    prompt.push_str(&format!(
-        "以下是 {} 期间的工作会话摘要（共 {} 个会话）：\n\n",
-        period_label,
-        session_summaries.len()
-    ));
+    let intro = match loc {
+        PromptLocale::Zh => format!(
+            "以下是 {} 期间的工作会话摘要（共 {} 个会话）：\n\n",
+            period_label,
+            session_summaries.len()
+        ),
+        PromptLocale::En => format!(
+            "Below are session summaries from {} ({} sessions in total):\n\n",
+            period_label,
+            session_summaries.len()
+        ),
+    };
+    prompt.push_str(&intro);
     let mut included = 0usize;
     for entry in &condensed {
         if prompt.len() + entry.len() > MAX_PERIOD_INPUT_CHARS {
@@ -40,20 +51,36 @@ pub fn summarize_period(
         included += 1;
     }
     if included < condensed.len() {
-        prompt.push_str(&format!(
-            "（还有 {} 组工作因篇幅限制未列出）\n\n",
-            condensed.len() - included
-        ));
+        let omitted = condensed.len() - included;
+        let line = match loc {
+            PromptLocale::Zh => format!("（还有 {} 组工作因篇幅限制未列出）\n\n", omitted),
+            PromptLocale::En => format!(
+                "({} more groups omitted to fit the prompt budget)\n\n",
+                omitted
+            ),
+        };
+        prompt.push_str(&line);
     }
-    prompt.push_str(&format!(
-        "\n请综合以上 {} 个会话，生成一个 JSON 对象。\
-         summary 必须按【主题名】分段，每段 3-5 句话，总长度不少于 {} 字。\
-         涵盖所有主要主题，写出具体技术细节，不要笼统概括。",
-        session_summaries.len(),
-        budget.min_words
-    ));
+    let footer = match loc {
+        PromptLocale::Zh => format!(
+            "\n请综合以上 {} 个会话，生成一个 JSON 对象。\
+             summary 必须按【主题名】分段，每段 3-5 句话，总长度不少于 {} 字。\
+             涵盖所有主要主题，写出具体技术细节，不要笼统概括。",
+            session_summaries.len(),
+            budget.min_words
+        ),
+        PromptLocale::En => format!(
+            "\nSynthesize the {} sessions above into one JSON object. The \
+             summary field must be grouped into [Topic] paragraphs, 3-5 \
+             sentences each, totaling at least {} words. Cover every major \
+             topic, include concrete technical details, avoid vague generalities.",
+            session_summaries.len(),
+            budget.min_words
+        ),
+    };
+    prompt.push_str(&footer);
     let request = LlmRequest::with_prompt(prompt)
-        .with_system(PERIODIC_SUMMARY_SYSTEM)
+        .with_system(periodic_summary_system(loc))
         .with_max_tokens(budget.max_tokens);
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
@@ -138,8 +165,22 @@ impl PeriodBudget {
 pub(super) fn condense_for_period(
     summaries: &[SessionSummary],
     budget: &PeriodBudget,
+    loc: PromptLocale,
 ) -> Vec<String> {
     use std::collections::BTreeMap;
+
+    let other_label = match loc {
+        PromptLocale::Zh => "其他",
+        PromptLocale::En => "Other",
+    };
+    let topics_join = match loc {
+        PromptLocale::Zh => "、",
+        PromptLocale::En => ", ",
+    };
+    let decisions_join = match loc {
+        PromptLocale::Zh => "；",
+        PromptLocale::En => "; ",
+    };
 
     let mut by_key: BTreeMap<String, Vec<&SessionSummary>> = BTreeMap::new();
     for s in summaries {
@@ -147,7 +188,7 @@ pub(super) fn condense_for_period(
             .topics
             .first()
             .cloned()
-            .unwrap_or_else(|| "其他".to_string());
+            .unwrap_or_else(|| other_label.to_string());
         let key = match &s.project_name {
             Some(p) if !p.trim().is_empty() => format!("{} · {}", p.trim(), topic),
             _ => topic,
@@ -174,22 +215,37 @@ pub(super) fn condense_for_period(
             .collect::<Vec<_>>()
             .join(" ");
 
-        let mut entry = format!(
-            "【{}】（{} 个会话）\n  代表性工作：{}\n  详细内容：{}\n",
-            key,
-            group.len(),
-            titles.join("、"),
-            if summaries_text.len() > budget.max_summary_chars {
-                format!(
-                    "{}...",
-                    &summaries_text[..summaries_text.floor_char_boundary(budget.max_summary_chars)]
-                )
-            } else {
-                summaries_text
-            }
-        );
+        let condensed_summary = if summaries_text.len() > budget.max_summary_chars {
+            format!(
+                "{}...",
+                &summaries_text[..summaries_text.floor_char_boundary(budget.max_summary_chars)]
+            )
+        } else {
+            summaries_text
+        };
+
+        let mut entry = match loc {
+            PromptLocale::Zh => format!(
+                "【{}】（{} 个会话）\n  代表性工作：{}\n  详细内容：{}\n",
+                key,
+                group.len(),
+                titles.join(topics_join),
+                condensed_summary,
+            ),
+            PromptLocale::En => format!(
+                "[{}] ({} sessions)\n  Representative work: {}\n  Details: {}\n",
+                key,
+                group.len(),
+                titles.join(topics_join),
+                condensed_summary,
+            ),
+        };
         if !all_decisions.is_empty() {
-            entry.push_str(&format!("  技术决策：{}\n", all_decisions.join("；")));
+            let line = match loc {
+                PromptLocale::Zh => format!("  技术决策：{}\n", all_decisions.join(decisions_join)),
+                PromptLocale::En => format!("  Decisions: {}\n", all_decisions.join(decisions_join)),
+            };
+            entry.push_str(&line);
         }
         entry.push('\n');
         entries.push(entry);

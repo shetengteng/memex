@@ -7,27 +7,48 @@
 use anyhow::Result;
 
 use super::{MAX_INPUT_CHARS, SessionSummary};
+use crate::locale::PromptLocale;
 
 pub(super) fn build_prompt(
     messages: &[(String, String)],
     current_project_path: Option<&str>,
+    loc: PromptLocale,
 ) -> String {
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
 
-    if let Some(path) = current_project_path.filter(|p| !p.is_empty()) {
-        prompt.push_str(&format!(
-            "当前 collector 推断的项目路径：{}\n\n请判断该路径是否漂移到了子目录\
+    let (path_intro, dialogue_intro, role_sep, truncated_mark, omitted_mark, footer) = match loc {
+        PromptLocale::Zh => (
+            "当前 collector 推断的项目路径：{path}\n\n请判断该路径是否漂移到了子目录\
              （如末段是 src / views / components / utils 等），若是则在 \
              corrected_project_path 字段输出修正后的完整路径；若路径已合理则输出 null。\n\n",
-            path
-        ));
+            "以下是一段对话：\n\n",
+            "：",
+            "…（已截断）",
+            "…（为节省篇幅省略了较早的消息）\n",
+            "\n请把这段对话总结为 JSON。",
+        ),
+        PromptLocale::En => (
+            "Project path inferred by the collector: {path}\n\nCheck whether this \
+             path drifted into a subdirectory (last segment looks like src / views / \
+             components / utils etc.). If so, output the corrected full path in \
+             `corrected_project_path`; otherwise output null.\n\n",
+            "Below is a conversation:\n\n",
+            ": ",
+            "… (truncated)",
+            "… (earlier messages omitted for brevity)\n",
+            "\nSummarize this conversation as JSON.",
+        ),
+    };
+
+    if let Some(path) = current_project_path.filter(|p| !p.is_empty()) {
+        prompt.push_str(&path_intro.replace("{path}", path));
     }
 
-    prompt.push_str("以下是一段对话：\n\n");
+    prompt.push_str(dialogue_intro);
 
     let mut total_len = prompt.len();
     for (role, content) in messages {
-        let header = format!("[{}]：", role);
+        let header = format!("[{}]{}", role, role_sep);
         let truncated = if content.len() > 1000 {
             let end = content
                 .char_indices()
@@ -35,21 +56,21 @@ pub(super) fn build_prompt(
                 .last()
                 .map(|(i, c)| i + c.len_utf8())
                 .unwrap_or(content.len().min(1000));
-            format!("{}…（已截断）", &content[..end])
+            format!("{}{}", &content[..end], truncated_mark)
         } else {
             content.clone()
         };
         let entry = format!("{}{}\n\n", header, truncated);
 
         if total_len + entry.len() > MAX_INPUT_CHARS {
-            prompt.push_str("…（为节省篇幅省略了较早的消息）\n");
+            prompt.push_str(omitted_mark);
             break;
         }
         prompt.push_str(&entry);
         total_len += entry.len();
     }
 
-    prompt.push_str("\n请把这段对话总结为 JSON。");
+    prompt.push_str(footer);
     prompt
 }
 

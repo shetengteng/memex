@@ -44,6 +44,18 @@ pub fn fallback_query_match(sessions: &[(String, SessionSummary)], query: &str) 
 /// 应该是两条独立线索。
 pub fn fallback_cluster(sessions: &[(String, SessionSummary)]) -> Vec<ThreadDraft> {
     use std::collections::BTreeMap;
+    use crate::locale::PromptLocale;
+
+    let loc = PromptLocale::current();
+    let unknown_proj = match loc {
+        PromptLocale::Zh => "未知项目",
+        PromptLocale::En => "Unknown project",
+    };
+    let uncategorized = match loc {
+        PromptLocale::Zh => "未分类",
+        PromptLocale::En => "Uncategorized",
+    };
+
     let mut by_bucket: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
 
     for (sid, summary) in sessions {
@@ -52,13 +64,13 @@ pub fn fallback_cluster(sessions: &[(String, SessionSummary)]) -> Vec<ThreadDraf
             .as_deref()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "未知项目".to_string());
+            .unwrap_or_else(|| unknown_proj.to_string());
         let topic = summary
             .topics
             .first()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "未分类".to_string());
+            .unwrap_or_else(|| uncategorized.to_string());
         by_bucket
             .entry((project, topic))
             .or_default()

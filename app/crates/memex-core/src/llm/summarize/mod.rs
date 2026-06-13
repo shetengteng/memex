@@ -17,10 +17,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::llm::provider::{LlmProvider, LlmRequest};
+use crate::locale::PromptLocale;
 use parse::{build_prompt, extract_first_sentence, parse_summary};
-use prompts::{
-    CHUNK_SUMMARY_SYSTEM, PERIODIC_SUMMARY_SYSTEM, PROJECT_SUMMARY_SYSTEM, SUMMARY_SYSTEM,
-};
+use prompts::{chunk_summary_system, project_summary_system, summary_system};
 
 pub use period::summarize_period;
 
@@ -58,8 +57,9 @@ pub fn summarize_session(
     messages: &[(String, String)],
     current_project_path: Option<&str>,
 ) -> Result<SessionSummary> {
-    let prompt = build_prompt(messages, current_project_path);
-    let request = LlmRequest::with_prompt(prompt).with_system(SUMMARY_SYSTEM);
+    let loc = PromptLocale::current();
+    let prompt = build_prompt(messages, current_project_path, loc);
+    let request = LlmRequest::with_prompt(prompt).with_system(summary_system(loc));
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
 }
@@ -68,16 +68,25 @@ pub fn summarize_chunk(provider: &dyn LlmProvider, content: &str) -> Result<Stri
     if content.len() < MIN_CHUNK_CHARS_FOR_SUMMARY {
         return Ok(extract_first_sentence(content, 120));
     }
+    let loc = PromptLocale::current();
+    let truncated_marker = match loc {
+        PromptLocale::Zh => "... （已截断）",
+        PromptLocale::En => "... (truncated)",
+    };
     let truncated = if content.len() > 2000 {
         format!(
-            "{}... (truncated)",
-            &content[..content.floor_char_boundary(2000)]
+            "{}{}",
+            &content[..content.floor_char_boundary(2000)],
+            truncated_marker
         )
     } else {
         content.to_string()
     };
-    let prompt = format!("请用一句话总结以下内容：\n\n{}", truncated);
-    let request = LlmRequest::with_prompt(prompt).with_system(CHUNK_SUMMARY_SYSTEM);
+    let prompt = match loc {
+        PromptLocale::Zh => format!("请用一句话总结以下内容：\n\n{}", truncated),
+        PromptLocale::En => format!("Summarize the following in one sentence:\n\n{}", truncated),
+    };
+    let request = LlmRequest::with_prompt(prompt).with_system(chunk_summary_system(loc));
     match provider.generate(&request) {
         Ok(response) => {
             let s = response.text.trim().trim_matches('"').to_string();
@@ -95,23 +104,45 @@ pub fn summarize_project(
     provider: &dyn LlmProvider,
     session_summaries: &[SessionSummary],
 ) -> Result<SessionSummary> {
+    let loc = PromptLocale::current();
+    let (intro, session_label, summary_label, topics_label, topics_join, footer) = match loc {
+        PromptLocale::Zh => (
+            "以下是同一个项目的多个会话摘要：\n\n",
+            "会话",
+            "摘要",
+            "主题",
+            "、",
+            "请输出一个项目级总览的 JSON。",
+        ),
+        PromptLocale::En => (
+            "Below are multiple session summaries from the same project:\n\n",
+            "Session",
+            "Summary",
+            "Topics",
+            ", ",
+            "Output the project-level rollup as JSON.",
+        ),
+    };
     let mut prompt = String::with_capacity(MAX_INPUT_CHARS);
-    prompt.push_str("以下是同一个项目的多个会话摘要：\n\n");
+    prompt.push_str(intro);
     for (i, s) in session_summaries.iter().enumerate() {
         let entry = format!(
-            "会话 {}：{}\n  摘要：{}\n  主题：{}\n\n",
+            "{} {}: {}\n  {}: {}\n  {}: {}\n\n",
+            session_label,
             i + 1,
             s.title,
+            summary_label,
             s.summary,
-            s.topics.join("、")
+            topics_label,
+            s.topics.join(topics_join),
         );
         if prompt.len() + entry.len() > MAX_INPUT_CHARS {
             break;
         }
         prompt.push_str(&entry);
     }
-    prompt.push_str("请输出一个项目级总览的 JSON。");
-    let request = LlmRequest::with_prompt(prompt).with_system(PROJECT_SUMMARY_SYSTEM);
+    prompt.push_str(footer);
+    let request = LlmRequest::with_prompt(prompt).with_system(project_summary_system(loc));
     let response = provider.generate(&request)?;
     parse_summary(&response.text)
 }

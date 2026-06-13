@@ -6,10 +6,11 @@
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::prompts::QUERY_THREAD_SYSTEM;
+use super::prompts::query_thread_system;
 use super::{MAX_OUTPUT_TOKENS, MAX_SESSIONS_PER_BATCH, MAX_SUMMARY_CHARS, strip_code_fences};
 use crate::llm::provider::{LlmProvider, LlmRequest};
 use crate::llm::summarize::SessionSummary;
+use crate::locale::PromptLocale;
 use crate::storage::db::ThreadDraft;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,10 +43,11 @@ pub fn query_threads_by_keyword(
         sessions
     };
 
-    let prompt = build_query_prompt(batch, query);
+    let loc = PromptLocale::current();
+    let prompt = build_query_prompt(batch, query, loc);
 
     let request = LlmRequest::with_prompt(prompt)
-        .with_system(QUERY_THREAD_SYSTEM)
+        .with_system(query_thread_system(loc))
         .with_max_tokens(MAX_OUTPUT_TOKENS);
     let response = provider.generate(&request)?;
     let cleaned = strip_code_fences(&response.text);
@@ -81,14 +83,36 @@ pub fn query_threads_by_keyword(
     })
 }
 
-fn build_query_prompt(batch: &[(String, SessionSummary)], query: &str) -> String {
+fn build_query_prompt(batch: &[(String, SessionSummary)], query: &str, loc: PromptLocale) -> String {
     let mut prompt = String::with_capacity(8000);
-    prompt.push_str(&format!("用户关键词：{}\n\n", query));
-    prompt.push_str("以下是若干条编程会话的摘要，每条带 1-based 编号和所属项目：\n\n");
+    let (kw_label, intro, untitled, topics_prefix, topics_suffix, topics_join, unknown_proj, footer) = match loc {
+        PromptLocale::Zh => (
+            "用户关键词：",
+            "以下是若干条编程会话的摘要，每条带 1-based 编号和所属项目：\n\n",
+            "(无标题)",
+            "（主题：",
+            "）",
+            "、",
+            "(未知项目)",
+            "请按要求挑选与关键词相关的会话，输出 JSON。",
+        ),
+        PromptLocale::En => (
+            "User keyword: ",
+            "Below are programming session summaries, each with a 1-based index and project:\n\n",
+            "(untitled)",
+            " (topics: ",
+            ")",
+            ", ",
+            "(unknown project)",
+            "Pick the sessions relevant to the keyword and output JSON as required.",
+        ),
+    };
+    prompt.push_str(&format!("{}{}\n\n", kw_label, query));
+    prompt.push_str(intro);
     for (i, (_, summary)) in batch.iter().enumerate() {
         let n = i + 1;
         let title = if summary.title.is_empty() {
-            "(无标题)"
+            untitled
         } else {
             &summary.title
         };
@@ -101,18 +125,18 @@ fn build_query_prompt(batch: &[(String, SessionSummary)], query: &str) -> String
         let topics = if summary.topics.is_empty() {
             String::new()
         } else {
-            format!("（主题：{}）", summary.topics.join("、"))
+            format!("{}{}{}", topics_prefix, summary.topics.join(topics_join), topics_suffix)
         };
         let project = summary
             .project_name
             .as_deref()
             .filter(|p| !p.trim().is_empty())
-            .unwrap_or("(未知项目)");
+            .unwrap_or(unknown_proj);
         prompt.push_str(&format!(
             "[{}] project={} | {}{}\n  {}\n\n",
             n, project, title, topics, body,
         ));
     }
-    prompt.push_str("请按要求挑选与关键词相关的会话，输出 JSON。");
+    prompt.push_str(footer);
     prompt
 }
