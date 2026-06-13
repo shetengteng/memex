@@ -60,6 +60,15 @@ socket2 = "0.5"
 # Linux 上是 no-op。已经依赖被 wry 间接拉进来过，这里显式声明用于自己控制。
 window-vibrancy = "0.6"
 
+# macOS-only：直接 objc shim 把 NSWindow + WkWebView 强制透明。Tauri 自身的
+# `set_background_color(None)` 实测在 wry 0.55.1 上不能 100% 让 webview 透明，
+# vibrancy 会被 webview 默认白底盖住。manual setValue:@NO forKey:"drawsBackground"
+# 是社区指南给出的可靠路径。已经被 wry 间接拉进过，再显式声明保证版本可控。
+[target."cfg(target_os = \"macos\")".dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSColor", "NSView"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSValue", "NSObject"] }
+
 [dev-dependencies]
 tempfile = "3"
 serial_test = "3"

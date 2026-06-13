@@ -63,15 +63,15 @@ pub fn apply_to_all(app: &AppHandle, mode: SurfaceMode) {
 pub fn apply_to_window(win: &WebviewWindow, label: &str, mode: SurfaceMode) {
     // webview 自身的 backgroundColor 必须显式置为透明，否则 wkwebview 会以
     // 实色绘制，把窗口下层的 NSVisualEffectView 完全遮住，看起来就像「毛玻璃
-    // 没生效」。Tauri v2 的 transparent: true 只动 NSWindow，没碰 webview。
-    //
-    // 注意：清掉 vibrancy 时也要把 webview 背景设回 None（透明）—— 因为我们
-    // 不再依赖 wkwebview 的实色 fallback，body / html 的 CSS 已经能 cover 全部
-    // 实色路径，让 webview 始终透明可以避免「切回 solid 后窗口仍是半透明」的
-    // 中间态。
+    // 没生效」。Tauri v2 的 `set_background_color(None)` 在 wry 0.55.1 上覆盖
+    // 不到 wkwebview drawsBackground KVC（实测仍然白底），所以 macOS 上额外
+    // 走一段直接的 objc 调用，确保 NSWindow 与 contentView 子树都透明。
     if let Err(e) = win.set_background_color(None) {
         tracing::warn!("set_background_color({label}, None) failed: {e:?}");
     }
+
+    #[cfg(target_os = "macos")]
+    force_transparent_macos(win, label);
 
     match mode {
         SurfaceMode::Glass => {
@@ -139,4 +139,98 @@ pub fn load_persisted(db: &memex_core::storage::db::Db) -> SurfaceMode {
         .flatten()
         .map(|s| SurfaceMode::from_str_lossy(&s))
         .unwrap_or(SurfaceMode::Solid)
+}
+
+/// macOS 私有透明路径。tauri.conf.json 的 `transparent: true` + `macOSPrivateApi`
+/// 只让 NSWindow 透明，但 wkwebview 自身仍可能保持白底，把窗口下方的
+/// NSVisualEffectView 完全遮住。最稳的修复是直接给 NSWindow 设 setOpaque:NO +
+/// clearColor，并递归把 contentView 树里所有 layer 的 backgroundColor 清成
+/// nil，再给 wkwebview 走 setValue:@NO forKey:"drawsBackground"。
+///
+/// 失败永远只 warn，不影响功能 —— 调用前已经走过 `set_background_color(None)`，
+/// 这里只是社区验证过的兜底路径。
+#[cfg(target_os = "macos")]
+fn force_transparent_macos(win: &WebviewWindow, label: &str) {
+    use objc2::runtime::AnyObject;
+    use objc2::msg_send;
+
+    let raw = match win.ns_window() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("ns_window({label}) failed: {e:?}");
+            return;
+        }
+    };
+    if raw.is_null() {
+        return;
+    }
+    let ns_window = raw as *mut AnyObject;
+
+    unsafe {
+        // 1. NSWindow.setOpaque(NO) + clearColor —— 让窗口本身透明。
+        let _: () = msg_send![ns_window, setOpaque: false];
+        let clear_class: *mut AnyObject = msg_send![objc2::class!(NSColor), clearColor];
+        let _: () = msg_send![ns_window, setBackgroundColor: clear_class];
+
+        // 2. 递归 contentView：把所有 NSView 的 wantsLayer 打开 + layer.backgroundColor=nil，
+        //    再给 wkwebview KVC `drawsBackground=NO`。
+        let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+        if !content_view.is_null() {
+            clear_subview_backgrounds(content_view, 0);
+        }
+    }
+    tracing::info!("force_transparent_macos applied: window={label}");
+}
+
+/// 递归把一个 NSView 子树的 layer.backgroundColor 全部清成 nil，并对其中
+/// 出现的 wkwebview 走 `setValue:@NO forKey:"drawsBackground"`。
+///
+/// `depth` 仅用于防御性递归保护——subview 树理论上不会循环，但 cocoa 历史
+/// 上有过 corner case，深度 >32 直接 bail，避免 vibrancy 脚本卡住主线程。
+#[cfg(target_os = "macos")]
+unsafe fn clear_subview_backgrounds(view: *mut objc2::runtime::AnyObject, depth: u32) {
+    use objc2::runtime::AnyObject;
+    use objc2::msg_send;
+    use objc2_foundation::NSString;
+
+    if depth > 32 {
+        return;
+    }
+
+    unsafe {
+        let _: () = msg_send![view, setWantsLayer: true];
+        let layer: *mut AnyObject = msg_send![view, layer];
+        if !layer.is_null() {
+            let nil_color: *mut AnyObject = std::ptr::null_mut();
+            let _: () = msg_send![layer, setBackgroundColor: nil_color];
+        }
+
+        // 检测 wkwebview 类型：用 className 字符串比对，比拿 Class 指针更稳。
+        let cls_name_obj: *mut AnyObject = msg_send![view, className];
+        if !cls_name_obj.is_null() {
+            let utf8: *const std::ffi::c_char = msg_send![cls_name_obj, UTF8String];
+            if !utf8.is_null() {
+                let cls_str = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
+                if cls_str.contains("WKWebView") {
+                    let key = NSString::from_str("drawsBackground");
+                    let no_obj: *mut AnyObject =
+                        msg_send![objc2::class!(NSNumber), numberWithBool: false];
+                    let _: () = msg_send![view, setValue: no_obj, forKey: &*key];
+                }
+            }
+        }
+
+        // 递归子视图
+        let subviews: *mut AnyObject = msg_send![view, subviews];
+        if subviews.is_null() {
+            return;
+        }
+        let count: usize = msg_send![subviews, count];
+        for i in 0..count {
+            let sub: *mut AnyObject = msg_send![subviews, objectAtIndex: i];
+            if !sub.is_null() {
+                clear_subview_backgrounds(sub, depth + 1);
+            }
+        }
+    }
 }
