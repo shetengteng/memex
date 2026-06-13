@@ -61,6 +61,18 @@ pub fn apply_to_all(app: &AppHandle, mode: SurfaceMode) {
 /// 切回 solid 时调 `clear_vibrancy`，让 webview 直接显示 CSS 背景色，
 /// 不会留有"半玻璃"残影。
 pub fn apply_to_window(win: &WebviewWindow, label: &str, mode: SurfaceMode) {
+    // webview 自身的 backgroundColor 必须显式置为透明，否则 wkwebview 会以
+    // 实色绘制，把窗口下层的 NSVisualEffectView 完全遮住，看起来就像「毛玻璃
+    // 没生效」。Tauri v2 的 transparent: true 只动 NSWindow，没碰 webview。
+    //
+    // 注意：清掉 vibrancy 时也要把 webview 背景设回 None（透明）—— 因为我们
+    // 不再依赖 wkwebview 的实色 fallback，body / html 的 CSS 已经能 cover 全部
+    // 实色路径，让 webview 始终透明可以避免「切回 solid 后窗口仍是半透明」的
+    // 中间态。
+    if let Err(e) = win.set_background_color(None) {
+        tracing::warn!("set_background_color({label}, None) failed: {e:?}");
+    }
+
     match mode {
         SurfaceMode::Glass => {
             #[cfg(target_os = "macos")]
@@ -71,37 +83,47 @@ pub fn apply_to_window(win: &WebviewWindow, label: &str, mode: SurfaceMode) {
                 } else {
                     NSVisualEffectMaterial::Sidebar
                 };
-                if let Err(e) =
-                    apply_vibrancy(win, material, Some(NSVisualEffectState::Active), None)
-                {
-                    tracing::warn!("apply_vibrancy({label}, {material:?}) failed: {e:?}");
+                match apply_vibrancy(win, material, Some(NSVisualEffectState::Active), None) {
+                    Ok(()) => tracing::info!(
+                        "vibrancy applied: window={label} material={material:?}"
+                    ),
+                    Err(e) => tracing::warn!(
+                        "apply_vibrancy({label}, {material:?}) failed: {e:?}"
+                    ),
                 }
             }
             #[cfg(target_os = "windows")]
             {
                 use window_vibrancy::apply_mica;
-                if let Err(e) = apply_mica(win, None) {
-                    tracing::warn!("apply_mica({label}) failed: {e:?}");
+                match apply_mica(win, None) {
+                    Ok(()) => tracing::info!("mica applied: window={label}"),
+                    Err(e) => tracing::warn!("apply_mica({label}) failed: {e:?}"),
                 }
             }
             #[cfg(not(any(target_os = "macos", target_os = "windows")))]
             {
-                tracing::debug!("glass surface not supported on this platform; falling back to CSS only");
+                tracing::debug!(
+                    "glass surface not supported on this platform; falling back to CSS only"
+                );
             }
         }
         SurfaceMode::Solid => {
             #[cfg(target_os = "macos")]
             {
                 use window_vibrancy::clear_vibrancy;
-                if let Err(e) = clear_vibrancy(win) {
-                    tracing::warn!("clear_vibrancy({label}) failed: {e:?}");
+                match clear_vibrancy(win) {
+                    Ok(removed) => tracing::info!(
+                        "vibrancy cleared: window={label} removed={removed}"
+                    ),
+                    Err(e) => tracing::warn!("clear_vibrancy({label}) failed: {e:?}"),
                 }
             }
             #[cfg(target_os = "windows")]
             {
                 use window_vibrancy::clear_mica;
-                if let Err(e) = clear_mica(win) {
-                    tracing::warn!("clear_mica({label}) failed: {e:?}");
+                match clear_mica(win) {
+                    Ok(()) => tracing::info!("mica cleared: window={label}"),
+                    Err(e) => tracing::warn!("clear_mica({label}) failed: {e:?}"),
                 }
             }
             #[cfg(not(any(target_os = "macos", target_os = "windows")))]

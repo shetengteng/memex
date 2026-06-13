@@ -149,11 +149,29 @@
     Glass surface（毛玻璃）。Settings → Surface 切到 glass 后：
       1. <html> 上挂 .surface-glass，body 让出底色，把 macOS NSVisualEffectView /
          Win11 Mica 的实际系统 vibrancy 透到 webview；
-      2. 主要容器（侧栏 / 卡片 / 弹层）改半透明 + backdrop-filter，叠在毛玻璃之上
-         也能保持可读性，不会和系统材质完全融为一体。
-    切回 solid 时不带 .surface-glass，所有元素回到完全实色，与历史行为一致。
-    暗色变体（.dark.surface-glass）用更深的灰来补偿系统材质偏亮的问题。
+      2. 直接覆盖 --background / --card / --popover / --sidebar / --secondary
+         几个 token 为带 alpha 的 oklch（不用 color-mix，避免老 WkWebView 不识别），
+         这样所有 `bg-background / bg-card / bg-popover / bg-sidebar` 会自动变半透明；
+      3. 给同样的 4 类容器加 `backdrop-filter`，叠在系统毛玻璃之上还能进一步软化背景
+         （-webkit- 前缀是 macOS WkWebView 的兼容写法）。
+    切回 solid 时不挂 .surface-glass，所有变量恢复为原值，与历史行为完全一致。
   */
+  html.surface-glass {
+    --background: oklch(1 0 0 / 0.55);
+    --card: oklch(1 0 0 / 0.62);
+    --popover: oklch(1 0 0 / 0.78);
+    --sidebar: oklch(0.985 0 0 / 0.45);
+    --secondary: oklch(0.97 0 0 / 0.6);
+    --muted: oklch(0.97 0 0 / 0.55);
+    }
+  html.dark.surface-glass {
+    --background: oklch(0.145 0 0 / 0.55);
+    --card: oklch(0.205 0 0 / 0.62);
+    --popover: oklch(0.205 0 0 / 0.78);
+    --sidebar: oklch(0.205 0 0 / 0.45);
+    --secondary: oklch(0.269 0 0 / 0.6);
+    --muted: oklch(0.269 0 0 / 0.55);
+    }
   html.surface-glass,
   html.surface-glass body {
     background: transparent !important;
@@ -162,15 +180,8 @@
   html.surface-glass .bg-card,
   html.surface-glass .bg-popover,
   html.surface-glass .bg-sidebar {
-    background-color: color-mix(in oklch, var(--background) 65%, transparent) !important;
-    backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    }
-  html.dark.surface-glass .bg-background,
-  html.dark.surface-glass .bg-card,
-  html.dark.surface-glass .bg-popover,
-  html.dark.surface-glass .bg-sidebar {
-    background-color: color-mix(in oklch, var(--background) 55%, transparent) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    backdrop-filter: blur(20px) saturate(1.6);
     }
 }
 
