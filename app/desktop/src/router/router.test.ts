@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { router } from './index'
 
+// breadcrumb 现在存 i18n key（SiteHeader 渲染时调 translate() 解析），不再是字面中文。
 const expectedRoutes: Record<string, { layout?: string; breadcrumb?: string[] }> = {
-  '/today': { breadcrumb: ['今天'] },
-  '/library': { breadcrumb: ['资料库'] },
-  '/insights': { breadcrumb: ['洞察'] },
-  '/connect': { breadcrumb: ['连接'] },
-  '/settings': { breadcrumb: ['设置'] },
+  '/today': { breadcrumb: ['nav.today'] },
+  '/library': { breadcrumb: ['nav.library'] },
+  '/insights': { breadcrumb: ['nav.insights'] },
+  '/connect': { breadcrumb: ['nav.connect'] },
+  '/settings': { breadcrumb: ['nav.settings'] },
   '/tray-popup': { layout: 'bare' },
 }
 

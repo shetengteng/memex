@@ -34,19 +34,23 @@ function interpolate(tpl: string, vars?: Record<string, string | number>): strin
   })
 }
 
+// 顶层 translate：所有 .ts / 非组件代码都用它（router、lib/utils、stores 等）。
+// 跟 useI18n().t 是同一个函数，只是不需要在 setup() 上下文里就能调。
+// reactive 是因为 current 是 ref —— 任何依赖 translate() 的 computed 都会自动重渲染。
+export function translate(key: string, vars?: Record<string, string | number>): string {
+  const dict = MESSAGES[current.value] || MESSAGES[DEFAULT_LOCALE]
+  const tpl = dict[key]
+  if (tpl === undefined) {
+    const fallback = MESSAGES[DEFAULT_LOCALE][key]
+    return fallback ? interpolate(fallback, vars) : key
+  }
+  return interpolate(tpl, vars)
+}
+
 export function useI18n() {
   const locale = current
-  const t = (key: string, vars?: Record<string, string | number>): string => {
-    const dict = MESSAGES[locale.value] || MESSAGES[DEFAULT_LOCALE]
-    const tpl = dict[key]
-    if (tpl === undefined) {
-      // 缺 key 时退到默认 locale，再退到 key 本身，便于开发期发现遗漏
-      const fallback = MESSAGES[DEFAULT_LOCALE][key]
-      return fallback ? interpolate(fallback, vars) : key
-    }
-    return interpolate(tpl, vars)
-  }
-  const tHtml = computed(() => (key: string, vars?: Record<string, string | number>) => t(key, vars))
+  const t = translate
+  const tHtml = computed(() => (key: string, vars?: Record<string, string | number>) => translate(key, vars))
   return { locale, t, tHtml }
 }
 

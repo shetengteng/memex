@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { translate as t } from '@/i18n'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -194,38 +195,34 @@ export function parseBackendError(e: unknown): ParsedBackendError {
 
 export function humanizeBackendError(e: unknown): FriendlyBackendError {
   const { kind, message } = parseBackendError(e)
+  const goSettings = { label: t('error.action.go_settings'), route: '/settings' }
 
   if (kind === 'not_found') {
-    return { friendly: message ? `未找到：${message}` : '未找到所需的资源。' }
+    return {
+      friendly: message ? t('error.not_found.with_msg', { msg: message }) : t('error.not_found.no_msg'),
+    }
   }
   if (kind === 'validation') {
-    return { friendly: message ? `输入有误：${message}` : '输入有误，请检查后重试。' }
+    return {
+      friendly: message ? t('error.validation.with_msg', { msg: message }) : t('error.validation.no_msg'),
+    }
   }
 
   if (/no llm provider available/i.test(message)) {
-    return {
-      friendly: '当前没有可用的 LLM 服务。请先在设置中启用 Ollama 或配置 Claude API。',
-      action: { label: '去设置', route: '/settings' },
-    }
+    return { friendly: t('error.no_llm'), action: goSettings }
   }
 
   if (/connection refused|ollama.*(unreachable|not running|not found)/i.test(message)) {
-    return {
-      friendly: '无法连接 Ollama 服务，请确认 ollama serve 已启动。',
-      action: { label: '去设置', route: '/settings' },
-    }
+    return { friendly: t('error.ollama_unreachable'), action: goSettings }
   }
 
   if (/401|403|unauthorized|forbidden|invalid.*api.*key/i.test(message)) {
-    return {
-      friendly: 'LLM API Key 无效或权限不足，请在设置中重新配置。',
-      action: { label: '去设置', route: '/settings' },
-    }
+    return { friendly: t('error.api_key_invalid'), action: goSettings }
   }
 
   if (/at least \d+ messages?|too few messages/i.test(message)) {
-    return { friendly: '会话消息太少，至少需要 2 条消息才能生成摘要。' }
+    return { friendly: t('error.few_messages') }
   }
 
-  return { friendly: message || '未知错误' }
+  return { friendly: message || t('error.unknown') }
 }

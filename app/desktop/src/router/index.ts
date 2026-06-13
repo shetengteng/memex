@@ -1,42 +1,44 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 
+// breadcrumb / title 存的是 i18n key（不是字面文案），SiteHeader 渲染时会
+// 通过 translate() 解析成当前 locale 的实际文本，所以切换语言能整页跟随。
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/today' },
   {
     path: '/today',
     name: 'today',
     component: () => import('@/views/today/index.vue'),
-    meta: { title: '今天', breadcrumb: ['今天'] },
+    meta: { title: 'nav.today', breadcrumb: ['nav.today'] },
   },
   {
     path: '/library',
     name: 'library',
     component: () => import('@/views/library/index.vue'),
-    meta: { title: '资料库', breadcrumb: ['资料库'] },
+    meta: { title: 'nav.library', breadcrumb: ['nav.library'] },
   },
   {
     path: '/insights',
     name: 'insights',
     component: () => import('@/views/insights/index.vue'),
-    meta: { title: '洞察', breadcrumb: ['洞察'] },
+    meta: { title: 'nav.insights', breadcrumb: ['nav.insights'] },
   },
   {
     path: '/connect',
     name: 'connect',
     component: () => import('@/views/connect/index.vue'),
-    meta: { title: '连接', breadcrumb: ['连接'] },
+    meta: { title: 'nav.connect', breadcrumb: ['nav.connect'] },
   },
   {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/settings/index.vue'),
-    meta: { title: '设置', breadcrumb: ['设置'] },
+    meta: { title: 'nav.settings', breadcrumb: ['nav.settings'] },
   },
   {
     path: '/logs',
     name: 'logs',
     component: () => import('@/views/logs/index.vue'),
-    meta: { title: '日志', breadcrumb: ['设置', '日志'] },
+    meta: { title: 'nav.logs', breadcrumb: ['nav.settings', 'nav.logs'] },
   },
   {
     path: '/tray-popup',

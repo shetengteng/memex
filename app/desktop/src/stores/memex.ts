@@ -16,6 +16,7 @@
 
 import { reactive, ref, watch, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { translate as t } from '@/i18n'
 import type {
   DaemonStatus as IpcDaemonStatus,
   ProjectSummary,
@@ -102,7 +103,7 @@ export function rowToSession(row: SessionRow): Session {
   // 用 projectPath 末段当 workspace/project 名；title 缺失时退到 firstUserMessage
   const projName = row.projectPath
     ? row.projectPath.split('/').filter(Boolean).pop() ?? row.projectPath
-    : '(未知项目)'
+    : t('store.session.unknown_project')
   // claude_code 等 IDE 的 workflow agent 框架会把 `=== Role === ...` 这种
   // system prompt 模板写进第一条 user message。这种内容做标题 / intent fallback
   // 完全是噪音，必须过滤掉。
@@ -111,7 +112,7 @@ export function rowToSession(row: SessionRow): Session {
     (row.summaryTitle && row.summaryTitle.trim()) ||
     (row.title && row.title.trim()) ||
     (cleanFirstPrompt && cleanFirstPrompt.slice(0, 60)) ||
-    '(无标题)'
+    t('store.session.untitled')
   // intent 优先取 LLM 摘要里推断出来的；摘要还没生成时退到第一条 user 消息预览，
   // 让列表行依然有第二行有意义的辅助文字（LibrarySessionListItem 会读 session.intent）。
   const intent =

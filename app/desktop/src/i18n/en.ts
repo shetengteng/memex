@@ -24,12 +24,33 @@ export const en: Messages = {
   'footer.scanning': 'Scanning…',
   'footer.scanning_with_count': 'Scanning {msgs} msgs',
 
-  // popup nav
+  // popup nav + main-window breadcrumb / router meta (shared namespace)
   'nav.home': 'Home',
   'nav.search': 'Search',
   'nav.settings': 'Settings',
   'nav.status': 'Status',
   'nav.dashboard': 'Open Dashboard',
+  'nav.today': 'Today',
+  'nav.library': 'Library',
+  'nav.insights': 'Insights',
+  'nav.connect': 'Connect',
+  'nav.logs': 'Logs',
+
+  // backend error humanization (used by lib/utils.ts humanizeBackendError)
+  'error.not_found.with_msg': 'Not found: {msg}',
+  'error.not_found.no_msg': 'The requested resource was not found.',
+  'error.validation.with_msg': 'Invalid input: {msg}',
+  'error.validation.no_msg': 'Invalid input — please check and try again.',
+  'error.no_llm': 'No LLM provider is available. Enable Ollama or configure a Claude API in Settings first.',
+  'error.ollama_unreachable': "Can't reach Ollama. Make sure `ollama serve` is running.",
+  'error.api_key_invalid': 'The LLM API key is invalid or lacks permission. Reconfigure it in Settings.',
+  'error.few_messages': 'This session has too few messages — at least 2 are needed for a summary.',
+  'error.unknown': 'Unknown error',
+  'error.action.go_settings': 'Open Settings',
+
+  // store fallbacks (used by rowToSession when projectPath / title missing)
+  'store.session.unknown_project': '(unknown project)',
+  'store.session.untitled': '(untitled)',
 
   // home / search
   'search.placeholder': 'Search across all sessions…',

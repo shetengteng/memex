@@ -25,12 +25,33 @@ export const zh: Messages = {
   'footer.scanning': '扫描中…',
   'footer.scanning_with_count': '扫描中 {msgs} 条',
 
-  // popup 底部导航
+  // popup 底部导航 + 主窗口 breadcrumb / 路由 meta（复用同一个 key 命名空间）
   'nav.home': '主页',
   'nav.search': '搜索',
   'nav.settings': '设置',
   'nav.status': '状态',
   'nav.dashboard': '打开 Dashboard',
+  'nav.today': '今天',
+  'nav.library': '资料库',
+  'nav.insights': '洞察',
+  'nav.connect': '连接',
+  'nav.logs': '日志',
+
+  // 后端错误友好化（lib/utils.ts humanizeBackendError 用）
+  'error.not_found.with_msg': '未找到：{msg}',
+  'error.not_found.no_msg': '未找到所需的资源。',
+  'error.validation.with_msg': '输入有误：{msg}',
+  'error.validation.no_msg': '输入有误，请检查后重试。',
+  'error.no_llm': '当前没有可用的 LLM 服务。请先在设置中启用 Ollama 或配置 Claude API。',
+  'error.ollama_unreachable': '无法连接 Ollama 服务，请确认 ollama serve 已启动。',
+  'error.api_key_invalid': 'LLM API Key 无效或权限不足，请在设置中重新配置。',
+  'error.few_messages': '会话消息太少，至少需要 2 条消息才能生成摘要。',
+  'error.unknown': '未知错误',
+  'error.action.go_settings': '去设置',
+
+  // store 兜底文案（rowToSession 没有 projectPath / title 时用）
+  'store.session.unknown_project': '(未知项目)',
+  'store.session.untitled': '(无标题)',
 
   // 主页 / 搜索
   'search.placeholder': '在所有会话中搜索…',

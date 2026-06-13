@@ -23,7 +23,12 @@ const route = useRoute()
 const { open: openPalette } = useCommandPalette()
 const { t } = useI18n()
 
-const crumbs = computed<string[]>(() => (route.meta?.breadcrumb as string[]) ?? [])
+// route.meta.breadcrumb 现在存 i18n key（如 ['nav.today']），渲染时翻译；
+// 切换语言时 t 是 reactive，computed 会自动重算，整列 breadcrumb 跟随重渲染。
+const crumbs = computed<string[]>(() => {
+  const keys = (route.meta?.breadcrumb as string[] | undefined) ?? []
+  return keys.map((k) => t(k))
+})
 const isToday = computed(() => route.path === '/today')
 const isLibrary = computed(() => route.path === '/library')
 const isInsights = computed(() => route.path === '/insights')
