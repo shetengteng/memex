@@ -125,19 +125,6 @@ jobs:
                或右键点 `.app` → "打开" → 在警告框中再点"打开"。
             4. 启动后菜单栏右上角会出现 **M** 图标
 
-            ### 不集成自动更新
-
-            Memex v1 系列**不集成 in-app 自动更新**（2026-06-02 永久决策，理由：维护 signing key + GitHub Secret 与价值不匹配）。新版本发布时，**App 内 Settings → 关于 → 检查更新**会跳转到本 Releases 页面，请手动下载新 DMG 重装即可（用户数据保留在 `~/.memex/`，不会丢失）。
-
-            或者通过 Homebrew Cask（即将上线）：
-
-            ```bash
-            brew tap shetengteng/memex
-            brew install --cask memex
-            # 后续升级
-            brew upgrade --cask memex
-            ```
-
             ### SHA256 校验
 
             下载后本地校验：
