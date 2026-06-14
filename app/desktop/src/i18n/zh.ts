@@ -1136,7 +1136,6 @@ export const zh: Messages = {
   'library.tabs.threads': '线索',
 
   // 顶部操作
-  'library.action.export': '导出',
   'library.action.ingest': '立即采集',
   'library.action.ingest_busy': '采集中…',
 

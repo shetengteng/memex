@@ -1135,7 +1135,6 @@ export const en: Messages = {
   'library.tabs.threads': 'Threads',
 
   // Top actions
-  'library.action.export': 'Export',
   'library.action.ingest': 'Ingest now',
   'library.action.ingest_busy': 'Ingesting…',
 

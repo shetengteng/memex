@@ -10,7 +10,7 @@
 
 跑法:
     rm ~/.memex-demo/memex.db*  # 如果想完全重置
-    USER="Alex Chen" MEMEX_HOME=~/.memex-demo /Applications/Memex.app/Contents/MacOS/Memex &
+    USER="User" MEMEX_HOME=~/.memex-demo /Applications/Memex.app/Contents/MacOS/Memex &
     sleep 6 && kill <pid>  # 让 migrations 跑完
     python3 scripts/seed-demo.py
 """
@@ -30,12 +30,13 @@ WEEK_AGO = NOW - timedelta(days=7)
 MONTH_AGO = NOW - timedelta(days=30)
 
 # --- 虚构 project + adapter 分布 ---
+# 用 /Users/user 前缀避免任何真实用户名泄露 (Today 页问候语走系统 $USER, 我们 export USER=User).
 PROJECTS = [
-    ("/Users/alex/Code/acme-platform", "acme-platform"),
-    ("/Users/alex/Code/orbit-design-system", "orbit-design-system"),
-    ("/Users/alex/Code/nimbus-cli", "nimbus-cli"),
-    ("/Users/alex/Code/pulse-analytics", "pulse-analytics"),
-    ("/Users/alex/Code/kepler-mobile", "kepler-mobile"),
+    ("/Users/user/Code/acme-platform", "acme-platform"),
+    ("/Users/user/Code/orbit-design-system", "orbit-design-system"),
+    ("/Users/user/Code/nimbus-cli", "nimbus-cli"),
+    ("/Users/user/Code/pulse-analytics", "pulse-analytics"),
+    ("/Users/user/Code/kepler-mobile", "kepler-mobile"),
 ]
 ADAPTERS = ["cursor", "claude_code", "codex", "opencode", "continue_dev"]
 ADAPTER_WEIGHTS = [0.50, 0.22, 0.12, 0.10, 0.06]
@@ -96,21 +97,21 @@ def hash_content(content: str) -> str:
 
 def insert_sources(c: sqlite3.Cursor) -> None:
     """虚构的 source 路径，让 Connect 页的"采集源"卡片渲染出"已扫描多少文件"。
-    用 /Users/alex 前缀避免任何真实路径泄露。
+    用 /Users/user 前缀避免任何真实路径泄露。
     """
     fake_paths_per_adapter = {
         "cursor": [
-            f"/Users/alex/Library/Application Support/Cursor/User/workspaceStorage/acme-{i:08x}/state.vscdb"
+            f"/Users/user/Library/Application Support/Cursor/User/workspaceStorage/acme-{i:08x}/state.vscdb"
             for i in range(2530)
         ][:50],  # 只插 50 行做指示，count 字段是另一回事
         "claude_code": [
-            f"/Users/alex/.claude/projects/acme-platform/{i:032x}.jsonl" for i in range(255)
+            f"/Users/user/.claude/projects/acme-platform/{i:032x}.jsonl" for i in range(255)
         ][:50],
-        "codex": [f"/Users/alex/.codex/sessions/{i:08x}.json" for i in range(13)],
+        "codex": [f"/Users/user/.codex/sessions/{i:08x}.json" for i in range(13)],
         "opencode": [
-            f"/Users/alex/.local/share/opencode/projects/acme/{i:08x}.jsonl" for i in range(124)
+            f"/Users/user/.local/share/opencode/projects/acme/{i:08x}.jsonl" for i in range(124)
         ][:30],
-        "continue_dev": [f"/Users/alex/.continue/sessions/{i:08x}.json" for i in range(1)],
+        "continue_dev": [f"/Users/user/.continue/sessions/{i:08x}.json" for i in range(1)],
     }
     for adapter, paths in fake_paths_per_adapter.items():
         for p in paths:

@@ -42,7 +42,7 @@ Memex 是一个**本地优先**的"AI 记忆中枢"：
 
 ## 快速开始
 
-> **当前状态**：v1.0.0 — daemon 完全内嵌、端口 fallback、CLI 自动重试、通知中心、隐私开关、清空数据韧性、UI 全部 shadcn 化。DMG 与 Homebrew Cask 待首次 GitHub Release 上线后可用，在那之前推荐使用「方式 1：从源码构建」。
+> **当前状态**：v1.0.3 — daemon 完全内嵌、端口 fallback、CLI 自动重试、通知中心、隐私开关、清空数据韧性、UI 全部 shadcn 化。DMG 已可在 [Releases](https://github.com/shetengteng/memex/releases) 下载；从源码构建仍推荐用于开发与定制。
 
 ### 方式 1：从源码构建（推荐）
 
@@ -64,7 +64,7 @@ bash scripts/upgrade-local.sh --skip-backup
 
 完成后，菜单栏点击 Memex (M) 图标即可使用。
 
-### 方式 2：DMG 下载（v1.0 正式 release 后启用）
+### 方式 2：DMG 下载（v1.0.3 已可用）
 
 ```bash
 # 1. 从 Releases 页下载对应架构 DMG
@@ -77,13 +77,6 @@ curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/inst
 ```
 
 > **为什么需要这个脚本？** 当前版本使用 ad-hoc 签名（无 Apple Developer 账号），macOS Gatekeeper 会把从浏览器下载的 App 标记成 quarantine，双击启动时弹出"已损坏 / 未识别开发者"错误。`xattr -cr Memex.app` 一次性清除即可正常使用。
-
-### 方式 3：Homebrew Cask（v1.0 正式 release 后启用）
-
-```bash
-brew tap shetengteng/memex
-brew install --cask memex
-```
 
 ---
 
@@ -176,17 +169,55 @@ memex-cli daemon status                  # Daemon 健康检查
 
 ---
 
-## MCP SKILL
+## MCP + Skill：在你的 IDE 里直接用自然语言查记忆
+
+Memex 暴露 **6 个 MCP 工具**给 Claude Code / Cursor / Codex / OpenCode。**安装一次后**，你不需要记任何命令——直接用自然语言问，IDE 会自动路由到对应的工具。
+
+### 一键安装
+
+在 Memex 桌面应用 → **连接 → IDE 集成** 勾选你的 IDE，会自动写入对应的 MCP server config + Skill 到：
+
+- Claude Code → `~/.claude.json`
+- Cursor → `~/.cursor/mcp.json` + Project Rules
+- Codex → `~/.codex/config.toml`
+- OpenCode → `~/.config/opencode/mcp.json`
+
+新开一个 IDE session 即可生效。
+
+### 6 个 MCP 工具
+
+| 工具 | 用途 | 典型场景 |
+|---|---|---|
+| `search_memory` | 跨 adapter / 项目 / 时间窗口的全文检索 | 关键词秒级命中 |
+| `get_session` | 拿单条会话完整正文（含 mark 高亮） | "把那次讨论调出来" |
+| `list_recent` | 列最近 N 条 session | "最近一周我都聊了啥" |
+| `get_project_context` | 当前 `cwd` 项目的工作记忆摘要 | "继续做之前的功能" |
+| `list_sessions_by_range` | ISO 日期区间筛选 | 周报 / 月报 |
+| `stats` | 总览（session 数 / message 数 / chunk 数） | "我的库现在多大" |
+
+### 自然语言 demo（开箱即用，零参数记忆负担）
+
+| 你在 IDE 里说 | Memex 自动做的事 |
+|---|---|
+| "我上周和 Cursor 在 zoom-docs 项目讨论了什么？" | `search_memory(query="zoom-docs", adapter="cursor", since_days=7)` |
+| "找一下我们之前定的 retry 策略" | `search_memory(query="retry strategy", limit=8)` |
+| "把 `abc12` 这条 session 的全文拉出来" | `get_session(session_id="abc12")` |
+| "最近 10 个 Claude Code session" | `list_recent(limit=10, adapter="claude_code")` |
+| "继续之前在这个项目做的事" | `get_project_context()` |
+| "把 6 月 1 号到 6 月 7 号的所有会话列出来" | `list_sessions_by_range(after="2026-06-01", before="2026-06-07")` |
+| "我索引了多少条对话？" | `stats()` |
+
+> **核心体验**：你只管用人类的话提问，IDE 的 LLM 会替你挑工具 + 填参数。**没有命令要背，没有 SQL 要写。**
+
+### 完整 SKILL 文档
 
 | 文件 | 适用 |
 |---|---|
-| [`SKILL.md`](SKILL.md) | 通用 SKILL（4 个 MCP 工具 + CLI 速查） |
+| [`SKILL.md`](SKILL.md) | 通用 SKILL（6 个 MCP 工具 + CLI 速查） |
 | [`app/skills/cursor/SKILL.md`](app/skills/cursor/SKILL.md) | Cursor 专属 |
 | [`app/skills/claude-code/SKILL.md`](app/skills/claude-code/SKILL.md) | Claude Code 专属 |
 | [`app/skills/codex/SKILL.md`](app/skills/codex/SKILL.md) | Codex 专属 |
 | [`app/skills/opencode/SKILL.md`](app/skills/opencode/SKILL.md) | OpenCode 专属 |
-
-> 用法：在 Memex 桌面应用 → **连接 → IDE 集成** 一键安装/卸载 MCP + SKILL 到 4 个 IDE。安装后，在该 IDE 内新开 session，调 `search_memory("xxx")` 即可检索全部历史。
 
 ---
 

@@ -134,9 +134,9 @@ for entry in "${PAGES[@]}"; do
   open "memex://goto/$page" || true
   sleep "$wait_s"
 
-  # screencapture -l targets a specific window ID, so it works even when
-  # the terminal/AI tool is foreground.
-  screencapture -x -l "$WID" "$out"
+  # -l 按窗口 ID 抓 (无视 z-order, terminal 在前台也行).
+  # -o 去除 macOS drop shadow (那圈柔光晕看起来像"外边框").
+  screencapture -x -o -l "$WID" "$out"
   echo "    wrote $out ($(stat -f %z "$out") bytes)"
 done
 

@@ -672,7 +672,7 @@ a:hover { color: var(--brand-light); }
 /* ─── Screenshots Carousel ───
    docs/screenshots/<NN>-<page>-<zh|en>.png — 5 个页面 × zh + en = 10 张图。
    一次只展示一组双语对照，靠 dot indicator + prev/next 切换 + 鼠标横向滚动 snap。
-   数据是 mock（虚构用户 Alex Chen + 5 个虚构项目），不含任何隐私字段。 */
+   数据是 mock（用户名 User + 5 个虚构项目），不含任何隐私字段。 */
 .container-wide { max-width: 1280px; }
 
 .carousel-wrap {
@@ -694,11 +694,8 @@ a:hover { color: var(--brand-light); }
 .carousel-card {
   flex: 0 0 100%;
   scroll-snap-align: start;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
-  padding: 32px;
-  box-shadow: 0 8px 32px oklch(0% 0 0 / 0.06);
+  padding: 24px 8px 8px;
+  background: transparent;
 }
 
 .carousel-card-head {
@@ -734,21 +731,11 @@ a:hover { color: var(--brand-light); }
 }
 
 /* 单图视图：每张卡片含 zh + en 两个 figure，但只显示当前 track[data-lang] 对应的那个。
-   切语言时由 JS 在 setLang() 里更新 track.dataset.lang，纯 CSS 完成 toggle。 */
+   切语言时由 JS 在 setLang() 里更新 track.dataset.lang，纯 CSS 完成 toggle。
+   完全 flat — 0 边框 0 阴影, 让截图自己漂浮在背景上。 */
 .carousel-shot {
-  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--border);
-  background: oklch(96% 0.003 260);
-  box-shadow: 0 10px 28px oklch(0% 0 0 / 0.08);
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-[data-theme="dark"] .carousel-shot { background: oklch(15% 0.01 260); }
-
-.carousel-shot:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 36px oklch(0% 0 0 / 0.12);
+  background: transparent;
 }
 
 .carousel-shot a {
@@ -821,9 +808,156 @@ a:hover { color: var(--brand-light); }
   box-shadow: 0 0 8px var(--brand-glow);
 }
 
+/* ─── Skills / MCP natural-language demo section ─── */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-top: 36px;
+}
+
+.skill-demo {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color 0.25s, transform 0.25s;
+}
+
+.skill-demo:hover {
+  border-color: oklch(from var(--brand) l c h / 0.35);
+  transform: translateY(-2px);
+}
+
+.skill-demo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skill-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand);
+  background: var(--brand-subtle);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.skill-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.skill-bubble .bubble-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.skill-bubble.user {
+  background: var(--bg);
+}
+
+.skill-bubble.user p {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.skill-bubble.tool {
+  background: oklch(from var(--brand) l c h / 0.06);
+  border-color: oklch(from var(--brand) l c h / 0.18);
+}
+
+.skill-bubble.tool code {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--brand-strong, var(--brand));
+  word-break: break-word;
+  line-height: 1.5;
+  background: transparent;
+  padding: 0;
+}
+
+.skills-tools {
+  margin-top: 32px;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  justify-content: center;
+}
+
+.skills-tools-label {
+  font-weight: 600;
+  color: var(--fg-secondary);
+  font-size: 0.95rem;
+}
+
+.skills-tools-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skills-tools-list code {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--fg);
+}
+
+.skills-install {
+  margin-top: 24px;
+  text-align: center;
+  color: var(--fg-secondary);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.skills-install-path {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--fg);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
   .nav-links { display: none; }
+  .skills-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {

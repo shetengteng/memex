@@ -15,7 +15,6 @@ import {
 import {
   ArrowUpDown,
   ChevronDown,
-  Download,
   FolderGit2,
   GitBranch,
   MessagesSquare,
@@ -353,10 +352,6 @@ onBeforeUnmount(() => {
     </Teleport>
 
     <Teleport to="#memex-header-actions" defer>
-      <Button variant="outline" size="sm" class="h-8 gap-2" disabled>
-        <Download class="size-4" />
-        {{ t('library.action.export') }}
-      </Button>
       <Button size="sm" class="h-8 gap-2" :disabled="ingesting" @click="runIngest">
         <RefreshCw :class="['size-4', ingesting && 'animate-spin']" />
         {{ ingesting ? t('library.action.ingest_busy') : t('library.action.ingest') }}

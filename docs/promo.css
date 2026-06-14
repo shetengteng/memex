@@ -1,0 +1,782 @@
+/* ============================================================
+   Memex Promo · StoryBrand walkthrough · 8 acts × 100vh
+   关键设计原则:
+   1. 仅用 GPU 合成属性 (opacity / transform), 避免 paint / layout 抖动
+   2. scroll-snap-type: y mandatory, 一屏一幕, 鼠标 / 触摸板 / 键盘均可推进
+   3. 所有过渡 ≥ 600ms, ease-out 缓动, 进入视野再触发 (IntersectionObserver)
+   4. 纯文字 + SVG + 截图, 不用视频, 不用 CSS zoom 动画
+   ============================================================ */
+
+:root {
+  --bg: oklch(99% 0.003 260);
+  --bg-elev: oklch(100% 0 0);
+  --surface: oklch(97% 0.005 260);
+  --fg: oklch(20% 0.02 260);
+  --fg-dim: oklch(48% 0.015 260);
+  --fg-mute: oklch(65% 0.012 260);
+  --border: oklch(90% 0.012 260);
+  --border-strong: oklch(82% 0.018 260);
+  --brand: oklch(58% 0.21 268);
+  --brand-soft: oklch(95% 0.04 268);
+  --accent-pink: oklch(72% 0.20 0);
+  --accent-amber: oklch(75% 0.16 70);
+  --accent-blue: oklch(65% 0.16 235);
+  --accent-green: oklch(65% 0.18 145);
+  --accent-warn: oklch(60% 0.20 30);
+
+  --font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  --t-fast: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-slow: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: oklch(14% 0.02 260);
+    --bg-elev: oklch(18% 0.02 260);
+    --surface: oklch(20% 0.02 260);
+    --fg: oklch(95% 0.005 260);
+    --fg-dim: oklch(70% 0.012 260);
+    --fg-mute: oklch(52% 0.01 260);
+    --border: oklch(28% 0.015 260);
+    --border-strong: oklch(36% 0.02 260);
+    --brand-soft: oklch(28% 0.08 268);
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.promo {
+  font-family: var(--font-sans);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ─── Skip link (a11y) ─────────────────────────── */
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  padding: 8px 14px;
+  background: var(--fg);
+  color: var(--bg);
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transform: translateY(-200%);
+  transition: transform 200ms ease;
+  z-index: 1000;
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* ─── Progress nav (right-side rail) ──────────────────────────
+   8 个 dot 垂直堆叠, 显示当前章节, 点击直跳, 不抖. */
+.promo-nav {
+  position: fixed;
+  top: 50%;
+  right: 28px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 50;
+  background: oklch(100% 0 0 / 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 14px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px -8px oklch(30% 0.02 260 / 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  .promo-nav { background: oklch(20% 0.02 260 / 0.7); }
+}
+
+.promo-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: transform 220ms var(--t-fast), background 220ms var(--t-fast);
+}
+.promo-dot:hover { transform: scale(1.4); background: var(--brand); }
+.promo-dot.is-active {
+  background: var(--brand);
+  transform: scale(1.4);
+  box-shadow: 0 0 0 4px var(--brand-soft);
+}
+.promo-dot span {
+  position: absolute;
+  right: calc(100% + 16px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--fg-mute);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.promo-dot.is-active span,
+.promo-dot:hover span { opacity: 1; }
+
+/* ─── Track + Act layout ────────────────────────── */
+.promo-track {
+  scroll-snap-type: y mandatory;
+  height: 100vh;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.promo-track::-webkit-scrollbar { display: none; }
+
+.act {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.act-inner {
+  max-width: 1180px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.act-inner-split {
+  display: grid;
+  grid-template-columns: 0.7fr 1.3fr;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .act { padding: 80px 28px; }
+  .act-inner-split { grid-template-columns: 1fr; gap: 32px; }
+  .promo-nav { right: 12px; }
+  .promo-dot span { display: none; }
+}
+
+/* ─── Reveal animation (driven by JS .is-visible class) ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 700ms var(--t-slow), transform 700ms var(--t-slow);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 让 split 内每个子元素错开进入 */
+.is-visible .plan-text > *,
+.is-visible .plan-visual > *,
+.is-visible .boxes > *,
+.is-visible .stakes-list > *,
+.is-visible .metric-row > *,
+.is-visible .adapter-grid > *,
+.is-visible .privacy-split > * {
+  animation: rise-in 700ms var(--t-slow) backwards;
+  animation-delay: calc(var(--i, 0) * 80ms + 200ms);
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .is-visible * { transition: none !important; animation: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+
+/* ─── Common type ────────────────────────────────── */
+.kicker-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.act-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand);
+  padding: 4px 10px;
+  border: 1px solid var(--brand);
+  border-radius: 6px;
+}
+.act-label[data-tone="warn"] {
+  color: var(--accent-warn);
+  border-color: var(--accent-warn);
+}
+.act-label[data-tone="success"] {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+.act-headline {
+  font-size: clamp(2.2rem, 5.2vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--accent-pink) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gradient-text-blue {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--accent-blue) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gradient-text-warn {
+  background: linear-gradient(135deg, var(--accent-warn) 0%, var(--accent-amber) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gradient-text-success {
+  background: linear-gradient(135deg, var(--accent-green) 0%, var(--brand) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.act-sub {
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
+  line-height: 1.7;
+  color: var(--fg-dim);
+  max-width: 720px;
+}
+.act-sub-small { font-size: 1rem; color: var(--fg-mute); }
+.act-sub strong { color: var(--fg); font-weight: 700; }
+
+/* ─── Buttons ────────────────────────────── */
+.act-cta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.act-cta-final { gap: 18px; }
+
+.btn-primary,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 200ms var(--t-fast), box-shadow 200ms var(--t-fast),
+              background 200ms ease, color 200ms ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: var(--fg);
+  color: var(--bg);
+  box-shadow: 0 6px 18px -6px oklch(30% 0.04 260 / 0.45);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -6px oklch(30% 0.04 260 / 0.55);
+}
+.btn-primary-lg { padding: 16px 28px; font-size: 1.05rem; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover {
+  background: var(--surface);
+  transform: translateY(-2px);
+}
+
+/* ─── Trust bar (Act 1) ──────────────────────── */
+.trust-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.trust-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--fg-dim);
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg-mute);
+  letter-spacing: 0.08em;
+  animation: bob 2.2s ease-in-out infinite;
+}
+
+/* ─── Narration caption (录屏专用, ?caption=1 触发) ───
+   字幕在浏览器自身渲染, ffmpeg 只做音视频 mux, 完美中文字形, 无 libass 依赖.
+   bottom 提到 100px 避免与 Act 7 隐私卡 / Act 8 footer-meta 重叠. */
+.narration-caption {
+  display: none;     /* 默认隐藏, JS 加 body.show-captions 才显 */
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  max-width: min(1120px, 88vw);
+  padding: 14px 28px;
+  background: oklch(0% 0 0 / 0.86);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  text-align: center;
+  white-space: pre-line;   /* 让 JS NARRATION 里的 \n 真正换行 */
+  border-radius: 14px;
+  box-shadow: 0 18px 48px -14px oklch(0% 0 0 / 0.55);
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+  white-space: normal;
+}
+body.show-captions .narration-caption { display: block; }
+body.show-captions .narration-caption.is-visible { opacity: 1; }
+
+/* 录屏模式: 隐藏所有交互/导航元素, 让视频更沉浸 */
+body.show-captions .promo-nav,
+body.show-captions .skip-link,
+body.show-captions .scroll-hint,
+body.show-captions .footer-meta { display: none !important; }
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, 0); opacity: 0.6; }
+  50%      { transform: translate(-50%, 6px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint { animation: none; }
+}
+
+/* ─── Act 1: Hero gradient bg ─────────────────── */
+.act-hero {
+  background:
+    radial-gradient(circle at 20% 30%, var(--brand-soft) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, oklch(95% 0.04 0) 0%, transparent 50%),
+    var(--bg);
+}
+
+/* ─── Act 2: Problem boxes ────────────────────── */
+.act-problem {
+  background: linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%);
+}
+.boxes {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.box-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 4px 12px -4px oklch(30% 0.02 260 / 0.08);
+  min-width: 130px;
+}
+.box-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+.box-meta {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--fg-mute);
+}
+.box-divider {
+  font-size: 1.4rem;
+  color: var(--border-strong);
+  font-weight: 200;
+}
+
+/* ─── Act 3: Stakes list ──────────────────────── */
+.act-stakes {
+  background:
+    radial-gradient(circle at 80% 20%, oklch(95% 0.05 30 / 0.6) 0%, transparent 50%),
+    var(--bg);
+}
+.stakes-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+  max-width: 820px;
+}
+.stake {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  transition: border-color 240ms ease, transform 240ms ease;
+}
+.stake:hover {
+  border-color: var(--accent-warn);
+  transform: translateX(4px);
+}
+.stake-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-warn) 0%, var(--accent-amber) 100%);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.stake-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+.stake-body {
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+  line-height: 1.55;
+}
+
+/* ─── Act 4: Guide ────────────────────────────── */
+.act-guide {
+  background:
+    radial-gradient(circle at 50% 50%, var(--brand-soft) 0%, transparent 60%),
+    var(--bg);
+  align-items: center;
+  text-align: left;
+}
+.act-guide .act-inner { align-items: flex-start; }
+.logo-mark-big {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--brand) 0%, oklch(68% 0.21 280) 100%);
+  color: #fff;
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  box-shadow:
+    0 12px 32px -8px oklch(58% 0.21 268 / 0.5),
+    inset 0 1px 0 oklch(100% 0 0 / 0.25);
+}
+.metric-row {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  margin-top: 24px;
+  padding: 36px 48px;
+  background: var(--bg-elev);
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 40px -16px oklch(30% 0.04 260 / 0.22);
+  width: 100%;
+  max-width: 1100px;
+}
+.metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 24px;
+}
+.metric-num {
+  font-size: clamp(2.6rem, 4vw, 3.6rem);
+  font-weight: 800;
+  color: var(--fg);
+  letter-spacing: -0.03em;
+  font-feature-settings: "tnum";
+  line-height: 1;
+  background: linear-gradient(135deg, var(--fg) 0%, var(--brand) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.metric-label {
+  font-size: 0.88rem;
+  color: var(--fg-mute);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.metric-sep {
+  width: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+/* ─── Act 5-7: Plan split ──────────────────────── */
+.act-plan {
+  background:
+    linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%);
+}
+.act-plan-final {
+  background:
+    radial-gradient(circle at 80% 80%, oklch(95% 0.04 268) 0%, transparent 60%),
+    var(--bg);
+}
+.step-num-big {
+  font-family: var(--font-mono);
+  font-size: 5.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 2px var(--brand);
+  margin-bottom: 12px;
+  letter-spacing: -0.04em;
+}
+.plan-bullets {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--fg-dim);
+}
+.plan-bullets li { line-height: 1.55; }
+
+/* Adapter grid (Act 5 visual) — 让 7 个 chip 自由 flow, 在大屏 3-4 列, 中屏 2 列 */
+.adapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  padding: 28px;
+  background: var(--bg-elev);
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 44px -18px oklch(30% 0.04 260 / 0.18);
+}
+.adapter-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--fg);
+  transition: transform 240ms var(--t-fast), border-color 240ms ease,
+              box-shadow 240ms ease;
+}
+.adapter-chip:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand);
+  box-shadow: 0 8px 20px -8px oklch(58% 0.21 268 / 0.25);
+}
+.adapter-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px oklch(100% 0 0 / 0.04);
+}
+
+/* Screenshot frame (Act 6, 7 visual) — 完全 flat, 0 边框 0 阴影, 截图直接铺出 */
+.screenshot-frame {
+  overflow: hidden;
+  background: transparent;
+}
+.screenshot-frame img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Privacy split (Act 7 text side bottom) */
+.privacy-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 20px;
+  width: 100%;
+}
+.privacy-half {
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.privacy-cloud {
+  background: linear-gradient(135deg, oklch(96% 0.03 30) 0%, var(--bg-elev) 100%);
+}
+.privacy-local {
+  background: linear-gradient(135deg, var(--brand-soft) 0%, var(--bg-elev) 100%);
+}
+.privacy-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+.privacy-cloud .privacy-label { color: var(--accent-warn); }
+.privacy-local .privacy-label { color: var(--brand); }
+.privacy-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+.privacy-meta {
+  font-size: 0.82rem;
+  color: var(--fg-dim);
+  line-height: 1.55;
+}
+@media (prefers-color-scheme: dark) {
+  .privacy-cloud { background: linear-gradient(135deg, oklch(24% 0.04 30) 0%, var(--bg-elev) 100%); }
+  .privacy-local { background: linear-gradient(135deg, oklch(28% 0.08 268) 0%, var(--bg-elev) 100%); }
+}
+
+/* ─── Act 8: CTA ──────────────────────────────── */
+.act-cta {
+  background:
+    radial-gradient(circle at 30% 50%, var(--brand-soft) 0%, transparent 55%),
+    radial-gradient(circle at 70% 70%, oklch(95% 0.05 145 / 0.5) 0%, transparent 55%),
+    var(--bg);
+}
+.install-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 24px 28px;
+  background: var(--bg-elev);
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  max-width: 760px;
+  width: 100%;
+}
+.install-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.95rem;
+  color: var(--fg);
+  line-height: 1.6;
+  flex-wrap: wrap;
+}
+.install-step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--fg);
+  color: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.install-cmd {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  color: var(--fg-dim);
+}
+.install-cmd code,
+code.install-cmd {
+  padding: 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.88rem;
+}
+.footer-meta {
+  margin-top: 18px;
+  font-size: 0.82rem;
+  color: var(--fg-mute);
+  font-family: var(--font-mono);
+}
+.footer-meta a {
+  color: var(--brand);
+  text-decoration: none;
+  margin-left: 4px;
+}
+.footer-meta a:hover { text-decoration: underline; }

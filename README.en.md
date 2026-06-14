@@ -42,7 +42,7 @@ Memex is a **local-first** "AI memory hub":
 
 ## Quick Start
 
-> **Status**: v1.0.0 — daemon fully embedded, port fallback, CLI auto-retry, notification center, privacy switches, resilient wipe-all, shadcn UI everywhere. DMG and Homebrew Cask will be enabled once the first GitHub Release ships. Until then prefer **Option 1: build from source**.
+> **Status**: v1.0.3 — daemon fully embedded, port fallback, CLI auto-retry, notification center, privacy switches, resilient wipe-all, shadcn UI everywhere. DMG is available on the [Releases](https://github.com/shetengteng/memex/releases) page; building from source is still recommended for development and customization.
 
 ### Option 1: Build from source (recommended)
 
@@ -64,7 +64,7 @@ The script will automatically:
 
 When it's done, click the Memex (M) icon in your menubar.
 
-### Option 2: DMG download (after v1.0)
+### Option 2: DMG download (v1.0.3 available now)
 
 ```bash
 # 1. Download the matching DMG from the Releases page
@@ -77,13 +77,6 @@ curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/inst
 ```
 
 > **Why the script?** This build uses ad-hoc signing (no Apple Developer account). macOS Gatekeeper marks browser-downloaded apps as quarantined, so double-clicking shows "damaged / unidentified developer". `xattr -cr Memex.app` clears the flag once and you're done.
-
-### Option 3: Homebrew Cask (after v1.0)
-
-```bash
-brew tap shetengteng/memex
-brew install --cask memex
-```
 
 ---
 
@@ -176,17 +169,55 @@ Every command talks to the embedded daemon over HTTP. The daemon is the single d
 
 ---
 
-## MCP SKILL
+## MCP + Skill: Query Your Memory in Plain English Right From Your IDE
+
+Memex exposes **6 MCP tools** to Claude Code / Cursor / Codex / OpenCode. **Install once**, then ask in plain language — your IDE routes to the right tool, no command syntax to memorize.
+
+### One-click install
+
+In Memex desktop app → **Connect → IDE Integrations**, pick your IDEs. Memex writes the MCP server config + Skill to:
+
+- Claude Code → `~/.claude.json`
+- Cursor → `~/.cursor/mcp.json` + Project Rules
+- Codex → `~/.codex/config.toml`
+- OpenCode → `~/.config/opencode/mcp.json`
+
+Open a new IDE session — done.
+
+### The 6 MCP tools
+
+| Tool | Purpose | Typical situation |
+|---|---|---|
+| `search_memory` | Cross-adapter / project / time-window full-text search | "Find that thing we discussed" |
+| `get_session` | Pull a single session in full (with `<mark>` highlights) | "Show me that conversation" |
+| `list_recent` | List the last N sessions | "What did I work on this week?" |
+| `get_project_context` | Working-memory summary for the current `cwd` project | "Pick up where I left off" |
+| `list_sessions_by_range` | ISO date range filter | Weekly / monthly reports |
+| `stats` | Overview (sessions / messages / chunks) | "How big is my library now?" |
+
+### Natural-language demos (zero parameter memorization)
+
+| What you type into your IDE | What Memex actually runs |
+|---|---|
+| "What did I discuss with Cursor in the zoom-docs project last week?" | `search_memory(query="zoom-docs", adapter="cursor", since_days=7)` |
+| "Find the retry strategy we decided on" | `search_memory(query="retry strategy", limit=8)` |
+| "Pull up the full text of session `abc12`" | `get_session(session_id="abc12")` |
+| "Show me the last 10 Claude Code sessions" | `list_recent(limit=10, adapter="claude_code")` |
+| "Resume what I was doing in this project" | `get_project_context()` |
+| "List every session from June 1 to June 7" | `list_sessions_by_range(after="2026-06-01", before="2026-06-07")` |
+| "How many conversations have I indexed?" | `stats()` |
+
+> **The core experience**: you ask in your own words; the IDE's LLM picks the right tool and fills the right parameters. **No commands to memorize, no SQL to write.**
+
+### Full SKILL docs
 
 | File | For |
 |---|---|
-| [`SKILL.md`](SKILL.md) | Generic SKILL (4 MCP tools + CLI cheat sheet) |
+| [`SKILL.md`](SKILL.md) | Generic SKILL (6 MCP tools + CLI cheat sheet) |
 | [`app/skills/cursor/SKILL.md`](app/skills/cursor/SKILL.md) | Cursor-specific |
 | [`app/skills/claude-code/SKILL.md`](app/skills/claude-code/SKILL.md) | Claude Code-specific |
 | [`app/skills/codex/SKILL.md`](app/skills/codex/SKILL.md) | Codex-specific |
 | [`app/skills/opencode/SKILL.md`](app/skills/opencode/SKILL.md) | OpenCode-specific |
-
-> Usage: in Memex desktop app → **Connect → IDE Integrations**, install/uninstall MCP + SKILL into the 4 IDEs in one click. After installing, open a new session in that IDE and call `search_memory("xxx")` to query all your history.
 
 ---
 

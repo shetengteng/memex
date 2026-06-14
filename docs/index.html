@@ -18,6 +18,7 @@
         <a href="#features" class="nav-link" data-i18n-nav="navFeatures">Features</a>
         <a href="#screens" class="nav-link" data-i18n-nav="navScreens">Screens</a>
         <a href="#how-it-works" class="nav-link" data-i18n-nav="navHow">How it Works</a>
+        <a href="#skills" class="nav-link" data-i18n-nav="navSkills">Skills</a>
       </div>
       <div class="nav-actions">
         <button id="btn-lang" class="nav-btn" onclick="toggleLang()">中文</button>
@@ -43,6 +44,10 @@
       <p class="hero-sub reveal reveal-d2" data-i18n="heroSub"></p>
       <div class="hero-cta reveal reveal-d3">
         <a href="https://github.com/shetengteng/memex/releases" class="btn btn-primary" data-i18n="btnGetStarted">Get Started</a>
+        <a href="promo.html" class="btn btn-outline">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          <span data-i18n="btnWatchPromo">Watch the walkthrough</span>
+        </a>
         <a href="https://github.com/shetengteng/memex" class="btn btn-outline">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
           GitHub
@@ -116,7 +121,7 @@
     </div>
   </section>
 
-  <!-- Screenshots Carousel (mock workspace + zh/en pair, v1.0.2 refresh) -->
+  <!-- Screenshots Carousel (mock workspace + zh/en pair, v1.0.3 refresh) -->
   <section id="screens" class="section">
     <div class="container container-wide">
       <div class="section-header reveal">
@@ -230,6 +235,91 @@
     </div>
   </section>
 
+  <!-- Skills / MCP natural language demo -->
+  <section id="skills" class="section">
+    <div class="container">
+      <div class="section-header section-header-center reveal">
+        <h2 data-i18n="skillsTitle">Ask in plain English. Get your memory back.</h2>
+        <p data-i18n="skillsSub">Memex installs as 6 MCP tools into your IDE. Type a normal sentence — the LLM picks the right tool and fills the right parameters.</p>
+      </div>
+
+      <div class="skills-grid reveal reveal-d1">
+        <div class="skill-demo">
+          <div class="skill-demo-head">
+            <div class="skill-tag" data-i18n="skillsDemo1Tag">Cross-IDE recall</div>
+          </div>
+          <div class="skill-bubble user">
+            <span class="bubble-label">You</span>
+            <p data-i18n="skillsDemo1You">What did I discuss with Cursor on the zoom-docs project last week?</p>
+          </div>
+          <div class="skill-bubble tool">
+            <span class="bubble-label">Memex MCP</span>
+            <code>search_memory(query="zoom-docs", adapter="cursor", since_days=7)</code>
+          </div>
+        </div>
+
+        <div class="skill-demo">
+          <div class="skill-demo-head">
+            <div class="skill-tag" data-i18n="skillsDemo2Tag">Resume project</div>
+          </div>
+          <div class="skill-bubble user">
+            <span class="bubble-label">You</span>
+            <p data-i18n="skillsDemo2You">Pick up where I left off on this repo.</p>
+          </div>
+          <div class="skill-bubble tool">
+            <span class="bubble-label">Memex MCP</span>
+            <code>get_project_context(top=5)</code>
+          </div>
+        </div>
+
+        <div class="skill-demo">
+          <div class="skill-demo-head">
+            <div class="skill-tag" data-i18n="skillsDemo3Tag">Decision lookup</div>
+          </div>
+          <div class="skill-bubble user">
+            <span class="bubble-label">You</span>
+            <p data-i18n="skillsDemo3You">Find the retry strategy we decided on three months ago.</p>
+          </div>
+          <div class="skill-bubble tool">
+            <span class="bubble-label">Memex MCP</span>
+            <code>search_memory(query="retry strategy", limit=8)</code>
+          </div>
+        </div>
+
+        <div class="skill-demo">
+          <div class="skill-demo-head">
+            <div class="skill-tag" data-i18n="skillsDemo4Tag">Weekly report</div>
+          </div>
+          <div class="skill-bubble user">
+            <span class="bubble-label">You</span>
+            <p data-i18n="skillsDemo4You">List every session from June 1 to June 7.</p>
+          </div>
+          <div class="skill-bubble tool">
+            <span class="bubble-label">Memex MCP</span>
+            <code>list_sessions_by_range(after="2026-06-01", before="2026-06-07")</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="skills-tools reveal reveal-d2">
+        <div class="skills-tools-label" data-i18n="skillsToolsLabel">6 MCP tools, zero parameter memorization:</div>
+        <div class="skills-tools-list">
+          <code>search_memory</code>
+          <code>get_session</code>
+          <code>list_recent</code>
+          <code>get_project_context</code>
+          <code>list_sessions_by_range</code>
+          <code>stats</code>
+        </div>
+      </div>
+
+      <div class="skills-install reveal reveal-d3">
+        <div class="skills-install-text" data-i18n="skillsInstallText">One-click install into Claude Code · Cursor · Codex · OpenCode from</div>
+        <code class="skills-install-path">Memex → Connect → IDE Integrations</code>
+      </div>
+    </div>
+  </section>
+
   <!-- Tech -->
   <section class="section section-alt">
     <div class="container">
@@ -248,6 +338,10 @@
         <p data-i18n="ctaSub"></p>
         <div class="hero-cta">
           <a href="https://github.com/shetengteng/memex/releases" class="btn btn-primary" data-i18n="btnGetStarted">Get Started</a>
+          <a href="https://github.com/shetengteng/memex" class="btn btn-outline">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+            GitHub
+          </a>
         </div>
       </div>
     </div>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memex — 你的 AI 记忆，只属于你自己</title>
+  <meta name="description" content="Memex StoryBrand 演示：本地优先的跨大模型会话记忆中枢。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="promo.css" />
+</head>
+<body class="promo">
+  <!-- Progress nav (8 acts) -->
+  <nav class="promo-nav" aria-label="Story progress">
+    <a href="#act-1" class="promo-dot" data-act="1" data-label="Hero"><span>01</span></a>
+    <a href="#act-2" class="promo-dot" data-act="2" data-label="Problem"><span>02</span></a>
+    <a href="#act-3" class="promo-dot" data-act="3" data-label="Stakes"><span>03</span></a>
+    <a href="#act-4" class="promo-dot" data-act="4" data-label="Guide"><span>04</span></a>
+    <a href="#act-5" class="promo-dot" data-act="5" data-label="Plan · Connect"><span>05</span></a>
+    <a href="#act-6" class="promo-dot" data-act="6" data-label="Plan · Recall"><span>06</span></a>
+    <a href="#act-7" class="promo-dot" data-act="7" data-label="Plan · Continue"><span>07</span></a>
+    <a href="#act-8" class="promo-dot" data-act="8" data-label="Success"><span>08</span></a>
+  </nav>
+
+  <!-- Skip link 给键盘用户 -->
+  <a href="#act-8" class="skip-link">跳到最终行动</a>
+
+  <!-- Narration caption overlay (only visible when ?caption=1 in URL, 录屏专用) -->
+  <div id="narration-caption" class="narration-caption" aria-hidden="true"></div>
+
+  <main class="promo-track">
+
+    <!-- ============================================================ -->
+    <!-- ACT 1 — HERO  (StoryBrand: hero is invited)                  -->
+    <!-- ============================================================ -->
+    <section id="act-1" class="act act-hero" data-act="1">
+      <div class="act-inner reveal">
+        <div class="kicker">
+          <span class="kicker-pill">MEMEX · v1.0.3 · macOS Apple Silicon</span>
+        </div>
+        <h1 class="act-headline">
+          你的 AI 记忆，<br/>
+          <span class="gradient-text">只属于你自己</span>
+        </h1>
+        <p class="act-sub">
+          一份本地数据库，把 ChatGPT、Cursor、Claude Code、Codex、Copilot
+          全部接回你自己的电脑——不上云、不外传、不丢一句。
+        </p>
+        <div class="act-cta">
+          <a href="https://github.com/shetengteng/memex/releases" class="btn-primary">
+            <span>立刻下载 1.0.3</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="https://github.com/shetengteng/memex" class="btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/></svg>
+            <span>GitHub 源码</span>
+          </a>
+        </div>
+        <div class="trust-bar">
+          <span class="trust-chip">100% 本地</span>
+          <span class="trust-chip">零云端调用</span>
+          <span class="trust-chip">MIT 协议</span>
+          <span class="trust-chip">SQLite FTS5</span>
+        </div>
+      </div>
+      <div class="scroll-hint" aria-hidden="true">
+        <span>往下滚动</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 2 — PROBLEM  (StoryBrand: hero with a problem)           -->
+    <!-- ============================================================ -->
+    <section id="act-2" class="act act-problem" data-act="2">
+      <div class="act-inner reveal">
+        <div class="act-label">问题</div>
+        <h2 class="act-headline">
+          你的 AI 记忆，<br/>
+          被关在 <span class="gradient-text">5 个盒子</span> 里
+        </h2>
+        <div class="boxes">
+          <div class="box-card" style="--i:1"><div class="box-name">ChatGPT</div><div class="box-meta">12,403 messages</div></div>
+          <div class="box-divider">·</div>
+          <div class="box-card" style="--i:2"><div class="box-name">Cursor</div><div class="box-meta">8,217 messages</div></div>
+          <div class="box-divider">·</div>
+          <div class="box-card" style="--i:3"><div class="box-name">Claude Code</div><div class="box-meta">5,892 messages</div></div>
+          <div class="box-divider">·</div>
+          <div class="box-card" style="--i:4"><div class="box-name">Codex</div><div class="box-meta">2,140 messages</div></div>
+          <div class="box-divider">·</div>
+          <div class="box-card" style="--i:5"><div class="box-name">Copilot</div><div class="box-meta">1,087 messages</div></div>
+        </div>
+        <p class="act-sub act-sub-small">
+          每个工具一个孤岛。你的对话散在五处，没有一份完整记忆。
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 3 — STAKES  (StoryBrand: amplify pain / failure cost)    -->
+    <!-- ============================================================ -->
+    <section id="act-3" class="act act-stakes" data-act="3">
+      <div class="act-inner reveal">
+        <div class="act-label" data-tone="warn">代价</div>
+        <h2 class="act-headline">
+          你的时间，<br/>
+          <span class="gradient-text-warn">一半花在重新解释自己</span>
+        </h2>
+        <ul class="stakes-list">
+          <li class="stake" style="--i:1">
+            <span class="stake-num">01</span>
+            <div>
+              <div class="stake-title">上周和 Cursor 拍板的架构方案</div>
+              <div class="stake-body">今天想不起来在哪聊过——开三个 Cursor session 翻一小时</div>
+            </div>
+          </li>
+          <li class="stake" style="--i:2">
+            <span class="stake-num">02</span>
+            <div>
+              <div class="stake-title">GPT 三个月前帮你写过的脚本</div>
+              <div class="stake-body">早已埋在 2,000 条对话深处——只能重写一次</div>
+            </div>
+          </li>
+          <li class="stake" style="--i:3">
+            <span class="stake-num">03</span>
+            <div>
+              <div class="stake-title">同样的上下文，给同样的模型</div>
+              <div class="stake-body">一遍又一遍——你的工作日，是 prompt 复读日</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 4 — GUIDE  (StoryBrand: brand appears with authority)    -->
+    <!-- ============================================================ -->
+    <section id="act-4" class="act act-guide" data-act="4">
+      <div class="act-inner reveal">
+        <div class="logo-mark-big" aria-hidden="true">M</div>
+        <h2 class="act-headline">
+          Memex，<br/>
+          <span class="gradient-text-blue">本地优先的跨大模型会话记忆中枢</span>
+        </h2>
+        <p class="act-sub">
+          它不替你说话——它替你 <strong>记住</strong>。
+        </p>
+        <div class="metric-row">
+          <div class="metric"><div class="metric-num">100%</div><div class="metric-label">本地数据库</div></div>
+          <div class="metric-sep"></div>
+          <div class="metric"><div class="metric-num">6</div><div class="metric-label">个适配器</div></div>
+          <div class="metric-sep"></div>
+          <div class="metric"><div class="metric-num">4</div><div class="metric-label">层智能摘要</div></div>
+          <div class="metric-sep"></div>
+          <div class="metric"><div class="metric-num">0</div><div class="metric-label">个云端调用</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 5 — PLAN STEP 1: CONNECT                                 -->
+    <!-- ============================================================ -->
+    <section id="act-5" class="act act-plan" data-act="5">
+      <div class="act-inner act-inner-split reveal">
+        <div class="plan-text">
+          <div class="step-num-big">01</div>
+          <h2 class="act-headline">
+            连接。<br/>
+            <span class="gradient-text-blue">六大 AI 编辑器自动接入</span>
+          </h2>
+          <p class="act-sub">
+            你新开的每一段对话，Memex 在后台默默归档进本地 SQLite。
+            你不用改任何习惯，也不用复制粘贴一次。
+          </p>
+          <ul class="plan-bullets">
+            <li>✓ 事件驱动，2 秒延迟入库，零轮询</li>
+            <li>✓ Claude Code · Cursor · Codex · OpenCode · Aider · Cline</li>
+            <li>✓ 一键注入 MCP / Skill / Hook 到每个 IDE</li>
+          </ul>
+        </div>
+        <div class="plan-visual">
+          <div class="adapter-grid">
+            <div class="adapter-chip" style="--i:1"><div class="adapter-dot" style="background:oklch(55% 0.22 270)"></div><span>Claude Code</span></div>
+            <div class="adapter-chip" style="--i:2"><div class="adapter-dot" style="background:oklch(60% 0.20 155)"></div><span>Cursor</span></div>
+            <div class="adapter-chip" style="--i:3"><div class="adapter-dot" style="background:oklch(65% 0.18 85)"></div><span>Codex</span></div>
+            <div class="adapter-chip" style="--i:4"><div class="adapter-dot" style="background:oklch(55% 0.20 290)"></div><span>OpenCode</span></div>
+            <div class="adapter-chip" style="--i:5"><div class="adapter-dot" style="background:oklch(65% 0.15 230)"></div><span>Aider</span></div>
+            <div class="adapter-chip" style="--i:6"><div class="adapter-dot" style="background:oklch(65% 0.18 45)"></div><span>Cline</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 6 — PLAN STEP 2: RECALL                                  -->
+    <!-- ============================================================ -->
+    <section id="act-6" class="act act-plan" data-act="6">
+      <div class="act-inner act-inner-split reveal">
+        <div class="plan-text">
+          <div class="step-num-big">02</div>
+          <h2 class="act-headline">
+            回溯。<br/>
+            <span class="gradient-text-blue">几千条对话，秒级命中</span>
+          </h2>
+          <p class="act-sub">
+            SQLite 全文索引 + BM25 排序 + 中文 bigram。
+            Insights 自动聚合主题与决策，
+            让你一眼看清这周做了什么、上个月卡在哪里。
+          </p>
+          <ul class="plan-bullets">
+            <li>✓ Library 全文搜索，四维筛选</li>
+            <li>✓ Insights 自动生成日 / 周 / 月报</li>
+            <li>✓ 本地 Ollama 摘要，离线可用</li>
+          </ul>
+        </div>
+        <div class="plan-visual">
+          <figure class="screenshot-frame">
+            <img src="screenshots/02-library-zh.png" alt="Library 全文搜索界面" loading="lazy" />
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 7 — PLAN STEP 3: CONTINUE + PRIVACY (avoid failure)       -->
+    <!-- ============================================================ -->
+    <section id="act-7" class="act act-plan act-plan-final" data-act="7">
+      <div class="act-inner act-inner-split reveal">
+        <div class="plan-text">
+          <div class="step-num-big">03</div>
+          <h2 class="act-headline">
+            延续。<br/>
+            <span class="gradient-text-blue">早八点到深夜十一点，同一条主线</span>
+          </h2>
+          <p class="act-sub">
+            Today 跨项目 KPI 一眼到位。
+            工具切换不再断思路——所有项目，同一份记忆。
+          </p>
+          <div class="privacy-split">
+            <div class="privacy-half privacy-cloud">
+              <div class="privacy-label">竞品 · CLOUD-FIRST</div>
+              <div class="privacy-title">数据住在他们家</div>
+              <div class="privacy-meta">上传 · 索引 · 离线全靠求人</div>
+            </div>
+            <div class="privacy-half privacy-local">
+              <div class="privacy-label">MEMEX · LOCAL-FIRST</div>
+              <div class="privacy-title">数据住在你硬盘</div>
+              <div class="privacy-meta">本地 SQLite · 零网络调用 · 永久属于你</div>
+            </div>
+          </div>
+        </div>
+        <div class="plan-visual">
+          <figure class="screenshot-frame">
+            <img src="screenshots/01-today-zh.png" alt="Today 跨项目 KPI 总览" loading="lazy" />
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- ACT 8 — SUCCESS + CTA                                        -->
+    <!-- ============================================================ -->
+    <section id="act-8" class="act act-cta" data-act="8">
+      <div class="act-inner reveal">
+        <div class="act-label" data-tone="success">行动</div>
+        <h2 class="act-headline">
+          从今天起，<br/>
+          <span class="gradient-text-success">你的记忆，只属于你自己</span>
+        </h2>
+        <p class="act-sub">
+          下载 dmg · 拖进 Applications · 两行命令 · 三分钟装回所有 AI 对话。
+        </p>
+        <div class="install-block">
+          <div class="install-step">
+            <span class="install-step-num">1</span>
+            <span class="install-cmd">下载 <code>Memex_1.0.3_aarch64.dmg</code> 并拖入 <code>/Applications</code></span>
+          </div>
+          <div class="install-step">
+            <span class="install-step-num">2</span>
+            <code class="install-cmd">sudo xattr -cr /Applications/Memex.app</code>
+          </div>
+          <div class="install-step">
+            <span class="install-step-num">3</span>
+            <span class="install-cmd">启动 → 自动接入所有历史 AI 对话</span>
+          </div>
+        </div>
+        <div class="act-cta act-cta-final">
+          <a href="https://github.com/shetengteng/memex/releases" class="btn-primary btn-primary-lg">
+            <span>下载 v1.0.3</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="https://github.com/shetengteng/memex" class="btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span>Star on GitHub</span>
+          </a>
+        </div>
+        <p class="footer-meta">
+          MIT License · macOS 13+ Apple Silicon · <a href="index.html">回到主站</a>
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="promo.js"></script>
+</body>
+</html>
