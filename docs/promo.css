@@ -659,6 +659,50 @@ body.show-captions .footer-meta { display: none !important; }
   overflow: hidden;
   background: transparent;
 }
+
+/* GitHub badge — 全局右上角悬浮, 8 幕都可见, 录屏时强化 URL 印象 */
+.promo-github-badge {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: oklch(20% 0.02 260 / 0.92);
+  color: oklch(99% 0 0);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  border: 1px solid oklch(100% 0 0 / 0.08);
+  box-shadow: 0 6px 18px -6px oklch(0% 0 0 / 0.4);
+  transition: transform 0.2s ease, background 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.promo-github-badge:hover {
+  transform: translateY(-1px);
+  background: oklch(25% 0.04 260 / 1);
+}
+.promo-github-badge strong {
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .promo-github-badge {
+    top: 12px;
+    right: 12px;
+    font-size: 11px;
+    padding: 6px 11px;
+  }
+  .promo-github-badge svg {
+    width: 14px;
+    height: 14px;
+  }
+}
 .screenshot-frame img {
   width: 100%;
   height: auto;
