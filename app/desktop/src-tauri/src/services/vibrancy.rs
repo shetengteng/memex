@@ -205,19 +205,39 @@ unsafe fn clear_subview_backgrounds(view: *mut objc2::runtime::AnyObject, depth:
             let _: () = msg_send![layer, setBackgroundColor: nil_color];
         }
 
-        // 检测 wkwebview 类型：用 className 字符串比对，比拿 Class 指针更稳。
+        // 检测 view 类名。wry 在 macOS 上的子视图层级实际是：
+        //   contentView (NSThemeFrame/NSView)
+        //     └── WryWebViewParent (NSView wrapper)
+        //          └── WryWebView (subclass of WKWebView)
+        //               └── ... internal scroll/content views
+        //
+        // 所以必须递归到底层，且 KVC `drawsBackground` 只能设在 WKWebView 实例
+        // 上 —— wrapper view（含 "Parent"）不响应这个 KVC，强行 setValue:forKey
+        // 会抛 NSUndefinedKeyException 直接 abort 进程。
+        //
+        // 安全规则：用 `respondsToSelector:` 探测后再调，并显式排除带 "Parent"
+        // 字样的 wrapper 类。
         let cls_name_obj: *mut AnyObject = msg_send![view, className];
+        let mut cls_owned = String::new();
         if !cls_name_obj.is_null() {
             let utf8: *const std::ffi::c_char = msg_send![cls_name_obj, UTF8String];
             if !utf8.is_null() {
-                let cls_str = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
-                if cls_str.contains("WKWebView") {
-                    let key = NSString::from_str("drawsBackground");
-                    let no_obj: *mut AnyObject =
-                        msg_send![objc2::class!(NSNumber), numberWithBool: false];
-                    let _: () = msg_send![view, setValue: no_obj, forKey: &*key];
-                }
+                cls_owned = std::ffi::CStr::from_ptr(utf8)
+                    .to_string_lossy()
+                    .into_owned();
             }
+        }
+        tracing::debug!("force_transparent: depth={depth} class={cls_owned}");
+        let looks_like_wkwebview = !cls_owned.contains("Parent")
+            && (cls_owned.contains("WKWebView")
+                || cls_owned.contains("WryWebView")
+                || cls_owned.contains("wry_web_view::"));
+        if looks_like_wkwebview {
+            tracing::info!("force_transparent: KVC drawsBackground=NO on {cls_owned}");
+            let key = NSString::from_str("drawsBackground");
+            let no_obj: *mut AnyObject =
+                msg_send![objc2::class!(NSNumber), numberWithBool: false];
+            let _: () = msg_send![view, setValue: no_obj, forKey: &*key];
         }
 
         // 递归子视图
