@@ -16,7 +16,7 @@
     5: "装完就开始记。\n六大主流 AI 编辑器自动接入,事件驱动、2 秒入库。",
     6: "几千条对话躺本地,关键词秒级命中。\n日报、周报自动生成。",
     7: "早八点聊 Claude Code,深夜十一点开 Cursor 复盘——\n记忆永远跟着你走。",
-    8: "下载、拖到 Applications、敲两行命令。\n三分钟,装回所有 AI 对话。GitHub:shetengteng/memex",
+    8: "下载、拖到 Applications、敲两行命令。\n三分钟,装回所有 AI 对话。",
   };
 
   // ?caption=1 → 录屏模式: 显示字幕, 隐藏 progress nav / skip-link / scroll-hint
