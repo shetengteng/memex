@@ -158,26 +158,25 @@
   */
   /*
     Tier 1：色板。
-    alpha 调到 ~0.22-0.30：让背景透出度足够高，叠在白色 IDE / Chrome 网页上
-    也能明显看出"玻璃后面的内容"。再配合下层 NSVisualEffectMaterial::Sidebar
-    的微微染白，文字仍然有底色支撑，不会读不清。
-    更高对比度的位置（card / popover）保持稍高 alpha，确保浮层不被背景吞掉。
+    alpha 极低（0.05-0.18）—— 让用户能真正"透过"主区看到下层内容。
+    白底 IDE 上也能看到 backdrop-filter 把白色搅动出来的光感波纹。
+    卡片稍微高一点（0.18），确保文字底有颜色，不会读不清。
   */
   html.surface-glass {
-    --background: oklch(1 0 0 / 0.22);
-    --card: oklch(1 0 0 / 0.42);
-    --popover: oklch(1 0 0 / 0.78);
-    --sidebar: oklch(0.985 0 0 / 0.20);
-    --secondary: oklch(0.97 0 0 / 0.38);
-    --muted: oklch(0.97 0 0 / 0.32);
+    --background: oklch(1 0 0 / 0.10);
+    --card: oklch(1 0 0 / 0.32);
+    --popover: oklch(1 0 0 / 0.82);
+    --sidebar: oklch(0.985 0 0 / 0.14);
+    --secondary: oklch(0.97 0 0 / 0.28);
+    --muted: oklch(0.97 0 0 / 0.22);
     }
   html.dark.surface-glass {
-    --background: oklch(0.145 0 0 / 0.30);
-    --card: oklch(0.205 0 0 / 0.48);
-    --popover: oklch(0.205 0 0 / 0.82);
-    --sidebar: oklch(0.205 0 0 / 0.25);
-    --secondary: oklch(0.269 0 0 / 0.42);
-    --muted: oklch(0.269 0 0 / 0.36);
+    --background: oklch(0.145 0 0 / 0.22);
+    --card: oklch(0.205 0 0 / 0.42);
+    --popover: oklch(0.205 0 0 / 0.85);
+    --sidebar: oklch(0.205 0 0 / 0.20);
+    --secondary: oklch(0.269 0 0 / 0.32);
+    --muted: oklch(0.269 0 0 / 0.26);
     }
   html.surface-glass,
   html.surface-glass body {
@@ -185,11 +184,9 @@
     }
 
   /*
-    Tier 2：让 sidebar / main 等大块容器在 glass 模式下都拥有：
-      - backdrop-filter blur+saturate（靠 webview 自身做局部模糊）
-      - 内描边 1px 高光（仿 macOS 12+ 流体玻璃的"光感边缘"）
-    这两层叠加上系统 NSVisualEffectView，即使下方是纯白也能看出
-    "有一层亮光的玻璃"，肉眼能立刻区分 solid / glass。
+    Tier 2：backdrop-filter 加大到 44px + saturate 2.5。
+    在纯白背景下虽然透不出彩色（物理规律），但模糊和饱和度的"光感波纹"
+    依然让卡片边缘有可识别的玻璃感。在桌面壁纸 / 彩色窗口上则非常明显。
   */
   html.surface-glass .bg-background,
   html.surface-glass .bg-card,
@@ -197,24 +194,36 @@
   html.surface-glass .bg-sidebar,
   html.surface-glass [data-slot="sidebar-inset"],
   html.surface-glass [data-sidebar="sidebar"] {
-    -webkit-backdrop-filter: blur(32px) saturate(2);
-    backdrop-filter: blur(32px) saturate(2);
+    -webkit-backdrop-filter: blur(44px) saturate(2.5);
+    backdrop-filter: blur(44px) saturate(2.5);
     }
 
-  /* 内描边高光：仅在 glass 模式下渲染，不影响 solid 布局尺寸（用 inset shadow 而非 border） */
+  /*
+    Tier 3：玻璃自带的"折射光晕"。
+    用 radial-gradient 在 main / sidebar 顶部撒一道 soft 高光 —— 这一层
+    与背景内容无关，是玻璃**自身**的视觉语言，所以即便下层是纯白 IDE
+    也能让用户看见"哦，这一层是玻璃"。
+    inset box-shadow 给 1px 内描边，仿 macOS 12+ 流体玻璃。
+  */
   html.surface-glass [data-slot="sidebar-inset"],
   html.surface-glass [data-sidebar="sidebar"],
   html.surface-glass .bg-card {
     box-shadow:
-      inset 0 1px 0 0 oklch(1 0 0 / 0.45),
-      inset 0 0 0 1px oklch(1 0 0 / 0.08);
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55),
+      inset 0 0 0 1px oklch(1 0 0 / 0.12);
+    background-image:
+      radial-gradient(120% 80% at 0% 0%, oklch(1 0 0 / 0.18), transparent 60%),
+      radial-gradient(140% 100% at 100% 0%, oklch(0.85 0.1 250 / 0.06), transparent 65%);
     }
   html.dark.surface-glass [data-slot="sidebar-inset"],
   html.dark.surface-glass [data-sidebar="sidebar"],
   html.dark.surface-glass .bg-card {
     box-shadow:
-      inset 0 1px 0 0 oklch(1 0 0 / 0.10),
-      inset 0 0 0 1px oklch(1 0 0 / 0.06);
+      inset 0 1px 0 0 oklch(1 0 0 / 0.16),
+      inset 0 0 0 1px oklch(1 0 0 / 0.08);
+    background-image:
+      radial-gradient(120% 80% at 0% 0%, oklch(1 0 0 / 0.05), transparent 60%),
+      radial-gradient(140% 100% at 100% 0%, oklch(0.7 0.12 250 / 0.05), transparent 65%);
     }
 }
 
