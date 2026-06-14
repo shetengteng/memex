@@ -7,15 +7,15 @@
   const caption = document.getElementById("narration-caption");
 
   // 8 段 narration (跟 /tmp/promo-rec/narration.json 一致).
-  // v12 再精简: 24-42 字/段, 节奏更紧, 末段重读 GitHub URL.
+  // v13: 移除 ChatGPT / Copilot / GPT, 只提 Memex 真实支持的 6 个 adapter.
   const NARRATION = {
-    1: "你和 ChatGPT 聊了一年。\n当初的某次对话——你还找得到吗？Memex,本地 AI 记忆中枢。",
-    2: "Cursor、Claude、ChatGPT、Codex——\nAI 工具开 5 个,对话散在 5 处,每天都在重复说同一句话。",
+    1: "你和 Claude Code 聊了一年。\n那次关键的对话——你还找得到吗？Memex,本地 AI 记忆中枢。",
+    2: "Claude Code、Cursor、Codex、OpenCode——\n四个工具同时开着,对话散在四处,反复说着同一句话。",
     3: "上周和 Cursor 拍板的方案,今天找不到。\n你的工作日,正在变成 prompt 的复读机。",
     4: "Memex 把所有 AI 对话写到本地 SQLite——\n不上云、不外传、不被收回。",
-    5: "装完就开始记。\n三个主流编辑器自动接入,事件驱动、2 秒入库。",
+    5: "装完就开始记。\n六大主流 AI 编辑器自动接入,事件驱动、2 秒入库。",
     6: "几千条对话躺本地,关键词秒级命中。\n日报、周报自动生成。",
-    7: "早八点聊 Claude,深夜十一点开 GPT 复盘——\n记忆永远跟着你走。",
+    7: "早八点聊 Claude Code,深夜十一点开 Cursor 复盘——\n记忆永远跟着你走。",
     8: "下载、拖到 Applications、敲两行命令。\n三分钟,装回所有 AI 对话。GitHub:shetengteng/memex",
   };
 
