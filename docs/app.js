@@ -22,29 +22,17 @@ const i18n = {
     feat6Title: "Embedded Daemon",
     feat6Desc: "HTTP API on :9999 (auto-fallback 10000-10009) lives and dies with the desktop app. No background service to babysit.",
     shotsTitle: "Inside the App",
-    shotsSub: "Tray popup, five-page desktop window, and IDE integration — fake data, real layout.",
-    trayToday: "Today",
-    trayWeek: "7d",
-    trayAll: "All",
-    trayRecent: "Recent sessions",
-    trayOpen: "Open Memex",
-    traySettings: "Settings",
-    navToday: "Today",
-    navLibrary: "Library",
-    navInsights: "Insights",
-    navConnect: "Connect",
-    navSettings: "Settings",
-    connText: "IDEs wired up",
-    settingsPrivacy: "Privacy",
-    settingsAutoRedact: "Auto-redact API keys & tokens",
-    settingsSkipPrivate: "Hide private sessions from MCP",
-    settingsNotif: "Notifications",
-    shotTrayLabel: "360 × 520 · ⌘⇧M toggles main window",
-    shotTodayLabel: "Cross-project ⌘K palette + today's activity",
-    shotLibraryLabel: "Filter by project, drill into session detail",
-    shotInsightsLabel: "LLM-generated weekly digest + activity bars",
-    shotConnectLabel: "One-click MCP + SKILL into 4 IDEs",
-    shotSettingsLabel: "Live privacy switches + notification center",
+    shotsSub: "Five-page desktop window, screenshots follow the UI language toggle in the top-right — synthetic data, real layout.",
+    shotTodayTitle: "Cross-project KPI at a glance",
+    shotTodayLabel: "Greeting · three-window stats · today's activity histogram · weekly auto-summary · pending reflections.",
+    shotLibraryTitle: "Four-axis filtering across 250+ sessions",
+    shotLibraryLabel: "Tool · project · time · summary-status sidebar + FTS5 BM25 main list with adapter badges.",
+    shotInsightsTitle: "Local-LLM daily / weekly / monthly reports",
+    shotInsightsLabel: "Three views (report · reflection · trend), generated offline by Ollama, fully bilingual.",
+    shotConnectTitle: "7 collectors · 4 IDE integrations",
+    shotConnectLabel: "Event-driven 2s ingestion · one-click MCP / SKILL / Hook injection per IDE.",
+    shotSettingsTitle: "Multi-Provider with auto-fallback",
+    shotSettingsLabel: "LLM · Preferences · Data · System tabs, prompt templates and redaction switches are live.",
     howTitle: "How it Works",
     howSub: "Three stages. Fully automatic. Zero configuration.",
     step1Title: "Collect",
@@ -81,30 +69,18 @@ const i18n = {
     feat5Desc: "\u81EA\u52A8\u8131\u654F API key\u3001email\u3001token\u3002\u4E91\u7AEF LLM \u9700\u663E\u5F0F\u5F00\u542F\u3002\u79C1\u6709 session \u59CB\u7EC8\u79C1\u6709\u3002",
     feat6Title: "\u5185\u5D4C Daemon",
     feat6Desc: "HTTP API \u8DD1\u5728 :9999\uFF08\u88AB\u5360\u7528\u81EA\u52A8 fallback 10000-10009\uFF09\uFF0C\u4E0E\u684C\u9762\u5E94\u7528\u540C\u751F\u5171\u6B7B\uFF0C\u65E0\u9700\u5355\u72EC\u8FD0\u7EF4\u3002",
-    shotsTitle: "\u4EA7\u54C1\u754C\u9762\u4E00\u89C8",
-    shotsSub: "\u6258\u76D8\u5E94\u7528 \u00B7 \u4E94\u5927\u9875 \u00B7 IDE \u96C6\u6210 \u2014\u2014 \u6570\u636E\u662F\u865A\u62DF\u7684\uFF0C\u5E03\u5C40\u662F\u771F\u7684\u3002",
-    trayToday: "\u4ECA\u65E5",
-    trayWeek: "\u672C\u5468",
-    trayAll: "\u603B\u8BA1",
-    trayRecent: "\u6700\u8FD1\u4F1A\u8BDD",
-    trayOpen: "\u6253\u5F00 Memex",
-    traySettings: "\u8BBE\u7F6E",
-    navToday: "\u4ECA\u5929",
-    navLibrary: "\u8D44\u6599\u5E93",
-    navInsights: "\u6D1E\u5BDF",
-    navConnect: "\u8FDE\u63A5",
-    navSettings: "\u8BBE\u7F6E",
-    connText: "IDE \u5DF2\u63A5\u5165",
-    settingsPrivacy: "\u9690\u79C1",
-    settingsAutoRedact: "\u5165\u5E93\u524D\u81EA\u52A8\u8131\u654F API Key / Token",
-    settingsSkipPrivate: "\u79C1\u6709\u4F1A\u8BDD\u4E0D\u66B4\u9732\u7ED9 MCP",
-    settingsNotif: "\u901A\u77E5",
-    shotTrayLabel: "360 \u00D7 520 \u00B7 \u2318\u21E7M \u5207\u6362\u4E3B\u7A97\u53E3",
-    shotTodayLabel: "\u8DE8\u9879\u76EE \u2318K \u547D\u4EE4\u9762\u677F + \u4ECA\u65E5\u6D3B\u8DC3\u4F1A\u8BDD",
-    shotLibraryLabel: "\u6309\u9879\u76EE\u8FC7\u6EE4\uFF0C\u62BD\u5C49\u67E5\u770B\u4F1A\u8BDD\u8BE6\u60C5",
-    shotInsightsLabel: "LLM \u751F\u6210\u5468\u62A5 + \u6D3B\u52A8\u67F1\u72B6\u56FE",
-    shotConnectLabel: "\u4E00\u952E\u5C06 MCP + SKILL \u6CE8\u5165 4 \u4E2A IDE",
-    shotSettingsLabel: "\u9690\u79C1\u5F00\u5173\u5373\u65F6\u751F\u6548 + \u901A\u77E5\u4E2D\u5FC3",
+    shotsTitle: "\u4ea7\u54c1\u754c\u9762\u4e00\u89c8",
+    shotsSub: "\u4e94\u5927\u9875\u9762\uff0c\u622a\u56fe\u968f\u53f3\u4e0a\u89d2\u8bed\u8a00\u5207\u6362\u540c\u6b65\u5207\u6362 \u2014\u2014 \u6570\u636e\u662f\u865a\u62df\u7684\uff0c\u5e03\u5c40\u662f\u771f\u7684\u3002",
+    shotTodayTitle: "\u4e00\u773c\u770b\u5b8c\u8de8\u9879\u76ee KPI",
+    shotTodayLabel: "\u95ee\u5019\u8bed \u00b7 \u4eca\u5929 / \u672c\u5468 / \u672c\u6708\u4e09\u6bb5\u7edf\u8ba1 \u00b7 \u4eca\u65e5\u6d3b\u52a8\u67f1\u56fe \u00b7 \u672c\u5468\u81ea\u52a8\u6458\u8981 \u00b7 \u5f85\u4f60\u53cd\u601d\u7684\u4f1a\u8bdd\u3002",
+    shotLibraryTitle: "250+ \u4f1a\u8bdd\u7684\u56db\u7ef4\u7b5b\u9009",
+    shotLibraryLabel: "\u5de5\u5177 / \u9879\u76ee / \u65f6\u95f4 / \u6458\u8981\u72b6\u6001 \u4fa7\u680f + FTS5 BM25 \u4e3b\u5217\u8868 + \u9002\u914d\u5668\u5fbd\u6807\u3002",
+    shotInsightsTitle: "\u672c\u5730 LLM \u751f\u6210\u65e5\u62a5 / \u5468\u62a5 / \u6708\u62a5",
+    shotInsightsLabel: "\u62a5\u544a \u00b7 \u53cd\u601d \u00b7 \u8d8b\u52bf \u4e09\u89c6\u56fe \u00b7 \u672c\u5730 Ollama \u79bb\u7ebf\u751f\u6210 \u00b7 \u53cc\u8bed\u65e0\u7f1d\u5207\u6362\u3002",
+    shotConnectTitle: "7 \u91c7\u96c6\u6e90 \u00b7 4 IDE \u96c6\u6210",
+    shotConnectLabel: "\u4e8b\u4ef6\u9a71\u52a8 2 \u79d2\u5165\u5e93 \u00b7 \u4e00\u952e\u6ce8\u5165 MCP / SKILL / Hook \u5230\u6bcf\u4e2a IDE\u3002",
+    shotSettingsTitle: "\u591a Provider \u94fe\u8def \u00b7 \u81ea\u52a8 fallback",
+    shotSettingsLabel: "LLM / \u504f\u597d / \u6570\u636e / \u7cfb\u7edf \u56db\u4e2a\u5206\u7ec4 \u00b7 \u63d0\u793a\u8bcd\u6a21\u677f\u4e0e\u8131\u654f\u5f00\u5173\u5b9e\u65f6\u751f\u6548\u3002",
     howTitle: "\u5DE5\u4F5C\u6D41\u7A0B",
     howSub: "\u4E09\u4E2A\u9636\u6BB5\u3002\u5168\u81EA\u52A8\u3002\u96F6\u914D\u7F6E\u3002",
     step1Title: "\u91C7\u96C6",
@@ -159,6 +135,9 @@ function setLang(lang) {
   currentLang = lang;
   applyI18n(lang);
   document.getElementById("btn-lang").textContent = lang === "en" ? "\u4E2D\u6587" : "EN";
+  // 让 Screenshots Carousel 的 zh / en 截图跟着 UI 语言切换（CSS toggle，不重写 src）
+  const track = document.getElementById("screens-carousel");
+  if (track) track.dataset.lang = lang;
 }
 
 function toggleLang() { setLang(currentLang === "en" ? "zh" : "en"); }
@@ -219,6 +198,62 @@ function initCardGlow() {
   });
 }
 
+// Screenshots carousel — snap scroll + dot indicators + prev/next + keyboard ←→
+function initCarousel() {
+  const track = document.getElementById('screens-carousel');
+  const dotsRoot = document.getElementById('screens-dots');
+  if (!track || !dotsRoot) return;
+  const cards = Array.from(track.querySelectorAll('.carousel-card'));
+  if (cards.length === 0) return;
+
+  let idx = 0;
+  const setActiveDot = (i) => {
+    dotsRoot.querySelectorAll('.carousel-dot').forEach((d, j) => d.classList.toggle('is-active', j === i));
+  };
+
+  cards.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'carousel-dot' + (i === 0 ? ' is-active' : '');
+    d.type = 'button';
+    d.setAttribute('aria-label', `slide ${i + 1}`);
+    d.addEventListener('click', () => go(i));
+    dotsRoot.appendChild(d);
+  });
+
+  function go(i) {
+    idx = (i + cards.length) % cards.length;
+    cards[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+    setActiveDot(idx);
+  }
+
+  document.querySelector('.carousel-prev')?.addEventListener('click', () => go(idx - 1));
+  document.querySelector('.carousel-next')?.addEventListener('click', () => go(idx + 1));
+
+  // Manual scroll → sync dots (with debounce)
+  let scrollTimer;
+  track.addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      const w = cards[0].offsetWidth + 24; // include gap
+      const i = Math.round(track.scrollLeft / w);
+      if (i !== idx && i >= 0 && i < cards.length) {
+        idx = i;
+        setActiveDot(idx);
+      }
+    }, 120);
+  });
+
+  // Keyboard left/right when section is in view
+  window.addEventListener('keydown', (e) => {
+    const section = document.getElementById('screens');
+    if (!section) return;
+    const rect = section.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); go(idx + 1); }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setLang("en");
   renderAdapters();
@@ -226,5 +261,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initReveal();
   initNavScroll();
   initCardGlow();
+  initCarousel();
   if (window.matchMedia("(prefers-color-scheme: dark)").matches) toggleTheme();
 });

@@ -669,67 +669,156 @@ a:hover { color: var(--brand-light); }
 }
 .footer-links a:hover { color: var(--fg); }
 
-/* ─── Screenshots gallery (real Memex.app screenshots) ───
-   docs/screenshots/*.png 由 scripts 在每次大版本时刷新。
-   shot-real 是 <a> 包 <img>，hover 时整张卡片轻微上移。 */
+/* ─── Screenshots Carousel ───
+   docs/screenshots/<NN>-<page>-<zh|en>.png — 5 个页面 × zh + en = 10 张图。
+   一次只展示一组双语对照，靠 dot indicator + prev/next 切换 + 鼠标横向滚动 snap。
+   数据是 mock（虚构用户 Alex Chen + 5 个虚构项目），不含任何隐私字段。 */
 .container-wide { max-width: 1280px; }
 
-.screenshots-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 28px;
+.carousel-wrap {
+  position: relative;
+  padding: 0 60px;
 }
 
-.shot-card {
+.carousel-track {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+.carousel-track::-webkit-scrollbar { display: none; }
+
+.carousel-card {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  padding: 32px;
+  box-shadow: 0 8px 32px oklch(0% 0 0 / 0.06);
 }
 
-.shot-frame {
-  display: block;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+.carousel-card-head {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.carousel-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 6px;
+  background: var(--brand-subtle);
+  color: var(--brand);
+  margin-bottom: 10px;
+  letter-spacing: 0.06em;
+}
+
+.carousel-card-head h3 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.carousel-card-head p {
+  color: var(--fg-secondary);
+  font-size: 0.9rem;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+/* 单图视图：每张卡片含 zh + en 两个 figure，但只显示当前 track[data-lang] 对应的那个。
+   切语言时由 JS 在 setLang() 里更新 track.dataset.lang，纯 CSS 完成 toggle。 */
+.carousel-shot {
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--surface);
-  box-shadow:
-    0 1px 1px oklch(0% 0 0 / 0.04),
-    0 14px 36px oklch(0% 0 0 / 0.12);
+  border: 1px solid var(--border);
+  background: oklch(96% 0.003 260);
+  box-shadow: 0 10px 28px oklch(0% 0 0 / 0.08);
   transition: transform 0.3s, box-shadow 0.3s;
 }
 
-.shot-real { line-height: 0; }
-.shot-real img {
+[data-theme="dark"] .carousel-shot { background: oklch(15% 0.01 260); }
+
+.carousel-shot:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px oklch(0% 0 0 / 0.12);
+}
+
+.carousel-shot a {
+  display: block;
+  line-height: 0;
+}
+
+.carousel-shot img {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.shot-card:hover .shot-frame {
-  transform: translateY(-3px);
-  box-shadow:
-    0 1px 1px oklch(0% 0 0 / 0.04),
-    0 20px 56px oklch(0% 0 0 / 0.18);
+.carousel-track[data-lang="zh"] .carousel-shot[data-lang="en"],
+.carousel-track[data-lang="en"] .carousel-shot[data-lang="zh"] {
+  display: none;
 }
 
-.shot-caption {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  padding: 0 4px;
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 17px;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: all 0.18s;
+  z-index: 5;
+  font-family: var(--font);
+  box-shadow: 0 6px 16px oklch(0% 0 0 / 0.08);
 }
-.shot-badge {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 5px;
-  background: var(--fg);
-  color: var(--surface);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+
+.carousel-nav:hover {
+  color: var(--fg);
+  border-color: oklch(from var(--brand) l c h / 0.4);
+  box-shadow: 0 6px 20px var(--brand-glow);
+}
+
+.carousel-prev { left: 8px; }
+.carousel-next { right: 8px; }
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border);
+  cursor: pointer;
+  transition: all 0.18s;
+  padding: 0;
+}
+
+.carousel-dot:hover { background: var(--fg-muted); }
+
+.carousel-dot.is-active {
+  width: 22px;
+  border-radius: 4px;
+  background: var(--brand);
+  box-shadow: 0 0 8px var(--brand-glow);
 }
 
 /* ─── Responsive ─── */
@@ -741,7 +830,11 @@ a:hover { color: var(--brand-light); }
   .features-layout { grid-template-columns: 1fr; }
   .feat-wide { grid-column: span 1; grid-template-columns: 1fr; }
   .steps-layout { grid-template-columns: 1fr; }
-  .screenshots-grid { grid-template-columns: 1fr; }
+  .carousel-wrap { padding: 0 18px; }
+  .carousel-card { padding: 22px; }
+  .carousel-nav { width: 36px; height: 36px; }
+  .carousel-prev { left: 4px; }
+  .carousel-next { right: 4px; }
   .hero { padding-top: calc(54px + 4rem); }
   .hero h1 { font-size: 2.2rem; }
   .section { padding: 3.5rem 0; }

@@ -116,65 +116,89 @@
     </div>
   </section>
 
-  <!-- Screenshots Gallery (real screenshots of Memex.app v1.0.0) -->
+  <!-- Screenshots Carousel (mock workspace + zh/en pair, v1.0.2 refresh) -->
   <section id="screens" class="section">
     <div class="container container-wide">
       <div class="section-header reveal">
         <h2 data-i18n="shotsTitle">Inside the App</h2>
         <p data-i18n="shotsSub"></p>
       </div>
-      <div class="screenshots-grid">
 
-        <div class="shot-card shot-card-wide reveal">
-          <a class="shot-frame shot-real" href="screenshots/01-today.png" target="_blank" rel="noopener">
-            <img src="screenshots/01-today.png" alt="Memex Today page" loading="lazy" />
-          </a>
-          <div class="shot-caption">
-            <span class="shot-badge">Today</span>
-            <span data-i18n="shotTodayLabel">问候 + 三段时间统计 + 你今天的活动 + 本周摘要 + 反思 + Smart Resume</span>
-          </div>
+      <div class="carousel-wrap reveal reveal-d1">
+        <button class="carousel-nav carousel-prev" aria-label="prev" type="button">&larr;</button>
+        <div class="carousel-track" id="screens-carousel" data-lang="en">
+          <article class="carousel-card">
+            <header class="carousel-card-head">
+              <span class="carousel-badge">01 · Today</span>
+              <h3 data-i18n="shotTodayTitle"></h3>
+              <p data-i18n="shotTodayLabel"></p>
+            </header>
+            <figure class="carousel-shot" data-lang="zh">
+              <a href="screenshots/01-today-zh.png" target="_blank" rel="noopener"><img src="screenshots/01-today-zh.png" alt="Today 中文" loading="lazy" /></a>
+            </figure>
+            <figure class="carousel-shot" data-lang="en">
+              <a href="screenshots/01-today-en.png" target="_blank" rel="noopener"><img src="screenshots/01-today-en.png" alt="Today English" loading="lazy" /></a>
+            </figure>
+          </article>
+
+          <article class="carousel-card">
+            <header class="carousel-card-head">
+              <span class="carousel-badge">02 · Library</span>
+              <h3 data-i18n="shotLibraryTitle"></h3>
+              <p data-i18n="shotLibraryLabel"></p>
+            </header>
+            <figure class="carousel-shot" data-lang="zh">
+              <a href="screenshots/02-library-zh.png" target="_blank" rel="noopener"><img src="screenshots/02-library-zh.png" alt="Library 中文" loading="lazy" /></a>
+            </figure>
+            <figure class="carousel-shot" data-lang="en">
+              <a href="screenshots/02-library-en.png" target="_blank" rel="noopener"><img src="screenshots/02-library-en.png" alt="Library English" loading="lazy" /></a>
+            </figure>
+          </article>
+
+          <article class="carousel-card">
+            <header class="carousel-card-head">
+              <span class="carousel-badge">03 · Insights</span>
+              <h3 data-i18n="shotInsightsTitle"></h3>
+              <p data-i18n="shotInsightsLabel"></p>
+            </header>
+            <figure class="carousel-shot" data-lang="zh">
+              <a href="screenshots/03-insights-zh.png" target="_blank" rel="noopener"><img src="screenshots/03-insights-zh.png" alt="Insights 中文" loading="lazy" /></a>
+            </figure>
+            <figure class="carousel-shot" data-lang="en">
+              <a href="screenshots/03-insights-en.png" target="_blank" rel="noopener"><img src="screenshots/03-insights-en.png" alt="Insights English" loading="lazy" /></a>
+            </figure>
+          </article>
+
+          <article class="carousel-card">
+            <header class="carousel-card-head">
+              <span class="carousel-badge">04 · Connect</span>
+              <h3 data-i18n="shotConnectTitle"></h3>
+              <p data-i18n="shotConnectLabel"></p>
+            </header>
+            <figure class="carousel-shot" data-lang="zh">
+              <a href="screenshots/04-connect-zh.png" target="_blank" rel="noopener"><img src="screenshots/04-connect-zh.png" alt="Connect 中文" loading="lazy" /></a>
+            </figure>
+            <figure class="carousel-shot" data-lang="en">
+              <a href="screenshots/04-connect-en.png" target="_blank" rel="noopener"><img src="screenshots/04-connect-en.png" alt="Connect English" loading="lazy" /></a>
+            </figure>
+          </article>
+
+          <article class="carousel-card">
+            <header class="carousel-card-head">
+              <span class="carousel-badge">05 · Settings</span>
+              <h3 data-i18n="shotSettingsTitle"></h3>
+              <p data-i18n="shotSettingsLabel"></p>
+            </header>
+            <figure class="carousel-shot" data-lang="zh">
+              <a href="screenshots/05-settings-zh.png" target="_blank" rel="noopener"><img src="screenshots/05-settings-zh.png" alt="Settings 中文" loading="lazy" /></a>
+            </figure>
+            <figure class="carousel-shot" data-lang="en">
+              <a href="screenshots/05-settings-en.png" target="_blank" rel="noopener"><img src="screenshots/05-settings-en.png" alt="Settings English" loading="lazy" /></a>
+            </figure>
+          </article>
         </div>
-
-        <div class="shot-card shot-card-wide reveal reveal-d1">
-          <a class="shot-frame shot-real" href="screenshots/02-library.png" target="_blank" rel="noopener">
-            <img src="screenshots/02-library.png" alt="Memex Library page" loading="lazy" />
-          </a>
-          <div class="shot-caption">
-            <span class="shot-badge">Library</span>
-            <span data-i18n="shotLibraryLabel">工具 / 项目 / 时间 / 摘要状态四维过滤 + 主列表 + 全文搜索</span>
-          </div>
-        </div>
-
-        <div class="shot-card shot-card-wide reveal">
-          <a class="shot-frame shot-real" href="screenshots/03-insights.png" target="_blank" rel="noopener">
-            <img src="screenshots/03-insights.png" alt="Memex Insights page" loading="lazy" />
-          </a>
-          <div class="shot-caption">
-            <span class="shot-badge">Insights</span>
-            <span data-i18n="shotInsightsLabel">日报 / 周报 / 月报 · LLM 生成 · 报告 / 反思 / 趋势三视图</span>
-          </div>
-        </div>
-
-        <div class="shot-card shot-card-wide reveal reveal-d1">
-          <a class="shot-frame shot-real" href="screenshots/04-connect.png" target="_blank" rel="noopener">
-            <img src="screenshots/04-connect.png" alt="Memex Connect page" loading="lazy" />
-          </a>
-          <div class="shot-caption">
-            <span class="shot-badge">Connect</span>
-            <span data-i18n="shotConnectLabel">7 个采集源开关 + 4 个 IDE 集成 · MCP / SKILL / Hook 钩子三栏</span>
-          </div>
-        </div>
-
-        <div class="shot-card shot-card-wide reveal">
-          <a class="shot-frame shot-real" href="screenshots/05-settings.png" target="_blank" rel="noopener">
-            <img src="screenshots/05-settings.png" alt="Memex Settings page" loading="lazy" />
-          </a>
-          <div class="shot-caption">
-            <span class="shot-badge">Settings</span>
-            <span data-i18n="shotSettingsLabel">LLM / 偏好 / 数据 / 系统 四个分组 · Provider 失败自动 fallback</span>
-          </div>
-        </div>
-
+        <button class="carousel-nav carousel-next" aria-label="next" type="button">&rarr;</button>
+        <div class="carousel-dots" id="screens-dots"></div>
       </div>
     </div>
   </section>
