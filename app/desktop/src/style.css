@@ -163,20 +163,20 @@
     卡片稍微高一点（0.18），确保文字底有颜色，不会读不清。
   */
   html.surface-glass {
-    --background: oklch(1 0 0 / 0.10);
-    --card: oklch(1 0 0 / 0.32);
-    --popover: oklch(1 0 0 / 0.82);
-    --sidebar: oklch(0.985 0 0 / 0.14);
-    --secondary: oklch(0.97 0 0 / 0.28);
-    --muted: oklch(0.97 0 0 / 0.22);
+    --background: oklch(1 0 0 / 0.02);
+    --card: oklch(1 0 0 / 0.18);
+    --popover: oklch(1 0 0 / 0.85);
+    --sidebar: oklch(0.985 0 0 / 0.04);
+    --secondary: oklch(0.97 0 0 / 0.18);
+    --muted: oklch(0.97 0 0 / 0.12);
     }
   html.dark.surface-glass {
-    --background: oklch(0.145 0 0 / 0.22);
-    --card: oklch(0.205 0 0 / 0.42);
-    --popover: oklch(0.205 0 0 / 0.85);
-    --sidebar: oklch(0.205 0 0 / 0.20);
-    --secondary: oklch(0.269 0 0 / 0.32);
-    --muted: oklch(0.269 0 0 / 0.26);
+    --background: oklch(0.145 0 0 / 0.10);
+    --card: oklch(0.205 0 0 / 0.30);
+    --popover: oklch(0.205 0 0 / 0.88);
+    --sidebar: oklch(0.205 0 0 / 0.10);
+    --secondary: oklch(0.269 0 0 / 0.20);
+    --muted: oklch(0.269 0 0 / 0.16);
     }
   html.surface-glass,
   html.surface-glass body {
