@@ -10,4 +10,3 @@
 //! 请求。两边互不直接 `use` 实现细节，只通过受控的 public API 交互。
 
 pub mod daemon;
-pub mod vibrancy;

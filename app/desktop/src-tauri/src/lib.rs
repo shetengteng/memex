@@ -168,18 +168,11 @@ pub fn run() {
             // 之后 LLM prompts / reflect markdown fallback 都会按这个 locale
             // 选择 zh / en 文案，避免「UI 是英文 / 报告还是中文」的不一致。
             // 用户在 Settings 里切换语言时，set_config 命令会再次刷新它。
-            //
-            // 顺便把 ui.surface 也读出来：等下面创建好 main / tray-popup 窗口
-            // 后再统一调 vibrancy::apply_to_all 应用毛玻璃，不能在窗口还没
-            // 拿到 NSWindow 句柄前就调（apply_vibrancy 会失败）。
-            let persisted_surface = if let Ok(db) = memex_core::storage::db::Db::open(
+            if let Ok(db) = memex_core::storage::db::Db::open(
                 &memex_core::memex_dir().join("memex.db"),
             ) {
                 memex_core::locale::PromptLocale::sync_from_kv(&db);
-                services::vibrancy::load_persisted(&db)
-            } else {
-                services::vibrancy::SurfaceMode::Solid
-            };
+            }
 
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
@@ -243,11 +236,6 @@ pub fn run() {
             app.deep_link().on_open_url(move |event| {
                 forward_deep_links(&handle, event.urls().as_slice());
             });
-
-            // 等到所有窗口都创建好（main 上面 show()，tray-popup 在 tray::install
-            // 里走 menubar 路径）再统一应用 vibrancy。前端再启动时也会调一次
-            // get_window_surface 同步状态，所以这里失败也无大碍。
-            services::vibrancy::apply_to_all(app.handle(), persisted_surface);
 
             Ok(())
         })
@@ -324,8 +312,6 @@ pub fn run() {
             commands::llm_providers::llm_list_models,
             commands::maintenance::system_reset_index,
             commands::maintenance::system_reset_all,
-            commands::window::set_window_surface,
-            commands::window::get_window_surface,
         ])
         .build(tauri::generate_context!())
         .expect("INVARIANT: tauri Builder::build() failed — app is unstartable")

@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select'
 import { Shield } from 'lucide-vue-next'
 import { themeMode, type ThemeMode } from '@/composables/useTheme'
-import { surfaceMode, type SurfaceMode } from '@/composables/useSurface'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n, setLocale, type Locale } from '@/i18n'
 
@@ -132,19 +131,6 @@ notifications.forEach((n) => {
               <SelectItem value="light">{{ t('settings.prefs.theme_light') }}</SelectItem>
               <SelectItem value="dark">{{ t('settings.prefs.theme_dark') }}</SelectItem>
               <SelectItem value="system">{{ t('settings.prefs.theme_system') }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="flex items-start justify-between">
-          <div>
-            <Label class="text-sm">{{ t('settings.prefs.surface') }}</Label>
-            <p class="text-xs text-muted-foreground">{{ t('settings.prefs.surface_hint') }}</p>
-          </div>
-          <Select :model-value="surfaceMode" @update:model-value="(v) => (surfaceMode = String(v) as SurfaceMode)">
-            <SelectTrigger class="h-9 w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="solid">{{ t('settings.prefs.surface_solid') }}</SelectItem>
-              <SelectItem value="glass">{{ t('settings.prefs.surface_glass') }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
