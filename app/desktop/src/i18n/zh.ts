@@ -36,6 +36,7 @@ export const zh: Messages = {
   'nav.insights': '洞察',
   'nav.connect': '连接',
   'nav.logs': '日志',
+  'nav.help': '说明',
 
   // 后端错误友好化（lib/utils.ts humanizeBackendError 用）
   'error.not_found.with_msg': '未找到：{msg}',
@@ -471,6 +472,7 @@ export const zh: Messages = {
   'sidebar.nav.insights': '洞察',
   'sidebar.nav.connect': '连接',
   'sidebar.nav.settings': '设置',
+  'sidebar.nav.help': '说明',
   'sidebar.library.badge_tooltip': '{count} 个会话',
 
   // App shell — summary footer
@@ -1207,7 +1209,8 @@ export const zh: Messages = {
   'library.list.weekday.6': '周六',
   'library.list.tooltip.l2_done': '已生成会话摘要（L2）',
   'library.list.tooltip.l2_pending': '尚未生成会话摘要（L2）',
-  'library.list.tooltip.private': '已标记为私有；不会通过 MCP 暴露给 IDE',
+  'library.list.action.mark_private': '标记为私有（不通过 MCP 暴露给 IDE）',
+  'library.list.action.unmark_private': '已私有 · 点击取消标记',
   'library.list.badge.l2_done': '已摘要',
   'library.list.badge.l2_pending': '未摘要',
 
@@ -1222,12 +1225,11 @@ export const zh: Messages = {
   'library.drawer.section.topics': '主题',
   'library.drawer.section.decisions': '关键决策',
   'library.drawer.empty_detail': '未找到会话详情',
-  'library.drawer.private.label': '标记为私有',
-  'library.drawer.private.sub': '不通过 MCP 暴露给 IDE',
-  'library.drawer.private.toast.marked': '已标记为私有',
-  'library.drawer.private.toast.unmarked': '已取消私有标记',
-  'library.drawer.private.toast.failed': '操作失败，请稍后重试',
-  'library.drawer.private.toast.session_missing': '会话不存在或已被删除',
+  'library.drawer.private.hint': '已标记为私有 · 不会通过 MCP 暴露给 IDE',
+  'library.list.toast.private.marked': '已标记为私有',
+  'library.list.toast.private.unmarked': '已取消私有标记',
+  'library.list.toast.private.failed': '操作失败，请稍后重试',
+  'library.list.toast.private.session_missing': '会话不存在或已被删除',
 
   // 线索：工具栏
   'library.threads.search_placeholder': '输入主题、关键词或问题，让 LLM 从历史会话里挑出相关线索…',
@@ -1289,4 +1291,13 @@ export const zh: Messages = {
   'library.threads.toast.search_done': '已为「{query}」生成线索',
   'library.threads.toast.regenerated': '已重新聚类',
   'library.threads.toast.deleted': '已删除「{name}」',
+
+  // Help / 说明页（顶部 tabs）
+  'help.tab.quickstart': '快速开始',
+  'help.tab.integrations': 'IDE 接入',
+  'help.tab.mcp': 'MCP 工具',
+  'help.tab.skills': 'Skill',
+  'help.tab.context': '项目记忆',
+  'help.tab.privacy': '隐私与数据',
+  'help.tab.troubleshooting': '维护与排障',
 }

@@ -29,6 +29,7 @@ import {
   reloadLibrarySessions,
   loadMoreLibrarySessions,
   refreshProjects,
+  sessions,
   type Session,
 } from '@/stores/memex'
 import type { SessionListFilter } from '@/types'
@@ -215,6 +216,37 @@ const drawerOpen = computed({
 const openSession = (s: Session) => {
   drawerSession.value = s
   router.replace({ query: { ...route.query, session: s.id } })
+}
+
+// 列表行的 lock 按钮 toggle 私有标记。
+// 主入口已上移到列表行（Drawer 不再有 toggle UI），所以这里不光要更新 SQL，
+// 还得同步两条 reactive 列表（`librarySessions` 是 Library 视图的 SQL-paged
+// 数据，`sessions` 是 Today / Popup / Threads 共享的 200 条窗口）+ 抽屉当前
+// 引用，避免锁图标在不同视图错位。
+async function onTogglePrivate(s: Session) {
+  const next = !s.isPrivate
+  try {
+    const updated = await memex.setSessionPrivate(s.id, next)
+    if (!updated) {
+      toast.error(t('library.list.toast.private.session_missing'))
+      return
+    }
+    const inLib = librarySessions.find((x) => x.id === s.id)
+    if (inLib) inLib.isPrivate = next
+    const inAll = sessions.find((x) => x.id === s.id)
+    if (inAll) inAll.isPrivate = next
+    if (drawerSession.value && drawerSession.value.id === s.id) {
+      drawerSession.value.isPrivate = next
+    }
+    toast.success(
+      next
+        ? t('library.list.toast.private.marked')
+        : t('library.list.toast.private.unmarked'),
+    )
+  } catch (e) {
+    console.warn('[library] toggle private failed', e)
+    toast.error(t('library.list.toast.private.failed'))
+  }
 }
 
 const openProject = (path: string) => {
@@ -452,6 +484,7 @@ onBeforeUnmount(() => {
               :group-key="g.key"
               :active="drawerSession?.id === s.id"
               @open="openSession"
+              @toggle-private="onTogglePrivate"
             />
           </template>
 

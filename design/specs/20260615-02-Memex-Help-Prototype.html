@@ -1,0 +1,1023 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memex · 使用说明（原型 v2 · markdown driven）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    // shadcn-vue 配色映射；上线版本会从 Memex app 的全局主题继承，这里 standalone 复刻一份。
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(var(--border))',
+            background: 'hsl(var(--background))',
+            foreground: 'hsl(var(--foreground))',
+            primary: {
+              DEFAULT: 'hsl(var(--primary))',
+              foreground: 'hsl(var(--primary-foreground))',
+            },
+            muted: {
+              DEFAULT: 'hsl(var(--muted))',
+              foreground: 'hsl(var(--muted-foreground))',
+            },
+            accent: {
+              DEFAULT: 'hsl(var(--accent))',
+              foreground: 'hsl(var(--accent-foreground))',
+            },
+            card: 'hsl(var(--card))',
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 240 10% 3.9%;
+      --card: 0 0% 100%;
+      --primary: 240 5.9% 10%;
+      --primary-foreground: 0 0% 98%;
+      --muted: 240 4.8% 95.9%;
+      --muted-foreground: 240 3.8% 46.1%;
+      --accent: 240 4.8% 95.9%;
+      --accent-foreground: 240 5.9% 10%;
+      --border: 240 5.9% 90%;
+    }
+    [data-theme='dark'] {
+      --background: 240 10% 3.9%;
+      --foreground: 0 0% 98%;
+      --card: 240 10% 3.9%;
+      --primary: 0 0% 98%;
+      --primary-foreground: 240 5.9% 10%;
+      --muted: 240 3.7% 15.9%;
+      --muted-foreground: 240 5% 64.9%;
+      --accent: 240 3.7% 15.9%;
+      --accent-foreground: 0 0% 98%;
+      --border: 240 3.7% 15.9%;
+    }
+    body {
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .tab-btn[data-active='true'] {
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.06);
+    }
+
+    /* Markdown 渲染样式 —— 用类做 namespace，避免污染全局元素。
+       上线版本里这套样式会迁到 prose 类或者复用现有 MarkdownContent 组件。 */
+    .md h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin: 0 0 8px;
+    }
+    .md h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+    }
+    .md h2:first-of-type { margin-top: 12px; }
+    .md h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 18px 0 6px;
+    }
+    .md p {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: hsl(var(--muted-foreground));
+      margin: 8px 0;
+    }
+    .md p strong { color: hsl(var(--foreground)); }
+    .md ul, .md ol {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: hsl(var(--muted-foreground));
+      padding-left: 22px;
+      margin: 8px 0;
+    }
+    .md ul { list-style: disc; }
+    .md ol { list-style: decimal; }
+    .md li { margin: 3px 0; }
+    .md li strong { color: hsl(var(--foreground)); }
+    .md code {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      background: hsl(var(--muted) / 0.7);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    .md pre {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      background: hsl(var(--muted) / 0.55);
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+    .md pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+    }
+    .md blockquote {
+      border-left: 3px solid hsl(var(--border));
+      padding: 4px 0 4px 14px;
+      margin: 12px 0;
+      font-size: 13px;
+      color: hsl(var(--muted-foreground));
+    }
+    .md a {
+      color: hsl(var(--foreground));
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .md hr {
+      border: none;
+      border-top: 1px solid hsl(var(--border));
+      margin: 22px 0;
+    }
+    .md kbd {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      background: hsl(var(--muted));
+      border: 1px solid hsl(var(--border));
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    .md table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      margin: 10px 0;
+    }
+    .md th, .md td {
+      border-bottom: 1px solid hsl(var(--border));
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .md th {
+      font-weight: 600;
+      background: hsl(var(--muted) / 0.5);
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="mx-auto max-w-4xl px-6 py-8">
+    <header class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-[22px] font-bold tracking-tight">使用说明</h1>
+        <p class="mt-1 text-[13px] text-muted-foreground">
+          5 分钟跑通 → 接入 IDE → 排障对照表，按需查阅。
+        </p>
+      </div>
+      <button id="theme-toggle" class="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent">
+        切换主题
+      </button>
+    </header>
+
+    <div role="tablist" class="inline-flex h-10 items-center gap-0.5 rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto">
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="quickstart" data-active="true">快速开始</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="integrations">IDE 接入</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="mcp">MCP 工具</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="skills">Skill</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="context">项目记忆 / Hook</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="privacy">隐私与数据</button>
+      <button class="tab-btn rounded-sm px-3 py-1.5 text-[13px] font-medium" data-tab="troubleshooting">维护与排障</button>
+    </div>
+
+    <article id="md-target" class="md mt-6"></article>
+
+    <footer class="mt-12 border-t border-border pt-4 text-[11.5px] text-muted-foreground">
+      原型仅展示信息架构与视觉节奏；上线版本里 7 段 markdown 会作为独立 .md 文件维护，由
+      <code>MarkdownContent</code> 组件统一渲染。
+    </footer>
+  </div>
+
+  <!--
+    每段 markdown 用 <script type="text/markdown"> 包住——浏览器把它当 raw text 不解析，
+    切 tab 时直接取 textContent 喂给 marked。上线版本会改成 import xx.md?raw 从文件加载。
+  -->
+
+  <script type="text/markdown" data-tab="quickstart">
+# 快速开始
+
+Memex 是一个**本地优先**的 AI 会话记忆中枢——把你过去在 Cursor / Claude Code / Codex / OpenCode 里聊过的所有内容统一索引到一个 SQLite 数据库，让你能跨 IDE / 跨项目搜索、让 AI 自动检索"我之前说过什么"。整个过程在你电脑上完成，不联网（除非你主动配 LLM 做摘要）。
+
+5 分钟内你能跑通：**装好 → 首次扫描 → 第一次搜索成功**。
+
+## 1. 装好 Memex
+
+从 GitHub Releases 下载对应架构的 DMG（按 macOS 架构选 arm64 / x64），双击拖入 `/Applications`，再跑一行脚本清掉 macOS Gatekeeper 的 quarantine 标记并启动：
+
+```bash
+# 1. 下载 DMG
+#    https://github.com/shetengteng/memex/releases
+
+# 2. 双击 DMG 拖入 /Applications
+
+# 3. 一键安装（清 quarantine、刷新 LaunchServices、启动）
+curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/install-macos.sh | bash
+```
+
+> **为什么需要这个脚本？** 当前版本是 ad-hoc 签名（没买 Apple Developer 账号），直接双击 DMG 启动会被 Gatekeeper 拦截、扔到 AppTranslocation 临时目录然后报"已损坏 / 未识别开发者"。`xattr -cr Memex.app` 清一次扩展属性，让 macOS 把它当本地编译产物对待，启动就正常了。后续升级（覆盖 DMG）需要再跑一次同一个脚本。
+
+启动后菜单栏出现 **(M)** 图标，左键弹 Tray Popup（最近会话 + 快速搜索），右键打开主窗口。全局快捷键 <kbd>⌘⇧M</kbd> 在任意位置切到主窗口。
+
+## 2. 看第一次扫描
+
+启动后，Memex 自动扫描下面这些 IDE 的本地数据库，把过往会话**复制并解析**到 `~/.memex/`：
+
+| 来源 | 路径 |
+|---|---|
+| Cursor | `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` |
+| Claude Code | `~/.claude/projects/*/conversations.jsonl` |
+| Codex | `~/.codex/sessions/*.json` |
+| OpenCode | `~/.opencode/storage/*/sessions/*.json` |
+
+> Memex 不修改任何 IDE 的源数据，只是**只读**复制 + 解析；删掉 `~/.memex/` 不会影响 IDE。
+
+打开 Library 页，看到 **共 N 个会话** 就说明扫描成功。首次扫描 1000 条会话约需 30-60 秒，期间状态栏会显示进度。L2 摘要（Library 列表里那段"用户意图"）需要本地 LLM（Ollama）才能生成；没配 LLM 也不影响搜索功能本身。
+
+## 3. 做第一次搜索
+
+按 <kbd>⌘K</kbd> 打开命令面板，输入任何过去聊过的关键词。FTS5 全文检索 + 时间衰减排序，结果按"最近聊过"靠前：
+
+```
+⌘K → "retry 策略"
+→ 命中 3 条会话：
+  · cursor / memex   · 2026-06-12  · "重试逻辑用 exponential backoff..."
+  · cursor / db-svc  · 2026-05-30  · "前端的 axios 拦截器加重试..."
+  · claude / aws-mig · 2026-05-18  · "Lambda 失败重试 SQS 配置..."
+```
+
+每条结果会标注：来自哪个 IDE / 哪个项目 / 何时聊的 / 命中片段。点开就跳到详情。
+
+也可以用 CLI 搜索（写脚本 / pipe 处理时方便）：
+
+```bash
+# CLI 自带 sidecar 在 /Applications/Memex.app/Contents/MacOS/memex-cli
+memex-cli search "retry 策略" --limit 5
+```
+
+---
+
+**下一步** → [接入到 AI 编辑器](#integrations)：让 AI 自动调 Memex 检索历史 · [MCP 工具用法](#mcp)：6 个工具的触发场景
+  </script>
+
+  <script type="text/markdown" data-tab="integrations">
+# IDE 接入
+
+Memex 通过 3 种机制把"会话记忆"喂给 AI 编辑器，每种机制解决不同问题，可以叠加使用。
+
+## 三种接入机制对比
+
+| 机制 | 解决什么 | 时机 | 开销 |
+|---|---|---|---|
+| **MCP** | 让 AI 能调用 Memex 的 6 个搜索 / 检索工具 | 用户提问命中关键词时按需调用 | 单次毫秒级 |
+| **SKILL** | 让 AI 知道**什么时候**该用 MCP、传什么参数 | IDE 启动时一次性加载到 system prompt | 上下文 ~1-2K token |
+| **Hook** | 在每次新会话开始时**主动注入**项目记忆摘要 | 会话第 0 秒（在用户提问前） | 一次 LLM 输入 ~500 token |
+
+理想接入 = 三个都开。MCP 是地基，SKILL 是说明书，Hook 是开场白。
+
+## Cursor · 最常用
+
+支持：**MCP** · **SKILL** · **Hook（自定义）**
+
+接入文件：
+
+| 文件 | 作用 |
+|---|---|
+| `~/.cursor/mcp.json` | MCP server 注册（被 Memex 一键安装写入） |
+| `~/.cursor/skills/memex/SKILL.md` | 让 AI 学会怎么用 |
+| `~/.cursor/rules/memex.mdc` | 注入触发规则（"用户问 X 时强制调用 Y"） |
+
+接入后的真实对话样例：
+
+```
+你：我前段时间是不是讨论过 retry 策略？
+
+AI：[自动调 search_memory("retry 策略")]
+    找到 3 条相关会话：
+    - 2026-06-12 在 memex 项目讨论了 exponential backoff
+    - 2026-05-30 在 db-svc 项目用 axios 拦截器实现
+    - 2026-05-18 在 aws-mig 项目用 SQS 配置 Lambda 失败重试
+    需要看哪一条的详细对话吗？
+```
+
+**找不到调用？**
+- 重启 Cursor（MCP 配置变更需要重启进程）
+- Cursor 设置 → MCP → 看 memex 是否亮绿灯
+- Connect 页 → MCP 活动 卡片，看有没有调用记录
+
+## Claude Code · 推荐
+
+支持：**MCP** · **SKILL** · **Hook（原生）**
+
+Claude Code 是**唯一原生支持 sessionStart hook** 的 IDE——每次开新会话时，hook 把当前项目的最近 5 条会话摘要 + 关键决策注入到 system prompt，AI 第一句回复就具备项目上下文，**不用你重新解释背景**。
+
+接入文件：
+
+| 文件 | 作用 |
+|---|---|
+| `~/.claude/settings.json` | MCP server 注册 + hook 注册 |
+| `~/.claude/skills/memex/SKILL.md` | Skill 用法 |
+
+Hook 触发的 banner 长这样（注入到新会话的 system prompt 顶部）：
+
+```
+## Memex 工作记忆 · memex (~/Documents/personal/tt-projects/memex)
+
+最近 3 条会话摘要：
+1. [2026-06-15] 标记会话为私有 + Hook 重命名 + 部署
+2. [2026-06-14] EBADF 修复：daemon FD leak 在 watcher/scheduler abort
+3. [2026-06-13] Memex 1.0.3 发布物料：promo 视频脚本 + landing carousel
+
+关键决策：
+- v5 migration 加 sessions.is_private 列；MCP 4 个 tool fail-closed 过滤
+- 私有标记入口在 Library 列表行右上角，drawer 不再有 toggle
+```
+
+## Codex
+
+支持：**MCP** · **SKILL**。
+
+Codex 没有 hook 接口，但 SKILL 会在 system prompt 里告诉 AI"用户问 X 时主动调 get_project_context"——效果接近 hook 但需要触发关键词。
+
+接入文件：`~/.codex/config.json` + `~/.codex/skills/memex/SKILL.md`
+
+## OpenCode
+
+支持：**MCP**（SKILL / Hook 在路线图里）。
+
+接入文件：`~/.opencode/config.toml` 注册 MCP server。SKILL.md 还没适配 OpenCode 的 skill 加载格式，等 OpenCode 端生态稳定后接入。
+
+## 怎么验证接入成功
+
+最直接的方法 —— 在 IDE 里发一句：
+
+> 你能用 memex 搜一下我最近的会话吗？
+
+AI 会调 `list_recent`，返回前 N 条会话列表。看到结果 = MCP 联通；看到 AI 主动选了 `list_recent` 而不是 `search_memory` = SKILL 也生效。
+
+也可以打开 Memex 主窗口的 **Connect 页 → MCP 活动**，那里实时统计 24h 内所有 MCP 调用，能看到来自哪个 IDE、调了什么 tool、耗时多少、成功失败。
+  </script>
+
+  <script type="text/markdown" data-tab="mcp">
+# MCP 工具
+
+Memex 暴露 **6 个 MCP tool**。AI 在你提问时会按上下文自动选择调用哪个，不需要你记参数。下面每个工具都给了真实的"用户提问 → AI 选了什么工具 → 实际返回"链路，方便理解触发逻辑。
+
+> 所有 MCP 调用都会被记录到 `~/.memex/memex.db` 的 `mcp_call_log` 表，**Connect 页 → MCP 活动**实时展示 24h 调用统计 + 失败列表。
+
+## `get_project_context` · 最常用
+
+**用于**：用户回到一个项目、想"接着干上次的活"，AI 需要快速理解"这个项目最近在搞什么"。
+
+**触发关键词**：「之前」「接着干」「上次讨论」「当前进度」「回顾决策」「项目阶段」「整理一下」。
+
+**参数**：
+
+```json
+{ "project": "/Users/me/work/memex", "top": 5 }
+```
+
+`project` 强烈建议传**绝对路径**——hook 启动时 `$PWD` 不一定是 workspace 根，传错路径会拿不到上下文。
+
+**返回**（Markdown 格式）：
+
+```markdown
+## Memex 工作记忆 · memex
+
+### 项目摘要
+本地优先的跨 LLM 会话记忆中枢，由 Tauri + Vue + Rust 实现。
+
+### 最近 5 条会话
+1. [2026-06-15] 私有标记 + 部署
+2. [2026-06-14] EBADF 修复
+...
+
+### 关键决策
+- v5 migration 加 sessions.is_private 列
+- MCP get_session fail-closed 过滤私有会话
+```
+
+## `search_memory`
+
+**用于**：「我之前讨论过 X 吗？」「找一下关于 X 的对话」。FTS5 全文检索 + 时间衰减排序，最近聊过的优先。
+
+**参数**：
+
+```json
+{
+  "query": "retry 策略 exponential backoff",
+  "limit": 5,
+  "adapter": "cursor",
+  "project": "memex"
+}
+```
+
+`adapter` / `project` 是**可选过滤器**。比如想限定"只看 Cursor 里聊过的"或"只看 memex 项目的"。
+
+**返回片段示例**：
+
+```json
+{
+  "results": [
+    {
+      "session_id": "abc123",
+      "snippet": "重试用 exponential backoff，初始 1s，最大 30s...",
+      "adapter": "cursor",
+      "project": "memex",
+      "timestamp": "2026-06-12T14:30:00Z",
+      "score": 0.87
+    }
+  ]
+}
+```
+
+## `list_sessions_by_range`
+
+**用于**：日报 / 周报 / 月报。「本周做了什么」「上个月在搞什么」「6 月 1 日到 6 月 8 日」。
+
+**参数**：
+
+```json
+{ "after": "2026-06-01", "before": "2026-06-15", "limit": 20 }
+```
+
+返回区间内所有会话的元数据 + L2 摘要（如有），AI 会自动归纳成日报。
+
+## `list_recent`
+
+**用于**：「我最近的会话有哪些」「上一次开的 session 是什么」。
+
+简单直白——按 `updated_at desc` 返回最新 N 条会话。配合 `get_session` 用，先列再翻详情。
+
+```json
+{ "limit": 10 }
+```
+
+## `get_session`
+
+**用于**：从 `search_memory` / `list_recent` 拿到 session ID 后，查具体对话内容。
+
+```json
+{ "session_id": "abc123" }
+```
+
+**重要**：**私有会话 fail-closed**——AI 即便知道 ID 也取不到，返回 `session not found: abc123`，连"存在性"都不暴露。
+
+## `stats`
+
+**用于**：「memex 数据库现状」「攒了多少会话」「一共聊了多少消息」。
+
+```json
+{}  // 无参数
+```
+
+返回：
+
+```json
+{ "sessions": 1247, "messages": 38291, "chunks": 142876 }
+```
+
+## 怎么看 AI 实际调了哪个工具
+
+**Connect 页 → MCP 活动 卡片**：
+
+```
+今日调用 47 次（成功 45 / 失败 2）  · 平均 38ms
+
+按工具：
+  search_memory          21 次  · avg 42ms
+  get_project_context     8 次  · avg 215ms（含 LLM 摘要）
+  list_recent            14 次  · avg 12ms
+  get_session             4 次  · avg 8ms
+
+最近失败：
+  16:45  search_memory   "Project not found: /old/path"  cursor
+  ...
+```
+
+如果 AI 应该用 MCP 但没用，看这里 = 0 调用记录就是 IDE 端 MCP 配置错了。
+  </script>
+
+  <script type="text/markdown" data-tab="skills">
+# Skill 用法
+
+**Memex 仓库自带 1 份 SKILL.md**——它是给 AI 看的工具用法说明书。装到 IDE 后，AI 在加载会话时会读到这份说明，知道**什么时候**该调用 Memex 的 MCP 工具、传**什么参数**、返回如何解读。
+
+## SKILL 和 MCP 是什么关系
+
+很多人会问：MCP 已经能调用工具了，为什么还需要 SKILL？
+
+| 维度 | MCP | SKILL |
+|---|---|---|
+| 解决什么 | "AI 能调用什么工具" | "AI 什么时候该调，传什么参数" |
+| 形式 | 工具协议 + 函数签名 | 自然语言用法说明 + 触发场景 |
+| 加载时机 | 工具注册（startup） | system prompt（每次会话加载） |
+| 没有它会怎样 | AI 没工具可用 | AI 有工具但不知道用，或用错参数 |
+
+**举个反例**：没装 SKILL 时，用户问「我之前讨论过 retry 策略吗」，AI 看到 `search_memory` 工具但可能传 `query="retry"`（漏了"策略"），或者优先调 `list_recent` 拿前 10 条然后纯文本匹配（慢且不准）。装了 SKILL 后，AI 知道"问'之前讨论过 X 吗'就直接用 `search_memory` 全词组查询"，命中率和响应速度都更高。
+
+## SKILL.md 内容长什么样
+
+打开 `app/SKILL.md` 你会看到类似这样的结构：
+
+```markdown
+# Memex MCP Skill
+
+## When to use which tool
+
+| 用户提问关键词 | 用什么工具 | 为什么 |
+|---|---|---|
+| "我之前讨论过 X" | search_memory | FTS 命中率高 |
+| "整理一下当前项目" | get_project_context | 带 L2 摘要，比纯搜索更结构化 |
+| "本周做了什么" | list_sessions_by_range | 按时间区间归纳 |
+
+## Examples
+
+User: 「retry 策略上次怎么决定的」
+→ Call: search_memory(query="retry 策略", limit=5)
+→ Then: get_session(session_id=<top hit>)
+```
+
+AI 读完这段后，遇到对应关键词时会自动套用这套调用模式，输出更符合用户预期。
+
+## 怎么安装
+
+**Connect 页 → IDE 集成 → 装 SKILL** 一键搞定，Memex 会按你当前安装的 IDE 把对应版本复制到正确路径：
+
+| IDE | 路径 |
+|---|---|
+| Cursor | `~/.cursor/skills/memex/SKILL.md` |
+| Claude Code | `~/.claude/skills/memex/SKILL.md` |
+| Codex | `~/.codex/skills/memex/SKILL.md` |
+| OpenCode | `~/.opencode/skills/memex/SKILL.md` |
+
+> 仓库里 `app/skills/{cursor,claude-code,codex,opencode}/SKILL.md` 是按 IDE 适配过的源文件——不同 IDE 对 skill 元信息（YAML frontmatter）的格式要求不同，Memex 安装时会自动选对版本。
+
+也可以手动安装（适合纯 CLI 用户或者 IDE 没在列表里）：
+
+```bash
+mkdir -p ~/.cursor/skills/memex
+cp /Applications/Memex.app/Contents/Resources/skills/cursor/SKILL.md \
+   ~/.cursor/skills/memex/SKILL.md
+```
+
+## 触发关键词
+
+不需要刻意调用，AI 在以下场景会自动用 SKILL + MCP：
+
+- 「整理项目记忆」「我之前在这个项目做到哪了」「接着干」「上次"
+- 「搜一下关于 X 的对话」「上次怎么解决的」「找一下之前关于 X 的讨论」
+- 「本周做了什么」「上个月的工作总结」「日报 / 周报 / 月报」「6 月 1 日到 8 日」
+- 「memex 数据库现状」「攒了多少会话」「一共聊了多少消息」
+- 「这个项目现在到什么阶段」「回顾一下决策」「继续做之前的功能」
+
+## 不生效？
+
+按这个顺序排查：
+
+1. **路径**：表格里的 SKILL.md 文件确实存在
+2. **重启 IDE**：MCP 配置 + skill 加载都需要重启 IDE 进程才生效（开新 tab 不算）
+3. **Cursor**：Settings → Skills 里能看到 **memex** = 装好了
+4. **Claude Code**：在新会话里直接问 "你能用 memex skill 吗" 看 AI 是否提到 SKILL 内容
+5. **看 IDE 日志**：Cursor 的 Developer Tools → Console 会打印 skill 加载错误（多半是 YAML frontmatter 格式问题，重新装一次会修正）
+6. **缓存**：Cursor 偶尔会缓存旧版本 skill，删 `~/.cursor/skills/memex/` 整个目录再重新安装能强制刷新
+  </script>
+
+  <script type="text/markdown" data-tab="context">
+# 项目记忆 / Hook
+
+Hook 是 IDE 在每次开新会话时自动调用的脚本入口。Memex 的 sessionStart hook 会把当前项目的最近会话摘要 + 关键决策**主动注入**到新会话的 system prompt——AI 第一句回复就具备项目上下文，**不需要你重新解释背景**。
+
+这是 Memex 体验最爽的部分：你切回某个项目开新会话，第一句问"上次的 retry 策略后来怎么了"，AI 直接给出延续上次讨论的回答，不会问"上次是讨论什么"。
+
+## 原理
+
+```
+┌─ IDE 新会话开始（Claude Code Cmd-N）
+│
+├─ Claude Code 触发 sessionStart hook
+│       ↓
+│       ~/.claude/settings.json 里注册的 hook 命令
+│       ↓
+│       memex-cli context --project $(pwd) --top 5
+│
+├─ memex-cli 内部：
+│   1. 读 ~/.memex/memex.db
+│   2. 按 project_path 过滤会话
+│   3. 取最近 5 条，附带 L2 摘要 + 决策
+│   4. 套 redactions / privacy 过滤（私有会话剔除）
+│   5. 输出一段结构化 markdown
+│
+├─ stdout 内容被注入到 system prompt 顶部
+│       ↓
+└─ AI 第一句回复就具备项目上下文 ✓
+```
+
+整个过程 100ms 以内（Memex 是本地 SQLite 查询），用户体感完全无感，但 AI 的回复质量肉眼可见的提升。
+
+## banner 实际样例
+
+下面是真实注入到 Claude Code 新会话顶部的内容（你的 system prompt 的一部分）：
+
+```markdown
+## Memex 工作记忆 · memex (~/Documents/personal/tt-projects/memex)
+
+### 项目摘要
+本地优先的跨 LLM 会话记忆中枢，由 Tauri + Vue + Rust 实现。
+6 个 MCP 工具暴露给 AI 编辑器。
+
+### 最近 5 条会话
+1. [2026-06-15] 标记会话为私有 + Hook 命名优化 + 部署
+2. [2026-06-14] 修复 daemon EBADF：watcher/scheduler abort + tokio process
+3. [2026-06-13] Memex 1.0.3 发布物料：promo 视频 + landing carousel
+4. [2026-06-11] 架构合并：daemon 折叠进 Tauri 主进程的方案讨论
+5. [2026-06-10] MCP 工具列表确认 + 测试覆盖
+
+### 关键决策
+- v5 migration 加 sessions.is_private 列
+- MCP 4 个 tool fail-closed 过滤私有会话（含 get_session）
+- collect_project_context 改纯函数，skip_private 由调用方传
+
+### 项目主题
+memex, rust, tauri, vue, sqlite, mcp
+```
+
+AI 看到这段后，"上次"是什么、"接着干"做什么，全部都有锚点了。
+
+## 配置位置
+
+只有 **Claude Code** 当前原生支持 sessionStart hook：
+
+```json
+// ~/.claude/settings.json（Memex 一键安装后会写入）
+{
+  "hooks": {
+    "sessionStart": "/Applications/Memex.app/Contents/MacOS/memex-cli context --project $WORKSPACE --top 5"
+  }
+}
+```
+
+`$WORKSPACE` 由 Claude Code 在调用时填入当前 workspace 绝对路径。
+
+其他 IDE（Cursor / Codex / OpenCode）没有 hook 接口，但效果可以靠 SKILL.md + 触发关键词模拟——SKILL 在 system prompt 里告诉 AI "用户问 X 时主动调 get_project_context"，命中关键词就主动检索，效果接近 hook 但**需要触发**。
+
+## 调试方法
+
+**1. 直接看 banner**
+
+在 AI 里直接问：
+
+> 你能看到 memex 注入的工作记忆吗？请把 banner 内容原样输出一下。
+
+AI 会从 system prompt 里把 banner 段拷贝出来，看到 = hook 工作中。
+
+**2. 本地跑同一条命令**
+
+```bash
+memex-cli context --project $(pwd) --top 5
+```
+
+stdout 是什么，注入到 IDE 的就是什么。空？参考下面一条。
+
+**3. banner 显示"暂无关联会话记忆"**
+
+最常见原因：`$PWD` 跟 Memex 索引里的 `project_path` 对不上（IDE 启动 hook 时 cwd 可能是配置目录而不是项目根）。
+
+修复：传**绝对路径**手动测：
+
+```bash
+memex-cli context --project /Users/me/work/memex --top 5
+```
+
+仍然空 = 该项目还没被索引（Library 页能看到吗），或者所有会话都被 redactions / private 过滤掉了。
+
+**4. hook 没触发**
+
+Claude Code 设置 → 看 `~/.claude/settings.json` 是否真的有 `hooks.sessionStart`。一键安装失败时这条不会写入。Memex 主窗口 Connect 页 → IDE 集成 → Claude Code → 重新装 hook。
+
+**5. Claude Code 没显示 banner**
+
+Claude Code 的对话日志（`~/.claude/projects/<workspace_hash>/conversations.jsonl`）第一条 system 消息会包含 hook 输出。`grep "Memex 工作记忆" ~/.claude/projects/*/*.jsonl` 能确认是不是真的注入了。
+
+## 项目记忆和搜索的区别
+
+很多人混淆——它们是不同层次的工具，配合使用：
+
+| | 主动注入 / 被动检索 | 数据形态 | 适合场景 |
+|---|---|---|---|
+| Hook（项目记忆） | **主动**注入 | 摘要 + 决策 + 主题（结构化） | "我回到这个项目了，告诉我上次到哪" |
+| MCP search_memory | **被动**检索 | 原始对话片段（FTS 命中） | "我之前讨论过 X 吗" |
+
+Hook 是"开场白"，搜索是"翻笔记"。AI 用 Hook 的内容知道**当前坐标**，用 search 工具按需翻**具体细节**。
+  </script>
+
+  <script type="text/markdown" data-tab="privacy">
+# 隐私与数据
+
+Memex 是**本地优先**的应用——所有索引数据都存在你电脑的 `~/.memex/` 目录，**默认不联网**。下面这条是核心承诺：
+
+> Memex 不主动上传任何数据。LLM 摘要功能（L2）默认调用本地 Ollama；只有你**主动**在 Settings 配 OpenAI / Anthropic / 自建 API 时，才会有摘要请求出网，且仅限你那条 API。索引、搜索、Hook 注入全程纯本地。
+
+## 数据流入与存储位置
+
+```
+[ Cursor / Claude Code / Codex / OpenCode 的本地 db / jsonl ]
+                  ↓ （只读，不修改源数据）
+       Memex daemon / collector 解析
+                  ↓
+            ┌─────┴─────┐
+            ↓           ↓
+   ~/.memex/sessions/  ~/.memex/memex.db
+   原始会话副本（md）  SQLite 索引 + FTS5
+                  ↓
+       MCP / Hook / CLI 按 privacy 规则筛选
+                  ↓
+           暴露给 AI 编辑器
+```
+
+`~/.memex/` 完整目录结构：
+
+| 路径 | 内容 | 删了会怎样 |
+|---|---|---|
+| `~/.memex/memex.db` | SQLite 主索引 + FTS5 全文索引 | 重新启动 Memex 会触发完整 reindex |
+| `~/.memex/memex.db-wal` / `-shm` | SQLite WAL + 共享内存 | 删了无影响（自动重建） |
+| `~/.memex/sessions/` | 原始会话 markdown 副本 | 已索引数据保留，原始内容看不到了 |
+| `~/.memex/redactions.yaml` | 路径 / 关键词隐私规则 | 失去过滤；建议 git 管理这份配置 |
+| `~/.memex/config.toml` | 应用配置（LLM / privacy 开关 / port） | 回到默认配置 |
+| `~/.memex/daemon.lock` | 进程锁文件 | 仅运行时存在 |
+| `~/.memex/logs/` | daemon 日志（最近 7 天） | 仅排障用 |
+
+## 把会话标记为「私有」（细粒度）
+
+Library 列表里 hover 一行，标题右侧 IdeChip 旁边会出现**淡灰色锁图标** → 点一下即标记为私有；再点一次取消。已私有的会话锁图标会**常显且 amber 高亮**，列表里一眼能看到。
+
+标记为私有的会话**不会通过任何途径暴露给 AI**：
+
+| 暴露途径 | 私有会话过滤行为 |
+|---|---|
+| MCP `search_memory` | retain 过滤掉 |
+| MCP `list_recent` | retain 过滤掉 |
+| MCP `list_sessions_by_range` | retain 过滤掉 |
+| MCP `get_session` | **fail-closed** —— 即便 AI 知道 ID 也返回 `session not found`，不暴露存在性 |
+| Hook 注入的 `get_project_context` | 过滤掉 + total_sessions 也按过滤后计数（不暴露"还有 N 条看不到"） |
+| CLI `memex-cli context` | 同 hook，私有会话不出现在 banner |
+
+> **设置 → 偏好 → "私有会话不通过 MCP 暴露给 IDE"** 开关控制此功能是否生效（默认开启）。关掉后 AI 能看到所有会话——除非命中下面 redactions.yaml 的路径 / 关键词规则。
+
+## redactions.yaml（批量过滤）
+
+逐条标记不现实时，用这份配置做路径 / 关键词级的批量过滤：
+
+```yaml
+# ~/.memex/redactions.yaml
+
+# 路径规则：glob 风格
+paths:
+  - "~/work/secret-project/**"
+  - "~/Documents/private-notes/**"
+  - "/tmp/**"
+
+# 关键词规则：会话内容包含任意一条就视同私有
+keywords:
+  - "API_KEY"
+  - "BEGIN PRIVATE KEY"
+  - "ANTHROPIC_API_KEY"
+  - "passwd"
+  - "BEGIN OPENSSH PRIVATE KEY"
+```
+
+匹配优先级：
+
+1. 会话的 `is_private = true`（手动标记）→ 私有
+2. `project_path` 命中 `paths` 规则 → 私有
+3. 会话内任意 message content 命中 `keywords` 规则 → 私有
+4. 否则 → 公开
+
+任意一条命中即视同私有。规则改完**实时生效**（下一次 MCP 调用就按新规则过滤）。
+
+## LLM 配置时的隐私边界
+
+Memex 索引、搜索、Hook 注入都是纯本地 SQL 查询。但 **L2 摘要功能**（生成"用户意图"和"会话摘要"）需要 LLM。Settings 里可以选：
+
+| LLM 提供商 | 数据流向 | 隐私级别 |
+|---|---|---|
+| 本地 Ollama（默认） | 不出本机 | 完全本地 |
+| OpenAI / Anthropic API | 摘要原文发到对应 API | 受该 API 隐私政策约束 |
+| 自建 API endpoint | 你自己控制 | 看你的部署 |
+
+**摘要内容包含什么**：会话的全部 user / assistant 消息原文。如果会话里聊过敏感内容，又选了云端 LLM，那这些内容就会被发出去。建议：
+
+- 默认装 Ollama，纯本地处理
+- 或者：把含敏感会话所在项目加进 `redactions.yaml` 的 paths，根本不走 LLM 摘要
+
+## 怎么彻底清掉一条会话
+
+标记私有只是"不暴露"，**数据本身还在 SQLite 里**。要彻底清掉：
+
+1. 在 Library 找到那条会话，记下 ID
+2. 删 SQLite 行：`sqlite3 ~/.memex/memex.db "DELETE FROM sessions WHERE id = '<id>'"`
+3. 删 chunks（FTS 索引）：`sqlite3 ~/.memex/memex.db "DELETE FROM chunks WHERE session_id = '<id>'"`
+4. 删原始 md 文件：`rm ~/.memex/sessions/<adapter>/<session_id>.md`
+
+要清整个项目：把上面 1-3 的 WHERE 换成 `WHERE project_path = '/abs/path'`。
+
+> Memex UI 还没暴露逐条删除按钮（v1.0.4 路线图），暂时手动 SQL。
+
+## 导出 / 重建 / 彻底重置
+
+- **导出全部为 JSON**：Settings → System → 导出（用于备份或迁移到另一台机器）
+- **重建索引**：Settings → System → 重建索引（删 SQLite、保留 sessions/*.md，从源 md 重新 ingest；耗时跟首次扫描接近）
+- **彻底重置**：Settings → System → 彻底重置（删 db + sessions + 原始文件，回到首次启动状态。**操作不可逆**）
+  </script>
+
+  <script type="text/markdown" data-tab="troubleshooting">
+# 维护与排障
+
+按问题症状索引。每条都给原因 + 修复步骤 + 怎么验证修好。
+
+## 1. "读取失败：unable to open database file (Error code 14)"
+
+**症状**：Reset Index 或 Rebuild Index 后，前端页面短暂显示 SQLite 错误，几秒后恢复。
+
+**原因**：reset 流程中 daemon 重启的 ~300ms 窗口里，前端 polling 跟 daemon 都尝试 `Db::open` 跑 PRAGMA WAL，互相抢锁。
+
+**修复**：**v1.0.4+ 已修复**——reset 加了 300ms grace + 预 open 验证；前端 polling 失败时静默返回空（看到的不是红色 error 而是"暂无调用"）。
+
+**手动恢复**（旧版本）：重启 Memex.app（菜单栏 (M) 图标 → 退出 → 重新打开），或确认 `~/.memex/memex.db` 健康后直接重开。
+
+## 2. "Bad file descriptor (os error 9)"
+
+**症状**：IDE 集成卡片刷新时弹 `IDE: Bad file descriptor (os error 9)` toast，重启应用就好。
+
+**原因**：daemon 的 watcher / scheduler 用 fire-and-forget tokio task 启动，shutdown 时没 await abort，macOS fsevent FD 累积泄漏；下次 `Command::output()` 拿到失效 FD 就 EBADF。
+
+**修复**：**v1.0.4+ 已修复**——watcher / scheduler 返回 JoinHandle，shutdown 时 abort + await；`std::process::Command` 也换成 `tokio::process::Command` 配 `kill_on_drop`。
+
+## 3. "0 / 0 已接入" 但 IDE 明明在跑
+
+**症状**：Connect 页显示已接入 0 个 IDE，但本机确实在用 Cursor / Claude Code。
+
+**可能原因 + 修复**：
+
+- **IDE 的 sqlite db 路径变了**（Cursor 升大版本时偶发）：删 `~/.memex/memex.db`，主窗口右上角"重建索引"，触发 collector 重新探测路径。
+- **Memex 没有 Full Disk Access**（macOS 系统沙箱拦截）：系统设置 → 隐私与安全性 → 完全磁盘访问 → 加 `/Applications/Memex.app`，重启 Memex。
+- **IDE 自己还没产生数据**（刚装 Cursor / Claude Code，还没开过会话）：先开几个会话再回来。
+
+**怎么验证**：终端跑 `ls ~/Library/Application\ Support/Cursor/User/workspaceStorage/`——目录里有内容 + Memex 仍 0 接入 = 是 Memex 端没读到，多半是 Full Disk Access。
+
+## 4. daemon 起不来 / 主窗口空白
+
+**看日志**：Settings → 维护 → 查看日志，最近 100 行 tracing 输出。
+
+**最常见原因**：
+
+- **端口冲突**（默认 9999）：被占时自动 fallback 到 10000-10010，日志会有 `daemon listening on http://127.0.0.1:1xxxx`；如果一路 fallback 失败就要手动 `lsof -i :9999` 看谁占着。
+- **db 损坏**：日志有 `database disk image is malformed`。Settings → System → "重建索引"（保留原始 md，纯 SQL 重建）。
+- **daemon.lock 残留**：异常崩溃后 `~/.memex/daemon.lock` 没删，`rm ~/.memex/daemon.lock` 后重启。
+
+## 5. 重建索引 / 彻底重置在哪
+
+Settings → System 页：
+
+| 操作 | 删什么 | 保留什么 | 需要时间 |
+|---|---|---|---|
+| **重建索引** | `memex.db*` | `sessions/*.md` + 配置 | ~30-60s / 1000 条 |
+| **彻底重置** | 全部 `~/.memex/` 内容 | 无 | 几秒 |
+
+> 重建索引是日常调试首选——能修绝大部分"搜不到 / 摘要乱"的问题；彻底重置是"我要重新开始"。
+
+## 6. MCP 调用没反应
+
+按这个顺序排查：
+
+1. **看 Connect 页 → MCP 活动卡片** 有没有调用记录
+   - **有记录但失败**：右栏会显示错误原因，最常见 "Project not found: /old/path"（IDE 工作目录变了），或 "session not found"（私有过滤）
+   - **完全没记录**：IDE 端 MCP server 没连上 Memex，进 IDE 的 MCP 设置看 memex 是不是绿灯
+2. **重新装一次 MCP**：Connect 页 → IDE 集成 → 该 IDE → 卸载 → 重装（覆盖 ~/.cursor/mcp.json 等配置）
+3. **重启 IDE**：MCP 配置变更需要重启 IDE 进程
+4. **如果 daemon 端口变了**：IDE 端 mcp.json 里的 endpoint 是写死的，端口 fallback 后就连不上了。重新装一次会写入新 port。
+
+## 7. 搜索结果不准 / 漏命中
+
+**常见原因**：
+
+- **会话还没 ingest**：Library 页的会话计数 = 已索引；首次扫描完成前搜索会漏。等扫描进度跑完。
+- **关键词包含 SQL 特殊字符**（如 `_` `%`）：FTS5 会把它当通配符；先试简单词试试。
+- **L2 摘要还在跑**：摘要里的关键词搜得到，原文里不一定。如果你搜的词在 AI 回复里，等摘要跑完命中率会上去。
+
+**强制重建 FTS 索引**：Settings → 维护 → 重建 FTS 索引（不删 sessions / messages，只重建 chunks 表 + FTS 虚表）。
+
+## 8. 看 daemon 实际日志
+
+**Memex 主窗口**：Settings → 维护 → 查看日志。
+
+**终端**：
+
+```bash
+# 最近 100 行
+tail -n 100 ~/.memex/logs/memex.log
+
+# 实时跟随
+tail -f ~/.memex/logs/memex.log
+
+# 找错误
+grep -E "ERROR|WARN" ~/.memex/logs/memex.log
+```
+
+## 9. redactions.yaml 改完不生效
+
+Memex 是**实时读** redactions.yaml 的（不缓存到 SQL）。MCP 下一次调用就按新规则过滤——不需要重启 daemon。
+
+如果不生效：
+
+1. **YAML 格式错**：`yamllint ~/.memex/redactions.yaml` 验证
+2. **路径规则用了 `~`**：会自动展开成 `$HOME`；用绝对路径 `/Users/me/...` 更稳
+3. **glob 通配 `**`** vs `*`：`**` 跨多层，`*` 只一层
+4. **关键词大小写**：默认大小写敏感；想忽略的话写两份（`"API_KEY"` + `"api_key"`）
+
+**怎么验证**：把一个项目路径加进 `paths`，然后在 IDE 里问 AI "搜一下 那个项目的会话"——看 MCP 活动卡是不是返回空 / 是否过滤掉了。
+
+## 10. 升级 / 卸载
+
+**升级**（保留所有数据）：
+
+```bash
+# 1. 下载新版 DMG（按当前架构）
+#    https://github.com/shetengteng/memex/releases
+
+# 2. 拖 Memex.app 到 /Applications 覆盖
+
+# 3. 重跑 install 脚本（清新版本的 quarantine + 重启）
+curl -fsSL https://raw.githubusercontent.com/shetengteng/memex/main/scripts/install-macos.sh | bash
+```
+
+新版会自动跑 SQLite migration（v5 之类），数据无损升级。
+
+**卸载**：
+
+```bash
+# 1. 退出 Memex（菜单栏 (M) → Quit）
+
+# 2. 删应用
+sudo rm -rf /Applications/Memex.app
+
+# 3. 删数据（如果想保留索引以便下次装回来，跳过这步）
+rm -rf ~/.memex
+```
+
+> 注意：删了 `~/.memex/` 之后，重新装 Memex 会触发**完整重新扫描所有 IDE**，1000 条会话约需 30-60 秒。
+  </script>
+
+  <script>
+    const target = document.getElementById('md-target')
+    const tabs = document.querySelectorAll('.tab-btn')
+    const sources = {}
+    document.querySelectorAll('script[type="text/markdown"]').forEach((s) => {
+      sources[s.dataset.tab] = s.textContent
+    })
+
+    function render(tab) {
+      tabs.forEach((b) => (b.dataset.active = String(b.dataset.tab === tab)))
+      target.innerHTML = marked.parse(sources[tab] ?? '')
+      if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab)
+      window.scrollTo({ top: 0 })
+    }
+
+    tabs.forEach((b) => b.addEventListener('click', () => render(b.dataset.tab)))
+
+    // 也接管 markdown 内的 #tab 锚点链接（不让浏览器原生跳锚点）
+    target.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href^="#"]')
+      if (!a) return
+      const tab = a.getAttribute('href').slice(1)
+      if (sources[tab]) {
+        e.preventDefault()
+        render(tab)
+      }
+    })
+
+    const init = location.hash.replace('#', '') || 'quickstart'
+    render(sources[init] ? init : 'quickstart')
+
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const html = document.documentElement
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'
+    })
+  </script>
+</body>
+</html>

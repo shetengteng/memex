@@ -8,6 +8,7 @@ const expectedRoutes: Record<string, { layout?: string; breadcrumb?: string[] }>
   '/insights': { breadcrumb: ['nav.insights'] },
   '/connect': { breadcrumb: ['nav.connect'] },
   '/settings': { breadcrumb: ['nav.settings'] },
+  '/help': { breadcrumb: ['nav.help'] },
   '/tray-popup': { layout: 'bare' },
 }
 

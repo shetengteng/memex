@@ -10,7 +10,10 @@ defineProps<{
   groupKey: string
   active: boolean
 }>()
-defineEmits<{ open: [Session] }>()
+defineEmits<{
+  open: [Session]
+  'toggle-private': [Session]
+}>()
 
 const { t, locale } = useI18n()
 
@@ -39,16 +42,36 @@ const groupFmt = (iso: string, group: string) => {
     @click="$emit('open', session)"
   >
     <div class="min-w-0 flex-1">
-      <div class="mb-1 flex items-baseline justify-between gap-3">
-        <span class="flex min-w-0 items-center gap-1.5">
-          <Lock
-            v-if="session.isPrivate"
-            class="size-3 shrink-0 text-muted-foreground/70"
-            :title="t('library.list.tooltip.private')"
-          />
-          <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
+      <div class="mb-1 flex items-center justify-between gap-3">
+        <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
+        <!--
+          右上角动作区：IdeChip + 私有标记 toggle。
+          锁放 chip 右侧而非标题左侧——
+            (1) 不挤压标题可读宽度（标题更长更稳）
+            (2) 视觉上聚拢右侧"动作 / 元数据"语义带，符合常见列表行布局
+            (3) 未私有时透明度 0、hover 行才淡显，避免抢标题视线
+          用 span role=button 而非 <button>，因为外层已是 <button>，
+          HTML 不允许嵌套；@click.stop 保证点锁不会触发 open。
+        -->
+        <span class="flex shrink-0 items-center gap-1.5">
+          <IdeChip :adapter="session.adapter" />
+          <span
+            role="button"
+            tabindex="0"
+            class="inline-flex size-5 items-center justify-center rounded transition-all"
+            :class="session.isPrivate
+              ? 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400'
+              : 'text-muted-foreground/60 opacity-0 hover:bg-accent hover:text-foreground hover:opacity-100 group-hover:opacity-60'"
+            :title="session.isPrivate ? t('library.list.action.unmark_private') : t('library.list.action.mark_private')"
+            :aria-label="session.isPrivate ? t('library.list.action.unmark_private') : t('library.list.action.mark_private')"
+            :aria-pressed="session.isPrivate"
+            @click.stop="$emit('toggle-private', session)"
+            @keydown.enter.stop.prevent="$emit('toggle-private', session)"
+            @keydown.space.stop.prevent="$emit('toggle-private', session)"
+          >
+            <Lock class="size-3" />
+          </span>
         </span>
-        <IdeChip :adapter="session.adapter" class="shrink-0" />
       </div>
       <!-- intent 为空时直接不渲染整行，避免列表里出现一长串占位的 '—' 视觉噪声（用户反馈截图） -->
       <p

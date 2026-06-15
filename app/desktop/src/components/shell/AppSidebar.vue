@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { formatNumber, humanizeBackendError } from '@/lib/utils'
 import { toastBackendError } from '@/lib/toast-error'
 import {
+  BookOpen,
   ChevronUp,
   Library,
   Pause,
@@ -80,6 +81,7 @@ const navMain = computed<NavItem[]>(() => [
 const navWorkspace = computed<NavItem[]>(() => [
   { title: t('sidebar.nav.connect'), to: '/connect', icon: Plug, trailing: 'status-ok' },
   { title: t('sidebar.nav.settings'), to: '/settings', icon: SettingsIcon },
+  { title: t('sidebar.nav.help'), to: '/help', icon: BookOpen },
 ])
 
 const isActive = (to: string) => route.path === to || route.path.startsWith(to + '/')

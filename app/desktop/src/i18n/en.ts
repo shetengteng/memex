@@ -35,6 +35,7 @@ export const en: Messages = {
   'nav.insights': 'Insights',
   'nav.connect': 'Connect',
   'nav.logs': 'Logs',
+  'nav.help': 'Help',
 
   // backend error humanization (used by lib/utils.ts humanizeBackendError)
   'error.not_found.with_msg': 'Not found: {msg}',
@@ -470,6 +471,7 @@ export const en: Messages = {
   'sidebar.nav.insights': 'Insights',
   'sidebar.nav.connect': 'Connect',
   'sidebar.nav.settings': 'Settings',
+  'sidebar.nav.help': 'Help',
   'sidebar.library.badge_tooltip': '{count} sessions',
 
   // App shell — summary footer
@@ -1206,7 +1208,8 @@ export const en: Messages = {
   'library.list.weekday.6': 'Sat',
   'library.list.tooltip.l2_done': 'Session summary (L2) generated',
   'library.list.tooltip.l2_pending': 'Session summary (L2) pending',
-  'library.list.tooltip.private': 'Marked as private; will not be exposed to IDEs via MCP',
+  'library.list.action.mark_private': 'Mark as private (hide from IDEs via MCP)',
+  'library.list.action.unmark_private': 'Private · click to unmark',
   'library.list.badge.l2_done': 'Summarised',
   'library.list.badge.l2_pending': 'Pending',
 
@@ -1221,12 +1224,11 @@ export const en: Messages = {
   'library.drawer.section.topics': 'Topics',
   'library.drawer.section.decisions': 'Key decisions',
   'library.drawer.empty_detail': 'Session detail not found',
-  'library.drawer.private.label': 'Mark private',
-  'library.drawer.private.sub': "Hide from IDEs via MCP",
-  'library.drawer.private.toast.marked': 'Marked as private',
-  'library.drawer.private.toast.unmarked': 'Private flag removed',
-  'library.drawer.private.toast.failed': 'Action failed, please retry',
-  'library.drawer.private.toast.session_missing': 'Session not found or removed',
+  'library.drawer.private.hint': 'Marked as private · hidden from IDEs via MCP',
+  'library.list.toast.private.marked': 'Marked as private',
+  'library.list.toast.private.unmarked': 'Private flag removed',
+  'library.list.toast.private.failed': 'Action failed, please retry',
+  'library.list.toast.private.session_missing': 'Session not found or removed',
 
   // Threads: toolbar
   'library.threads.search_placeholder': 'Type a topic, keyword or question — let the LLM thread relevant sessions…',
@@ -1288,4 +1290,13 @@ export const en: Messages = {
   'library.threads.toast.search_done': 'Generated thread for "{query}"',
   'library.threads.toast.regenerated': 'Re-clustered',
   'library.threads.toast.deleted': 'Deleted "{name}"',
+
+  // Help / docs page (top tabs)
+  'help.tab.quickstart': 'Quickstart',
+  'help.tab.integrations': 'IDE setup',
+  'help.tab.mcp': 'MCP tools',
+  'help.tab.skills': 'Skill',
+  'help.tab.context': 'Context',
+  'help.tab.privacy': 'Privacy',
+  'help.tab.troubleshooting': 'Troubleshoot',
 }

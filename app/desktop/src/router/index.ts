@@ -41,6 +41,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'nav.logs', breadcrumb: ['nav.settings', 'nav.logs'] },
   },
   {
+    path: '/help',
+    name: 'help',
+    component: () => import('@/views/help/index.vue'),
+    meta: { title: 'nav.help', breadcrumb: ['nav.help'] },
+  },
+  {
     path: '/tray-popup',
     name: 'tray-popup',
     component: () => import('@/views/tray-popup/index.vue'),
