@@ -764,6 +764,29 @@ body.show-captions .footer-meta { display: none !important; }
     radial-gradient(circle at 70% 70%, oklch(95% 0.05 145 / 0.5) 0%, transparent 55%),
     var(--bg);
 }
+/* Act 1 hero split: 左右 1:1, 让 GitHub 截图占一半空间 */
+.act-hero-split .act-inner-split {
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 56px;
+}
+.act-hero-split .plan-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+}
+.act-hero-split .github-frame img {
+  border-radius: 12px;
+  box-shadow: 0 28px 70px -22px oklch(20% 0.04 268 / 0.22);
+  width: 100%;
+  height: auto;
+  display: block;
+}
+@media (max-width: 960px) {
+  .act-hero-split .act-inner-split { grid-template-columns: 1fr; gap: 32px; }
+}
+
 .act-cta-split .act-inner-split {
   grid-template-columns: 1.05fr 0.95fr;
   align-items: start;
