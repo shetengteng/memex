@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,13 +41,26 @@ const IDE_LABEL: Record<string, string> = {
   opencode: 'OpenCode',
 }
 
+// 之前每个 list 调用都用 `.catch(() => [])` silently 兜底，导致 `setup-status`
+// 子进程一抛错（PATH 找不到 sidecar / spawn 失败 / JSON 解析失败……）UI 就退化成
+// 「0 / 0 已接入 + 未检测到可接入的 IDE」的死状态，且没有任何反馈让用户知道是错误
+// 还是真的没装。改成集中收集错误，最后一次性 toast，方便复现定位。
+function withFallback<T>(p: Promise<T[]>, label: string, errors: string[]): Promise<T[]> {
+  return p.catch((e: unknown) => {
+    const parsed = parseBackendError(e)
+    errors.push(`${label}: ${parsed.message || parsed.kind}`)
+    return [] as T[]
+  })
+}
+
 async function loadStatus() {
   loading.value = true
+  const errors: string[] = []
   try {
     const [ides, skills, hooks] = await Promise.all([
-      memex.ideListStatus().catch(() => [] as IdeStatus[]),
-      memex.skillListStatus().catch(() => [] as SkillStatus[]),
-      memex.hookListStatus().catch(() => [] as HookStatus[]),
+      withFallback<IdeStatus>(memex.ideListStatus(), 'IDE', errors),
+      withFallback<SkillStatus>(memex.skillListStatus(), 'SKILL', errors),
+      withFallback<HookStatus>(memex.hookListStatus(), 'Hook', errors),
     ])
     const skillMap = new Map(skills.map((s) => [s.ide, s]))
     const hookMap = new Map(hooks.map((h) => [h.ide, h]))
@@ -59,14 +73,37 @@ async function loadStatus() {
       hookSupported: hookMap.get(i.ide)?.supported ?? false,
       hookInstalled: hookMap.get(i.ide)?.installed ?? false,
     }))
+    if (errors.length > 0) {
+      toast.error(t('connect.ide.toast.load_failed', { err: errors.join(' · ') }))
+    }
   } catch (e) {
     console.warn('[IdeIntegrationsCard] loadStatus failed', e)
+    toast.error(t('connect.ide.toast.load_failed', { err: formatToggleError(e) }))
   } finally {
     loading.value = false
   }
 }
 
-onMounted(loadStatus)
+// `system_reset_index` / `system_reset_all` 完成后 backend 会广播 `reset-complete`。
+// 这张卡片本身没读 db，但 daemon 重启窗口期可能让某次 invoke 失败 + 用户视角上希望
+// "重置后 UI 自动恢复"，所以监听一下，收到就重跑 loadStatus（与右下角「重新检测」等价）。
+let unlisten: UnlistenFn | null = null
+
+onMounted(async () => {
+  await loadStatus()
+  try {
+    unlisten = await listen('reset-complete', () => {
+      void loadStatus()
+    })
+  } catch (e) {
+    console.warn('[IdeIntegrationsCard] failed to subscribe reset-complete', e)
+  }
+})
+
+onUnmounted(() => {
+  unlisten?.()
+  unlisten = null
+})
 
 const installedIdeCount = computed(
   () => rows.value.filter((r) => r.mcpInstalled && r.skillInstalled).length,

@@ -6,6 +6,7 @@ use std::time::Duration;
 use anyhow::Result;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
 use memex_core::config::MemexConfig;
@@ -66,7 +67,21 @@ pub fn adapter_watch_dirs(memex_dir: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
+/// 启动 fsevent watcher + 后台 ingest 触发任务。
+///
+/// 返回 `Option<JoinHandle<()>>`：
+/// - `Some(handle)` —— watcher task 在跑，调用方**必须**在 daemon shutdown
+///   时 `handle.abort()`，否则 task 会被旧 `RecommendedWatcher` 卡住永远 pending
+///   （watcher 闭包内的 `mpsc::Sender` clone 跟 watcher 一起被 task 持有，
+///   `rx.recv()` 永远等不到 channel close）。watcher 不释放 → fsevent stream
+///   不释放 → kqueue/fd 累积。多次 `daemon_restart` 后 fd 表撑爆，外层 spawn
+///   `memex-cli` 子进程时 `pipe2()` / `posix_spawn` 会失败成 `EBADF`，UI
+///   表现为 Connect 页 IDE 集成卡片永久 0/0，重启 app 才能恢复。
+/// - `None` —— 没有 adapter 目录可监听（watcher 没启动）。
+pub async fn start_watcher(
+    db: Arc<Db>,
+    memex_dir: PathBuf,
+) -> Result<Option<JoinHandle<()>>> {
     let (tx, mut rx) = mpsc::channel::<()>(16);
 
     let watcher_tx = tx.clone();
@@ -88,7 +103,7 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
     let watch_dirs = adapter_watch_dirs(&memex_dir);
     if watch_dirs.is_empty() {
         info!("no adapter directories found to watch");
-        return Ok(());
+        return Ok(None);
     }
 
     let mut watched = HashSet::new();
@@ -106,9 +121,11 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
         watched.len()
     );
 
-    let _watcher = watcher;
-    tokio::spawn(async move {
-        let _keep = _watcher;
+    let handle = tokio::spawn(async move {
+        // `_keep` 让 watcher（持有 fsevent fd）的生命周期跟 task 绑定。
+        // task 被外层 abort 时，drop 链：task → _keep → RecommendedWatcher
+        // → fsevent stream close → fd 归还。
+        let _keep = watcher;
         loop {
             if rx.recv().await.is_none() {
                 break;
@@ -150,5 +167,5 @@ pub async fn start_watcher(db: Arc<Db>, memex_dir: PathBuf) -> Result<()> {
         }
     });
 
-    Ok(())
+    Ok(Some(handle))
 }

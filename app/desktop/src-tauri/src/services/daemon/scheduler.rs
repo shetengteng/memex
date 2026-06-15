@@ -28,6 +28,7 @@ use memex_core::ingest::regenerate_weekly_report;
 use memex_core::llm::select_provider_unified;
 use memex_core::storage::db::Db;
 use memex_core::storage::notifications::{KIND_REFLECT_PENDING, KIND_WEEKLY_REPORT};
+use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
 /// scheduler tick 间隔。1 小时足够 weekly_report （触发窗口是整个 22:00 时段）
@@ -45,9 +46,16 @@ const REFLECT_STALE_HOURS: i64 = 24;
 /// `regenerate_weekly_report` 触发的窗口（每周日的几点到几点）。
 const WEEKLY_REPORT_HOUR: u32 = 22;
 
-/// 启动 scheduler 后台 task。返回后不等待 —— task 在 tokio runtime 里独立运行，
-/// daemon 退出时 tokio 会自动 drop 该 task（跟 watcher 一样的生命周期模型）。
-pub fn start_scheduler(db: Arc<Db>, memex_dir: PathBuf) {
+/// 启动 scheduler 后台 task。返回 [`JoinHandle`]，调用方负责在 daemon shutdown
+/// 时 `handle.abort()`。
+///
+/// 之前是 fire-and-forget 模式（"daemon 退出时 tokio 会自动 drop"）—— 但
+/// in-process daemon 的 tokio runtime 跟 Tauri 主进程共享，daemon "退出" 实际
+/// 上只是 axum task 退出，后台 task 仍在 runtime 里活着且永远 pending（loop +
+/// `interval.tick().await`）。每次 `daemon_restart` 多攒一个 stale Arc<Db> +
+/// 一个 stale task，db connection 累积 → 文件描述符占用 → 下次 spawn
+/// `memex-cli` 子进程时 `pipe2()` 失败成 `EBADF`。详见 watcher.rs 同源 bug。
+pub fn start_scheduler(db: Arc<Db>, memex_dir: PathBuf) -> JoinHandle<()> {
     tokio::spawn(async move {
         tokio::time::sleep(STARTUP_DELAY).await;
         let mut interval = tokio::time::interval(TICK_INTERVAL);
@@ -58,7 +66,7 @@ pub fn start_scheduler(db: Arc<Db>, memex_dir: PathBuf) {
             interval.tick().await;
             run_once(&db, &memex_dir);
         }
-    });
+    })
 }
 
 fn run_once(db: &Db, memex_dir: &Path) {

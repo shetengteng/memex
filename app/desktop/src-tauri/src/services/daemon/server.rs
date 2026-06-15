@@ -46,11 +46,10 @@ where
 {
     let watcher_db = Arc::clone(&db);
     let watcher_dir = memex_dir.clone();
-    watcher::start_watcher(watcher_db, watcher_dir).await?;
+    let watcher_handle = watcher::start_watcher(watcher_db, watcher_dir).await?;
 
     // 后台通知调度器：每小时 tick，检查 weekly_report / reflect_pending 是否到点。
-    // 跟 watcher 同样的 fire-and-forget 模型，daemon 退出时 tokio runtime 自动 drop。
-    super::scheduler::start_scheduler(Arc::clone(&db), memex_dir.clone());
+    let scheduler_handle = super::scheduler::start_scheduler(Arc::clone(&db), memex_dir.clone());
 
     // 启动时主动跑一次全量 ingest。
     // file watcher 只能监听 .jsonl/.json 后缀，但 Cursor 走 SQLite KV
@@ -75,10 +74,26 @@ where
     let local_addr = listener.local_addr()?;
     info!("daemon HTTP server listening on http://{}", local_addr);
 
-    axum::serve(listener, app)
+    let serve_result = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
-        .await?;
+        .await;
 
+    // axum 退出后必须 abort 后台 task。否则它们继续 hold fsevent stream（kqueue
+    // fd）+ Arc<Db>（SQLite connection fd），每次 `daemon_restart` 累积一份，
+    // 下一次外层 spawn `memex-cli` 子进程时 `pipe2()` 撑爆 EBADF。
+    //
+    // **必须 abort 后 await**：tokio 的 `abort()` 只是 cancel signal，task 真正
+    // drop 是异步的；不等的话 daemon_restart 立刻进入 spawn_in_process 创建新
+    // task，旧 task 还没 drop 完 fsevent fd，新 task 又分配新 fd —— EBADF
+    // 仍会偶发（部分泄漏被堵了，但还有"在 abort 与新 spawn 之间撞窗"的剩余泄漏）。
+    if let Some(h) = watcher_handle {
+        h.abort();
+        let _ = h.await;
+    }
+    scheduler_handle.abort();
+    let _ = scheduler_handle.await;
+
+    serve_result?;
     info!("daemon HTTP server stopped");
     Ok(())
 }

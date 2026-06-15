@@ -127,7 +127,8 @@ impl Adapter for OpenCodeAdapter {
         let conn = rusqlite::Connection::open_with_flags(
             &self.db_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )?;
+        )
+        .with_context(|| format!("failed to open opencode db: {:?}", self.db_path))?;
 
         let mut stmt = conn.prepare(
             "SELECT m.id, m.data, m.time_created FROM message m

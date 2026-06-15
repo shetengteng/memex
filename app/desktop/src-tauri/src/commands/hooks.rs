@@ -5,9 +5,10 @@
 //! 是为了和 `ide_integration` / `skill_*` 的实现保持一致 —— 那边已经踩过路径解析、
 //! sudo 不需要、错误 surface 这些坑，照搬最稳。
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::Command as StdCommand;
 
 use serde::{Deserialize, Serialize};
+use tokio::process::Command;
 
 use super::error::{CmdError, CmdResult};
 
@@ -31,7 +32,7 @@ fn locate_memex_cli() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    if let Ok(out) = Command::new("which").arg("memex-cli").output() {
+    if let Ok(out) = StdCommand::new("which").arg("memex-cli").output() {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !s.is_empty() {
             return Some(PathBuf::from(s));
@@ -40,11 +41,22 @@ fn locate_memex_cli() -> Option<PathBuf> {
     None
 }
 
-fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
+/// async-原生 spawn + 读 stdout/stderr，详见
+/// [`super::ide_integration::run_cli_json`] 注释。
+async fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
     let bin = locate_memex_cli().ok_or_else(|| {
         CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
     })?;
-    let output = Command::new(&bin).args(args).output()?;
+    let output = Command::new(&bin)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, args = ?args, "memex-cli spawn/output failed");
+            CmdError::from(e)
+        })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(CmdError::Backend(format!(
@@ -59,15 +71,15 @@ fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
 
 #[tauri::command]
 pub async fn hook_list_status() -> CmdResult<Vec<HookStatus>> {
-    run_cli_json::<Vec<HookStatus>>(&["--json", "hooks", "all"])
+    run_cli_json::<Vec<HookStatus>>(&["--json", "hooks", "all"]).await
 }
 
 #[tauri::command]
 pub async fn hook_install(ide: String) -> CmdResult<HookStatus> {
-    run_cli_json::<HookStatus>(&["--json", "hooks", "install", &ide])
+    run_cli_json::<HookStatus>(&["--json", "hooks", "install", &ide]).await
 }
 
 #[tauri::command]
 pub async fn hook_uninstall(ide: String) -> CmdResult<HookStatus> {
-    run_cli_json::<HookStatus>(&["--json", "hooks", "uninstall", &ide])
+    run_cli_json::<HookStatus>(&["--json", "hooks", "uninstall", &ide]).await
 }

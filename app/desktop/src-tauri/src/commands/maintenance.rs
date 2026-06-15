@@ -25,9 +25,16 @@ pub struct SystemResetResult {
     pub report: ResetReport,
 }
 
-/// 重建索引：停掉 daemon → 删 `memex.db*` → 重启 daemon。
-/// 保留 `sessions/*.md` / `config.toml` / `redactions.yaml`。
+/// 重建索引：停掉 daemon → 等 watcher/fs 余晖 → 删 `memex.db*` → 校验空 db 能 open
+/// → 重启 daemon。保留 `sessions/*.md` / `config.toml` / `redactions.yaml`。
 /// daemon 会重新跑 ingest，但 LLM 摘要需要用户重新触发。
+///
+/// 这里的 `300ms` grace + `Db::open` 预校验跟 [`system_reset_all`] 完全对齐 ——
+/// 当时只在 reset_all 上加防御，但 reset_index 同样会经历"shutdown daemon → 删 db
+/// → daemon 异步重启" 的窗口期。窗口里前端 [`super::mcp_activity`] 的 3s polling
+/// 会调 `Db::open` 触发 SQLite 创建 journal/wal，与 daemon 重启时的 PRAGMA WAL
+/// 抢锁，UI 上表现为 "读取失败：unable to open database file: Error code 14"。
+/// 预 open 一次让 daemon 重启之前 db 已经初始化完毕，前端 polling 进来就拿到健康 db。
 #[tauri::command]
 pub async fn system_reset_index(
     app: AppHandle,
@@ -35,10 +42,22 @@ pub async fn system_reset_index(
 ) -> CmdResult<SystemResetResult> {
     state.shutdown().await;
 
+    // 给 fsevent watcher / 后台 ingest task 一个释放 fd 的机会
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
     let memex = memex_dir();
-    let report = tokio::task::spawn_blocking(move || reset_index_only(&memex))
-        .await
-        .map_err(|e| CmdError::Backend(format!("join error: {e}")))??;
+    let report = tokio::task::spawn_blocking(move || {
+        let r = reset_index_only(&memex)?;
+        // 预 open 验证：跑 schema migrations，让 db 进入 daemon 重启时的稳态。
+        // 失败说明文件系统状态还有问题（极少见），daemon 重启时也会再 open 一次，
+        // 此时已经是 PRAGMA journal_mode=WAL 的合法 SQLite 文件。
+        let db_path = memex.join("memex.db");
+        memex_core::storage::db::Db::open(&db_path)
+            .map_err(|e| anyhow::anyhow!("post-reset db open failed: {e}"))?;
+        Ok::<_, anyhow::Error>(r)
+    })
+    .await
+    .map_err(|e| CmdError::Backend(format!("join error: {e}")))??;
 
     restart_after_reset(app);
 

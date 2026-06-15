@@ -200,7 +200,9 @@ fn remove_dir_all_with_retry(path: &Path) -> std::io::Result<()> {
             }
         }
     }
-    Err(last_err.unwrap_or_else(|| std::io::Error::other("remove_dir_all_with_retry: no error captured (should not happen)")))
+    Err(last_err.unwrap_or_else(|| {
+        std::io::Error::other("remove_dir_all_with_retry: no error captured (should not happen)")
+    }))
 }
 
 /// 保护性检查：路径必须存在、是目录，并且基名以 `.memex` 开头或包含 `memex`。
@@ -290,6 +292,27 @@ mod tests {
         );
     }
 
+    /// Regression（system_reset_index 预 open 验证依赖的语义）：
+    /// reset_index_only 之后，立即 [`crate::storage::db::Db::open`] 必须能成功
+    /// 跑完 schema migrations 拿到健康 db。否则 daemon 重启的 ~300ms 窗口里，
+    /// 前端 `mcp_recent_calls` polling 拿到的就是 SQLITE_CANTOPEN 14。
+    #[test]
+    fn reset_index_only_then_fresh_open_succeeds() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let memex = tmp.path().join(".memex");
+        fs::create_dir_all(memex.join("sessions").join("cursor")).unwrap();
+        fs::write(memex.join("memex.db"), b"corrupt-or-stale-bytes").unwrap();
+        fs::write(memex.join("memex.db-wal"), b"stale-wal").unwrap();
+
+        reset_index_only(&memex).unwrap();
+        assert!(!memex.join("memex.db").exists());
+
+        let db_path = memex.join("memex.db");
+        crate::storage::db::Db::open(&db_path)
+            .expect("fresh db open after reset_index_only must succeed");
+        assert!(db_path.exists(), "Db::open should create the db file");
+    }
+
     #[test]
     fn reset_all_clears_everything_inside_memex_dir() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -328,8 +351,14 @@ mod tests {
 
         // db 必删
         assert!(!memex.join("memex.db").exists(), "memex.db must be gone");
-        assert!(!memex.join("memex.db-wal").exists(), "memex.db-wal must be gone");
-        assert!(!memex.join("memex.db-shm").exists(), "memex.db-shm must be gone");
+        assert!(
+            !memex.join("memex.db-wal").exists(),
+            "memex.db-wal must be gone"
+        );
+        assert!(
+            !memex.join("memex.db-shm").exists(),
+            "memex.db-shm must be gone"
+        );
         // db 三件 + sessions 目录 = 4
         assert!(report.removed_files >= 4);
     }
@@ -351,7 +380,14 @@ mod tests {
             fs::write(memex.join("sessions").join(format!("s{i}.md")), b"x").unwrap();
         }
         for i in 0..3 {
-            fs::write(memex.join("sessions").join("nested").join(format!("n{i}.md")), b"y").unwrap();
+            fs::write(
+                memex
+                    .join("sessions")
+                    .join("nested")
+                    .join(format!("n{i}.md")),
+                b"y",
+            )
+            .unwrap();
         }
 
         let report = reset_all(&memex).unwrap();

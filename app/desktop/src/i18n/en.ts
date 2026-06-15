@@ -994,6 +994,7 @@ export const en: Messages = {
   'connect.ide.toast.hook_failed': '{label} Hook toggle failed: {err}',
   'connect.ide.toast.action.installed': 'installed',
   'connect.ide.toast.action.uninstalled': 'uninstalled',
+  'connect.ide.toast.load_failed': 'Failed to load IDE status: {err}',
   // MCP activity
   'connect.mcp.title': 'MCP tools & activity',
   'connect.mcp.subtitle': 'Watch what your AI is doing with Memex in real time · source mcp_call_log',

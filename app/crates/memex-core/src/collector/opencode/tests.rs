@@ -120,3 +120,40 @@ fn test_missing_db() {
     let sessions = adapter.scan().unwrap();
     assert!(sessions.is_empty());
 }
+
+/// Regression：collect() open db 失败时，错误链必须保留 path —— 否则上层只能
+/// 看到裸 SQLite 错误（"unable to open database file"），无法判断是哪个 db。
+/// 这跟 scan() 路径上已有的 with_context 行为对齐。
+#[test]
+fn test_collect_open_failure_includes_path_in_error_chain() {
+    let tmp = TempDir::new().unwrap();
+    // db_path 是个目录而不是 SQLite 文件 → SQLite 必定 open 失败，且 path.exists()
+    // 返回 true 绕过 collect 内部的 "missing db → 返回空" 早返路径。
+    let bad_path = tmp.path().join("opencode.db");
+    std::fs::create_dir_all(&bad_path).unwrap();
+
+    let adapter = OpenCodeAdapter::with_db_path(bad_path.clone());
+    let session = SessionMeta {
+        id: "ses_x".to_string(),
+        source: "opencode".to_string(),
+        project_path: Some("/tmp/proj".to_string()),
+        file_path: bad_path.to_string_lossy().to_string(),
+        last_offset: 0,
+        mtime: 0,
+        created_secs: 0,
+        title: None,
+    };
+    let err = adapter
+        .collect(&session)
+        .expect_err("expected open failure");
+    let chain = format!("{err:#}");
+
+    assert!(
+        chain.contains("opencode.db"),
+        "error chain must contain db path; got: {chain}"
+    );
+    assert!(
+        chain.contains("failed to open opencode db"),
+        "error chain must include with_context message; got: {chain}"
+    );
+}

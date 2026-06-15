@@ -6,6 +6,20 @@
 //!
 //! Db 不存在（fresh install 或被 reset）时返回空结构，不报错 —— 让 UI 显示
 //! 「暂无调用」而不是一片红。
+//!
+//! ## Db 打开失败的兜底（real-world race）
+//!
+//! `system_reset_index` / `system_reset_all` 把 db 删掉之后，daemon 异步重启需要
+//! ~300ms 才会拿到新 db 句柄。窗口期里前端 3s polling 仍然在跑：如果命中
+//! "db 文件已经被 daemon 创建但 PRAGMA WAL 还没跑完" 的小窗口，前端 [`Db::open`]
+//! 自己也想跑 PRAGMA WAL，就会撞 SQLite 的 SQLITE_CANTOPEN (Error code 14)。
+//!
+//! 设计决策：**不让这个瞬时错误冒泡到 UI**。daemon 启动路径上有 `open_db_with_recovery`
+//! 负责持久性损坏的兜底；前端 polling 此时只需把它当成"db 暂时不可读"处理，
+//! 跟 db 不存在走同一条返回空的路径，UI 显示"暂无调用"，下一拍 polling 自然恢复。
+//! 失败原因保留在 daemon log（tracing::warn），便于排障。
+
+use std::path::Path;
 
 use memex_core::memex_dir;
 use memex_core::storage::db::Db;
@@ -21,7 +35,9 @@ pub async fn mcp_recent_calls(limit: u32) -> CmdResult<Vec<McpCallEntry>> {
     if !db_path.exists() {
         return Ok(Vec::new());
     }
-    let db = Db::open(&db_path)?;
+    let Some(db) = open_db_or_log(&db_path, "mcp_recent_calls") else {
+        return Ok(Vec::new());
+    };
     Ok(db.recent_mcp_calls(limit as usize)?)
 }
 
@@ -31,17 +47,42 @@ pub async fn mcp_call_stats_24h() -> CmdResult<McpCallStats24h> {
     let dir = memex_dir();
     let db_path = dir.join("memex.db");
     if !db_path.exists() {
-        return Ok(McpCallStats24h {
-            total: 0,
-            success: 0,
-            failed: 0,
-            avg_latency_ms: 0.0,
-            by_tool: Vec::<ToolBreakdown>::new(),
-            last_call_at: None,
-        });
+        return Ok(empty_stats());
     }
-    let db = Db::open(&db_path)?;
+    let Some(db) = open_db_or_log(&db_path, "mcp_call_stats_24h") else {
+        return Ok(empty_stats());
+    };
     Ok(db.mcp_call_stats_24h()?)
+}
+
+/// 尝试打开 db；失败时记 warn 并返回 None，由调用方走"返回空"的兜底路径。
+///
+/// 失败的常见原因都是瞬时的（reset 流程中、daemon 重启竞态、文件系统抖动）；
+/// 持久性损坏由 daemon 启动时的 `open_db_with_recovery` 负责兜底，不在这里修。
+fn open_db_or_log(db_path: &Path, op: &str) -> Option<Db> {
+    match Db::open(db_path) {
+        Ok(db) => Some(db),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                path = %db_path.display(),
+                op = op,
+                "activity panel db open failed; treating as empty (likely reset/restart race)",
+            );
+            None
+        }
+    }
+}
+
+fn empty_stats() -> McpCallStats24h {
+    McpCallStats24h {
+        total: 0,
+        success: 0,
+        failed: 0,
+        avg_latency_ms: 0.0,
+        by_tool: Vec::<ToolBreakdown>::new(),
+        last_call_at: None,
+    }
 }
 
 #[cfg(test)]
@@ -88,6 +129,57 @@ mod tests {
                 .build()
                 .unwrap();
             let stats = rt.block_on(mcp_call_stats_24h()).expect("ok");
+            assert_eq!(stats.total, 0);
+            assert_eq!(stats.success, 0);
+            assert_eq!(stats.failed, 0);
+            assert_eq!(stats.avg_latency_ms, 0.0);
+            assert!(stats.by_tool.is_empty());
+            assert!(stats.last_call_at.is_none());
+        });
+    }
+
+    /// Regression：模拟 reset / restart 窗口期 db 暂时不可读。db_path **存在**
+    /// 但 [`Db::open`] 必失败（用目录代替文件触发 SQLITE_CANTOPEN），IPC 必须
+    /// 走兜底路径返回空 Vec，绝不能把 SQLite 错误冒泡到前端 UI 显示
+    /// "读取失败：unable to open database file: Error code 14"。
+    #[test]
+    #[serial(memex_home)]
+    fn recent_returns_empty_when_db_open_fails() {
+        with_temp_memex(|| {
+            // 让 memex.db 是目录而非文件 —— SQLite 必报 "unable to open database file"
+            let bad_db = memex_dir().join("memex.db");
+            std::fs::create_dir_all(&bad_db).unwrap();
+            assert!(
+                bad_db.exists(),
+                "precondition: db_path.exists() must be true"
+            );
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let rows = rt
+                .block_on(mcp_recent_calls(20))
+                .expect("must NOT propagate SQLite error to UI");
+            assert!(rows.is_empty(), "open-failure path must return empty list");
+        });
+    }
+
+    /// Regression：与上一条同源，只是覆盖 stats IPC。
+    #[test]
+    #[serial(memex_home)]
+    fn stats_returns_zeros_when_db_open_fails() {
+        with_temp_memex(|| {
+            let bad_db = memex_dir().join("memex.db");
+            std::fs::create_dir_all(&bad_db).unwrap();
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let stats = rt
+                .block_on(mcp_call_stats_24h())
+                .expect("must NOT propagate SQLite error to UI");
             assert_eq!(stats.total, 0);
             assert_eq!(stats.success, 0);
             assert_eq!(stats.failed, 0);

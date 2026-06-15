@@ -14,17 +14,44 @@ const ipcMocks = vi.hoisted(() => ({
   hookUninstall: vi.fn(),
 }))
 
+const eventMocks = vi.hoisted(() => {
+  const handlers = new Map<string, (e: { payload: unknown }) => void>()
+  return {
+    handlers,
+    listen: vi.fn(async (name: string, cb: (e: { payload: unknown }) => void) => {
+      handlers.set(name, cb)
+      return () => handlers.delete(name)
+    }),
+    emit(name: string, payload: unknown = null) {
+      handlers.get(name)?.({ payload })
+    },
+  }
+})
+
+const toastMocks = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  message: vi.fn(),
+}))
+
 vi.mock('@/composables/useMemex', () => ({
   useMemex: () => ipcMocks,
 }))
 
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: eventMocks.listen,
+}))
+
 vi.mock('vue-sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
+  toast: toastMocks,
 }))
 
 describe('IdeIntegrationsCard', () => {
   beforeEach(() => {
     Object.values(ipcMocks).forEach((fn) => fn.mockReset())
+    Object.values(toastMocks).forEach((fn) => fn.mockReset())
+    eventMocks.handlers.clear()
+    eventMocks.listen.mockClear()
     ipcMocks.ideListStatus.mockResolvedValue([
       {
         ide: 'cursor',
@@ -102,5 +129,29 @@ describe('IdeIntegrationsCard', () => {
     const wrapper = mount(IdeIntegrationsCard, { global: { stubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('未检测到可接入的 IDE')
+  })
+
+  it('reloads status when backend broadcasts reset-complete', async () => {
+    mount(IdeIntegrationsCard, { global: { stubs } })
+    await flushPromises()
+    expect(ipcMocks.ideListStatus).toHaveBeenCalledTimes(1)
+
+    eventMocks.emit('reset-complete')
+    await flushPromises()
+
+    expect(ipcMocks.ideListStatus).toHaveBeenCalledTimes(2)
+    expect(ipcMocks.skillListStatus).toHaveBeenCalledTimes(2)
+    expect(ipcMocks.hookListStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('surfaces backend error via toast instead of swallowing it', async () => {
+    ipcMocks.ideListStatus.mockRejectedValueOnce({
+      kind: 'NotFound',
+      message: '找不到 memex CLI',
+    })
+    mount(IdeIntegrationsCard, { global: { stubs } })
+    await flushPromises()
+    expect(toastMocks.error).toHaveBeenCalledTimes(1)
+    expect(toastMocks.error.mock.calls[0]?.[0]).toContain('IDE: 找不到 memex CLI')
   })
 })

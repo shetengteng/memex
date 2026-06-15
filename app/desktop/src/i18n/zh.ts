@@ -995,6 +995,7 @@ export const zh: Messages = {
   'connect.ide.toast.hook_failed': '{label} Hook 切换失败：{err}',
   'connect.ide.toast.action.installed': '安装',
   'connect.ide.toast.action.uninstalled': '卸载',
+  'connect.ide.toast.load_failed': 'IDE 状态加载失败：{err}',
   // MCP 活动
   'connect.mcp.title': 'MCP 工具与活动',
   'connect.mcp.subtitle': '实时观察你的 AI 在用 Memex 做什么 · 数据源 mcp_call_log',
