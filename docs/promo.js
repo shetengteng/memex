@@ -9,7 +9,7 @@
   // 8 段 narration (跟 /tmp/promo-rec/narration.json 一致).
   // v13: 移除 ChatGPT / Copilot / GPT, 只提 Memex 真实支持的 6 个 adapter.
   const NARRATION = {
-    1: "这个软件太强了——\n装上它,你和 AI 一年的每一句对话,全部找得回来。Memex,本地 AI 记忆中枢。",
+    1: "这个软件太强了!你是不是经常碰到——\n切一下 AI 编辑器,上次聊到哪儿就全忘了？Memex,本地 AI 记忆中枢。",
     2: "Claude Code、Cursor、Codex、OpenCode——\n四个工具同时开着,对话散在四处,反复说着同一句话。",
     3: "上周在 Cursor 拍板的方案,今天打开三个窗口翻了一小时——还是找不到。\n你正在第七次,跟同一个模型讲同一件事。",
     4: "Memex 把所有 AI 对话写到本地 SQLite——\n不上云、不外传、不被收回。",
