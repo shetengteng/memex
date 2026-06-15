@@ -249,6 +249,50 @@ async function onTogglePrivate(s: Session) {
   }
 }
 
+// 列表行的"未摘要 / 已摘要" badge 点击 → retry_summary IPC（对未摘要也安全，
+// 内部 best-effort delete 旧 L2 后立即调 summarize_session_by_id）。
+// 用 Set<string> 跟踪正在跑的 sessionId：同一条会话在 LLM 调用期间重复点击
+// 会被 in_progress toast 拦截，避免并发触发同一个会话两次摘要。
+const summarizingIds = ref(new Set<string>())
+
+async function onSummarize(s: Session) {
+  if (summarizingIds.value.has(s.id)) {
+    toast.info(t('library.list.toast.summary.in_progress'))
+    return
+  }
+  const wasDone = !!s.l2Done
+  summarizingIds.value.add(s.id)
+  // 触发 reactive 更新。Set 直接 add 不会触发 ref，重新赋一份。
+  summarizingIds.value = new Set(summarizingIds.value)
+  toast.info(t('library.list.toast.summary.started'))
+  try {
+    const ok = await memex.retrySummary(s.id)
+    if (!ok) {
+      toast.error(t('library.list.toast.summary.failed', { err: 'unknown' }))
+      return
+    }
+    // 同步两条 reactive 列表 + drawer 当前引用，避免 badge 状态错位
+    const inLib = librarySessions.find((x) => x.id === s.id)
+    if (inLib) inLib.l2Done = true
+    const inAll = sessions.find((x) => x.id === s.id)
+    if (inAll) inAll.l2Done = true
+    if (drawerSession.value && drawerSession.value.id === s.id) {
+      drawerSession.value.l2Done = true
+    }
+    toast.success(
+      wasDone
+        ? t('library.list.toast.summary.regenerated')
+        : t('library.list.toast.summary.success'),
+    )
+  } catch (e) {
+    console.warn('[library] summarize failed', e)
+    toastBackendError(t('library.list.toast.summary.failed', { err: '' }), e)
+  } finally {
+    summarizingIds.value.delete(s.id)
+    summarizingIds.value = new Set(summarizingIds.value)
+  }
+}
+
 const openProject = (path: string) => {
   fProjects.value = [path]
   fAdapters.value = []
@@ -483,8 +527,10 @@ onBeforeUnmount(() => {
               :session="s"
               :group-key="g.key"
               :active="drawerSession?.id === s.id"
+              :summarizing="summarizingIds.has(s.id)"
               @open="openSession"
               @toggle-private="onTogglePrivate"
+              @summarize="onSummarize"
             />
           </template>
 

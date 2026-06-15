@@ -9,6 +9,14 @@
 
 @import "vue-sonner/style.css";
 
+/*
+ * Tailwind v4 支持以 plugin source(...) 方式启用 typography。
+ * 启用后 .prose 系列工具类可用，给 markdown 容器加 `prose` 即可拿到一整套
+ * 收敛排版（标题分级 / 段落留白 / 代码块 / 表格 / blockquote 等）。
+ * 详见 https://github.com/tailwindlabs/tailwindcss-typography 的 v4 用法。
+ */
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

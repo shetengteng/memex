@@ -123,8 +123,66 @@ pub fn update_activation_policy(_app: &AppHandle) {
     }
 }
 
+/// macOS 上 LaunchServices `open /Applications/Memex.app` 启动 GUI 进程时，
+/// 父进程的 fd 0 会是一个 closed unix socket（lsof 显示 `→none`），fd 1/2
+/// 直接缺位。这个状态下，子进程 `posix_spawn`（无论 std 还是 tokio）只要走
+/// `posix_spawn_file_actions_addclose` / `dup2` 经过这些异常 fd，就会偶发或
+/// 必现 `Bad file descriptor (os error 9)` —— 用户实际复现是
+/// IDE 集成 Card `Promise.all([ide_list_status, skill_list_status, hook_list_status])`
+/// 里多个 spawn 同时挂掉，UI 卡在「0 / 0 已接入」+ 三条错误并排。
+///
+/// 解法：进程启动**最早**点（在 tauri::Builder 与 tracing init 之前）把
+/// fd 0/1/2 全部 dup2 到 `/dev/null`。`/dev/null` 是 always-valid character
+/// device，dup2 进去之后任何后续 spawn 的 file_actions / inherit 路径都看到
+/// 合法 fd，子进程不会再 EBADF。
+///
+/// 注意点：
+/// - 不能 `OpenOptions::open(...)` 之后让对象 drop（drop 会 close fd 把
+///   /dev/null 又关掉）。这里 std::mem::forget 让句柄活到进程结束。
+/// - 只在 unix 平台启用（Windows 没这种 fd 模式，反而启用会引入 cfg 噪音）。
+/// - 出错全部静默吞掉：万一确实拿不到 /dev/null（极端 sandbox），保持原样
+///   不 panic，让后续 spawn 失败时仍走原本错误链。
+#[cfg(unix)]
+fn reset_std_fds_to_devnull() {
+    use std::os::fd::AsRawFd;
+
+    // 同时打开三个独立的 /dev/null fd —— 因为 dup2 之后我们要 forget 让它们
+    // 活到进程结束，三个 fd 来自同一个 OpenOptions 也行，但分开拿可读性更好，
+    // 且每个 stdio 都有自己独立的句柄方便后续诊断。
+    let Ok(devnull_in) = std::fs::OpenOptions::new().read(true).open("/dev/null") else {
+        return;
+    };
+    let Ok(devnull_out) = std::fs::OpenOptions::new().write(true).open("/dev/null") else {
+        return;
+    };
+    let Ok(devnull_err) = std::fs::OpenOptions::new().write(true).open("/dev/null") else {
+        return;
+    };
+
+    unsafe {
+        // dup2 自身实现了 fd 已 open 时先 close 再复制，但若 fd 0/1/2 处于
+        // 异常 unix-socket 状态，close 路径有可能 EBADF。dup2 整体的语义是：
+        // 即便 close 失败，dest fd 依然指向 src 的内核对象副本——errno 只是
+        // 报告 close 这一步的失败，最终我们要的"fd N 现在指向 /dev/null"是
+        // 成立的。所以这里忽略返回值。
+        libc::dup2(devnull_in.as_raw_fd(), 0);
+        libc::dup2(devnull_out.as_raw_fd(), 1);
+        libc::dup2(devnull_err.as_raw_fd(), 2);
+    }
+
+    // forget 三个句柄：drop 会触发 close /dev/null 自身的 fd（不影响 0/1/2，
+    // 但留着也无害，更省一次 syscall），同时确保如果有谁误 read fd N 拿到的
+    // 还是同一个 inode，不会被新 open 复用。
+    std::mem::forget(devnull_in);
+    std::mem::forget(devnull_out);
+    std::mem::forget(devnull_err);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(unix)]
+    reset_std_fds_to_devnull();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()

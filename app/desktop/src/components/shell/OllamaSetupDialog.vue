@@ -55,21 +55,28 @@ async function checkOllama() {
   }
 }
 
-function dismiss() {
+// 关闭弹窗 = 持久化"不再显示"。
+// 旧版"稍后"按钮只把 ref 置 false 不写 config，导致每次重启 / 重新部署 app 都
+// 再弹一次，左下角小字"不再显示"链接又因为视觉权重低被用户忽略。
+// 合并行为后：用户点任一关闭路径都会写入 dismissed=true，next launch 不再骚扰。
+// 想恢复提示 → Settings → LLM 配置（或者 sqlite3 ~/.memex/memex.db
+// "DELETE FROM kv WHERE key = 'ollama_setup_dismissed'"）。
+async function dismiss() {
   open.value = false
+  try {
+    await memex.setConfig(DISMISSED_KEY, 'true')
+  } catch {
+    /* best-effort, 失败也不重新打开弹窗 */
+  }
 }
 
-async function dismissForever() {
+async function goToSettings() {
   open.value = false
   try {
     await memex.setConfig(DISMISSED_KEY, 'true')
   } catch {
     /* best-effort */
   }
-}
-
-function goToSettings() {
-  open.value = false
   router.push('/settings')
 }
 
@@ -173,21 +180,20 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="mt-4 flex items-center justify-between border-t border-border/40 pt-3">
-        <button
-          class="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-          @click="dismissForever"
-        >
-          {{ t('ollama_setup.dont_show') }}
-        </button>
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="sm" class="h-7 text-xs" @click="dismiss">
-            {{ t('ollama_setup.dismiss') }}
-          </Button>
-          <Button variant="default" size="sm" class="h-7 text-xs" @click="goToSettings">
-            {{ t('ollama_setup.go_settings') }}
-          </Button>
-        </div>
+      <!--
+        底部按钮区精简为两个：
+        - "知道了"（ghost）= 不打开设置，但写持久化 dismiss → 下次启动不再弹
+        - "去设置"（primary）= 跳设置 + 同时写 dismiss
+        合并是为了让任何关闭路径都对"不再提示"语义生效，避免旧版"稍后/不再显示"
+        两个语义并存导致用户一直点错那个不持久化的按钮的体验问题。
+      -->
+      <div class="mt-4 flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+        <Button variant="ghost" size="sm" class="h-7 text-xs" @click="dismiss">
+          {{ t('ollama_setup.dismiss') }}
+        </Button>
+        <Button variant="default" size="sm" class="h-7 text-xs" @click="goToSettings">
+          {{ t('ollama_setup.go_settings') }}
+        </Button>
       </div>
     </DialogContent>
   </Dialog>

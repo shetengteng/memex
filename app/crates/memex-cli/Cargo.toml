@@ -9,6 +9,15 @@ license.workspace = true
 name = "memex"
 path = "src/main.rs"
 
+# 同时 expose lib 供 memex-menubar 直接调内部函数（setup::list_status /
+# skill::list_status / hooks::list_status 等），绕开 spawn sidecar 路径。
+# 之前 menubar 走 `tokio::process` 或 `std::process` spawn 子进程拿 JSON，
+# release-bundled 在 macOS 上父进程 fd 表异常会 偶发/必现 EBADF（Bad file
+# descriptor, os error 9），lib 直调一举消除这条 fault domain。
+[lib]
+name = "memex_cli"
+path = "src/lib.rs"
+
 [dependencies]
 memex-core = { path = "../memex-core", version = "1" }
 clap = { version = "4", features = ["derive"] }

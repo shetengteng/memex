@@ -1,12 +1,35 @@
-use std::path::PathBuf;
-use std::process::Command as StdCommand;
+//! IDE 集成（MCP server / SKILL 投递）IPC 命令。
+//!
+//! 这一层**直接 lib 调用 memex-cli** 内部的 `setup::*` / `skill::*` 函数，
+//! 完全不 spawn sidecar 子进程。
+//!
+//! ## 历史
+//!
+//! 之前曾走 `tokio::process::Command` / `std::process::Command + spawn_blocking`
+//! 跑 `memex-cli --json setup-status` 等子进程：在 macOS release-bundled GUI
+//! 上偶发 / 必现 `Bad file descriptor (os error 9)`，根因是 LaunchServices
+//! 启动 GUI 后父进程 fd 0/1/2 表异常（fd 0 是 closed unix socket → none，
+//! fd 1/2 完全缺位）。即便我们启动时把 fd 0/1/2 reset 到 `/dev/null`，
+//! Tauri runtime 在初始化期间仍然可能再次"污染"这张 fd 表（IPC channel /
+//! webview process fork / global shortcut listener 等），所以无论用哪条
+//! spawn 路径，都还是会偶发 spawn 失败。
+//!
+//! 改成 lib 直调后这条 fault domain 直接消失：所有逻辑都在父进程内同进程
+//! 跑，没有 spawn 路径，自然没 EBADF。
 
+use std::path::PathBuf;
+
+use memex_cli::commands::setup as cli_setup;
+use memex_cli::commands::skill as cli_skill;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 
 use super::error::{CmdError, CmdResult};
 
-/// 与 memex-cli `setup::IdeStatus` 字段对齐——通过 spawn CLI + `--json` 解析得到。
+/// 与 memex-cli `setup::IdeStatus` 字段对齐的 IPC DTO。
+///
+/// 维持独立 struct 而不是直接 re-export `cli_setup::IdeStatus`：CLI 那边将来
+/// 可能加非 GUI 关心的字段（如 server_args / 调试信息），通过这一层显式 map
+/// 就能让前端契约不被无心修改。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdeStatus {
     pub ide: String,
@@ -16,114 +39,19 @@ pub struct IdeStatus {
     pub command: Option<String>,
 }
 
-fn locate_memex_cli() -> Option<PathBuf> {
-    // bundle 里跟 menubar 同目录的 sidecar，名字就是 `memex-cli`：bundle 内 GUI
-    // 主 binary 叫 `Memex`，CLI 不能用同名（APFS 大小写不敏感会撞），所以物理
-    // 名 + 用户视角命令名都统一为 `memex-cli`。
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(parent) = exe.parent()
-    {
-        let p = parent.join("memex-cli");
-        if p.exists() {
-            return Some(p);
+impl From<cli_setup::IdeStatus> for IdeStatus {
+    fn from(s: cli_setup::IdeStatus) -> Self {
+        Self {
+            ide: s.ide,
+            config_path: s.config_path,
+            config_exists: s.config_exists,
+            installed: s.installed,
+            command: s.command,
         }
     }
-    // PATH 兜底，方便 dev 模式直接跑。`which` 通过 sync std::process::Command
-    // 跑——locate 路径只在第一次打开 sidecar 不存在时走（dev 模式），生产 .app
-    // bundle 永远命中上一段，没有竞态。
-    if let Ok(out) = StdCommand::new("which").arg("memex-cli").output() {
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !s.is_empty() {
-            return Some(PathBuf::from(s));
-        }
-    }
-    None
 }
 
-fn cli_not_found() -> CmdError {
-    CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
-}
-
-/// async-原生 spawn + 读 stdout/stderr。
-///
-/// 之前用同步 `std::process::Command::output()` 在 daemon shutdown→restart
-/// 窗口期会必现 `Bad file descriptor (os error 9)`：sync output 内部 read pipe
-/// 的 fd 在 tokio runtime 与其他维护任务并发关闭/复用 fd 时被破坏。
-/// `tokio::process::Command` 走 reactor 异步读 pipe，整个流程整合到 runtime
-/// 上，避开 sync read 撞 fd 失效；额外把 stdin 显式设为 `null`，防止子进程
-/// inherit 父进程那边可能已无效的 stdin fd。
-async fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
-    let bin = locate_memex_cli().ok_or_else(cli_not_found)?;
-
-    let output = Command::new(&bin)
-        .args(args)
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, args = ?args, "memex-cli spawn/output failed");
-            CmdError::from(e)
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(CmdError::Backend(format!(
-            "memex {:?} 返回非零（{}）：{}",
-            args, output.status, stderr
-        )));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    serde_json::from_str(stdout.trim())
-        .map_err(|e| CmdError::Backend(format!("无法解析 CLI 输出（{}）：{}", e, stdout)))
-}
-
-#[tauri::command]
-pub async fn ide_list_status() -> CmdResult<Vec<IdeStatus>> {
-    run_cli_json::<Vec<IdeStatus>>(&["--json", "setup-status"]).await
-}
-
-#[tauri::command]
-pub async fn ide_install(ide: String) -> CmdResult<IdeStatus> {
-    // 先 install（普通输出），再读 status（--json）。
-    let bin = locate_memex_cli().ok_or_else(cli_not_found)?;
-    let install = Command::new(&bin)
-        .args(["setup", &ide])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await?;
-    if !install.status.success() {
-        return Err(CmdError::Backend(format!(
-            "memex-cli setup {} 失败：{}",
-            ide,
-            String::from_utf8_lossy(&install.stderr)
-        )));
-    }
-    run_cli_json::<IdeStatus>(&["--json", "setup", &ide, "--status"]).await
-}
-
-#[tauri::command]
-pub async fn ide_uninstall(ide: String) -> CmdResult<IdeStatus> {
-    let bin = locate_memex_cli().ok_or_else(cli_not_found)?;
-    let res = Command::new(&bin)
-        .args(["setup", &ide, "--uninstall"])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await?;
-    if !res.status.success() {
-        return Err(CmdError::Backend(format!(
-            "memex-cli setup {} --uninstall 失败：{}",
-            ide,
-            String::from_utf8_lossy(&res.stderr)
-        )));
-    }
-    run_cli_json::<IdeStatus>(&["--json", "setup", &ide, "--status"]).await
-}
-
-/// SKILL.md 投递状态（对齐 memex-cli `skill::SkillStatus`）。
+/// SKILL.md 投递状态 DTO。映射 `cli_skill::SkillStatus`。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillStatus {
     pub ide: String,
@@ -132,45 +60,95 @@ pub struct SkillStatus {
     pub size: Option<u64>,
 }
 
+impl From<cli_skill::SkillStatus> for SkillStatus {
+    fn from(s: cli_skill::SkillStatus) -> Self {
+        Self {
+            ide: s.ide,
+            dest_path: s.dest_path,
+            installed: s.installed,
+            size: s.size,
+        }
+    }
+}
+
+fn parse_ide(ide: &str) -> CmdResult<cli_setup::Ide> {
+    cli_setup::Ide::parse(ide).ok_or_else(|| {
+        CmdError::Validation(format!(
+            "Unknown IDE: {ide}. Supported: cursor, claude-code, codex, opencode"
+        ))
+    })
+}
+
+/// 当前 GUI binary 的物理路径——CLI 写到 IDE 配置时填这条 command，
+/// 让 IDE 启动 MCP server 时就跑 bundle 内的 sidecar。
+fn memex_bin_path() -> PathBuf {
+    // .app/Contents/MacOS/Memex 同目录下有 memex-cli sidecar；CLI 那边的
+    // setup::install 接受任意路径，传 sidecar 会更明确（IDE 拉起的就是 CLI
+    // 自身，而不是 Tauri GUI 里的 mcp 子命令）。
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let p = parent.join("memex-cli");
+        if p.exists() {
+            return p;
+        }
+    }
+    PathBuf::from("memex-cli")
+}
+
+#[tauri::command]
+pub async fn ide_list_status() -> CmdResult<Vec<IdeStatus>> {
+    let list = tokio::task::spawn_blocking(cli_setup::list_status)
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?;
+    Ok(list.into_iter().map(Into::into).collect())
+}
+
+#[tauri::command]
+pub async fn ide_install(ide: String) -> CmdResult<IdeStatus> {
+    let parsed = parse_ide(&ide)?;
+    let bin = memex_bin_path();
+    let result = tokio::task::spawn_blocking(move || cli_setup::install(parsed, &bin))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("ide_install failed: {e:#}")))?;
+    Ok(result.into())
+}
+
+#[tauri::command]
+pub async fn ide_uninstall(ide: String) -> CmdResult<IdeStatus> {
+    let parsed = parse_ide(&ide)?;
+    let result = tokio::task::spawn_blocking(move || cli_setup::uninstall(parsed))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("ide_uninstall failed: {e:#}")))?;
+    Ok(result.into())
+}
+
 #[tauri::command]
 pub async fn skill_list_status() -> CmdResult<Vec<SkillStatus>> {
-    run_cli_json::<Vec<SkillStatus>>(&["--json", "skill-status"]).await
+    let list = tokio::task::spawn_blocking(cli_skill::list_status)
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?;
+    Ok(list.into_iter().map(Into::into).collect())
 }
 
 #[tauri::command]
 pub async fn skill_install(ide: String) -> CmdResult<SkillStatus> {
-    let bin = locate_memex_cli().ok_or_else(cli_not_found)?;
-    let res = Command::new(&bin)
-        .args(["skill", &ide])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await?;
-    if !res.status.success() {
-        return Err(CmdError::Backend(format!(
-            "memex skill {} 失败：{}",
-            ide,
-            String::from_utf8_lossy(&res.stderr)
-        )));
-    }
-    run_cli_json::<SkillStatus>(&["--json", "skill", &ide, "--status"]).await
+    let parsed = parse_ide(&ide)?;
+    let result = tokio::task::spawn_blocking(move || cli_skill::install(parsed))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("skill_install failed: {e:#}")))?;
+    Ok(result.into())
 }
 
 #[tauri::command]
 pub async fn skill_uninstall(ide: String) -> CmdResult<SkillStatus> {
-    let bin = locate_memex_cli().ok_or_else(cli_not_found)?;
-    let res = Command::new(&bin)
-        .args(["skill", &ide, "--uninstall"])
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await?;
-    if !res.status.success() {
-        return Err(CmdError::Backend(format!(
-            "memex skill {} --uninstall 失败：{}",
-            ide,
-            String::from_utf8_lossy(&res.stderr)
-        )));
-    }
-    run_cli_json::<SkillStatus>(&["--json", "skill", &ide, "--status"]).await
+    let parsed = parse_ide(&ide)?;
+    let result = tokio::task::spawn_blocking(move || cli_skill::uninstall(parsed))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("skill_uninstall failed: {e:#}")))?;
+    Ok(result.into())
 }

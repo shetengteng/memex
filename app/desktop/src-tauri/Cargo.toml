@@ -28,6 +28,10 @@ tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-dialog = "2"
 memex-core = { path = "../../crates/memex-core", version = "1" }
+# 直接 lib 调用 setup / skill / hooks 的 list_status / install / uninstall 函数，
+# 替代之前的 spawn sidecar 路径——根治 macOS release-bundled 父进程 fd 异常导致
+# 子进程 EBADF（os error 9）的偶发/必现 spawn 失败。
+memex-cli = { path = "../../crates/memex-cli", version = "1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = [
@@ -58,6 +62,10 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 # Phase 9: daemon 启动端口加入 fallback 重试 + SO_REUSEADDR，避免 9999 被占或
 # 上一份 listener 还在系统缓冲里时 bind 失败。
 socket2 = "0.5"
+# fd 0/1/2 reset 用 dup2 直接绕开 std 的 close-then-dup race，避开 macOS GUI
+# bundle 启动后父进程异常 fd 表导致的 spawn EBADF。仅 unix 平台启用。
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

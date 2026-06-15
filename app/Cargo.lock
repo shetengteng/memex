@@ -2494,6 +2494,8 @@ dependencies = [
  "chrono",
  "dirs",
  "http-body-util",
+ "libc",
+ "memex-cli",
  "memex-core",
  "notify",
  "serde",

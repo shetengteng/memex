@@ -1,168 +1,108 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
+// @ts-expect-error markdown-it-task-lists 没有官方 d.ts，作为 plugin 调用
+import taskLists from 'markdown-it-task-lists'
 
 const props = defineProps<{ source: string }>()
 
-// Help 页面的 markdown 渲染密度比 Library Drawer 高一档（标题更大、表格更宽），
-// 所以单独配一个 instance，不复用 src/components/MarkdownContent.vue。
+// Help 页面 markdown 来源全部是仓库内静态 .md（views/help/contents/*.md），
+// 不是用户输入；html:true 安全打开（否则 .md 里的 `<kbd>⌘⇧M</kbd>` / `<mark>`
+// 这类内联 HTML 会被丢弃，UI 上看到的就是不连贯的"快捷键 M"）。
 const md = new MarkdownIt({
-  html: false,
+  html: true,
   linkify: true,
   breaks: false,
   typographer: false,
-})
+}).use(taskLists, { enabled: false, label: true })
 
 const rendered = computed(() => md.render(props.source))
 </script>
 
+<!--
+  排版完全依赖 @tailwindcss/typography 的 prose 体系（已在 style.css 全局
+  启用）。基类 + size + dark mode 处理：
+  - prose-sm：13.5px 起步，适合 Help Drawer 的紧凑布局
+  - dark:prose-invert：自动反色（标题、正文、代码块）
+  - max-w-none：撑满父容器宽度，不被 prose 默认 65ch 卡住
+  - prose-pre / prose-code / prose-headings 等再做 shadcn flavor 微调（圆角、
+    border、color 切换到 hsl(var(--*))）
+
+  之所以选 prose 而不是继续手写 200 行 :deep() 选择器，是为了：
+  1. 维护成本：升级 prose 即拿到 GFM / 表格 / 任务列表等开箱即用的所有改进
+  2. 一致性：和外部生态（shadcn 文档站本身也是 prose 派系）视觉对齐
+  3. 减少 sandboxing 风险：Vue scoped style + :deep() 选择器在生产 build 容易
+     被 PostCSS 处理意外丢弃，而 prose 是直出工具类不依赖 scoped 透传
+-->
 <template>
-  <article class="help-md" v-html="rendered" />
+  <article
+    v-html="rendered"
+    class="
+      prose prose-sm max-w-none dark:prose-invert
+      prose-headings:scroll-mt-24
+      prose-headings:font-semibold
+      prose-headings:tracking-tight
+      prose-h1:text-2xl prose-h1:font-bold prose-h1:tracking-tight
+      prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:pb-2 prose-h2:border-b prose-h2:border-border
+      prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2
+      prose-p:leading-relaxed
+      prose-a:text-foreground prose-a:font-medium hover:prose-a:underline
+      prose-strong:text-foreground prose-strong:font-semibold
+      prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:text-[0.85em]
+      prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:text-foreground
+      prose-pre:shadow-sm
+      prose-blockquote:border-l-primary prose-blockquote:bg-muted/40 prose-blockquote:rounded-r-lg prose-blockquote:px-4 prose-blockquote:py-2 prose-blockquote:not-italic prose-blockquote:font-normal
+      prose-blockquote:before:hidden prose-blockquote:after:hidden
+      prose-table:border prose-table:border-border prose-table:rounded-lg prose-table:overflow-hidden
+      prose-th:bg-muted prose-th:text-foreground prose-th:font-semibold
+      prose-th:py-2 prose-th:px-3
+      prose-td:py-2 prose-td:px-3 prose-td:border-border
+      prose-tr:border-border
+      prose-li:my-1
+      prose-img:rounded-lg prose-img:border prose-img:border-border
+      prose-hr:border-border
+      help-md
+    "
+  />
 </template>
 
 <style scoped>
-.help-md {
-  color: hsl(var(--foreground));
-  font-size: 13.5px;
-  line-height: 1.65;
-  word-break: break-word;
-}
-
-.help-md :deep(h1) {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 0 0 8px;
-}
-
-.help-md :deep(h2) {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 24px 0 8px;
-}
-
-.help-md :deep(h2:first-of-type) {
-  margin-top: 12px;
-}
-
-.help-md :deep(h3) {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 18px 0 6px;
-}
-
-.help-md :deep(p) {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: hsl(var(--muted-foreground));
-  margin: 8px 0;
-}
-
-.help-md :deep(p strong),
-.help-md :deep(li strong) {
-  color: hsl(var(--foreground));
-}
-
-.help-md :deep(ul),
-.help-md :deep(ol) {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: hsl(var(--muted-foreground));
-  padding-left: 22px;
-  margin: 8px 0;
-}
-
-.help-md :deep(ul) {
-  list-style: disc;
-}
-
-.help-md :deep(ol) {
-  list-style: decimal;
-}
-
-.help-md :deep(li) {
-  margin: 3px 0;
-}
-
-.help-md :deep(li > ul),
-.help-md :deep(li > ol) {
-  margin: 3px 0;
-}
-
-.help-md :deep(code) {
+/* prose 没覆盖到的 GFM 元素：kbd / mark / 任务列表 checkbox。 */
+.help-md :deep(kbd) {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  background: hsl(var(--muted) / 0.7);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
-.help-md :deep(pre) {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  background: hsl(var(--muted) / 0.55);
+  font-size: 0.8em;
+  font-weight: 600;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin: 10px 0;
-  overflow-x: auto;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin: 0 2px;
+  vertical-align: baseline;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 hsl(var(--border));
 }
 
-.help-md :deep(pre code) {
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
+.help-md :deep(mark) {
+  background: hsl(48 96% 53% / 0.35);
+  color: inherit;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
-.help-md :deep(blockquote) {
-  border-left: 3px solid hsl(var(--border));
-  padding: 4px 0 4px 14px;
-  margin: 12px 0;
-  font-size: 13px;
-  color: hsl(var(--muted-foreground));
+.help-md :deep(.task-list-item) {
+  list-style: none;
+  margin-left: -1.4em;
+  padding-left: 0;
 }
 
-.help-md :deep(a) {
-  color: hsl(var(--foreground));
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: hsl(var(--border));
-  transition: text-decoration-color 0.15s;
+.help-md :deep(.task-list-item input[type='checkbox']) {
+  margin-right: 6px;
+  vertical-align: middle;
+  accent-color: hsl(var(--primary, var(--foreground)));
 }
 
-.help-md :deep(a:hover) {
-  text-decoration-color: hsl(var(--foreground));
-}
-
-.help-md :deep(hr) {
-  border: none;
-  border-top: 1px solid hsl(var(--border));
-  margin: 22px 0;
-}
-
-.help-md :deep(table) {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-  margin: 10px 0;
-}
-
-.help-md :deep(th),
-.help-md :deep(td) {
-  border-bottom: 1px solid hsl(var(--border));
-  padding: 6px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.help-md :deep(th) {
-  font-weight: 600;
-  background: hsl(var(--muted) / 0.5);
-}
-
-.help-md :deep(img) {
-  max-width: 100%;
-  border-radius: 6px;
-}
+/* prose 默认 a:hover 加 underline，前面 hover:prose-a:underline 已声明；
+   但 prose-pre 内的 a 不会有 hover——pre 内通常没链接，无需特殊处理。 */
 </style>

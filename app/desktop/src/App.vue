@@ -9,6 +9,7 @@ import AppSidebar from '@/components/shell/AppSidebar.vue'
 import SiteHeader from '@/components/shell/SiteHeader.vue'
 import CommandPalette from '@/components/shell/CommandPalette.vue'
 import OllamaSetupDialog from '@/components/shell/OllamaSetupDialog.vue'
+import FirstRunDialog from '@/components/shell/FirstRunDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { initMemexStore, refreshSessions, refreshProjects, refreshBreakdown } from '@/stores/memex'
@@ -169,6 +170,7 @@ function resetSidebarWidth() {
     </SidebarInset>
     <CommandPalette />
     <OllamaSetupDialog />
+    <FirstRunDialog />
     <Toaster position="bottom-right" close-button rich-colors />
   </SidebarProvider>
 </template>

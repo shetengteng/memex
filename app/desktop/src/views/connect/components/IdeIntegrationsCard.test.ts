@@ -154,4 +154,39 @@ describe('IdeIntegrationsCard', () => {
     expect(toastMocks.error).toHaveBeenCalledTimes(1)
     expect(toastMocks.error.mock.calls[0]?.[0]).toContain('IDE: 找不到 memex CLI')
   })
+
+  /// 重置全部按钮：用户确认后批量调三种 uninstall。
+  /// happy-dom 默认不挂 window.confirm，这里手动挂一个 mock 函数。
+  it('resetAll 逐项卸载所有 installed 集成，确认 false 不动', async () => {
+    const confirmMock = vi.fn().mockReturnValue(false)
+    // happy-dom: window.confirm 不存在；直接挂一个属性供组件读
+    Object.defineProperty(window, 'confirm', { value: confirmMock, configurable: true, writable: true })
+
+    const wrapper = mount(IdeIntegrationsCard, { global: { stubs } })
+    await flushPromises()
+
+    const allButtons = wrapper.findAll('button')
+    const resetBtn = allButtons.find((b) => b.text().includes('重置全部'))
+    expect(resetBtn).toBeDefined()
+    await resetBtn!.trigger('click')
+    await flushPromises()
+    expect(ipcMocks.ideUninstall).not.toHaveBeenCalled()
+    expect(ipcMocks.skillUninstall).not.toHaveBeenCalled()
+    expect(ipcMocks.hookUninstall).not.toHaveBeenCalled()
+
+    confirmMock.mockReturnValue(true)
+    ipcMocks.ideUninstall.mockResolvedValue({ ide: 'cursor', installed: false })
+    ipcMocks.skillUninstall.mockResolvedValue({ ide: 'cursor', installed: false })
+    ipcMocks.hookUninstall.mockResolvedValue({ ide: 'claude_code', installed: false })
+
+    await resetBtn!.trigger('click')
+    await flushPromises()
+
+    // mock 数据：cursor 装了 mcp+skill，claude_code 装了 hook，共 3 项
+    expect(ipcMocks.ideUninstall).toHaveBeenCalledWith('cursor')
+    expect(ipcMocks.skillUninstall).toHaveBeenCalledWith('cursor')
+    expect(ipcMocks.hookUninstall).toHaveBeenCalledWith('claude_code')
+    // 重置完会再 loadStatus → ideListStatus 应该被调第二次（mount 一次 + reset 后一次）
+    expect(ipcMocks.ideListStatus).toHaveBeenCalledTimes(2)
+  })
 })

@@ -165,9 +165,12 @@ function openClearDialog() {
 
 async function confirmClearAll() {
   if (!clearConfirmValid.value) return
-  clearDialogOpen.value = false
-  clearConfirmText.value = ''
+  // 不立即 close dialog —— 老版本立即关闭后用户可以点其他按钮 / 跳别的 tab，
+  // 而 backend `system_reset_all` 还在跑（shutdown daemon → wipe → daemon restart），
+  // 中途切别的页面会触发新的 IPC，与正在重启的 daemon 抢锁。新版让 dialog 在
+  // clearing 期间保持打开 + 锁定，完成后才自动关闭，确保用户视线 / 焦点不离开。
   clearing.value = true
+  clearConfirmText.value = ''
   try {
     await memex.systemResetAll()
     toast.success(t('settings.data.toast.cleared'))
@@ -175,7 +178,15 @@ async function confirmClearAll() {
     toastBackendError(t('settings.data.toast.clear_failed'), e)
   } finally {
     clearing.value = false
+    clearDialogOpen.value = false
   }
+}
+
+/// dialog 的开关守卫：clearing 中拒绝关闭，防止用户点 Esc / 点 outside / 点 X
+/// 把窗口关掉。reka-ui 内部会 emit update:open=false 触发关闭，这里拦截即可。
+function handleClearDialogOpen(v: boolean) {
+  if (clearing.value && !v) return
+  clearDialogOpen.value = v
 }
 
 async function exportDb() {
@@ -419,7 +430,12 @@ async function confirmImportDb() {
       </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="clearDialogOpen">
+    <!--
+      :open + @update:open 显式 controlled 模式（不再 v-model），让我们拦截
+      "用户在 clearing 中尝试关闭"的操作；DialogContent 自带 onEscapeKeyDown /
+      onPointerDownOutside / X 按钮，它们触发的关闭都会先回到 update:open。
+    -->
+    <Dialog :open="clearDialogOpen" @update:open="handleClearDialogOpen">
       <DialogContent class="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2 text-destructive">
@@ -427,10 +443,22 @@ async function confirmImportDb() {
             {{ t('settings.data.dialog.clear_title') }}
           </DialogTitle>
           <DialogDescription>
-            {{ t('settings.data.dialog.clear_desc') }}
+            <template v-if="clearing">
+              {{ t('settings.data.dialog.clearing_hint') }}
+            </template>
+            <template v-else>
+              {{ t('settings.data.dialog.clear_desc') }}
+            </template>
           </DialogDescription>
         </DialogHeader>
-        <div class="space-y-2">
+        <!-- clearing 模式：输入框 / 文案塌缩到 spinner 视图，避免用户视线被旧 UI 干扰 -->
+        <div v-if="clearing" class="flex items-center gap-3 rounded-md border border-border/50 bg-muted/40 px-4 py-5">
+          <RefreshCw class="size-5 shrink-0 animate-spin text-destructive" />
+          <span class="text-sm text-foreground">
+            {{ t('settings.data.clear.clearing') }}
+          </span>
+        </div>
+        <div v-else class="space-y-2">
           <Label for="clear-confirm-input" class="text-xs text-muted-foreground">
             {{ t('settings.data.dialog.clear_hint') }}
           </Label>
@@ -443,18 +471,24 @@ async function confirmImportDb() {
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" @click="clearDialogOpen = false">
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="clearing"
+            @click="clearDialogOpen = false"
+          >
             {{ t('settings.data.dialog.cancel') }}
           </Button>
           <Button
             variant="destructive"
             size="sm"
             class="gap-1.5"
-            :disabled="!clearConfirmValid"
+            :disabled="!clearConfirmValid || clearing"
             @click="confirmClearAll"
           >
-            <Trash2 class="size-3.5" />
-            {{ t('settings.data.clear.btn') }}
+            <RefreshCw v-if="clearing" class="size-3.5 animate-spin" />
+            <Trash2 v-else class="size-3.5" />
+            {{ clearing ? t('settings.data.clear.clearing') : t('settings.data.clear.btn') }}
           </Button>
         </DialogFooter>
       </DialogContent>

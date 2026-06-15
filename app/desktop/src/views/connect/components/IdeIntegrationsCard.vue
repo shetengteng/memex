@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Puzzle, RefreshCw } from 'lucide-vue-next'
+import { Puzzle, RefreshCw, Trash2 } from 'lucide-vue-next'
 import IdeDot from '@/components/shell/IdeDot.vue'
 import { toast } from 'vue-sonner'
 import { useMemex } from '@/composables/useMemex'
@@ -158,6 +158,65 @@ async function toggleHook(row: IdeRow, next: boolean) {
     busy.value[row.id + ':hook'] = false
   }
 }
+
+const resetting = ref(false)
+
+/// 一键卸载所有 IDE 上的 MCP / SKILL / Hook 集成。
+/// 用 window.confirm 而不是 AlertDialog —— 与 NotificationBell 的"清空全部"
+/// 通知按钮一致；对一次性破坏性操作，原生 confirm 视觉重量恰好。
+///
+/// 失败策略：每个 ide × 每种集成（mcp/skill/hook）独立 try-catch，互不阻塞；
+/// 收集 err 列表，最终汇总到一条 toast.error；成功部分仍然 reload 状态显示。
+async function resetAll() {
+  if (resetting.value) return
+  const installedCount = rows.value.reduce(
+    (n, r) =>
+      n +
+      (r.mcpInstalled ? 1 : 0) +
+      (r.skillInstalled ? 1 : 0) +
+      (r.hookInstalled ? 1 : 0),
+    0,
+  )
+  if (installedCount === 0) {
+    toast.info(t('connect.ide.toast.reset.nothing'))
+    return
+  }
+  const ok = window.confirm(t('connect.ide.confirm.reset_all', { count: installedCount }))
+  if (!ok) return
+
+  resetting.value = true
+  const errors: string[] = []
+  for (const row of rows.value) {
+    if (row.mcpInstalled) {
+      try {
+        await memex.ideUninstall(row.id)
+      } catch (e) {
+        errors.push(`${row.label} MCP: ${formatToggleError(e)}`)
+      }
+    }
+    if (row.skillInstalled) {
+      try {
+        await memex.skillUninstall(row.id)
+      } catch (e) {
+        errors.push(`${row.label} SKILL: ${formatToggleError(e)}`)
+      }
+    }
+    if (row.hookInstalled) {
+      try {
+        await memex.hookUninstall(row.id)
+      } catch (e) {
+        errors.push(`${row.label} Hook: ${formatToggleError(e)}`)
+      }
+    }
+  }
+  await loadStatus()
+  resetting.value = false
+  if (errors.length === 0) {
+    toast.success(t('connect.ide.toast.reset.success', { count: installedCount }))
+  } else {
+    toast.error(t('connect.ide.toast.reset.partial', { err: errors.slice(0, 3).join(' · ') }))
+  }
+}
 </script>
 
 <template>
@@ -257,10 +316,29 @@ async function toggleHook(row: IdeRow, next: boolean) {
         <Separator />
         <div class="flex items-center justify-between px-4 py-2.5">
           <span class="text-[10px] italic text-muted-foreground">{{ t('connect.ide.hint.restart') }}</span>
-          <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="loading" @click="loadStatus">
-            <RefreshCw :class="['size-3', loading && 'animate-spin']" />
-            {{ t('connect.ide.action.recheck') }}
-          </Button>
+          <div class="flex items-center gap-1.5">
+            <!--
+              一键卸载所有 IDE 的 memex MCP / SKILL / Hook，方便用户：
+              (1) 重新升级 / 重新选择哪些 IDE 接入
+              (2) 临时停掉 memex MCP 排查 IDE 行为
+              (3) 在新机器或共享 mac 用户间清理残留
+              用 destructive variant 的 ghost 按钮（红字 + Trash2）让破坏性操作显眼。
+            -->
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 gap-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              :disabled="resetting || loading"
+              @click="resetAll"
+            >
+              <Trash2 :class="['size-3', resetting && 'animate-spin']" />
+              {{ resetting ? t('connect.ide.action.resetting') : t('connect.ide.action.reset_all') }}
+            </Button>
+            <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" :disabled="loading || resetting" @click="loadStatus">
+              <RefreshCw :class="['size-3', loading && 'animate-spin']" />
+              {{ t('connect.ide.action.recheck') }}
+            </Button>
+          </div>
         </div>
       </template>
     </Card>

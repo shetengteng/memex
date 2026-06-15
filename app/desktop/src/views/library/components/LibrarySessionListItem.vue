@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge'
 import IdeChip from '@/components/shell/IdeChip.vue'
-import { Check, ChevronRight, Clock, Lock, MessageCircle } from 'lucide-vue-next'
+import {
+  Check,
+  ChevronRight,
+  Clock,
+  Loader2,
+  Lock,
+  LockOpen,
+  MessageCircle,
+  RefreshCw,
+} from 'lucide-vue-next'
 import type { Session } from '@/stores/memex'
 import { useI18n } from '@/i18n'
 
@@ -9,10 +18,15 @@ defineProps<{
   session: Session
   groupKey: string
   active: boolean
+  /// 父组件追踪的"该 session 正在生成摘要"标志，用于禁用 badge 点击 + 显示 spinner。
+  summarizing?: boolean
 }>()
 defineEmits<{
   open: [Session]
   'toggle-private': [Session]
+  /// 用户点击列表行的"未摘要"或"已摘要"badge 时触发。
+  /// 父组件统一调 retry_summary IPC——它对"无现有 L2 行"也安全（best-effort delete + 生成）。
+  summarize: [Session]
 }>()
 
 const { t, locale } = useI18n()
@@ -42,26 +56,34 @@ const groupFmt = (iso: string, group: string) => {
     @click="$emit('open', session)"
   >
     <div class="min-w-0 flex-1">
+      <!-- 第 1 行：标题 + IdeChip。 -->
       <div class="mb-1 flex items-center justify-between gap-3">
         <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
-        <!--
-          右上角动作区：IdeChip + 私有标记 toggle。
-          锁放 chip 右侧而非标题左侧——
-            (1) 不挤压标题可读宽度（标题更长更稳）
-            (2) 视觉上聚拢右侧"动作 / 元数据"语义带，符合常见列表行布局
-            (3) 未私有时透明度 0、hover 行才淡显，避免抢标题视线
-          用 span role=button 而非 <button>，因为外层已是 <button>，
-          HTML 不允许嵌套；@click.stop 保证点锁不会触发 open。
-        -->
-        <span class="flex shrink-0 items-center gap-1.5">
-          <IdeChip :adapter="session.adapter" />
+        <IdeChip class="shrink-0" :adapter="session.adapter" />
+      </div>
+
+      <!-- 第 2 行：intent。intent 为空时整行 v-if 折叠，不再被锁占位。 -->
+      <p
+        v-if="session.intent && session.intent.trim()"
+        class="mb-2 truncate text-[12.5px] text-muted-foreground/90"
+      >
+        {{ session.intent }}
+      </p>
+
+      <!--
+        第 3 行：锁（常驻，行首）+ 消息数 / 时长 / 摘要状态(可点击) / topics / 项目 · 时间
+        - 锁挪到第三行开头：与下方 badges 同基线，避免单独占行造成的视觉空白。
+        - 未私有 = 灰 + LockOpen；私有 = 红 + Lock。
+      -->
+      <div class="flex items-center gap-2">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <span
             role="button"
             tabindex="0"
-            class="inline-flex size-5 items-center justify-center rounded transition-all"
+            class="inline-flex size-5 shrink-0 items-center justify-center rounded transition-colors"
             :class="session.isPrivate
-              ? 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400'
-              : 'text-muted-foreground/60 opacity-0 hover:bg-accent hover:text-foreground hover:opacity-100 group-hover:opacity-60'"
+              ? 'text-red-600 hover:bg-red-500/10 dark:text-red-400'
+              : 'text-muted-foreground/60 hover:bg-accent hover:text-foreground'"
             :title="session.isPrivate ? t('library.list.action.unmark_private') : t('library.list.action.mark_private')"
             :aria-label="session.isPrivate ? t('library.list.action.unmark_private') : t('library.list.action.mark_private')"
             :aria-pressed="session.isPrivate"
@@ -69,19 +91,9 @@ const groupFmt = (iso: string, group: string) => {
             @keydown.enter.stop.prevent="$emit('toggle-private', session)"
             @keydown.space.stop.prevent="$emit('toggle-private', session)"
           >
-            <Lock class="size-3" />
+            <Lock v-if="session.isPrivate" class="size-3" />
+            <LockOpen v-else class="size-3" />
           </span>
-        </span>
-      </div>
-      <!-- intent 为空时直接不渲染整行，避免列表里出现一长串占位的 '—' 视觉噪声（用户反馈截图） -->
-      <p
-        v-if="session.intent && session.intent.trim()"
-        class="mb-2 truncate text-[12.5px] text-muted-foreground/90"
-      >
-        {{ session.intent }}
-      </p>
-      <div class="flex items-center gap-2">
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <Badge
             variant="secondary"
             class="h-5 gap-1 bg-muted/70 px-1.5 font-normal text-muted-foreground"
@@ -96,24 +108,54 @@ const groupFmt = (iso: string, group: string) => {
             <Clock class="size-2.5" />
             <span class="tabular-nums">{{ session.durationMin }}m</span>
           </Badge>
-          <Badge
-            v-if="session.l2Done"
-            variant="outline"
-            class="h-5 gap-1 border-emerald-500/30 bg-emerald-500/5 px-1.5 font-normal text-emerald-700 dark:text-emerald-400"
-            :title="t('library.list.tooltip.l2_done')"
+
+          <!--
+            摘要状态 badge（可点击）：
+            - 已摘要：绿色，hover 加深，点击 → 重新生成
+            - 未摘要：琥珀色，hover 加深，点击 → 立即生成
+            - summarizing：灰色 + spinner，禁用点击
+            外层是 <button>，所以这里用 <span role="button"> + @click.stop，
+            和锁按钮同样模式。
+          -->
+          <span
+            v-if="summarizing"
+            class="inline-flex h-5 cursor-wait items-center gap-1 rounded-md border border-border/60 bg-muted/50 px-1.5 text-[11px] font-normal text-muted-foreground"
+            :title="t('library.list.tooltip.summarizing')"
+            :aria-label="t('library.list.tooltip.summarizing')"
           >
-            <Check class="size-2.5" />
+            <Loader2 class="size-2.5 animate-spin" />
+            {{ t('library.list.badge.summarizing') }}
+          </span>
+          <span
+            v-else-if="session.l2Done"
+            role="button"
+            tabindex="0"
+            class="inline-flex h-5 cursor-pointer items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-1.5 text-[11px] font-normal text-emerald-700 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/15 dark:text-emerald-400"
+            :title="t('library.list.action.regenerate_summary')"
+            :aria-label="t('library.list.action.regenerate_summary')"
+            @click.stop="$emit('summarize', session)"
+            @keydown.enter.stop.prevent="$emit('summarize', session)"
+            @keydown.space.stop.prevent="$emit('summarize', session)"
+          >
+            <Check class="size-2.5 group-hover/badge:hidden" />
+            <RefreshCw class="hidden size-2.5 group-hover/badge:inline" />
             {{ t('library.list.badge.l2_done') }}
-          </Badge>
-          <Badge
+          </span>
+          <span
             v-else
-            variant="outline"
-            class="h-5 gap-1 border-amber-500/40 bg-amber-500/5 px-1.5 font-normal text-amber-700 dark:text-amber-500"
-            :title="t('library.list.tooltip.l2_pending')"
+            role="button"
+            tabindex="0"
+            class="inline-flex h-5 cursor-pointer items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/5 px-1.5 text-[11px] font-normal text-amber-700 transition-colors hover:border-amber-500/70 hover:bg-amber-500/20 dark:text-amber-500"
+            :title="t('library.list.action.summarize_now')"
+            :aria-label="t('library.list.action.summarize_now')"
+            @click.stop="$emit('summarize', session)"
+            @keydown.enter.stop.prevent="$emit('summarize', session)"
+            @keydown.space.stop.prevent="$emit('summarize', session)"
           >
             <Clock class="size-2.5" />
             {{ t('library.list.badge.l2_pending') }}
-          </Badge>
+          </span>
+
           <template v-if="session.topics.length">
             <span class="mx-0.5 size-1 shrink-0 rounded-full bg-border" />
             <Badge

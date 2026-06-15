@@ -1,14 +1,14 @@
-//! IDE SessionStart hook 管理。这一层完全靠 spawn `memex-cli hooks ... --json` 工作；
-//! 真正的脏活（写 `~/.claude/settings.json`、`~/.cursor/hooks.json` 等）在 CLI 那边。
+//! IDE SessionStart hook 管理 IPC 命令。
 //!
-//! 之所以走 CLI spawn 而不是把 `memex-cli::commands::hooks` 直接挂到 Tauri 的依赖里，
-//! 是为了和 `ide_integration` / `skill_*` 的实现保持一致 —— 那边已经踩过路径解析、
-//! sudo 不需要、错误 surface 这些坑，照搬最稳。
-use std::path::PathBuf;
-use std::process::Command as StdCommand;
+//! 通过 `memex-cli` lib 直接调用，**不 spawn sidecar 子进程**。
+//! 详见 [`super::ide_integration`] 的注释——同一条根因（macOS GUI fd 表
+//! 异常导致 spawn 偶发 EBADF），同一种解法（lib 调用，全程在父进程内）。
 
+use std::path::PathBuf;
+
+use memex_cli::commands::hooks as cli_hooks;
+use memex_cli::commands::setup as cli_setup;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 
 use super::error::{CmdError, CmdResult};
 
@@ -21,65 +21,71 @@ pub struct HookStatus {
     pub wrapper_path: Option<String>,
 }
 
-fn locate_memex_cli() -> Option<PathBuf> {
-    // bundle 里 sidecar 名是 `memex-cli`（GUI 主 binary 占了 `Memex`，APFS 大小写
-    // 不敏感会撞名）。详见 commands/cli_path.rs 的 CLI_LINKS。
+impl From<cli_hooks::HookStatus> for HookStatus {
+    fn from(s: cli_hooks::HookStatus) -> Self {
+        Self {
+            ide: s.ide,
+            supported: s.supported,
+            installed: s.installed,
+            config_path: s.config_path,
+            wrapper_path: s.wrapper_path,
+        }
+    }
+}
+
+fn parse_ide(ide: &str) -> CmdResult<cli_setup::Ide> {
+    cli_setup::Ide::parse(ide).ok_or_else(|| {
+        CmdError::Validation(format!(
+            "Unknown IDE: {ide}. Supported: cursor, claude-code, codex, opencode"
+        ))
+    })
+}
+
+fn memex_bin_path() -> PathBuf {
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
     {
         let p = parent.join("memex-cli");
         if p.exists() {
-            return Some(p);
+            return p;
         }
     }
-    if let Ok(out) = StdCommand::new("which").arg("memex-cli").output() {
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !s.is_empty() {
-            return Some(PathBuf::from(s));
-        }
-    }
-    None
+    PathBuf::from("memex-cli")
 }
 
-/// async-原生 spawn + 读 stdout/stderr，详见
-/// [`super::ide_integration::run_cli_json`] 注释。
-async fn run_cli_json<T: for<'de> Deserialize<'de>>(args: &[&str]) -> CmdResult<T> {
-    let bin = locate_memex_cli().ok_or_else(|| {
-        CmdError::NotFound("找不到 memex CLI（既不在 app 同目录，也不在 PATH）".into())
-    })?;
-    let output = Command::new(&bin)
-        .args(args)
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, args = ?args, "memex-cli spawn/output failed");
-            CmdError::from(e)
-        })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(CmdError::Backend(format!(
-            "memex {:?} 返回非零（{}）：{}",
-            args, output.status, stderr
-        )));
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    serde_json::from_str(stdout.trim())
-        .map_err(|e| CmdError::Backend(format!("无法解析 CLI 输出（{}）：{}", e, stdout)))
+fn memex_home_dir() -> PathBuf {
+    // 与 cli/skill 走同一个约定 —— 用户 home 下的 .memex 目录，
+    // wrapper 脚本会写到 .memex/hooks/<ide>-session-start.sh。
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home.join(".memex")
 }
 
 #[tauri::command]
 pub async fn hook_list_status() -> CmdResult<Vec<HookStatus>> {
-    run_cli_json::<Vec<HookStatus>>(&["--json", "hooks", "all"]).await
+    let list = tokio::task::spawn_blocking(cli_hooks::list_status)
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?;
+    Ok(list.into_iter().map(Into::into).collect())
 }
 
 #[tauri::command]
 pub async fn hook_install(ide: String) -> CmdResult<HookStatus> {
-    run_cli_json::<HookStatus>(&["--json", "hooks", "install", &ide]).await
+    let parsed = parse_ide(&ide)?;
+    let bin = memex_bin_path();
+    let home = memex_home_dir();
+    let result = tokio::task::spawn_blocking(move || cli_hooks::install(parsed, &bin, &home))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("hook_install failed: {e:#}")))?;
+    Ok(result.into())
 }
 
 #[tauri::command]
 pub async fn hook_uninstall(ide: String) -> CmdResult<HookStatus> {
-    run_cli_json::<HookStatus>(&["--json", "hooks", "uninstall", &ide]).await
+    let parsed = parse_ide(&ide)?;
+    let result = tokio::task::spawn_blocking(move || cli_hooks::uninstall(parsed))
+        .await
+        .map_err(|e| CmdError::Backend(format!("join failed: {e}")))?
+        .map_err(|e| CmdError::Backend(format!("hook_uninstall failed: {e:#}")))?;
+    Ok(result.into())
 }
