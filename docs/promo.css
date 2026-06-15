@@ -764,6 +764,26 @@ body.show-captions .footer-meta { display: none !important; }
     radial-gradient(circle at 70% 70%, oklch(95% 0.05 145 / 0.5) 0%, transparent 55%),
     var(--bg);
 }
+.act-cta-split .act-inner-split {
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: start;
+  padding-top: 24px;
+}
+.act-cta-split .plan-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+}
+.act-cta-split .install-block { max-width: 100%; }
+.act-cta-split .act-cta-final { flex-wrap: wrap; }
+.act-cta-split .github-frame img {
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -20px oklch(20% 0.04 268 / 0.18);
+}
+@media (max-width: 960px) {
+  .act-cta-split .act-inner-split { grid-template-columns: 1fr; }
+}
 .install-block {
   display: flex;
   flex-direction: column;
