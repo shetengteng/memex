@@ -254,6 +254,7 @@ pub fn run() {
             commands::sessions::retry_summary,
             commands::sessions::batch_summarize,
             commands::sessions::abort_summarize,
+            commands::sessions::session_set_private,
             commands::search::search_memex,
             commands::config::get_config,
             commands::config::set_config,

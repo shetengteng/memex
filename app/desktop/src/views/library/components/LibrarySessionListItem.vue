@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge'
 import IdeChip from '@/components/shell/IdeChip.vue'
-import { Check, ChevronRight, Clock, MessageCircle } from 'lucide-vue-next'
+import { Check, ChevronRight, Clock, Lock, MessageCircle } from 'lucide-vue-next'
 import type { Session } from '@/stores/memex'
 import { useI18n } from '@/i18n'
 
@@ -40,7 +40,14 @@ const groupFmt = (iso: string, group: string) => {
   >
     <div class="min-w-0 flex-1">
       <div class="mb-1 flex items-baseline justify-between gap-3">
-        <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
+        <span class="flex min-w-0 items-center gap-1.5">
+          <Lock
+            v-if="session.isPrivate"
+            class="size-3 shrink-0 text-muted-foreground/70"
+            :title="t('library.list.tooltip.private')"
+          />
+          <span class="truncate text-[14px] font-semibold tracking-tight">{{ session.title }}</span>
+        </span>
         <IdeChip :adapter="session.adapter" class="shrink-0" />
       </div>
       <!-- intent 为空时直接不渲染整行，避免列表里出现一长串占位的 '—' 视觉噪声（用户反馈截图） -->

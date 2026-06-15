@@ -151,4 +151,22 @@ impl Db {
         )?;
         Ok(())
     }
+
+    /// 用户主动把单条会话标记 / 取消标记为私有。
+    ///
+    /// 返回 `Ok(true)` 表示行存在且已更新，`Ok(false)` 表示 `session_id`
+    /// 不存在（rows_affected = 0）—— 让上层 Tauri / HTTP 端点能区分
+    /// 404 与 500，不必依赖额外查询。
+    ///
+    /// 与 `redactions.yaml` 的 `private_paths` / `private_keywords` 规则
+    /// 并存：MCP 层在 `is_private_session(...)` 之外再叠加一层 `is_private`
+    /// 字段判断，任一命中即视为私有。
+    pub fn set_session_private(&self, session_id: &str, is_private: bool) -> Result<bool> {
+        let conn = self.conn.lock();
+        let n = conn.execute(
+            "UPDATE sessions SET is_private = ?1 WHERE id = ?2",
+            params![is_private as i64, session_id],
+        )?;
+        Ok(n > 0)
+    }
 }

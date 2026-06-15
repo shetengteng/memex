@@ -1206,6 +1206,7 @@ export const en: Messages = {
   'library.list.weekday.6': 'Sat',
   'library.list.tooltip.l2_done': 'Session summary (L2) generated',
   'library.list.tooltip.l2_pending': 'Session summary (L2) pending',
+  'library.list.tooltip.private': 'Marked as private; will not be exposed to IDEs via MCP',
   'library.list.badge.l2_done': 'Summarised',
   'library.list.badge.l2_pending': 'Pending',
 
@@ -1220,6 +1221,12 @@ export const en: Messages = {
   'library.drawer.section.topics': 'Topics',
   'library.drawer.section.decisions': 'Key decisions',
   'library.drawer.empty_detail': 'Session detail not found',
+  'library.drawer.private.label': 'Mark private',
+  'library.drawer.private.sub': "Hide from IDEs via MCP",
+  'library.drawer.private.toast.marked': 'Marked as private',
+  'library.drawer.private.toast.unmarked': 'Private flag removed',
+  'library.drawer.private.toast.failed': 'Action failed, please retry',
+  'library.drawer.private.toast.session_missing': 'Session not found or removed',
 
   // Threads: toolbar
   'library.threads.search_placeholder': 'Type a topic, keyword or question — let the LLM thread relevant sessions…',

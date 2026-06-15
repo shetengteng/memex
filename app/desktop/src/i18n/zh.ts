@@ -980,10 +980,10 @@ export const zh: Messages = {
   'connect.ide.config_missing': '未找到配置',
   'connect.ide.col.mcp': 'MCP',
   'connect.ide.col.skill': 'SKILL',
-  'connect.ide.col.hook': 'Hook 钩子',
+  'connect.ide.col.hook': 'Hook',
   'connect.ide.tooltip.mcp': 'MCP server — 让 AI 用 search_memory / get_session 等工具读取 Memex 数据',
   'connect.ide.tooltip.skill': 'SKILL.md — 把 Memex 用法写入 IDE 的 skills 目录，AI 自动学会怎么用',
-  'connect.ide.tooltip.hook_supported': 'Hook 钩子：AI 会话启动时自动注入「项目工作记忆」（最近的叙述摘要 + 相关决策）',
+  'connect.ide.tooltip.hook_supported': 'Hook：AI 会话启动时自动注入「项目工作记忆」（最近的叙述摘要 + 相关决策）',
   'connect.ide.tooltip.hook_unsupported': '该 IDE 暂不支持自动注入项目记忆（仅 Claude Code Hook 支持）',
   'connect.ide.hint.restart': '修改后请重启对应 IDE 生效',
   'connect.ide.action.recheck': '重新检测',
@@ -1207,6 +1207,7 @@ export const zh: Messages = {
   'library.list.weekday.6': '周六',
   'library.list.tooltip.l2_done': '已生成会话摘要（L2）',
   'library.list.tooltip.l2_pending': '尚未生成会话摘要（L2）',
+  'library.list.tooltip.private': '已标记为私有；不会通过 MCP 暴露给 IDE',
   'library.list.badge.l2_done': '已摘要',
   'library.list.badge.l2_pending': '未摘要',
 
@@ -1221,6 +1222,12 @@ export const zh: Messages = {
   'library.drawer.section.topics': '主题',
   'library.drawer.section.decisions': '关键决策',
   'library.drawer.empty_detail': '未找到会话详情',
+  'library.drawer.private.label': '标记为私有',
+  'library.drawer.private.sub': '不通过 MCP 暴露给 IDE',
+  'library.drawer.private.toast.marked': '已标记为私有',
+  'library.drawer.private.toast.unmarked': '已取消私有标记',
+  'library.drawer.private.toast.failed': '操作失败，请稍后重试',
+  'library.drawer.private.toast.session_missing': '会话不存在或已被删除',
 
   // 线索：工具栏
   'library.threads.search_placeholder': '输入主题、关键词或问题，让 LLM 从历史会话里挑出相关线索…',

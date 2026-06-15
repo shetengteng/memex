@@ -107,6 +107,19 @@ CREATE INDEX IF NOT EXISTS idx_notifications_unread
     ON notifications(read_at) WHERE read_at IS NULL;
 ";
 
+/// v5: `sessions.is_private` 列 —— 用户主动「标记为私有」的会话。
+/// MCP 层在 `privacy.skip_private_sessions = true` 时会过滤掉这些会话，
+/// 不再向 IDE 暴露。Default 0 让历史行视为公开，符合最小惊讶原则。
+/// 局部索引只覆盖 `is_private = 1`，体积忽略不计。
+///
+/// 用 `ALTER TABLE` 增量而非 baseline 重建，是因为存量库的 sessions /
+/// messages / chunks 行不能丢——重建索引会让用户重新跑 LLM 摘要。
+const ADD_SESSIONS_IS_PRIVATE_SQL: &str = "
+ALTER TABLE sessions ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_sessions_private
+    ON sessions(is_private) WHERE is_private = 1;
+";
+
 /// Build the migration set.
 pub(super) fn build_migrations() -> Migrations<'static> {
     Migrations::new(vec![
@@ -114,6 +127,7 @@ pub(super) fn build_migrations() -> Migrations<'static> {
         M::up(ADD_MCP_CALL_LOG_SQL),
         M::up(ADD_MCP_CALL_PAYLOAD_SQL),
         M::up(ADD_NOTIFICATIONS_SQL),
+        M::up(ADD_SESSIONS_IS_PRIVATE_SQL),
     ])
 }
 

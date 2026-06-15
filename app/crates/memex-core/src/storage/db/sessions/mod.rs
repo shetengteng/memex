@@ -47,6 +47,11 @@ pub struct SessionRow {
     /// L2 摘要中由 LLM 推断出的"用户真实意图"，一句话。
     /// 摘要尚未生成时为 None；UI 在列表里用它代替原始首条消息预览。
     pub intent: Option<String>,
+    /// v5: 用户主动「标记为私有」的会话。privacy.skip_private_sessions
+    /// 开启时被 MCP 层过滤，不暴露给 IDE。`#[serde(default)]` 让旧 JSON
+    /// （没有这个字段）反序列化时安全 fallback 到 false。
+    #[serde(default, alias = "is_private")]
+    pub is_private: bool,
 }
 
 /// IPC 出去的会话详情，`#[serde(rename_all = "camelCase")]` 让多词字段在
@@ -69,6 +74,9 @@ pub struct SessionDetail {
     pub messages: Vec<MessageRow>,
     /// 与 `SessionRow.intent` 同源：L2 摘要的"用户真实意图"。
     pub intent: Option<String>,
+    /// v5: 与 `SessionRow.is_private` 同源。让 detail 弹框 / Today 时间线
+    /// 等使用 SessionDetail 的视图也能立刻拿到私有标记。
+    pub is_private: bool,
 }
 
 /// 单条会话消息。当前所有字段都是单词（id / role / content / timestamp），

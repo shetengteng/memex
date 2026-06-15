@@ -189,6 +189,82 @@ fn test_get_session_detail_includes_intent() {
     assert_eq!(detail.intent.as_deref(), Some("调研 monthly report"));
 }
 
+/// v5 新增：set_session_private toggle + SessionRow / SessionDetail 都能读出。
+#[test]
+fn test_set_session_private_roundtrip() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "claude_code", Some("/proj"), "/f.jsonl", 0, 0)
+        .unwrap();
+
+    // 默认 false
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert!(!row.is_private, "新建 session 默认 is_private = false");
+    let detail = db.get_session_detail("s1").unwrap().unwrap();
+    assert!(!detail.is_private);
+
+    // 标记为私有
+    let updated = db.set_session_private("s1", true).unwrap();
+    assert!(updated, "set_session_private 在行存在时返回 true");
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert!(row.is_private, "标记后 SessionRow.is_private = true");
+    let detail = db.get_session_detail("s1").unwrap().unwrap();
+    assert!(detail.is_private, "SessionDetail.is_private 也应同步");
+
+    // 取消私有
+    db.set_session_private("s1", false).unwrap();
+    let row = &db.list_sessions_paged(10, 0).unwrap()[0];
+    assert!(!row.is_private, "取消标记后 is_private = false");
+}
+
+/// 不存在的 session_id 不应当抛错，返回 false 让上层 404。
+#[test]
+fn test_set_session_private_returns_false_for_unknown_id() {
+    let db = Db::open_in_memory().unwrap();
+    let updated = db.set_session_private("nonexistent", true).unwrap();
+    assert!(!updated, "未知 session_id 应当返回 false（rows_affected = 0）");
+}
+
+/// 私有标记不能影响其他会话。
+#[test]
+fn test_set_session_private_isolated_per_row() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("s1", "cursor", Some("/p1"), "/f1.jsonl", 0, 0)
+        .unwrap();
+    db.insert_session("s2", "cursor", Some("/p2"), "/f2.jsonl", 0, 0)
+        .unwrap();
+    db.set_session_private("s1", true).unwrap();
+
+    let detail1 = db.get_session_detail("s1").unwrap().unwrap();
+    let detail2 = db.get_session_detail("s2").unwrap().unwrap();
+    assert!(detail1.is_private);
+    assert!(!detail2.is_private, "其他会话的 is_private 不应受影响");
+}
+
+/// list_sessions_in_range（MCP `list_sessions_by_range` 工具的下游 SQL）
+/// 也要把 is_private 字段读出来——否则 mcp 层无法过滤私有会话。
+#[test]
+fn test_list_sessions_in_range_carries_is_private() {
+    let db = Db::open_in_memory().unwrap();
+    db.insert_session("public", "cursor", None, "/f1.jsonl", 0, 0)
+        .unwrap();
+    db.insert_session("secret", "cursor", None, "/f2.jsonl", 0, 0)
+        .unwrap();
+    let h = blake3::hash(b"x").to_hex().to_string();
+    db.insert_message("m1", "public", "user", "x", None, 0, &h)
+        .unwrap();
+    db.insert_message("m2", "secret", "user", "y", None, 0, &h)
+        .unwrap();
+    db.set_session_private("secret", true).unwrap();
+
+    let rows = db
+        .list_sessions_in_range("2000-01-01T00:00:00+00:00", "2999-12-31T23:59:59+00:00")
+        .unwrap();
+    let secret_row = rows.iter().find(|r| r.id == "secret").unwrap();
+    let public_row = rows.iter().find(|r| r.id == "public").unwrap();
+    assert!(secret_row.is_private);
+    assert!(!public_row.is_private);
+}
+
 #[test]
 fn test_list_sessions_filters_only_stale_empty_sessions() {
     let db = Db::open_in_memory().unwrap();

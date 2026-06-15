@@ -10,18 +10,43 @@ use super::{ContextOptions, ProjectContext, SessionContext};
 use crate::storage::db::Db;
 
 /// 给一个 project_path 拉出完整上下文结构。在 CLI / MCP 工具中都会用。
+///
+/// 隐私过滤：`skip_private = true` 时，标记为 `is_private` 的会话以及命中
+/// `redactions.yaml` 路径规则的会话都会被剔除，避免 IDE hook 注入的 banner
+/// 和 MCP `get_project_context` 工具暴露私有内容。`total_sessions` 也按过滤
+/// 后的数量统计，对外不泄漏私有会话的存在。
+///
+/// 注意：本函数保持纯——`skip_private` 由调用方（一般是 [`build_context`]）
+/// 从 `MemexConfig::privacy.skip_private_sessions` 决定后传入；不直接读全局
+/// 配置文件，这样单元测试不会受测试机的 `~/.memex/config.toml` 干扰。
 pub fn collect_project_context(
     db: &Db,
     project_path: &str,
     top_n: usize,
+    skip_private: bool,
 ) -> Result<ProjectContext> {
     let all_sessions = db.list_sessions_by_project(project_path)?;
-    let total = all_sessions.len() as i64;
-    let last_active = all_sessions.first().map(|s| short_date(&s.updated_at));
+
+    let visible_sessions: Vec<_> = all_sessions
+        .iter()
+        .filter(|s| {
+            if !skip_private {
+                return true;
+            }
+            if s.is_private {
+                return false;
+            }
+            !crate::processor::privacy::is_private_session("", s.project_path.as_deref())
+        })
+        .cloned()
+        .collect();
+
+    let total = visible_sessions.len() as i64;
+    let last_active = visible_sessions.first().map(|s| short_date(&s.updated_at));
 
     // 过滤掉信息量为零的 session（没标题、没 summary、没 intent、且 first_user_message
     // 是 noise 模板）—— 让"近期会话"块只展示有价值的内容，而不是把空骨架占进 top_n。
-    let sessions: Vec<_> = all_sessions
+    let sessions: Vec<_> = visible_sessions
         .iter()
         .filter(|s| {
             let has_signal_title = s
@@ -107,9 +132,14 @@ pub fn collect_project_context(
     })
 }
 
-/// CLI / MCP 都走这个入口。
+/// CLI / MCP 都走这个入口。`skip_private` 默认从 `~/.memex/config.toml` 的
+/// `privacy.skip_private_sessions` 读出（fail-closed：load 失败时按 true 处理，
+/// 优先保护用户隐私）。
 pub fn build_context(db: &Db, project_path: &str, opts: &ContextOptions) -> Result<String> {
-    let ctx = collect_project_context(db, project_path, opts.top_n)?;
+    let skip_private = crate::config::MemexConfig::load(&crate::memex_dir())
+        .map(|c| c.privacy.skip_private_sessions)
+        .unwrap_or(true);
+    let ctx = collect_project_context(db, project_path, opts.top_n, skip_private)?;
     let mut md = render_markdown(&ctx);
     if opts.redact {
         // 走一遍既有的 redact 规则。这一步对小段文本开销极低（仅
@@ -157,7 +187,7 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         seed(&db, "/Users/me/work/memex");
 
-        let ctx = collect_project_context(&db, "/Users/me/work/memex", 3).unwrap();
+        let ctx = collect_project_context(&db, "/Users/me/work/memex", 3, false).unwrap();
         assert_eq!(ctx.project_name, "memex");
         assert_eq!(ctx.total_sessions, 2);
         assert!(ctx.project_summary.unwrap().contains("Memex"));
@@ -180,7 +210,27 @@ mod tests {
     fn project_name_extraction_handles_dashed_path() {
         let db = Db::open_in_memory().unwrap();
         seed(&db, "-Users-me-work-memex");
-        let ctx = collect_project_context(&db, "-Users-me-work-memex", 3).unwrap();
+        let ctx = collect_project_context(&db, "-Users-me-work-memex", 3, false).unwrap();
         assert_eq!(ctx.project_name, "memex");
+    }
+
+    /// 把其中一条 session 标记为私有，skip_private=true 时它不应当
+    /// 出现在 recent_sessions 里，且 total_sessions 也按过滤后计数——
+    /// 后者很关键：暴露 total = 2 等于告诉 IDE "这里还有一条你看不到的私有会话"。
+    #[test]
+    fn skip_private_filters_out_private_sessions_and_total_count() {
+        let db = Db::open_in_memory().unwrap();
+        seed(&db, "/proj");
+        db.set_session_private("s1", true).unwrap();
+
+        let ctx = collect_project_context(&db, "/proj", 5, true).unwrap();
+        assert_eq!(ctx.total_sessions, 1, "total 不应包含私有会话");
+        assert_eq!(ctx.recent_sessions.len(), 1);
+        assert_eq!(ctx.recent_sessions[0].session_id, "s2");
+
+        // skip_private=false 时所有会话仍然可见——给用户在终端
+        // 直接调用 collect_project_context（用配置开关关闭）的场景留口子。
+        let ctx_unfiltered = collect_project_context(&db, "/proj", 5, false).unwrap();
+        assert_eq!(ctx_unfiltered.total_sessions, 2);
     }
 }

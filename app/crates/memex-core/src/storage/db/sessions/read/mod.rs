@@ -28,7 +28,7 @@ impl Db {
         let session = conn
             .query_row(
                 "SELECT id, source, project_path, file_path, title,
-                        created_at, updated_at, message_count, intent
+                        created_at, updated_at, message_count, intent, is_private
                  FROM sessions WHERE id = ?1",
                 params![session_id],
                 |row| {
@@ -46,6 +46,7 @@ impl Db {
                         message_count: row.get(7)?,
                         messages: Vec::new(),
                         intent: row.get(8)?,
+                        is_private: row.get::<_, i64>(9)? != 0,
                     })
                 },
             )
@@ -133,7 +134,7 @@ impl Db {
                      FROM messages m
                      WHERE m.session_id = s.id AND m.role = 'user'
                      ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
-                    s.intent
+                    s.intent, s.is_private
              FROM sessions s
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'
@@ -210,7 +211,8 @@ impl Db {
     pub fn list_sessions_in_range(&self, after: &str, before: &str) -> Result<Vec<SessionRow>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare_cached(
-            "SELECT id, source, project_path, title, message_count, created_at, updated_at, intent
+            "SELECT id, source, project_path, title, message_count, created_at, updated_at,
+                    intent, is_private
              FROM sessions WHERE updated_at >= ?1 AND updated_at < ?2
                AND NOT (message_count = 0 AND created_at < datetime('now', '-1 day'))
              ORDER BY updated_at DESC",
@@ -228,6 +230,7 @@ impl Db {
                     summary_title: None,
                     first_user_message: None,
                     intent: row.get(7)?,
+                    is_private: row.get::<_, i64>(8)? != 0,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

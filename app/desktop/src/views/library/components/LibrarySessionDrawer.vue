@@ -8,11 +8,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { VisuallyHidden } from 'reka-ui'
 import IdeChip from '@/components/shell/IdeChip.vue'
 import MessageContent from '@/components/MessageContent.vue'
-import { Bot, User as UserIcon } from 'lucide-vue-next'
+import { Bot, Lock, User as UserIcon } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 import type { Session } from '@/stores/memex'
+import { sessions } from '@/stores/memex'
 import type { SessionDetail } from '@/types'
 import { useMemex } from '@/composables/useMemex'
 import { useI18n } from '@/i18n'
@@ -25,9 +28,41 @@ const { t, locale } = useI18n()
 const dateLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'zh-CN'))
 const detail = ref<SessionDetail | null>(null)
 const detailLoading = ref(false)
+const privateBusy = ref(false)
 const visibleCount = ref(50)
 const loadMoreSentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
+
+// detail.is_private 是 SQL 真源，跟随 detail 而不是 session prop（后者来自
+// rowToSession，可能在 sheet 打开后被新的列表轮询覆盖；让 toggle 跟最新 detail）。
+const isPrivate = computed(() => !!detail.value?.isPrivate)
+
+async function togglePrivate(next: boolean) {
+  const sid = props.session?.id
+  if (!sid || privateBusy.value) return
+  privateBusy.value = true
+  try {
+    const updated = await memex.setSessionPrivate(sid, next)
+    if (!updated) {
+      toast.error(t('library.drawer.private.toast.session_missing'))
+      return
+    }
+    if (detail.value) detail.value.isPrivate = next
+    // 同步 store 里那条 Session，让列表行的 lock icon 立刻反映新状态。
+    const idx = sessions.findIndex((s) => s.id === sid)
+    if (idx >= 0) sessions[idx].isPrivate = next
+    toast.success(
+      next
+        ? t('library.drawer.private.toast.marked')
+        : t('library.drawer.private.toast.unmarked'),
+    )
+  } catch (e) {
+    console.warn('[LibrarySessionDrawer] setSessionPrivate failed', e)
+    toast.error(t('library.drawer.private.toast.failed'))
+  } finally {
+    privateBusy.value = false
+  }
+}
 
 watch(
   () => [props.open, props.session?.id] as const,
@@ -133,10 +168,30 @@ onBeforeUnmount(() => {
               {{ session.project }} · {{ tFmt(session.startedAt) }}
             </span>
           </div>
-          <h2 class="text-[16px] font-semibold leading-tight">{{ session.title }}</h2>
+          <h2 class="flex items-center gap-2 text-[16px] font-semibold leading-tight">
+            <Lock v-if="isPrivate" class="size-3.5 shrink-0 text-muted-foreground" />
+            <span class="truncate">{{ session.title }}</span>
+          </h2>
           <p class="mt-1 text-[12px] text-muted-foreground">
             {{ t('library.drawer.message_count', { n: session.messages }) }} · {{ session.l2Done ? t('library.drawer.summary_state.done') : t('library.drawer.summary_state.pending') }}
           </p>
+        </div>
+        <!-- 私有标记 toggle：开关 on 时该会话不再通过 MCP 暴露给 IDE -->
+        <div class="flex shrink-0 items-center gap-2 self-stretch border-l pl-3">
+          <div class="text-right">
+            <div class="text-[12px] font-medium leading-tight">
+              {{ t('library.drawer.private.label') }}
+            </div>
+            <div class="text-[11px] text-muted-foreground">
+              {{ t('library.drawer.private.sub') }}
+            </div>
+          </div>
+          <Switch
+            :model-value="isPrivate"
+            :disabled="privateBusy || detailLoading"
+            :aria-label="t('library.drawer.private.label')"
+            @update:model-value="(v) => togglePrivate(!!v)"
+          />
         </div>
       </header>
 

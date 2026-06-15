@@ -66,6 +66,7 @@ const baseSession: Session = {
   title: 'Demo Session',
   topics: [],
   l2Done: true,
+  isPrivate: false,
 }
 
 function makeDetail(messageCount: number): SessionDetail {
@@ -88,6 +89,7 @@ function makeDetail(messageCount: number): SessionDetail {
       timestamp: '2026-06-01T10:00:00Z',
     })),
     intent: null,
+    isPrivate: false,
   }
 }
 

@@ -59,6 +59,7 @@ fn test_build_match_reason() {
         adapter: Some("claude_code".into()),
         project: None,
         timestamp: None,
+        is_private: false,
     };
     let reason = build_match_reason("redis pipeline", &r);
     assert!(reason.contains("keyword match"));
@@ -87,6 +88,7 @@ fn test_recency_boost_sorting() {
             adapter: None,
             project: None,
             timestamp: Some("2026-01-01T00:00:00+00:00".into()),
+            is_private: false,
         },
         SearchResult {
             chunk_id: 2,
@@ -100,6 +102,7 @@ fn test_recency_boost_sorting() {
             adapter: None,
             project: None,
             timestamp: Some(chrono::Utc::now().to_rfc3339()),
+            is_private: false,
         },
     ];
     apply_recency_boost(&mut results);

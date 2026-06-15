@@ -393,6 +393,7 @@ pub async fn sessions_range(
             "title": s.title,
             "message_count": s.message_count,
             "updated_at": s.updated_at,
+            "is_private": s.is_private,
         });
         if let Some(sum) = summary {
             obj["l2_summary"] = serde_json::json!({

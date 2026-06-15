@@ -29,6 +29,7 @@ function mkSession(over: Partial<Session> & { startedAt: string }): Session {
     topics: [],
     l2Done: false,
     intent: undefined,
+    isPrivate: false,
     ...over,
   }
 }

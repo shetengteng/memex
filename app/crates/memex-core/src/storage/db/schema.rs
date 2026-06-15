@@ -38,6 +38,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     intent TEXT
 );
 
+-- 注意：sessions.is_private 列与 idx_sessions_private 索引由 v5 migration
+-- 追加（参见 migrations.rs::ADD_SESSIONS_IS_PRIVATE_SQL）。baseline 这里
+-- 故意不包含——和 v3 mcp_call_log payload 列同样的理由：fresh install
+-- 跑完 baseline 再跑 v5 的 ALTER TABLE 会撞 duplicate-column-name。
+-- rusqlite_migration 总是从 v1 baseline 跑到最新版本，最终 schema 一定
+-- 有这一列。
+
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id),

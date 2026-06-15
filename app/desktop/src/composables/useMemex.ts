@@ -55,6 +55,17 @@ export function useMemex() {
     return invoke<boolean>('abort_summarize')
   }
 
+  /**
+   * 把单条会话标记 / 取消标记为「私有」。返回 true 表示行存在并已更新；
+   * 返回 false 表示 session_id 不存在（前端可据此提示「会话已被删除」）。
+   *
+   * 与 `pref.privacy.private_from_mcp` 开关配合使用：开关 on 时被标记的
+   * 会话不会通过 MCP 暴露给 IDE。
+   */
+  async function setSessionPrivate(sessionId: string, isPrivate: boolean): Promise<boolean> {
+    return invoke<boolean>('session_set_private', { sessionId, isPrivate })
+  }
+
   async function toggleAdapter(adapter: string, enabled: boolean): Promise<void> {
     return invoke<void>('toggle_adapter', { adapter, enabled })
   }
@@ -252,7 +263,7 @@ export function useMemex() {
 
   return {
     getStats, getBreakdown, getTimeline, listRecent, listSessionsFiltered, searchMemex, getSession,
-    retrySummary, batchSummarize, abortSummarize, toggleAdapter, getConfig, setConfig,
+    retrySummary, batchSummarize, abortSummarize, setSessionPrivate, toggleAdapter, getConfig, setConfig,
     listProjects, listReports, regenerateReport, daemonStatus, daemonRestart,
     triggerIngest, runDoctor, cliStatus, cliInstall, cliUninstall,
     llmTestOllama,

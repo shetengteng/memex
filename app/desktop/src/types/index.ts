@@ -30,6 +30,7 @@ export interface SessionRow {
   summaryTitle: string | null
   firstUserMessage: string | null
   intent: string | null
+  isPrivate: boolean
 }
 
 /**
@@ -91,6 +92,7 @@ export interface SessionDetail {
   updatedAt: string
   messages: MessageRow[]
   intent: string | null
+  isPrivate: boolean
 }
 
 export interface MessageRow {

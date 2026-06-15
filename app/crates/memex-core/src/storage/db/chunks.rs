@@ -79,7 +79,7 @@ impl Db {
         let mut stmt = conn.prepare_cached(
             "SELECT c.id, c.session_id, c.message_id, c.chunk_type, c.content,
                     snippet(chunks_fts, 0, '<mark>', '</mark>', '...', 32) as snip, rank,
-                    s.source, s.project_path, m.timestamp
+                    s.source, s.project_path, m.timestamp, s.is_private
              FROM chunks_fts
              JOIN chunks c ON c.id = chunks_fts.rowid
              LEFT JOIN sessions s ON c.session_id = s.id
@@ -101,6 +101,7 @@ impl Db {
                     adapter: row.get(7)?,
                     project: row.get(8)?,
                     timestamp: row.get(9)?,
+                    is_private: row.get::<_, Option<i64>>(10)?.unwrap_or(0) != 0,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

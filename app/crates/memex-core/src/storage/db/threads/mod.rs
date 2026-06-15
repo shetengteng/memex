@@ -229,7 +229,7 @@ impl Db {
                      FROM messages m
                      WHERE m.session_id = s.id AND m.role = 'user'
                      ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
-                    s.intent
+                    s.intent, s.is_private
              FROM sessions s
              INNER JOIN thread_sessions ts ON ts.session_id = s.id
              LEFT JOIN summaries sm
@@ -250,6 +250,7 @@ impl Db {
                     summary_title: row.get(7)?,
                     first_user_message: row.get(8)?,
                     intent: row.get(9)?,
+                    is_private: row.get::<_, i64>(10)? != 0,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

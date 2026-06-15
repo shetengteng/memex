@@ -5,15 +5,22 @@
 //! 这一头会顺手 `increment_metric(METRIC_MCP_CALLS)`，等价于老版本里手写的
 //! `db.increment_metric(...)` + `db.insert_mcp_call(...)`。
 //!
-//! 隐私过滤（`processor::privacy::is_private_session`）仍在 mcp 这一侧做，
-//! 因为它是纯函数（基于 project_path 字符串）且 daemon 的 `/search`、
-//! `/sessions` 端点同时服务 GUI（不需要 mcp 那种"对外部 LLM 不暴露 personal
-//! repo"语义）。所以保留是合理的，不算冗余直连 db。
+//! 隐私过滤在 mcp 这一侧做，因为 daemon 的 `/search` / `/sessions` 端点同时
+//! 服务 GUI（不需要"对外部 LLM 不暴露 personal repo"语义），过滤逻辑放在
+//! mcp 层既不影响 GUI 可见性，也避免 daemon 端点出现两套 visibility 语义。
 //!
-//! 过滤受 `config.privacy.skip_private_sessions` 控制：true 时按
-//! `~/.memex/privacy.yaml` 规则过滤；false 时 mcp 也照常返回。开关默认 true
-//! （隐私优先），跟 Settings 里"对 MCP 隐藏私有会话"的 UI 文案一致 ——
-//! 开关 on = "隐藏" = 过滤生效。
+//! 过滤由两条规则叠加，任一命中即视为私有：
+//!   1. **会话级标记**（v5）：`sessions.is_private = 1`，由用户在 UI 右键
+//!      "标记为私有"写入。每条 daemon JSON 响应都带 `is_private` 字段。
+//!   2. **路径规则**（`processor::privacy::is_private_session`）：基于
+//!      `~/.memex/redactions.yaml` 的 `private_paths` / `private_keywords`，
+//!      按整个项目目录粒度过滤。
+//!
+//! 过滤受 `config.privacy.skip_private_sessions` 控制：true 时同时启用上述
+//! 两条规则；false 时 mcp 不过滤（私有标记仍写入但对 IDE 透明）。代码默认
+//! `false`（fail-open），但 toml 加载失败时 `should_filter_private()` 返回
+//! true（fail-closed on error）。Settings UI "对 MCP 隐藏私有会话" 开关
+//! 直接绑定该字段。
 
 use std::time::Instant;
 
@@ -181,6 +188,9 @@ fn tool_search(
 
     if should_filter_private() {
         results.retain(|item| {
+            if item.get("is_private").and_then(|v| v.as_bool()).unwrap_or(false) {
+                return false;
+            }
             let sid = item.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
             let proj = item.get("project").and_then(|v| v.as_str());
             !memex_core::processor::privacy::is_private_session(sid, proj)
@@ -230,6 +240,24 @@ fn tool_get_session(
         .get(&format!("/sessions/{}", resolved))
         .map_err(|e| format!("session not found: {} ({})", sid, e))?;
 
+    // 私有过滤：拿到 detail 后查 isPrivate（SessionDetail 走 camelCase）
+    // 以及 redactions.yaml 路径规则。任一命中就拒绝输出。
+    // 不区分"不存在"和"已私有"——都返回 not found，不向 IDE 泄漏存在性信息。
+    if should_filter_private() {
+        let is_priv_marked = detail
+            .get("isPrivate")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let file_path = detail
+            .get("filePath")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let proj = detail.get("projectPath").and_then(|v| v.as_str());
+        if is_priv_marked || memex_core::processor::privacy::is_private_session(file_path, proj) {
+            return Err(format!("session not found: {}", sid));
+        }
+    }
+
     enrich_session_value(&mut detail);
     serde_json::to_string_pretty(&detail).map_err(|e| e.to_string())
 }
@@ -251,6 +279,10 @@ fn tool_list_recent(
     };
     if should_filter_private() {
         sessions.retain(|s| {
+            // daemon SessionRow 用 rename_all=camelCase，对外是 `isPrivate`。
+            if s.get("isPrivate").and_then(|v| v.as_bool()).unwrap_or(false) {
+                return false;
+            }
             let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
             // daemon SessionEntry 用 rename_all=camelCase，注意字段是 `projectPath`。
             let proj = s.get("projectPath").and_then(|v| v.as_str());
@@ -341,6 +373,12 @@ fn tool_list_sessions_by_range(
     };
     if should_filter_private() {
         sessions.retain(|s| {
+            // sessions_range 路由直接用 serde_json::json! 构造响应，
+            // 字段是 snake_case（is_private / project_path）—— 跟 list_sessions
+            // 的 SessionRow camelCase 不一致，单独处理。
+            if s.get("is_private").and_then(|v| v.as_bool()).unwrap_or(false) {
+                return false;
+            }
             let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
             let proj = s.get("project_path").and_then(|v| v.as_str());
             !memex_core::processor::privacy::is_private_session(id, proj)

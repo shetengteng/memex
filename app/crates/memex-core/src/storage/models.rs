@@ -120,6 +120,11 @@ pub struct SearchResult {
     pub project: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
+    /// v5: session 是否被用户标记为私有。MCP 层在
+    /// `privacy.skip_private_sessions = true` 时会按此字段过滤。
+    /// `#[serde(default)]` 让旧客户端不带这字段时反序列化为 false。
+    #[serde(default)]
+    pub is_private: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -184,3 +184,21 @@ pub async fn abort_summarize() -> CmdResult<bool> {
     flag.store(true, Ordering::SeqCst);
     Ok(was_running)
 }
+
+/// 把单条会话标记 / 取消标记为私有。
+///
+/// 与隐私开关 `pref.privacy.private_from_mcp`（即 `config.privacy.skip_private_sessions`）
+/// 配合使用：开关开启时，标记为私有的会话不再向 IDE 暴露（MCP 三个工具
+/// `search_memory` / `list_recent` / `list_sessions_by_range` 都会过滤掉）。
+///
+/// 返回 `Ok(true)` = 行存在且已更新；`Ok(false)` = 找不到该 session_id
+/// （前端可据此提示用户"会话已被删除"）。
+#[tauri::command]
+pub async fn session_set_private(session_id: String, is_private: bool) -> CmdResult<bool> {
+    let db_path = memex_dir().join("memex.db");
+    if !db_path.exists() {
+        return Err(CmdError::NotFound("Database not found".into()));
+    }
+    let db = Db::open(&db_path)?;
+    Ok(db.set_session_private(&session_id, is_private)?)
+}

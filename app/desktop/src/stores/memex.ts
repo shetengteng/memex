@@ -92,6 +92,8 @@ export interface Session {
   decisions?: string[]
   intent?: string
   next?: string[]
+  /** v5: 用户主动「标记为私有」。开启「对 MCP 隐藏私有会话」时此类会话不暴露给 IDE。 */
+  isPrivate: boolean
 }
 
 // reactive 数组：组件可以 `sessions.slice(0, 5)` / `sessions.length`，
@@ -131,6 +133,7 @@ export function rowToSession(row: SessionRow): Session {
     topics: [],
     l2Done: !!row.summaryTitle,
     intent,
+    isPrivate: !!row.isPrivate,
   }
 }
 

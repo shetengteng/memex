@@ -57,7 +57,7 @@ impl Db {
                      FROM messages m
                      WHERE m.session_id = s.id AND m.role = 'user'
                      ORDER BY m.source_offset ASC LIMIT 1) AS first_user_message,
-                    s.intent
+                    s.intent, s.is_private
              FROM sessions s
              LEFT JOIN summaries sm
                 ON sm.session_id = s.id AND sm.level = 'L2_session'

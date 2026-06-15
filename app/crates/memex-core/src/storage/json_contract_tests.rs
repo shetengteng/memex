@@ -40,6 +40,7 @@ fn test_search_result_json_fields() {
         adapter: Some("claude_code".into()),
         project: Some("/proj".into()),
         timestamp: Some("2026-06-01T00:00:00+00:00".into()),
+        is_private: false,
     };
     let json: serde_json::Value = serde_json::to_value(&result).unwrap();
     let obj = json.as_object().unwrap();
@@ -76,6 +77,7 @@ fn test_search_result_skips_none_fields() {
         adapter: None,
         project: None,
         timestamp: None,
+        is_private: false,
     };
     let json: serde_json::Value = serde_json::to_value(&result).unwrap();
     let obj = json.as_object().unwrap();
@@ -115,6 +117,7 @@ fn test_session_row_json_fields() {
         summary_title: None,
         first_user_message: Some("hello there".into()),
         intent: Some("修复 popup 列表中 intent 字段".into()),
+        is_private: false,
     };
     let json: serde_json::Value = serde_json::to_value(&row).unwrap();
     let obj = json.as_object().unwrap();
@@ -128,6 +131,7 @@ fn test_session_row_json_fields() {
         "summaryTitle",
         "firstUserMessage",
         "intent",
+        "isPrivate",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionRow missing: {}", field);
@@ -190,6 +194,7 @@ fn test_session_detail_json_fields() {
             timestamp: Some("2026-06-01T00:00:00+00:00".into()),
         }],
         intent: Some("调研 intent 字段补全".into()),
+        is_private: false,
     };
     let json: serde_json::Value = serde_json::to_value(&detail).unwrap();
     let obj = json.as_object().unwrap();
@@ -207,6 +212,7 @@ fn test_session_detail_json_fields() {
         "messageCount",
         "messages",
         "intent",
+        "isPrivate",
     ];
     for field in &required {
         assert!(obj.contains_key(*field), "SessionDetail missing: {}", field);
