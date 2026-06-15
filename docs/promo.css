@@ -764,9 +764,14 @@ body.show-captions .footer-meta { display: none !important; }
     radial-gradient(circle at 70% 70%, oklch(95% 0.05 145 / 0.5) 0%, transparent 55%),
     var(--bg);
 }
-/* Act 1 hero split: 左右 1:1, 让 GitHub 截图占一半空间 */
+/* Act 1 hero split: 文字 vs GitHub 截图 = 0.8 : 1.2, 截图够大撑场面 */
+.act-hero-split { padding-left: 56px; padding-right: 0; }
+.act-hero-split .act-inner {
+  max-width: 1380px;
+  padding-right: 0;
+}
 .act-hero-split .act-inner-split {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 0.8fr 1.2fr;
   align-items: center;
   gap: 56px;
 }
@@ -776,14 +781,19 @@ body.show-captions .footer-meta { display: none !important; }
   align-items: flex-start;
   gap: 24px;
 }
+.act-hero-split .plan-visual {
+  margin-right: -24px; /* 截图外溢一点点, 视觉上更撑 */
+}
 .act-hero-split .github-frame img {
-  border-radius: 12px;
-  box-shadow: 0 28px 70px -22px oklch(20% 0.04 268 / 0.22);
+  border-radius: 14px;
+  box-shadow: 0 36px 80px -24px oklch(20% 0.04 268 / 0.28);
   width: 100%;
   height: auto;
   display: block;
 }
 @media (max-width: 960px) {
+  .act-hero-split { padding-left: 28px; padding-right: 28px; }
+  .act-hero-split .plan-visual { margin-right: 0; }
   .act-hero-split .act-inner-split { grid-template-columns: 1fr; gap: 32px; }
 }
 
