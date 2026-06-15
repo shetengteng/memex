@@ -7,16 +7,16 @@
   const caption = document.getElementById("narration-caption");
 
   // 8 段 narration (跟 /tmp/promo-rec/narration.json 一致).
-  // v13: 移除 ChatGPT / Copilot / GPT, 只提 Memex 真实支持的 6 个 adapter.
+  // v21: 全段口语化, 段间加过渡词, 像朋友聊天.
   const NARRATION = {
-    1: "这个软件太强了!你是不是经常碰到——\n切一下 AI 编辑器,上次聊到哪儿就全忘了？Memex,本地 AI 记忆中枢。",
-    2: "Claude Code、Cursor、Codex、OpenCode——\n四个工具同时开着,对话散在四处,反复说着同一句话。",
-    3: "上周在 Cursor 拍板的方案,今天打开三个窗口翻了一小时——还是找不到。\n你正在第七次,跟同一个模型讲同一件事。",
-    4: "Memex 把所有 AI 对话写到本地 SQLite——\n不上云、不外传、不被收回。",
-    5: "你不用改任何习惯。\n打开 Cursor、敲下回车——后台 2 秒,这段对话就躺进本地数据库。",
-    6: "「上次那个 retry 策略,到底怎么改的?」\n敲一行关键词——三个月前的决定,瞬间回到眼前。",
-    7: "早八点在 Claude Code 写新功能,深夜十一点切到 Cursor 复盘 bug——\n两个工具看到的,是同一份你。",
-    8: "下载、拖到 Applications、敲两行命令。\n三分钟,装回所有 AI 对话。",
+    1: "这个软件太强了!你是不是经常碰到——\n切一下 AI 编辑器,上次聊到哪儿就全忘了？\nMemex,本地 AI 记忆中枢,就是帮你解决这个的。",
+    2: "你想想啊——Claude Code、Cursor、Codex、OpenCode,\n四个工具同时开,对话散在四处,你每天都在重复说同一句话。",
+    3: "更崩溃的是——上周在 Cursor 拍板的那套方案,\n今天翻了三个窗口、一小时,还是找不到。你已经第七次跟同一个模型讲同一件事了。",
+    4: "所以我们做了 Memex。\n它把你和 AI 的每一句对话,直接写到本地 SQLite——\n不上云、不外传、谁也收不回。",
+    5: "怎么用呢？很简单。\n你不用改任何习惯——打开 Cursor、敲下回车,后台 2 秒,这段对话就静悄悄躺进本地数据库。",
+    6: "想找以前聊过的东西?\n比如「上次那个 retry 策略到底怎么改的?」敲一行关键词,三个月前的决定,瞬间就回到眼前。",
+    7: "最妙的是——早八点在 Claude Code 写新功能,\n深夜十一点切到 Cursor 复盘 bug,两个工具看到的,是同一份你。",
+    8: "现在就可以装。\n下载、拖到 Applications、敲两行命令——三分钟,你过去所有的 AI 对话,全部回家。",
   };
 
   // ?caption=1 → 录屏模式: 显示字幕, 隐藏 progress nav / skip-link / scroll-hint
