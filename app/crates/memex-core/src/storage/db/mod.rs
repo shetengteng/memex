@@ -87,6 +87,22 @@ impl Db {
         // per rusqlite_migration docs).
         conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        // busy_timeout：让 SQLite 在遇到 SQLITE_BUSY 时自动 sleep + 重试，最多
+        // 等 30 秒。
+        //
+        // 真实场景：用户「清空全部数据」时，maintenance::system_reset_all 走
+        //   shutdown daemon → sleep 300ms → reset_all（fs 删除）→ Db::open
+        //   （fresh 跑 migrations）
+        // 但 shutdown 只关 daemon HTTP server / watcher 这条主链；前端定时器
+        // 触发的 IPC handler（mcp_recent_calls / list_notifications 等）在 reset
+        // 窗口里会临时 `Db::open` 自己一份 Connection 跑查询，与 reset 端的
+        // migration transaction 抢锁，必现 `database is locked` (rusqlite_migration
+        // baseline 的 DROP TABLE / CREATE TABLE 整个事务直接 fail)。
+        //
+        // busy_timeout 是 SQLite 处理这种瞬时锁竞争的标准方案：每个连接独立
+        // 设置，跟 WAL 协作良好，写者撞 busy 时 sleep 一小段再试。30s 给得保守，
+        // reset 实际窗口 100~500ms 即可松开。
+        conn.execute_batch("PRAGMA busy_timeout = 30000;")?;
         migrations::build_migrations()
             .to_latest(&mut conn)
             .context("failed to apply schema migrations")?;
