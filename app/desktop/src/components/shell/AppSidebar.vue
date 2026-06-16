@@ -199,7 +199,9 @@ const appVersion = `v${packageJson.version}`
               </div>
               <div class="grid flex-1 text-left leading-tight">
                 <span class="truncate text-[15px] font-bold tracking-tight">Memex</span>
-                <span class="truncate text-[11px] text-muted-foreground">{{ t('sidebar.tagline') }}</span>
+                <span class="truncate text-[11px] text-muted-foreground">
+                  {{ t('sidebar.tagline') }} · {{ appVersion }}
+                </span>
               </div>
             </RouterLink>
           </SidebarMenuButton>
