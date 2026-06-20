@@ -19,6 +19,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[derive(Default)]
 pub struct DeepLinkState {
@@ -178,17 +180,60 @@ fn reset_std_fds_to_devnull() {
     std::mem::forget(devnull_err);
 }
 
+/// 初始化 tracing：把日志按天滚动写到 `~/.memex/logs/daemon.log`。
+///
+/// 必须在 [`reset_std_fds_to_devnull`] 之后调用——后者把 stderr 重定向到
+/// `/dev/null`，默认的 `tracing_subscriber::fmt().init()` 写 stderr 等于
+/// 全部丢弃。这里改用文件 appender，让 daemon 实际可观测。
+///
+/// 设计点：
+/// - 文件位置 `<memex_dir>/logs/daemon.log`，按天滚动（`daemon.log.YYYY-MM-DD`），
+///   跟 `memex.db` 同目录，跟用户已有的数据生命周期一致。
+/// - `tracing_appender::non_blocking` 包一层异步写，避免 IO 阻塞 daemon
+///   tokio runtime；返回的 `WorkerGuard` 必须存活到进程结束，否则 buffer
+///   会随 drop 被丢弃，所以这里 `std::mem::forget` 让它跟进程同寿。
+/// - `with_ansi(false)`：日志文件不需要 ANSI 颜色码。
+/// - 文件落盘失败（比如 logs 目录创建不出来）时静默回退到只装 EnvFilter
+///   的 stderr subscriber——保持 daemon 仍能起来，不因为日志故障 panic。
+fn init_logging() {
+    let logs_dir = memex_core::memex_dir().join("logs");
+    if std::fs::create_dir_all(&logs_dir).is_err() {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| EnvFilter::new("info,memex=debug")),
+            )
+            .try_init();
+        return;
+    }
+
+    let appender = tracing_appender::rolling::daily(&logs_dir, "daemon.log");
+    let (writer, guard) = tracing_appender::non_blocking(appender);
+    // WorkerGuard 持有 background flush worker handle；drop 会停 worker 并丢
+    // pending buffer。daemon 是常驻进程，让它跟进程同寿即可。
+    std::mem::forget(guard);
+
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,memex=debug"));
+
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(writer)
+                .with_ansi(false)
+                .with_target(true)
+                .with_thread_ids(true),
+        )
+        .try_init();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(unix)]
     reset_std_fds_to_devnull();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,memex=debug")),
-        )
-        .init();
+    init_logging();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {

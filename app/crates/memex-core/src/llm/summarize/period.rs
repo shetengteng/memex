@@ -138,7 +138,10 @@ impl PeriodBudget {
                 decisions_per_group: 10,
                 max_summary_chars: 900,
                 min_words: 500,
-                max_tokens: 4096,
+                // 4096 在 50+ session 的真实周报上会触达上限：LLM 在第 N 个
+                // 主题段落中途被强制截断，整段 JSON 不闭合，parse fallback
+                // 把 raw text 砍到 500 字符。改 8192 能覆盖绝大多数 weekly。
+                max_tokens: 8192,
             },
             PeriodKind::Monthly => Self {
                 sessions_per_group: 20,
@@ -146,7 +149,10 @@ impl PeriodBudget {
                 decisions_per_group: 15,
                 max_summary_chars: 1500,
                 min_words: 1500,
-                max_tokens: 8192,
+                // 同 weekly，400+ session 的 monthly 在 8192 也会触达上限。
+                // 16384 对应 ≈ 8000-12000 中文字符的 JSON 输出，覆盖
+                // session_count <= 500 的真实 monthly 报告。
+                max_tokens: 16384,
             },
         }
     }

@@ -85,6 +85,72 @@ fn test_parse_summary_fallback() {
     assert!(!s.title.is_empty());
 }
 
+/// 真实场景：LLM 在写 summary value 时 token 用完，最后一个 close quote 与 `}`
+/// 都没写出来。parse 应当从 partial JSON 中救出已写完的部分，而不是把整页砍到
+/// 500 字符。这是 weekly:2026-W25 / monthly:2026-06 实测被截到 500 字符的
+/// 那个 bug 路径——救援后 summary 应当包含 LLM 已经生成的全部主题段落。
+#[test]
+fn test_parse_summary_recovers_summary_when_close_quote_missing() {
+    let raw = "{\"title\":\"Weekly 2026-W25\",\
+        \"summary\":\"【Jira】ZOOM-1296522 描述更新。\
+        【Zoom Docs】生成 testzoom-cli 安装指南。\
+        【code review】检查 ZOOM-1295377 任务实现。\
+        【loading】确认项目中通用的 loading 显示";
+    let s = parse_summary(raw).unwrap();
+    assert!(
+        s.summary.contains("【loading】确认项目中通用的"),
+        "应保留 LLM 已生成的所有主题段落, got summary={:?}",
+        s.summary
+    );
+    assert!(
+        s.summary.chars().count() > 50,
+        "救援内容长度应远超 50 字符 fallback 阈值, got {}",
+        s.summary.chars().count()
+    );
+}
+
+/// LLM 写完了 summary 的 close quote 但 `}` 没写出来 —— `from_str::<Value>`
+/// 会失败，但 partial 救援能精确取到 close quote 之间的内容（不含尾部多余字符）。
+/// 注：summary 必须 ≥ 50 字符（救援阈值），否则走最终 fallback。
+#[test]
+fn test_parse_summary_recovers_summary_when_object_brace_missing() {
+    let summary = "这是一段完整收尾的 weekly 总结，覆盖了 Jira 任务、文档、code review、git 操作等多个主题。";
+    let raw = format!(
+        r#"{{"title":"Weekly","summary":"{}","topics":["a","#,
+        summary
+    );
+    let s = parse_summary(&raw).unwrap();
+    assert_eq!(s.summary, summary);
+}
+
+/// 转义场景：partial JSON 中的 summary value 含有 `\"`（字面量引号）转义，
+/// 救援逻辑必须靠 is_escaped 跳过它，否则 close quote 会被提前定位错。
+/// summary 内容必须够长越过 50 字符救援阈值，才能验证转义解析本身没问题。
+#[test]
+fn test_parse_summary_recovers_summary_skipping_escaped_quotes() {
+    let raw = r#"{"title":"X","summary":"段落里包含 \"escaped quoted text\" 字面量引号，并且整段生成被 token 上限截断在某处导致 close quote 缺失，此处需要继续追加足够多内容确保越过五十字符的救援阈值"#;
+    let s = parse_summary(raw).unwrap();
+    assert!(
+        s.summary.contains("\"escaped quoted text\""),
+        "反斜杠转义引号应被还原, got {:?}",
+        s.summary
+    );
+}
+
+/// 救援也救不出来时（`"summary":` 字段都没出现）走最终 fallback：summary
+/// 必须带显式 truncate 标识，让 UI 看出来是被截断的而不是 LLM 真就只写了
+/// 这么短。这是用户感知到"周报不完整"的最坏情况兜底。
+#[test]
+fn test_parse_summary_final_fallback_appends_truncate_marker() {
+    let text = "完全不像 JSON 的 LLM 输出";
+    let s = parse_summary(text).unwrap();
+    assert!(
+        s.summary.contains("（生成被截断）") || s.summary.contains("(generation truncated)"),
+        "fallback 必须追加 truncate 标记, got {:?}",
+        s.summary
+    );
+}
+
 #[test]
 fn test_parse_summary_object_decisions() {
     let json = r#"```json
