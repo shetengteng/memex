@@ -34,7 +34,7 @@ memex-cli ingest                # 拉一遍历史
 }
 ```
 
-注入后**重启 Claude Code**，工具以 `mcp__memex__*` 命名空间出现在工具列表（当前 6 个工具）。
+注入后**重启 Claude Code**，工具以 `mcp__memex__*` 命名空间出现在工具列表（当前 9 个工具：6 个 FTS5 主路径 + 3 个 raw 兜底）。
 
 ## 工具调用样例（Claude Code 内）
 
@@ -49,6 +49,23 @@ Claude Code 的 MCP 工具调用统一前缀为 `mcp__memex__`：
 | "我索引了多少东西？" | `mcp__memex__stats` | — |
 | "把这个 repo 的项目工作记忆拉出来" | `mcp__memex__get_project_context` | —（自动 cwd），可加 `top=5` |
 | "把 6 月 1-7 号所有会话列出来" | `mcp__memex__list_sessions_by_range` | `after="2026-06-01"`, `before="2026-06-07"` |
+| "search_memory 没搜到但我记得讲过 X" / 需要 regex | `mcp__memex__raw_grep` | `query="..."`, `regex=true/false` |
+| "按 session id 前缀 abc 找文件" / 按 mtime 找最近 md | `mcp__memex__raw_find` | `name_pattern="abc*"` 或 `after=...` |
+| "把 raw_grep 命中那条再多看 20 行上下文" | `mcp__memex__raw_read` | `session_id=...`, `start_line=...`, `end_line=...` |
+
+### raw_* 工具的使用规则（重要）
+
+**raw_grep / raw_find / raw_read 是兜底**，不是首选：
+
+1. 先用 `search_memory` —— FTS5 已经能解决绝大多数检索。
+2. **只在以下情况**切到 raw 工具：
+   - `search_memory` 返回 0 条或明显不相关
+   - 用户明确要求 regex / 按文件行号定位
+   - 需要按文件 mtime / 大小 / 文件名 glob 查（FTS5 表达不了）
+3. raw 工具只扫 `<data_dir>/sessions/<adapter>/<session_id>.md`（归一化目录），
+   **不允许**让 LLM 把它当通用 grep 用 —— 它有沙箱，传外部路径会被拒绝。
+4. raw_grep 命中后，优先把 `session_id` 喂给 `get_session` 取完整上下文；
+   只有要看具体行号附近时才用 `raw_read`。
 
 ### search_memory 推荐用法
 

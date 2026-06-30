@@ -36,7 +36,7 @@ args = ["mcp"]
 enabled = true
 ```
 
-注入后**重启 Codex CLI**（`codex` 二进制），运行 `/mcp` 应该能看到 `memex` 服务器及它暴露的 6 个工具（search_memory / get_session / list_recent / stats / get_project_context / list_sessions_by_range）。
+注入后**重启 Codex CLI**（`codex` 二进制），运行 `/mcp` 应该能看到 `memex` 服务器及它暴露的 9 个工具（search_memory / get_session / list_recent / stats / get_project_context / list_sessions_by_range / raw_grep / raw_find / raw_read）。
 
 ## 工具调用样例（Codex 内）
 

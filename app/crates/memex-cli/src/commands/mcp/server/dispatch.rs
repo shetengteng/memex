@@ -12,7 +12,8 @@
 use super::super::client::McpClient;
 use super::super::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
-    TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
+    TOOL_LIST_SESSIONS_BY_RANGE, TOOL_RAW_FIND, TOOL_RAW_GREP, TOOL_RAW_READ, TOOL_SEARCH_MEMORY,
+    TOOL_STATS,
 };
 use super::tools;
 
@@ -135,6 +136,58 @@ fn handle_list_tools(req: &JsonRpcRequest) -> JsonRpcResponse {
                         "project": { "type": "string", "description": "Filter by project path" }
                     },
                     "required": ["after", "before"]
+                }
+            },
+            {
+                "name": TOOL_RAW_GREP,
+                "description": "FALLBACK raw-file content search. Use ONLY when `search_memory` returns no useful results, or when the user explicitly asks for regex / file-line view. Scans normalized session markdown files under <data_dir>/sessions/<adapter>/<session_id>.md.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Search term. Literal by default; set `regex: true` to interpret as regex." },
+                        "regex": { "type": "boolean", "description": "Treat query as regex (default false)" },
+                        "case_sensitive": { "type": "boolean", "description": "Default false" },
+                        "adapter": { "type": "string", "description": "Filter by adapter (claude_code / codex / cursor / continue / opencode)" },
+                        "project": { "type": "string", "description": "Substring match against the session's project path (case-insensitive)" },
+                        "after": { "type": "string", "description": "File mtime >= this ISO date (YYYY-MM-DD or RFC3339)" },
+                        "before": { "type": "string", "description": "File mtime <= this ISO date" },
+                        "context": { "type": "integer", "description": "Lines of context around each hit (default 2, max 10)" },
+                        "limit": { "type": "integer", "description": "Max hits (default 20, max 200)" },
+                        "files_only": { "type": "boolean", "description": "Return one hit per matched file (rg -l equivalent)" }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": TOOL_RAW_FIND,
+                "description": "FALLBACK raw-file locator. List session markdown files by filename pattern / mtime / size / project. Use when `list_recent` or `list_sessions_by_range` cannot express the filter (e.g., glob on session id).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name_pattern": { "type": "string", "description": "Glob (`*` / `?`) by default; regex if `regex: true`. Match is anchored to full filename." },
+                        "regex": { "type": "boolean", "description": "Interpret name_pattern as regex" },
+                        "adapter": { "type": "string" },
+                        "project": { "type": "string", "description": "Substring match against project path" },
+                        "after": { "type": "string", "description": "File mtime >= this ISO date" },
+                        "before": { "type": "string", "description": "File mtime <= this ISO date" },
+                        "min_size_kb": { "type": "integer" },
+                        "max_size_kb": { "type": "integer" },
+                        "limit": { "type": "integer", "description": "Default 50, max 500" }
+                    }
+                }
+            },
+            {
+                "name": TOOL_RAW_READ,
+                "description": "Read a line range from a session markdown file. Pass `session_id` (full or prefix) or an absolute `file` path inside <data_dir>/sessions/. Use after raw_grep to expand context around a hit.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string", "description": "Session id (full or prefix). Preferred over `file`." },
+                        "file": { "type": "string", "description": "Absolute path; must be inside the sandbox." },
+                        "start_line": { "type": "integer", "description": "1-based inclusive" },
+                        "end_line": { "type": "integer", "description": "1-based inclusive; max span 500 lines" }
+                    },
+                    "required": ["start_line", "end_line"]
                 }
             }
         ]

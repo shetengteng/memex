@@ -1,5 +1,5 @@
 cask "memex" do
-  version "1.0.6"
+  version "1.0.7"
 
   # Apple Silicon
   on_arm do

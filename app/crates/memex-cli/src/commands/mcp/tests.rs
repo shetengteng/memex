@@ -39,7 +39,7 @@ fn test_tools_list_returns_six_tools() {
     assert!(resp.error.is_none());
     let tools = resp.result.unwrap();
     let tool_list = tools["tools"].as_array().unwrap();
-    assert_eq!(tool_list.len(), 6);
+    assert_eq!(tool_list.len(), 9);
     let names: Vec<&str> = tool_list
         .iter()
         .map(|t| t["name"].as_str().unwrap())
@@ -51,6 +51,9 @@ fn test_tools_list_returns_six_tools() {
         "stats",
         "get_project_context",
         "list_sessions_by_range",
+        "raw_grep",
+        "raw_find",
+        "raw_read",
     ] {
         assert!(
             names.contains(&expected),

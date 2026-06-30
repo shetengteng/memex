@@ -236,7 +236,7 @@ function onDeleteFromDialog() {
       <!-- ScrollArea：macOS 默认 hover 才显示 scrollbar，原生 overflow-y-auto 用户不易察觉滚动；
            shadcn ScrollArea 自带 scrollbar 持续可见，跨平台表现一致。
            用 max-h 而不是 h，避免列表短时下面留出空白。 -->
-      <ScrollArea v-else class="max-h-[420px]">
+      <ScrollArea v-else type="always" class="max-h-[420px]">
         <!-- 每条用相对定位 + group hover：右上角 ✕ 按钮在 hover 时浮现。
              ✕ 单独成 button 避免点击穿透到外层 openDetail 按钮。 -->
         <div

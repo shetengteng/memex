@@ -23,6 +23,9 @@ memex-cli ingest
 | `stats` | Show index statistics | — |
 | `get_project_context` | TARS-style work-memory summary for current project | — (auto cwd) |
 | `list_sessions_by_range` | List sessions within ISO date range with L2 summaries | `after`, `before` |
+| `raw_grep` | **Fallback** raw-file content search over normalized session markdown. Use only when FTS5 misses or regex is required. | `query` |
+| `raw_find` | **Fallback** locate session files by name pattern / mtime / size / project. | — |
+| `raw_read` | Read a line range from a session markdown file (use after `raw_grep` for more context). | `start_line`, `end_line` |
 
 ### search_memory
 

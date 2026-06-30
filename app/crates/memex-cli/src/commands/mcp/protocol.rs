@@ -56,3 +56,6 @@ pub const TOOL_LIST_RECENT: &str = "list_recent";
 pub const TOOL_STATS: &str = "stats";
 pub const TOOL_GET_PROJECT_CONTEXT: &str = "get_project_context";
 pub const TOOL_LIST_SESSIONS_BY_RANGE: &str = "list_sessions_by_range";
+pub const TOOL_RAW_GREP: &str = "raw_grep";
+pub const TOOL_RAW_FIND: &str = "raw_find";
+pub const TOOL_RAW_READ: &str = "raw_read";

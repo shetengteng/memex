@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests;
 
+pub mod raw;
+
 use crate::storage::db::Db;
 use crate::storage::models::SearchResult;
 use anyhow::Result;

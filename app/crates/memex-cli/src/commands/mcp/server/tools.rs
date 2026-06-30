@@ -32,8 +32,10 @@ use serde_json::Value;
 use super::super::client::McpClient;
 use super::super::protocol::{
     JsonRpcRequest, JsonRpcResponse, TOOL_GET_PROJECT_CONTEXT, TOOL_GET_SESSION, TOOL_LIST_RECENT,
-    TOOL_LIST_SESSIONS_BY_RANGE, TOOL_SEARCH_MEMORY, TOOL_STATS,
+    TOOL_LIST_SESSIONS_BY_RANGE, TOOL_RAW_FIND, TOOL_RAW_GREP, TOOL_RAW_READ, TOOL_SEARCH_MEMORY,
+    TOOL_STATS,
 };
+use memex_core::retriever::raw;
 
 /// 每次 MCP 工具调用都读一次 config.toml。fail-closed：load 失败按"过滤"
 /// 处理（隐私优先），加载成功后跟随 `skip_private_sessions` 字段。
@@ -66,6 +68,9 @@ pub(super) fn handle_tool_call(req: &JsonRpcRequest, client: &McpClient) -> Json
         TOOL_STATS => tool_stats(client),
         TOOL_GET_PROJECT_CONTEXT => tool_get_project_context(client, &args),
         TOOL_LIST_SESSIONS_BY_RANGE => tool_list_sessions_by_range(client, &args),
+        TOOL_RAW_GREP => tool_raw_grep(&args),
+        TOOL_RAW_FIND => tool_raw_find(&args),
+        TOOL_RAW_READ => tool_raw_read(&args),
         _ => Err(format!("unknown tool: {}", tool_name)),
     };
     let latency_ms = started.elapsed().as_millis() as u64;
@@ -396,4 +401,107 @@ fn tool_list_sessions_by_range(
         "sessions": sessions,
     });
     serde_json::to_string_pretty(&out).map_err(|e| e.to_string())
+}
+
+// ---------- raw_* tools ----------
+//
+// 这三条是 FTS5 的兜底，直接在 `<data_dir>/sessions/<adapter>/<sid>.md` 这棵已
+// 归一化的目录上做 grep / find / read。设计文档：
+// `design/specs/20260630-01-Memex-原始文件兜底检索设计.md`。
+//
+// 不读 SQLite，所以也不需要走 daemon —— 直接 deserialize args 调 memex_core
+// 实现即可。隐私过滤：grep / find 命中后按 redactions.yaml 路径规则二次过滤；
+// 受会话级 is_private 标记保护这一层暂不做（raw 工具入口是磁盘文件，不经过
+// daemon 的 SessionRow，需要为此专门查 db，留作后续优化）。
+
+fn raw_privacy_filter_path(file: &str, project: Option<&str>) -> bool {
+    if !should_filter_private() {
+        return false;
+    }
+    memex_core::processor::privacy::is_private_session(file, project)
+}
+
+fn tool_raw_grep(args: &Value) -> std::result::Result<String, String> {
+    let req: raw::RawGrepRequest =
+        serde_json::from_value(args.clone()).map_err(|e| format!("invalid args: {}", e))?;
+    let mut resp = raw::raw_grep(req).map_err(|e| e.to_string())?;
+    resp.hits
+        .retain(|h| !raw_privacy_filter_path(&h.file, h.project.as_deref()));
+    serde_json::to_string_pretty(&resp).map_err(|e| e.to_string())
+}
+
+fn tool_raw_find(args: &Value) -> std::result::Result<String, String> {
+    let req: raw::RawFindRequest =
+        serde_json::from_value(args.clone()).map_err(|e| format!("invalid args: {}", e))?;
+    let mut resp = raw::raw_find(req).map_err(|e| e.to_string())?;
+    resp.files
+        .retain(|f| !raw_privacy_filter_path(&f.path, f.project.as_deref()));
+    serde_json::to_string_pretty(&resp).map_err(|e| e.to_string())
+}
+
+fn tool_raw_read(args: &Value) -> std::result::Result<String, String> {
+    let req: raw::RawReadRequest =
+        serde_json::from_value(args.clone()).map_err(|e| format!("invalid args: {}", e))?;
+    let resp = raw::raw_read(req).map_err(|e| e.to_string())?;
+    // raw_read 没有 project 字段（解析 frontmatter 后丢弃了），保守起见若文件
+    // 在 private 路径下直接拒绝读取
+    if should_filter_private()
+        && memex_core::processor::privacy::is_private_session(&resp.file, None)
+    {
+        return Err("session not accessible".to_string());
+    }
+    serde_json::to_string_pretty(&resp).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod raw_handler_tests {
+    //! raw_* handler 层的反序列化契约测试。
+    //!
+    //! 端到端命中路径已在 `memex_core::retriever::raw::tests` 覆盖，这里只测
+    //! handler 层独有的"args 解析"和"必填字段缺失"两类错误，确保 IDE 传错参时
+    //! 用户拿到的是有意义的提示而不是 panic。
+    use super::*;
+
+    #[test]
+    fn raw_grep_rejects_missing_query() {
+        let err = tool_raw_grep(&serde_json::json!({})).expect_err("should fail");
+        assert!(err.contains("invalid args") || err.contains("query"));
+    }
+
+    #[test]
+    fn raw_grep_rejects_wrong_type() {
+        let err = tool_raw_grep(&serde_json::json!({ "query": 42 }))
+            .expect_err("should fail");
+        assert!(err.contains("invalid args"));
+    }
+
+    #[test]
+    fn raw_find_accepts_empty_args() {
+        // 全部字段可选，空对象应当解析成功（即便沙箱不存在也只是返回 0 条）。
+        unsafe {
+            std::env::set_var("MEMEX_HOME", "/nonexistent-memex-home-for-test");
+        }
+        let out = tool_raw_find(&serde_json::json!({})).expect("ok");
+        assert!(out.contains("\"files\""));
+    }
+
+    #[test]
+    fn raw_read_rejects_missing_required_fields() {
+        // start_line / end_line 必填，缺失时 serde 报错
+        let err = tool_raw_read(&serde_json::json!({ "session_id": "x" }))
+            .expect_err("should fail");
+        assert!(err.contains("invalid args"));
+    }
+
+    #[test]
+    fn raw_read_rejects_zero_line_number() {
+        // start_line: 0 必须被 NonZeroUsize 拒绝
+        let err = tool_raw_read(&serde_json::json!({
+            "session_id": "x",
+            "start_line": 0,
+            "end_line": 5,
+        }))
+        .expect_err("should fail");
+        assert!(err.contains("invalid args"));
+    }
 }
