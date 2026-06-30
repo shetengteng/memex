@@ -117,7 +117,7 @@ pub async fn batch_summarize(app: AppHandle) -> CmdResult<usize> {
 
     // 用户主动点「批量摘要」按钮 → 把过期 / 缺失的 L2 都补上，
     // 不应用冷却（cool_down_secs=0），避免「明明 LLM 已经配好却没补摘要」的尴尬。
-    let ids = db.sessions_needing_summary(100, 0)?;
+    let ids = db.sessions_needing_summary(usize::MAX, 0)?;
     let total = ids.len();
 
     if total == 0 {
