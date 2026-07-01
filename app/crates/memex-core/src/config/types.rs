@@ -40,6 +40,8 @@ pub struct AdaptersConfig {
     pub continue_dev: bool,
     #[serde(default)]
     pub cline: bool,
+    #[serde(default)]
+    pub kiro: bool,
 }
 
 /// 同上：不能 `#[derive(Default)]`，否则 String 字段会变成 `""`，

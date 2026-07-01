@@ -104,6 +104,7 @@
     --adapter-aider: #0ea5e9;
     --adapter-continue: #ec4899;
     --adapter-cline: #f97316;
+    --adapter-kiro: #14b8a6;
 }
 
 .dark {
@@ -221,6 +222,7 @@
   .ide-dot-aider { background: var(--adapter-aider); }
   .ide-dot-continue { background: var(--adapter-continue); }
   .ide-dot-cline { background: var(--adapter-cline); }
+  .ide-dot-kiro { background: var(--adapter-kiro); }
 
   .ide-chip {
     display: inline-flex;

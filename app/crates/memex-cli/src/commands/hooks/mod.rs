@@ -68,7 +68,7 @@ pub fn install(ide: Ide, memex_bin: &Path, memex_home: &Path) -> Result<HookStat
         Ide::Cursor => cursor::upsert_hook(&cfg, &wrapper)?,
         Ide::ClaudeCode => claude::upsert_hook(&cfg, &wrapper)?,
         Ide::Codex => codex::upsert_hook(&cfg, &wrapper)?,
-        Ide::OpenCode => {} // 上面已经 return 了
+        Ide::OpenCode | Ide::Kiro => {} // 上面已经 return 了（这两个 IDE 目前不支持 hook）
     }
 
     Ok(HookStatus {
@@ -97,7 +97,7 @@ pub fn uninstall(ide: Ide) -> Result<HookStatus> {
             Ide::Cursor => cursor::remove_hook(&cfg)?,
             Ide::ClaudeCode => claude::remove_hook(&cfg)?,
             Ide::Codex => codex::remove_hook(&cfg)?,
-            Ide::OpenCode => {}
+            Ide::OpenCode | Ide::Kiro => {}
         }
     }
     let wrapper = wrapper_path_for(ide);
@@ -139,7 +139,7 @@ pub fn status(ide: Ide) -> Result<HookStatus> {
         Ide::Cursor => cursor::probe_hook(&content),
         Ide::ClaudeCode => claude::probe_hook(&content),
         Ide::Codex => codex::probe_hook(&content),
-        Ide::OpenCode => false,
+        Ide::OpenCode | Ide::Kiro => false,
     };
     let wrapper = wrapper_path_for(ide);
     let wrapper_exists = wrapper.exists();
@@ -171,6 +171,7 @@ fn wrapper_path_for(ide: Ide) -> PathBuf {
         Ide::ClaudeCode => "claude-code-session-start.sh",
         Ide::Codex => "codex-session-start.sh",
         Ide::OpenCode => "opencode-session-start.sh",
+        Ide::Kiro => "kiro-session-start.sh",
     };
     hooks_dir.join(name)
 }
@@ -191,7 +192,7 @@ pub fn list_status() -> Vec<HookStatus> {
 }
 
 fn supports(ide: Ide) -> bool {
-    !matches!(ide, Ide::OpenCode)
+    !matches!(ide, Ide::OpenCode | Ide::Kiro)
 }
 
 /// 每个 IDE 的 hook 配置文件路径。
@@ -207,6 +208,7 @@ fn hook_config_path(ide: Ide) -> PathBuf {
         Ide::ClaudeCode => home.join(".claude").join("settings.json"),
         Ide::Codex => home.join(".codex").join("hooks.json"),
         Ide::OpenCode => home.join(".config").join("opencode").join("opencode.json"), // 仅作占位，install 不会用
+        Ide::Kiro => home.join(".kiro").join("settings").join("hooks.json"), // 仅作占位，install 不会用
     }
 }
 

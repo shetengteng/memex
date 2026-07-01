@@ -49,6 +49,12 @@ fn dest_path(ide: Ide) -> PathBuf {
             .join("opencode")
             .join("commands")
             .join("memex.md"),
+        // Kiro 沿用 Cursor/Claude Code 的 skills/<name>/SKILL.md 目录约定。
+        Ide::Kiro => home
+            .join(".kiro")
+            .join("skills")
+            .join("memex")
+            .join("SKILL.md"),
     }
 }
 
@@ -58,6 +64,8 @@ fn skill_content(ide: Ide) -> &'static str {
         Ide::ClaudeCode => CLAUDE_CODE_SKILL,
         Ide::Codex => CODEX_SKILL,
         Ide::OpenCode => OPENCODE_SKILL,
+        // Kiro 的 Agent 行为最接近 Claude Code（MCP + tool use），直接复用它的 SKILL.md。
+        Ide::Kiro => CLAUDE_CODE_SKILL,
     }
 }
 

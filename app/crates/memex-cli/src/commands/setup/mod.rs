@@ -33,6 +33,7 @@ pub enum Ide {
     ClaudeCode,
     Codex,
     OpenCode,
+    Kiro,
 }
 
 impl Ide {
@@ -42,6 +43,7 @@ impl Ide {
             "claude-code" | "claude" | "claude_code" => Some(Self::ClaudeCode),
             "codex" => Some(Self::Codex),
             "opencode" | "open-code" => Some(Self::OpenCode),
+            "kiro" => Some(Self::Kiro),
             _ => None,
         }
     }
@@ -52,6 +54,7 @@ impl Ide {
             Self::ClaudeCode => "claude-code",
             Self::Codex => "codex",
             Self::OpenCode => "opencode",
+            Self::Kiro => "kiro",
         }
     }
 
@@ -66,11 +69,22 @@ impl Ide {
             Self::ClaudeCode => home.join(".claude.json"),
             Self::Codex => home.join(".codex").join("config.toml"),
             Self::OpenCode => home.join(".config").join("opencode").join("opencode.json"),
+            // Kiro 是 VSCode 家族的 Continue fork，用户级 MCP 配置文件在
+            // ~/.kiro/settings/mcp.json，schema 是标准 `mcpServers` 字典
+            // （从 Kiro 内置 extension 反编译可见），复用 Cursor/Claude Code
+            // 的 JSON backend 就够了。
+            Self::Kiro => home.join(".kiro").join("settings").join("mcp.json"),
         }
     }
 
     pub fn all() -> &'static [Ide] {
-        &[Ide::Cursor, Ide::ClaudeCode, Ide::Codex, Ide::OpenCode]
+        &[
+            Ide::Cursor,
+            Ide::ClaudeCode,
+            Ide::Codex,
+            Ide::OpenCode,
+            Ide::Kiro,
+        ]
     }
 }
 
@@ -96,7 +110,7 @@ const SERVER_NAME: &str = "memex";
 pub fn run(target: &str) -> Result<()> {
     let ide = Ide::parse(target).ok_or_else(|| {
         anyhow::anyhow!(
-            "Unknown IDE: {}. Supported: cursor, claude-code, codex, opencode",
+            "Unknown IDE: {}. Supported: cursor, claude-code, codex, opencode, kiro",
             target
         )
     })?;
@@ -117,7 +131,9 @@ pub fn install(ide: Ide, memex_bin: &Path) -> Result<IdeStatus> {
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
     match ide {
-        Ide::Cursor | Ide::ClaudeCode => {
+        // Kiro 的 mcp.json schema 与 Cursor/Claude Code 一样（`mcpServers` 字典），
+        // 直接复用 JSON backend。
+        Ide::Cursor | Ide::ClaudeCode | Ide::Kiro => {
             upsert_json_mcp_servers(&path, SERVER_NAME, json_command_entry(memex_bin))?
         }
         Ide::Codex => upsert_codex_toml(&path, SERVER_NAME, memex_bin)?,
@@ -148,7 +164,9 @@ pub fn uninstall(ide: Ide) -> Result<IdeStatus> {
     let path = ide.primary_config();
     if path.exists() {
         match ide {
-            Ide::Cursor | Ide::ClaudeCode => remove_json_mcp_servers(&path, SERVER_NAME)?,
+            Ide::Cursor | Ide::ClaudeCode | Ide::Kiro => {
+                remove_json_mcp_servers(&path, SERVER_NAME)?
+            }
             Ide::Codex => remove_codex_toml(&path, SERVER_NAME)?,
             Ide::OpenCode => remove_opencode_json(&path, SERVER_NAME)?,
         }
@@ -189,7 +207,7 @@ pub fn status(ide: Ide) -> Result<IdeStatus> {
     let content =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     let (installed, command) = match ide {
-        Ide::Cursor | Ide::ClaudeCode => probe_json_mcp_servers(&content, SERVER_NAME),
+        Ide::Cursor | Ide::ClaudeCode | Ide::Kiro => probe_json_mcp_servers(&content, SERVER_NAME),
         Ide::Codex => probe_codex_toml(&content, SERVER_NAME),
         Ide::OpenCode => probe_opencode_json(&content, SERVER_NAME),
     };

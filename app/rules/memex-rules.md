@@ -53,6 +53,9 @@
   这些是产物文档，不是会话历史
 - **禁止**在没调 MCP 的情况下编造会话数 / 项目名 / 日期 —— 凡引用具体数字必须有 MCP 工具
   返回作为证据
+- **禁止**给 `get_session` 传 `latest` / `last` / `newest` / `recent` 等魔法值 ——
+  这些不是有效 session_id,会直接 404。要拿最新一条,先 `list_recent(limit=1)` 取 id
+  再传给 `get_session`
 
 ## 验证清单（回答中必须满足）
 

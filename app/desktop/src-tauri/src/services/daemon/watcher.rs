@@ -63,6 +63,15 @@ pub fn adapter_watch_dirs(memex_dir: &Path) -> Vec<PathBuf> {
             dirs.push(p);
         }
     }
+    if config.adapters.kiro {
+        // macOS 唯一路径：Kiro 只在 macOS 有官方发行
+        let p = home.join(
+            "Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/workspace-sessions",
+        );
+        if p.exists() {
+            dirs.push(p);
+        }
+    }
 
     dirs
 }

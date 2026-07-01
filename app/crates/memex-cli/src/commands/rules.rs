@@ -56,17 +56,27 @@ fn dest_path(ide: Ide) -> PathBuf {
         Ide::Codex => home.join(".codex").join("AGENTS.md"),
         // OpenCode 是 sst 的 AI shell，instructions 走 `~/.config/opencode/AGENTS.md`。
         Ide::OpenCode => home.join(".config").join("opencode").join("AGENTS.md"),
+        // Kiro 的 steering 是「一目录多 md，逐个 always-load」的模型，
+        // 我们独占一个 memex.md，跟用户其他 steering 文件互不干扰。
+        Ide::Kiro => home.join(".kiro").join("steering").join("memex.md"),
     }
 }
 
 /// 是否走 Cursor 风格的单文件覆盖；否则走 BEGIN/END marker 块管理。
+/// Cursor / Kiro 都是"专属文件"模型（memex 独占一个文件，用户不会往里塞别的东西）。
 fn uses_managed_block(ide: Ide) -> bool {
-    !matches!(ide, Ide::Cursor)
+    !matches!(ide, Ide::Cursor | Ide::Kiro)
 }
 
-/// 返回最终要写到 Cursor mdc 的完整内容（frontmatter + body）。
-fn cursor_full_content() -> String {
-    format!("{CURSOR_FRONTMATTER}{SHARED_RULE_BODY}")
+/// 返回最终要写到「专属文件」的完整内容。
+/// - Cursor 需要 `.mdc` frontmatter (`alwaysApply: true`)
+/// - Kiro steering 目录里的 md 默认就是 always-load，纯 markdown 即可
+fn dedicated_file_content(ide: Ide) -> String {
+    match ide {
+        Ide::Cursor => format!("{CURSOR_FRONTMATTER}{SHARED_RULE_BODY}"),
+        Ide::Kiro => SHARED_RULE_BODY.to_string(),
+        _ => SHARED_RULE_BODY.to_string(),
+    }
 }
 
 pub fn install(ide: Ide) -> Result<RuleStatus> {
@@ -86,8 +96,8 @@ pub fn install(ide: Ide) -> Result<RuleStatus> {
         upsert_managed_block(&path, SHARED_RULE_BODY)
             .with_context(|| format!("failed to upsert managed block into {}", path.display()))?;
     } else {
-        // Cursor：直接覆盖（mdc 是 memex 独占文件，不与用户其他规则共存）。
-        fs::write(&path, cursor_full_content())
+        // 专属文件模式（Cursor / Kiro）：直接覆盖，memex 独占该文件。
+        fs::write(&path, dedicated_file_content(ide))
             .with_context(|| format!("failed to write {}", path.display()))?;
     }
     crate::out!("{} rule installed at {}", ide.as_str(), path.display());
@@ -317,21 +327,40 @@ mod tests {
     }
 
     #[test]
+    fn kiro_dest_path_is_memex_md_under_kiro_steering() {
+        let p = dest_path(Ide::Kiro);
+        let s = p.to_string_lossy().to_string();
+        assert!(s.ends_with("/.kiro/steering/memex.md"), "actual: {s}");
+    }
+
+    #[test]
     fn cursor_uses_single_file_others_use_managed_block() {
         assert!(!uses_managed_block(Ide::Cursor));
         assert!(uses_managed_block(Ide::ClaudeCode));
         assert!(uses_managed_block(Ide::Codex));
         assert!(uses_managed_block(Ide::OpenCode));
+        // Kiro 用 steering 目录里独立 md，也走 dedicated-file 模式
+        assert!(!uses_managed_block(Ide::Kiro));
     }
 
-    // ---- Cursor full content 拼接 ----
+    // ---- dedicated file content 拼接 ----
 
     #[test]
     fn cursor_full_content_has_frontmatter_then_shared_body() {
-        let s = cursor_full_content();
+        let s = dedicated_file_content(Ide::Cursor);
         assert!(s.starts_with("---\nalwaysApply: true\n---\n"));
         assert!(s.contains("get_project_context"));
         assert!(s.contains("Memex MCP 使用规则"));
+    }
+
+    #[test]
+    fn kiro_full_content_is_plain_shared_body_no_frontmatter() {
+        let s = dedicated_file_content(Ide::Kiro);
+        assert!(
+            !s.starts_with("---"),
+            "Kiro steering md 不需要 Cursor 的 alwaysApply frontmatter"
+        );
+        assert!(s.contains("get_project_context"));
     }
 
     // ---- upsert_managed_block helper：5 个场景 ----

@@ -51,8 +51,9 @@ describe('stores/memex', () => {
   })
 
   describe('adapter meta', () => {
-    it('exposes 7 adapters', () => {
-      expect(adapters.length).toBe(7)
+    it('exposes 8 adapters', () => {
+      expect(adapters.length).toBe(8)
+      expect(ADAPTER_MAP.kiro?.label).toBe('Kiro')
     })
 
     it('ADAPTER_MAP indexes by id', () => {

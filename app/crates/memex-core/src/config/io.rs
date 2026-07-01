@@ -129,6 +129,17 @@ pub fn detect_installed_adapters() -> AdaptersConfig {
         }
     };
     let aider = home.join(".aider.chat.history.md").exists();
+    let kiro = {
+        #[cfg(target_os = "macos")]
+        {
+            home.join("Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/workspace-sessions")
+                .exists()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            false
+        }
+    };
 
     AdaptersConfig {
         claude_code,
@@ -138,6 +149,7 @@ pub fn detect_installed_adapters() -> AdaptersConfig {
         aider,
         continue_dev,
         cline,
+        kiro,
     }
 }
 

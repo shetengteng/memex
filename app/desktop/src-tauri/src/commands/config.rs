@@ -46,8 +46,11 @@ pub async fn get_config(key: String) -> CmdResult<Option<String>> {
                 "codex" => config.adapters.codex,
                 "opencode" => config.adapters.opencode,
                 "aider" => config.adapters.aider,
-                "continue_dev" => config.adapters.continue_dev,
+                // 前端 stores/memex.ts 用 id="continue"，config toml 字段名是
+                // continue_dev —— 两个都收，避免 UI 开关拿不到状态。
+                "continue" | "continue_dev" => config.adapters.continue_dev,
                 "cline" => config.adapters.cline,
+                "kiro" => config.adapters.kiro,
                 _ => return Ok(None),
             };
             Some(enabled.to_string())
@@ -178,8 +181,11 @@ pub async fn toggle_adapter(adapter: String, enabled: bool) -> CmdResult<()> {
         "codex" => config.adapters.codex = enabled,
         "opencode" => config.adapters.opencode = enabled,
         "aider" => config.adapters.aider = enabled,
-        "continue_dev" => config.adapters.continue_dev = enabled,
+        // 前后端命名不一致的历史遗留：前端 stores/memex.ts 用 "continue"，
+        // 配置字段是 continue_dev。两个 alias 都收。
+        "continue" | "continue_dev" => config.adapters.continue_dev = enabled,
         "cline" => config.adapters.cline = enabled,
+        "kiro" => config.adapters.kiro = enabled,
         _ => {
             return Err(CmdError::Validation(format!(
                 "unknown adapter: {}",

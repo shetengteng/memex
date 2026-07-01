@@ -33,7 +33,7 @@ import { meaningfulPrompt } from '@/lib/utils'
 // Adapter 静态元信息（暂时沿用原型）
 // ============================================================
 
-export type Adapter = 'claude_code' | 'cursor' | 'codex' | 'opencode' | 'aider' | 'continue' | 'cline'
+export type Adapter = 'claude_code' | 'cursor' | 'codex' | 'opencode' | 'aider' | 'continue' | 'cline' | 'kiro'
 export type AdapterStatus = 'active' | 'disabled'
 
 export interface AdapterInfo {
@@ -57,6 +57,7 @@ const ADAPTER_META: AdapterInfo[] = [
   { id: 'aider',       label: 'Aider',       color: 'bg-sky-500',     cssVar: 'var(--adapter-aider)',    status: 'disabled', sessions: 0, path: '~/.aider.chat.history.md' },
   { id: 'continue',    label: 'Continue',    color: 'bg-pink-500',    cssVar: 'var(--adapter-continue)', status: 'disabled', sessions: 0, path: '~/.continue/sessions/*.json' },
   { id: 'cline',       label: 'Cline',       color: 'bg-orange-500',  cssVar: 'var(--adapter-cline)',    status: 'disabled', sessions: 0, path: '~/.cline/tasks/**/*.json' },
+  { id: 'kiro',        label: 'Kiro',        color: 'bg-teal-500',    cssVar: 'var(--adapter-kiro)',     status: 'disabled', sessions: 0, path: '~/Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/workspace-sessions/**/*.json' },
 ]
 
 // 用 reactive 而不是 ref：组件可以直接读 `adapters.length` / `adapters.map` /

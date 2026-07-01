@@ -39,6 +39,7 @@ const IDE_LABEL: Record<string, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
   opencode: 'OpenCode',
+  kiro: 'Kiro',
 }
 
 // 之前每个 list 调用都用 `.catch(() => [])` silently 兜底，导致 `setup-status`

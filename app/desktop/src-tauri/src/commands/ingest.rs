@@ -13,7 +13,7 @@ pub struct IngestResult {
 }
 
 /// 触发一次扫描 + ingest。`adapter` 不传则扫描所有 enabled adapter；
-/// 传具体 key（claude_code / cursor / codex / opencode / aider / continue_dev / cline）
+/// 传具体 key（claude_code / cursor / codex / opencode / aider / continue_dev / cline / kiro）
 /// 则只扫这一个。前端把单个 adapter 行的扫描按钮挂到这里。
 ///
 /// 注意：`continue_dev` 是前端 / config / toggle_adapter 历史沿用的命名，

@@ -30,6 +30,7 @@ fn default_adapters_all_disabled() {
     assert!(!c.adapters.aider);
     assert!(!c.adapters.continue_dev);
     assert!(!c.adapters.cline);
+    assert!(!c.adapters.kiro);
 }
 
 #[test]
@@ -62,6 +63,7 @@ opencode = true
 aider = true
 continue_dev = true
 cline = true
+kiro = true
 
 [llm]
 ollama_enabled = true

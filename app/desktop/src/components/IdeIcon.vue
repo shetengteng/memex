@@ -11,7 +11,7 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  /** 适配器 source key：claude_code / cursor / codex / opencode / aider / continue_dev / cline */
+  /** 适配器 source key：claude_code / cursor / codex / opencode / aider / continue(_dev) / cline / kiro */
   source: string
   /** 可选：覆盖品牌色（如悲喜禁用态需要灰化） */
   color?: string

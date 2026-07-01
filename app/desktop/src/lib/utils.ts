@@ -27,8 +27,12 @@ const adapterMap: Record<string, { label: string; abbr: string; color: string; b
   codex:       { label: 'Codex',       abbr: 'Cx', color: 'text-adapter-codex',  bg: 'bg-adapter-codex/12' },
   opencode:    { label: 'OpenCode',    abbr: 'OC', color: 'text-adapter-opencode', bg: 'bg-adapter-opencode/12' },
   aider:       { label: 'Aider',       abbr: 'Ai', color: 'text-adapter-aider', bg: 'bg-adapter-aider/12' },
+  // collector::name() 是 "continue"，config 字段是 continue_dev —— 两个 key 都收，
+  // 让 UI 无论收到哪种 source 都能显示。
   continue_dev:{ label: 'Continue',    abbr: 'Cn', color: 'text-adapter-continue', bg: 'bg-adapter-continue/12' },
+  continue:    { label: 'Continue',    abbr: 'Cn', color: 'text-adapter-continue', bg: 'bg-adapter-continue/12' },
   cline:       { label: 'Cline',       abbr: 'Cl', color: 'text-adapter-cline', bg: 'bg-adapter-cline/12' },
+  kiro:        { label: 'Kiro',        abbr: 'Ki', color: 'text-adapter-kiro',  bg: 'bg-adapter-kiro/12' },
 }
 
 export function adapterLabel(source: string): string {

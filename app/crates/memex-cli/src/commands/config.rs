@@ -29,6 +29,7 @@ pub fn set(key: &str, value: &str, json: bool) -> Result<()> {
         "adapters.aider" => config.adapters.aider = parse_bool(value)?,
         "adapters.continue_dev" => config.adapters.continue_dev = parse_bool(value)?,
         "adapters.cline" => config.adapters.cline = parse_bool(value)?,
+        "adapters.kiro" => config.adapters.kiro = parse_bool(value)?,
         "llm.ollama_enabled" => config.llm.ollama_enabled = parse_bool(value)?,
         "llm.ollama_url" => config.llm.ollama_url = value.to_string(),
         "llm.ollama_model" => config.llm.ollama_model = value.to_string(),

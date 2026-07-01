@@ -74,7 +74,7 @@ impl From<cli_skill::SkillStatus> for SkillStatus {
 fn parse_ide(ide: &str) -> CmdResult<cli_setup::Ide> {
     cli_setup::Ide::parse(ide).ok_or_else(|| {
         CmdError::Validation(format!(
-            "Unknown IDE: {ide}. Supported: cursor, claude-code, codex, opencode"
+            "Unknown IDE: {ide}. Supported: cursor, claude-code, codex, opencode, kiro"
         ))
     })
 }

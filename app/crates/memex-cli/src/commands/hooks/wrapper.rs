@@ -44,5 +44,7 @@ fn wrapper_body(ide: Ide, memex_bin: &Path) -> (&'static str, String) {
         // OpenCode 不在自动注入范围内；返回空 body 仅作 fallback，
         // install() 中 `supports(OpenCode)` 已经先返回了，不会真用到。
         Ide::OpenCode => ("opencode-session-start.sh", String::new()),
+        // Kiro 同样未纳入 hook 自动注入；`supports(Kiro)` 已在 install() 前返回。
+        Ide::Kiro => ("kiro-session-start.sh", String::new()),
     }
 }

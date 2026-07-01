@@ -4,6 +4,7 @@ pub mod cline;
 pub mod codex;
 pub mod continue_dev;
 pub mod cursor;
+pub mod kiro;
 pub mod opencode;
 
 use crate::config::AdaptersConfig;
@@ -36,6 +37,7 @@ pub fn all_adapters() -> Vec<Box<dyn Adapter>> {
         Box::new(aider::AiderAdapter::new()),
         Box::new(continue_dev::ContinueAdapter::new()),
         Box::new(cline::ClineAdapter::new()),
+        Box::new(kiro::KiroAdapter::new()),
     ]
 }
 
@@ -61,6 +63,9 @@ pub fn enabled_adapters(config: &AdaptersConfig) -> Vec<Box<dyn Adapter>> {
     }
     if config.cline {
         adapters.push(Box::new(cline::ClineAdapter::new()));
+    }
+    if config.kiro {
+        adapters.push(Box::new(kiro::KiroAdapter::new()));
     }
     adapters
 }
