@@ -16,6 +16,33 @@ use memex_core::storage::notifications::KIND_INGEST_FAILED;
 
 const DEBOUNCE_SECS: u64 = 2;
 
+/// 判断一次 fs 事件是否指向真正的 session 文件。
+///
+/// 旧过滤器是 `ext == "jsonl" || ext == "json"`，但 Cursor 会在
+/// `~/.cursor/projects/<workspace>/mcp-cache.json` 里缓存 MCP 调用元数据，
+/// **每次 MCP 调用都会重写**这个文件 —— watcher 见到 modify 事件就触发一次
+/// ingest，daemon 因此每 1-2 分钟就跑一遍完整扫描，把 DB / WAL 锁住。
+///
+/// 会话文件的实际约定：
+/// - Claude Code / Cursor / Codex / opencode：`.jsonl`（一行一 event）
+/// - Kiro：`.json`，但路径必然包含 `workspace-sessions` 段
+///
+/// 其它任何 `.json` / `.md` / `.yaml`（IDE 配置、缓存、user 项目文档）都不该
+/// 触发 ingest —— 收集器每次扫源目录时会重新按扩展名 + 内容识别，watcher
+/// 只是「粗触发」。
+fn is_session_file(p: &Path) -> bool {
+    let Some(ext) = p.extension() else {
+        return false;
+    };
+    if ext == "jsonl" {
+        return true;
+    }
+    if ext == "json" && p.to_string_lossy().contains("workspace-sessions") {
+        return true;
+    }
+    false
+}
+
 pub fn adapter_watch_dirs(memex_dir: &Path) -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_default();
     let config = MemexConfig::load(memex_dir).unwrap_or_default();
@@ -99,10 +126,7 @@ pub async fn start_watcher(
             if let Ok(event) = res
                 && matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_))
             {
-                let dominated = event.paths.iter().any(|p| {
-                    p.extension()
-                        .is_some_and(|ext| ext == "jsonl" || ext == "json")
-                });
+                let dominated = event.paths.iter().any(|p| is_session_file(p));
                 if dominated {
                     let _ = watcher_tx.blocking_send(());
                 }
@@ -151,6 +175,11 @@ pub async fn start_watcher(
                             r.messages_ingested, r.chunks_created
                         );
                     }
+                    // ingest 完做一次 WAL checkpoint，把 -wal 收敛回 0。
+                    // 达不到的（有其它连接持锁）忽略，下一轮再试。
+                    if let Err(e) = db.wal_checkpoint_truncate() {
+                        warn!("wal checkpoint after ingest failed: {}", e);
+                    }
                 }
                 Err(e) => {
                     warn!("auto-ingest failed: {}", e);
@@ -177,4 +206,40 @@ pub async fn start_watcher(
     });
 
     Ok(Some(handle))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_session_file;
+    use std::path::PathBuf;
+
+    #[test]
+    fn accepts_jsonl_sessions() {
+        let p = PathBuf::from("/x/.claude/projects/foo/bar.jsonl");
+        assert!(is_session_file(&p));
+    }
+
+    #[test]
+    fn accepts_kiro_workspace_sessions_json() {
+        let p = PathBuf::from(
+            "/x/Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/workspace-sessions/abc.json",
+        );
+        assert!(is_session_file(&p));
+    }
+
+    /// Cursor 的 mcp-cache.json 是频繁重写的配置缓存，不能触发 ingest —
+    /// 这是 daemon 每 1-2 分钟空转的根源。
+    #[test]
+    fn rejects_cursor_mcp_cache_json() {
+        let p = PathBuf::from("/x/.cursor/projects/Users-Foo/mcp-cache.json");
+        assert!(!is_session_file(&p));
+    }
+
+    #[test]
+    fn rejects_non_session_extensions() {
+        for name in ["a.md", "a.yaml", "a.png", "a.txt", "a"] {
+            let p = PathBuf::from(format!("/x/{name}"));
+            assert!(!is_session_file(&p), "{name} should be ignored");
+        }
+    }
 }

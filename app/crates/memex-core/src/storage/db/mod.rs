@@ -81,12 +81,36 @@ impl Db {
         self.clock.now_utc()
     }
 
+    /// 主动把 WAL 中的写入 checkpoint 回主库并截断 -wal 文件。
+    ///
+    /// 用途：daemon 在每次 ingest 完成后调用一次，把 -wal 收敛到 0，避免
+    /// 长跑 daemon 累积几百 MB WAL、MCP 冷启动重放变慢。TRUNCATE 模式比
+    /// PASSIVE 更激进——若有其它连接持锁 checkpoint 会跳过，但 pragma 本身
+    /// 仍返回成功，下一轮再试即可。
+    ///
+    /// # Errors
+    ///
+    /// 底层 SQLite `PRAGMA wal_checkpoint` 语句执行失败（DB 已关闭、IO 错误
+    /// 等）时返回错误。「有其它连接持锁导致本次没截断」不算错误。
+    pub fn wal_checkpoint_truncate(&self) -> Result<()> {
+        let conn = self.conn.lock();
+        // 单独 pragma_query_value 返回三列（busy / log / checkpointed），我们不关心
+        // 具体值，忽略即可；execute_batch 不需要 rowset。
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .context("wal_checkpoint(TRUNCATE) failed")?;
+        Ok(())
+    }
+
     fn init_schema(&self) -> Result<()> {
         let mut conn = self.conn.lock();
         // Keep PRAGMAs outside the migration transaction (best practice
         // per rusqlite_migration docs).
         conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        // WAL 上限 64MB。之前遇到过 daemon 长期跑、-wal 涨到几百 MB 的场景，
+        // MCP 侧新建连接时要重放全部 WAL，冷启动被拖到十几秒。设置 journal_size_limit
+        // 后 SQLite 会在 checkpoint 时把超出部分截断回收。
+        conn.execute_batch("PRAGMA journal_size_limit = 67108864;")?;
         // busy_timeout：让 SQLite 在遇到 SQLITE_BUSY 时自动 sleep + 重试，最多
         // 等 30 秒。
         //

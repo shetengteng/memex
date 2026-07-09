@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     intent TEXT
 );
 
+-- 注意：sessions.l2_attempts / sessions.l2_next_retry_at 由 v6 migration
+-- 追加（参见 migrations.rs::ADD_SESSIONS_L2_BACKOFF_SQL）。同 is_private，
+-- baseline 故意不含，否则 fresh install 跑完 baseline 再跑 v6 会撞
+-- duplicate-column-name。rusqlite_migration 从 v1 baseline 跑到最新，最终
+-- schema 一定有这两列。
+
 -- 注意：sessions.is_private 列与 idx_sessions_private 索引由 v5 migration
 -- 追加（参见 migrations.rs::ADD_SESSIONS_IS_PRIVATE_SQL）。baseline 这里
 -- 故意不包含——和 v3 mcp_call_log payload 列同样的理由：fresh install

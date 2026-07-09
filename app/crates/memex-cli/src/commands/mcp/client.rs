@@ -23,6 +23,17 @@ use serde::{Deserialize, Serialize};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// MCP 启动时 `/health` 探活的超时。
+///
+/// 关键：Claude Code 的 `startup_timeout_sec` 默认 30s，如果 daemon HTTP 线程
+/// 被 ingest（parking_lot mutex 长事务）阻塞，用主 agent 的 30s 全局超时会
+/// 让整个 MCP init 超时失败，用户看到 "MCP client for `memex` timed out"。
+///
+/// 探活只是判断 daemon 是否可达，3s 足够；超时立即返回一个明确错误让 IDE
+/// 上层清晰 surface（"restart Memex.app"），而不是黑洞式挂 30s。真正的 tool
+/// 调用仍走 `REQUEST_TIMEOUT` 30s 的主 agent。
+const HEALTH_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// HTTP 失败时允许"重读 lock + 切端口 + 重试"的最大次数。跟 [`crate::client`]
 /// 保持一致，1 次足够覆盖 daemon 重启 + 端口 fallback 的常见情况。
 const TRANSPORT_RETRY_MAX: u8 = 1;
@@ -84,8 +95,14 @@ impl McpClient {
             .build()
             .into();
 
+        // 用独立的短超时 agent 探活，避免 daemon 卡在 ingest 时把 Claude Code
+        // 的 30s startup_timeout 撑爆。见 HEALTH_PROBE_TIMEOUT。
+        let probe_agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(HEALTH_PROBE_TIMEOUT))
+            .build()
+            .into();
         let health_url = format!("{}/health", base_url);
-        agent.get(&health_url).call().map_err(|e| {
+        probe_agent.get(&health_url).call().map_err(|e| {
             anyhow!(
                 "Memex daemon HTTP not reachable (port {}, error: {}); restart Memex.app.",
                 info.port,

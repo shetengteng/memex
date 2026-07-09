@@ -4,12 +4,15 @@
 //! DTO 与 upsert payload 集中在 `dto`；本文件只承载所有 `impl Db` 方法。
 
 mod dto;
+mod l2_backoff;
 
 use anyhow::Result;
 use rusqlite::params;
 
 use super::Db;
 pub use dto::{AggregateSummaryRow, AggregateSummaryUpsert, SummaryRow, SummaryUpsert};
+#[cfg(test)]
+pub use l2_backoff::L2_MAX_ATTEMPTS;
 
 impl Db {
     /// 写入 / 更新一条会话摘要。
@@ -149,21 +152,23 @@ impl Db {
         };
         let conn = self.conn.lock();
 
+        let now = self.now_utc().to_rfc3339();
         let mut stmt = conn.prepare_cached(
             "SELECT s.id FROM sessions s
              LEFT JOIN summaries sm
                ON s.id = sm.session_id AND sm.level = 'L2_session'
              WHERE s.message_count >= 2
                AND s.updated_at <= ?1
+               AND (s.l2_next_retry_at IS NULL OR s.l2_next_retry_at <= ?2)
                AND (
                  sm.id IS NULL
                  OR s.message_count > sm.message_count_at_creation
                )
              ORDER BY s.updated_at DESC
-             LIMIT ?2",
+             LIMIT ?3",
         )?;
         let rows = stmt
-            .query_map(params![cutoff, limit as i64], |row| row.get(0))?
+            .query_map(params![cutoff, now, limit as i64], |row| row.get(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }

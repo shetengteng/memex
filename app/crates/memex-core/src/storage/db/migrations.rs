@@ -120,6 +120,18 @@ CREATE INDEX IF NOT EXISTS idx_sessions_private
     ON sessions(is_private) WHERE is_private = 1;
 ";
 
+/// v6: `sessions.l2_attempts` / `sessions.l2_next_retry_at` —— L2 摘要失败退避。
+/// 老库跑过若干轮后，某些 session 因 LLM HTTP 报错永久失败，daemon 每 2 分钟
+/// 都会把它们捡回来重试一次，把 DB / WAL 锁住导致 MCP 30s 启动超时。
+/// 加两列做指数退避 + 达到上限后永久跳过，成功一次自动清零。
+///
+/// 仅 ADD COLUMN，O(1) 元数据改动，历史行 attempts=0 / next_retry_at=NULL
+/// 视为「立即可选」，行为向后兼容。
+const ADD_SESSIONS_L2_BACKOFF_SQL: &str = "
+ALTER TABLE sessions ADD COLUMN l2_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN l2_next_retry_at TEXT;
+";
+
 /// Build the migration set.
 pub(super) fn build_migrations() -> Migrations<'static> {
     Migrations::new(vec![
@@ -128,6 +140,7 @@ pub(super) fn build_migrations() -> Migrations<'static> {
         M::up(ADD_MCP_CALL_PAYLOAD_SQL),
         M::up(ADD_NOTIFICATIONS_SQL),
         M::up(ADD_SESSIONS_IS_PRIVATE_SQL),
+        M::up(ADD_SESSIONS_L2_BACKOFF_SQL),
     ])
 }
 

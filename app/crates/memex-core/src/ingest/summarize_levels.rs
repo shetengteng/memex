@@ -111,7 +111,23 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
                     error = %e,
                     "failed to persist L2 session summary"
                 );
+                // 持久化失败也算失败，走退避
+                if let Err(be) = db.record_l2_failure(session_id) {
+                    warn!(
+                        session_id = &session_id[..8.min(session_id.len())],
+                        error = %be,
+                        "failed to record L2 backoff after persist error"
+                    );
+                }
                 return false;
+            }
+            // 成功一次即清零退避计数，让手动改动 / 新消息可以立即再次摘要
+            if let Err(e) = db.reset_l2_backoff(session_id) {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %e,
+                    "failed to reset L2 backoff after success"
+                );
             }
             // 1. corrected_project_path 是 LLM 看完 current_project_path + 对话内容后
             //    给出的「漂移纠正」建议，优先级最高 —— 直接覆盖现有 project_path。
@@ -155,6 +171,15 @@ pub fn summarize_session_by_id(db: &Db, provider: &dyn LlmProvider, session_id: 
                 &session_id[..8.min(session_id.len())],
                 e
             );
+            // 记录退避：下轮 ingest 不会立刻再选它。
+            // 达到 L2_MAX_ATTEMPTS 后永久跳过。
+            if let Err(be) = db.record_l2_failure(session_id) {
+                warn!(
+                    session_id = &session_id[..8.min(session_id.len())],
+                    error = %be,
+                    "failed to record L2 backoff"
+                );
+            }
             false
         }
     }
