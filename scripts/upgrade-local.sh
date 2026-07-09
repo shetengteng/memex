@@ -25,7 +25,7 @@ APP_PATH="/Applications/Memex.app"
 BUNDLE_PATH="$ROOT/app/target/release/bundle/macos/Memex.app"
 MEMEX_DIR="$HOME/.memex"
 
-SKIP_BACKUP=false
+SKIP_BACKUP=true
 SKIP_BUILD=false
 for arg in "$@"; do
   case "$arg" in
