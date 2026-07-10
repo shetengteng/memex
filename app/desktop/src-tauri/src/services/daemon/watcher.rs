@@ -167,26 +167,30 @@ pub async fn start_watcher(
             while rx.try_recv().is_ok() {}
 
             info!("file change detected, running ingest...");
-            match ingest::run_ingest(&db, &memex_dir, None) {
-                Ok(r) => {
+            // ponytail: spawn_blocking 让 ingest 离开 tokio worker 线程，
+            // abort() 时 outer task 可立即在此 .await 处响应取消，
+            // blocking 线程自动 detach（进程退出时一并回收）。
+            let db2 = Arc::clone(&db);
+            let dir2 = memex_dir.clone();
+            let ingest_result = tokio::task::spawn_blocking(move || {
+                ingest::run_ingest(&db2, &dir2, None)
+            })
+            .await;
+
+            match ingest_result {
+                Ok(Ok(r)) => {
                     if r.messages_ingested > 0 {
                         info!(
                             "auto-ingest: {} messages, {} chunks",
                             r.messages_ingested, r.chunks_created
                         );
                     }
-                    // ingest 完做一次 WAL checkpoint，把 -wal 收敛回 0。
-                    // 达不到的（有其它连接持锁）忽略，下一轮再试。
                     if let Err(e) = db.wal_checkpoint_truncate() {
                         warn!("wal checkpoint after ingest failed: {}", e);
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     warn!("auto-ingest failed: {}", e);
-                    // 用户没法主动看到 watcher 的静默失败 —— 写一条通知，UI Bell badge
-                    // 会自动提示。通知写入失败时仍然继续（payload 序列化 + db.insert
-                    // 都 fallible，但不能让通知层影响主流程）。
-                    // 但是要尊重用户在 Settings 里的开关：关掉就静音。
                     if db.notification_enabled(KIND_INGEST_FAILED) {
                         let payload = serde_json::json!({
                             "error": e.to_string(),
@@ -200,6 +204,10 @@ pub async fn start_watcher(
                             Some(&payload),
                         );
                     }
+                }
+                Err(_cancelled) => {
+                    // task 被 abort，正常退出路径
+                    break;
                 }
             }
         }

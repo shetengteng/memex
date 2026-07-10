@@ -86,12 +86,13 @@ where
     // drop 是异步的；不等的话 daemon_restart 立刻进入 spawn_in_process 创建新
     // task，旧 task 还没 drop 完 fsevent fd，新 task 又分配新 fd —— EBADF
     // 仍会偶发（部分泄漏被堵了，但还有"在 abort 与新 spawn 之间撞窗"的剩余泄漏）。
+    // 给后台 task 最多 2 秒完成清理，超时直接放弃（进程即将退出）。
     if let Some(h) = watcher_handle {
         h.abort();
-        let _ = h.await;
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), h).await;
     }
     scheduler_handle.abort();
-    let _ = scheduler_handle.await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), scheduler_handle).await;
 
     serve_result?;
     info!("daemon HTTP server stopped");
