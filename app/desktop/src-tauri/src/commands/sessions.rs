@@ -115,8 +115,9 @@ pub async fn batch_summarize(app: AppHandle) -> CmdResult<usize> {
     let provider = memex_core::llm::select_provider_unified(&db, &config.llm, &dir)
         .ok_or_else(require_provider)?;
 
-    // 用户主动点「批量摘要」按钮 → 把过期 / 缺失的 L2 都补上，
-    // 不应用冷却（cool_down_secs=0），避免「明明 LLM 已经配好却没补摘要」的尴尬。
+    // 用户主动点「批量摘要」按钮 → 先解除因 LLM 不可用积累的永久退避，
+    // 再以 cool_down_secs=0 查全部待摘要会话。
+    let _ = db.reset_permanent_l2_backoff();
     let ids = db.sessions_needing_summary(usize::MAX, 0)?;
     let total = ids.len();
 

@@ -74,4 +74,20 @@ impl Db {
         )?;
         Ok(())
     }
+
+    /// 用户主动触发批量摘要时调用：把所有已达上限（`l2_next_retry_at = NEVER_RETRY`）
+    /// 的会话解除永久退避，重新进入 selector 候选池。
+    /// 临时退避（有限时间）不动，让正常退避逻辑继续生效。
+    ///
+    /// # Errors
+    ///
+    /// 底层 SQLite UPDATE 失败时返回错误。
+    pub fn reset_permanent_l2_backoff(&self) -> Result<u64> {
+        let conn = self.conn.lock();
+        let n = conn.execute(
+            "UPDATE sessions SET l2_attempts = 0, l2_next_retry_at = NULL WHERE l2_next_retry_at = ?1",
+            params![NEVER_RETRY],
+        )?;
+        Ok(n as u64)
+    }
 }

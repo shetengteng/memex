@@ -17,6 +17,17 @@ use provider::LlmProvider;
 /// 逐个尝试，第一个 `is_available()` 的胜出。
 pub fn select_provider_from_db(db: &Db) -> Option<Box<dyn LlmProvider>> {
     let rows = db.provider_list().ok()?;
+    // ponytail: skip status="error" rows — they were marked bad by the health-check UI;
+    // fall through to the next enabled provider rather than burning retries on a known-bad one.
+    for row in rows.iter().filter(|r| r.enabled && r.status != "error") {
+        if let Some(p) = build_provider_from_row(row)
+            && p.is_available()
+        {
+            return Some(p);
+        }
+    }
+    // Second pass: if every enabled provider has status="error", try them anyway —
+    // user may have fixed the issue without re-testing in the UI.
     for row in rows.iter().filter(|r| r.enabled) {
         if let Some(p) = build_provider_from_row(row)
             && p.is_available()
